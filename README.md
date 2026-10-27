@@ -4,7 +4,15 @@ An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
-Builds are made by GitHub Actions for **macOS on Apple Silicon** and published under **Releases**. Download the zip and follow `INSTALL.txt`.
+![Paula's Revenge](docs/screenshot.png)
+
+## Install (no building needed)
+
+Every green build publishes a release. Open **Releases** on the right of the
+repo page, download **PaulasRevenge-macOS.zip** from the newest one, and
+follow the `INSTALL.txt` inside: copy the app into Applications and the
+`.vst3` and `.component` into your plug-in folders, clear macOS quarantine,
+rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 
 ---
 

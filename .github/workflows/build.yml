@@ -2,21 +2,27 @@ name: Build
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write   # lets the build publish a GitHub Release
 
 jobs:
-  macos-arm64:
+  macos:
+    name: macOS universal (Standalone + VST3 + AU)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache JUCE download
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.4-${{ runner.os }}
+
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 
       - name: Build
         run: cmake --build build --config Release -j 4
@@ -24,35 +30,57 @@ jobs:
       - name: Engine tests
         run: ./build/prv_engine_test
 
+      - name: Ad-hoc sign
+        run: |
+          ART="build/PaulasRevenge_artefacts/Release"
+          codesign --force --deep --sign - "$ART/Standalone/Paula's Revenge.app"
+          codesign --force --deep --sign - "$ART/VST3/Paula's Revenge.vst3"
+          codesign --force --deep --sign - "$ART/AU/Paula's Revenge.component"
+
+      - name: Validate AU (auval)
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/PaulasRevenge_artefacts/Release/AU/Paula's Revenge.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -a | grep -i twisted || true
+          auval -strict -v aumu PlRv Twgn
+
+      - name: Validate VST3 (pluginval)
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 7 --validate-in-process \
+            --validate "build/PaulasRevenge_artefacts/Release/VST3/Paula's Revenge.vst3"
+
       - name: Package
         run: |
-          set -e
           ART="build/PaulasRevenge_artefacts/Release"
-          OUT="dist/Paulas-Revenge"
-          mkdir -p "$OUT"
-          cp -R "$ART/Standalone/Paula's Revenge.app" "$OUT/"
-          cp -R "$ART/VST3/Paula's Revenge.vst3" "$OUT/"
-          cp -R "$ART/AU/Paula's Revenge.component" "$OUT/"
-          # ad-hoc signatures so Apple Silicon will load them
-          for b in "$OUT/Paula's Revenge.app" "$OUT/Paula's Revenge.vst3" "$OUT/Paula's Revenge.component"; do
-            codesign --force --deep --sign - "$b"
-          done
-          cp INSTALL.txt "$OUT/"
-          cd dist && ditto -c -k --keepParent Paulas-Revenge Paulas-Revenge-macOS-arm64.zip
+          mkdir -p dist
+          ditto "$ART/Standalone/Paula's Revenge.app" "dist/Paula's Revenge.app"
+          ditto "$ART/VST3/Paula's Revenge.vst3" "dist/Paula's Revenge.vst3"
+          ditto "$ART/AU/Paula's Revenge.component" "dist/Paula's Revenge.component"
+          cp INSTALL.txt dist/
+          cp docs/screenshot.png dist/ 2>/dev/null || true
+          cd dist && ditto -c -k --keepParent . ../PaulasRevenge-macOS.zip
 
-      - name: Upload build
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: Paulas-Revenge-macOS-arm64
-          path: dist/Paulas-Revenge-macOS-arm64.zip
+          name: PaulasRevenge-macOS
+          path: PaulasRevenge-macOS.zip
 
+      # Every green build of main becomes a downloadable Release
+      # (repo front page -> Releases), so there's no digging in Actions.
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('build-{0}', github.run_number) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Paula''s Revenge build {0}', github.run_number) }}
-          prerelease: ${{ ! startsWith(github.ref, 'refs/tags/') }}
-          files: dist/Paulas-Revenge-macOS-arm64.zip
-          body: |
-            Apple Silicon build of Paula's Revenge: standalone app, VST3 and AU in one zip.
-            See INSTALL.txt inside the zip.
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^project(PaulasRevenge VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          TAG="v${VERSION}-build.${{ github.run_number }}"
+          gh release create "$TAG" PaulasRevenge-macOS.zip \
+            --target "${{ github.sha }}" \
+            --title "Paula's Revenge ${VERSION} (build ${{ github.run_number }})" \
+            --latest \
+            --notes "$(git log -1 --pretty=%B)
+
+          Install: unzip, then follow INSTALL.txt (app into Applications, .vst3 and .component into your plug-in folders, clear quarantine, rescan in Ableton)."

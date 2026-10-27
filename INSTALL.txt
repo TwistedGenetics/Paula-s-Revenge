@@ -1,26 +1,17 @@
-PAULA'S REVENGE - INSTALLING ON A MAC (APPLE SILICON)
+PAULA'S REVENGE - INSTALL (Mac, Apple Silicon or Intel)
 
-1. Standalone app
-   Drag "Paula's Revenge.app" into /Applications.
+Copy Paula's Revenge.app       -> /Applications/
+Copy Paula's Revenge.vst3      -> ~/Library/Audio/Plug-Ins/VST3/
+Copy Paula's Revenge.component -> ~/Library/Audio/Plug-Ins/Components/
 
-2. VST3 plugin
-   Copy "Paula's Revenge.vst3" into:
-   ~/Library/Audio/Plug-Ins/VST3/
+(~ is your home folder. In Finder press Cmd+Shift+G and paste the path.)
 
-3. AU plugin (Ableton Live, Logic, etc.)
-   Copy "Paula's Revenge.component" into:
-   ~/Library/Audio/Plug-Ins/Components/
+Then in Terminal (downloaded files are quarantined by macOS):
 
-   (~ is your home folder. In Finder press Cmd+Shift+G and paste the path.)
+  xattr -dr com.apple.quarantine "/Applications/Paula's Revenge.app"
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paula's Revenge.vst3"
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Paula's Revenge.component"
+  killall -9 AudioComponentRegistrar
 
-4. If macOS says the app or plugin "can't be opened" or is "damaged"
-   The builds are not notarised by Apple. Open Terminal and run these
-   (adjust the paths if you put the files somewhere else):
-
-   xattr -dr com.apple.quarantine "/Applications/Paula's Revenge.app"
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paula's Revenge.vst3"
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Paula's Revenge.component"
-
-5. In Ableton Live
-   Rescan plugins (Settings > Plug-Ins > Rescan). It shows up as an
-   instrument under Twisted Genetics.
+Ableton: Settings > Plug-Ins > Rescan. It appears as an instrument
+under Twisted Genetics.

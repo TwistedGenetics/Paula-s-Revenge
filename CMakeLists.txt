@@ -36,7 +36,7 @@ juce_add_plugin(PaulasRevenge
     COMPANY_NAME "Twisted Genetics"
     BUNDLE_ID "com.twistedgenetics.paulasrevenge"
     PRODUCT_NAME "Paula's Revenge"
-    PLUGIN_MANUFACTURER_CODE TwGn
+    PLUGIN_MANUFACTURER_CODE Twgn
     PLUGIN_CODE PlRv
     FORMATS ${PRV_FORMATS}
     IS_SYNTH TRUE
