@@ -383,7 +383,7 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
 * Four knobs of the plug-in's own can be learned on its page (**LEARN** next to `L`, `Q`, `H` and `W`). On that instrument's notes, `Lxx`, `Qxx`, `Hxx` and `Wxx` then set those knobs instead of the filters, and `Yxx` makes them glide. `Oxx` sends the mod wheel (MIDI CC 1). The track's AUTO A / B can be learned here too.
-* The computer keyboard and a MIDI keyboard play it live, on the pattern, the mixer and its own page.
+* The computer keyboard and a MIDI keyboard play it live, on the pattern, the mixer and its own page — also while the plug-in's own window is in front, so you can play and tweak the sound without clicking back. (Text boxes inside the plug-in still get your typing; Esc and Tab stay with the plug-in.)
 * Its settings are saved in the song, changes made on its page are undo steps, and RENDER WAV includes it. If a song uses a plug-in this computer doesn't have, the instrument shows `!NAME`, plays nothing and keeps its settings for when the plug-in is back.
 
 ## Files

@@ -127,6 +127,11 @@ public:
     int maxBlock = 512;
     bool showWindows = true;   // (tests without a screen turn this off)
 
+    // keys typed while a plug-in's window is in front go on to the app (so the computer keyboard
+    // keeps playing notes while you tweak a sound); text boxes inside the plug-in still get theirs
+    std::function<bool (const juce::KeyPress&)> onWindowKey;
+    std::function<void (bool isDown)> onWindowKeyState;
+
 private:
     std::atomic<bool> scanning { false };
     mutable juce::CriticalSection statusLock;

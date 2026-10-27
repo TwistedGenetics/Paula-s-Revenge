@@ -424,11 +424,27 @@ struct PluginHost::Window : public juce::DocumentWindow
         setContentOwned (ed, true);
         setResizable (ed->isResizable(), false);
         centreWithSize (getWidth(), getHeight());
+        // (the hosted VST3 view swallows every key, so listen before it gets them)
+        addKeyListener (&keys);
+        ed->addKeyListener (&keys);
         setVisible (true);
     }
+    ~Window() override
+    {
+        if (auto* c = getContentComponent()) c->removeKeyListener (&keys);
+        removeKeyListener (&keys);
+    }
+    struct Keys : juce::KeyListener
+    {
+        explicit Keys (PluginHost& h) : host (h) {}
+        bool keyPressed (const juce::KeyPress& k, juce::Component*) override { return host.onWindowKey != nullptr && host.onWindowKey (k); }
+        bool keyStateChanged (bool down, juce::Component*) override { if (host.onWindowKeyState) host.onWindowKeyState (down); return false; }
+        PluginHost& host;
+    };
     void closeButtonPressed() override { juce::MessageManager::callAsync ([h = &host, f = &fx] { h->closeEditor (*f); }); }
     PluginHost& host;
     juce::AudioPluginInstance& fx;
+    Keys keys { host };
 };
 
 void PluginHost::openEditor (juce::AudioPluginInstance& fx, const juce::String& title)
@@ -448,6 +464,7 @@ void PluginHost::closeEditor (juce::AudioPluginInstance& fx)
     if (it == windows.end()) return;
     auto w = std::move (it->second);
     windows.erase (it);
+    if (auto* c = w->getContentComponent()) c->removeKeyListener (&w->keys);
     w->clearContentComponent();   // deletes the editor while the plug-in is still alive
 }
 
@@ -455,7 +472,11 @@ bool PluginHost::isEditorOpen (juce::AudioPluginInstance& fx) const { return win
 
 void PluginHost::closeAllEditors()
 {
-    for (auto& kv : windows) kv.second->clearContentComponent();
+    for (auto& kv : windows)
+    {
+        if (auto* c = kv.second->getContentComponent()) c->removeKeyListener (&kv.second->keys);
+        kv.second->clearContentComponent();
+    }
     windows.clear();
 }
 } // namespace prv

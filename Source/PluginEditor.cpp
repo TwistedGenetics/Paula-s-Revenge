@@ -180,10 +180,34 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     setView (st.view == View::Browser ? View::Pattern : st.view);
     startTimerHz (30);
     juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PaulaEditor> (this)] { if (safe) safe->pattern.grabKeyboardFocus(); });
+
+    // with a plug-in's window in front, the computer keyboard still plays (and edits) here
+    proc.pluginHost.onWindowKey = [this] (const juce::KeyPress& k)
+    {
+        if (k.getKeyCode() == juce::KeyPress::escapeKey || k.getKeyCode() == juce::KeyPress::tabKey) return false;
+        return keyPressed (k);
+    };
+    proc.pluginHost.onWindowKeyState = [this] (bool down) { keyStateFromElsewhere (down); };
+}
+
+void PaulaEditor::keyStateFromElsewhere (bool down)
+{
+    switch (proc.editorState.view)
+    {
+        case View::SampleEdit: sampleEditor.keyStateChanged (down); break;
+        case View::Browser:    browser.keyStateChanged (down); break;
+        case View::Params:     params.keyStateChanged (down); break;
+        case View::Synth:      synthPage.keyStateChanged (down); break;
+        case View::Mixer:      mixer.keyStateChanged (down); break;
+        case View::Arrange:    break;
+        default:               pattern.keyStateChanged (down); break;
+    }
 }
 
 PaulaEditor::~PaulaEditor()
 {
+    proc.pluginHost.onWindowKey = nullptr;
+    proc.pluginHost.onWindowKeyState = nullptr;
     stopTimer();
     proc.history.onRestored = nullptr;
 }

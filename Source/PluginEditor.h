@@ -23,6 +23,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    void keyStateFromElsewhere (bool isDown);   // key releases while a plug-in window is in front
     void refreshMeters() { timerCallback(); }   // also used by the screenshot test
     void setView (PaulaProcessor::EditorState::View);
     prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
