@@ -290,18 +290,8 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     addAndMakeVisible (downBtn);
     addAndMakeVisible (cloneInPlaceBtn);
 
-    insBtn.onClick = [this, &st]
-    {
-        if (proc.song.sequence.size() >= (size_t) kMaxSequence) return;
-        if (pushStructUndo) pushStructUndo ("INSERT SEQUENCE ENTRY");
-        proc.withLock ([&] {
-            const int b = proc.song.sequence[(size_t) st.seqPos];
-            proc.song.sequence.insert (proc.song.sequence.begin() + st.seqPos + 1, b);
-            sectionsInserted (proc.song.sections, st.seqPos + 1, 1, (int) proc.song.sequence.size());
-        });
-        st.seqPos++;
-        changed();
-    };
+    insBtn.onClick = [this] { insertPosition (false); };
+    newBtn.onClick = [this] { insertPosition (true); };
     delBtn.onClick = [this] { ops.remove(); };   // the highlighted positions (or the one selected)
     blockBox.valueChars = 3;
     blockBox.labelChars = 6;
@@ -314,9 +304,37 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);
         changed();
     };
-    insBtn.setVisible (false);   // (DUP does what INS did: repeats the position after itself)
+    addAndMakeVisible (insBtn);
+    addAndMakeVisible (newBtn);
     addAndMakeVisible (delBtn);
     addAndMakeVisible (blockBox);
+}
+
+// ADD: a new position after the current one, playing the same block (pick another with BLOCK - / +)
+// NEW: a new empty block (as long as the current one), placed in a new position after the current one
+void SequencePanel::insertPosition (bool newBlock)
+{
+    auto& st = proc.editorState;
+    auto& song = proc.song;
+    if (song.sequence.size() >= (size_t) kMaxSequence) { if (onStatus) onStatus ("THE SEQUENCE IS FULL"); return; }
+    if (newBlock && song.blocks.size() >= (size_t) kMaxBlocks) { if (onStatus) onStatus ("CAN'T ADD A NEW BLOCK: THE SONG HAS 256 BLOCKS"); return; }
+    if (pushStructUndo) pushStructUndo (newBlock ? "NEW BLOCK IN SEQUENCE" : "ADD SEQUENCE POSITION");
+    const int at = st.seqPos + 1;
+    int b = song.sequence[(size_t) st.seqPos];
+    Block fresh;
+    if (newBlock) fresh.lines = song.blocks[(size_t) song.safeBlock (b)].lines;
+    proc.withLock ([&] {
+        if (newBlock) { song.blocks.push_back (fresh); b = (int) song.blocks.size() - 1; }
+        song.sequence.insert (song.sequence.begin() + at, b);
+        sectionsInserted (song.sections, at, 1, (int) song.sequence.size());
+    });
+    st.seqPos = at;
+    st.block = b;
+    selectPosition (at);
+    if (onStatus)
+        onStatus ("POSITION " + juce::String (at).paddedLeft ('0', 3) + " ADDED, PLAYING "
+                  + (newBlock ? "NEW EMPTY BLOCK " : "BLOCK ") + juce::String (b).paddedLeft ('0', 3)
+                  + (newBlock ? juce::String() : juce::String (" - CHANGE IT WITH BLOCK - / +")));
 }
 
 void SequencePanel::selectPosition (int r)
@@ -399,9 +417,9 @@ void SequencePanel::paint (juce::Graphics& g) { Theme::panelBox (g, getLocalBoun
 void SequencePanel::resized()
 {
     // three rows of buttons under the list:
-    //   BLOCK [-] 000 [+]   DUP   DEL
+    //   BLOCK [-] 000 [+]   ADD  NEW  DEL
     //   [UP] [DOWN]  CUT  COPY  PASTE  ARRANGE
-    //   CLONE IN PLACE      LOOP SECTION
+    //   CLONE IN PLACE   LOOP SECTION   DUP
     const float px = Theme::px;
     auto r = getLocalBounds().reduced ((int) (px * 2));
     r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
@@ -414,7 +432,8 @@ void SequencePanel::resized()
     auto row1 = r.removeFromBottom (rowH); r.removeFromBottom ((int) px * 2);
 
     delBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap);
-    dupBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap * 2);
+    newBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap);
+    insBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap * 2);
     blockBox.setBounds (row1);
 
     const int aw = (int) (px * 6 * 3);
@@ -433,6 +452,7 @@ void SequencePanel::resized()
         }
     }
 
+    dupBtn.setBounds (row3.removeFromRight (charsW (4))); row3.removeFromRight (gap);
     const int half = (row3.getWidth() - gap) * 14 / 26;
     cloneInPlaceBtn.setBounds (row3.removeFromLeft (half)); row3.removeFromLeft (gap);
     loopSectBtn.setBounds (row3);

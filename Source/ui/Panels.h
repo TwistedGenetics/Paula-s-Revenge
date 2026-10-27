@@ -82,7 +82,8 @@ private:
     PaulaProcessor& proc;
     std::function<void()> changed;
     PixList list;
-    PixButton insBtn { "INS" }, delBtn { "DEL" };
+    PixButton insBtn { "ADD" }, newBtn { "NEW" }, delBtn { "DEL" };
+    void insertPosition (bool newBlock);
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) };
     PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
