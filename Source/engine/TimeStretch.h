@@ -5,14 +5,11 @@
 // grain of the source replayed at the new pitch, so grains repeat (stretch)
 // or get skipped (squash) at the cycle rate.
 //
-// Tuned against real recordings (see README): an Akai S3000XL stretch of the
-// Amen and a set of 90s jungle stretches. They show
-//   * joins at a fixed spacing in the OUTPUT (the cycle length),
-//   * no click at the joins (the waveform steps no more than it does anywhere
-//     else), a ~1 dB loudness dip and a faint, 2-sample-wide mark at each join,
-// which fits a splice point moved to where the level and slope line up,
-// with a very short blend. That's CLASSIC. HARD skips the smoothing for a
-// rougher, clickier sound.
+// CLASSIC was measured from recordings of the real thing (see README): the
+// Amen stretched x2 and x4, traced slice by slice back to the original. Fixed
+// output cycles, each starting at output position / time factor with no join
+// search, and a straight-line crossfade over 2/3 of a cycle from the previous
+// slice's continuation. REVISED lines joins up by shape; HARD butts them.
 #pragma once
 
 #include <vector>

@@ -598,6 +598,23 @@ static void testTimeStretch()
         if (mode == StretchSettings::Mode::Hard) CHECK (ratio > 3.0);
         else CHECK (ratio < 1.5);
     }
+    // CLASSIC = the measured Akai model: fixed cycles, each starting at output/T,
+    // linear crossfade over 2/3 of a cycle from the previous grain's continuation
+    {
+        std::vector<float> noise (20000); uint32_t r = 1;
+        for (auto& v : noise) { r = r * 1664525u + 1013904223u; v = (float) ((r >> 9) & 0xffff) / 32768.0f - 1.0f; }
+        StretchSettings st; st.timeFactor = 2.0; st.cycleLength = 300; st.sampleRate = 44100;
+        auto out = cyclicStretch ({ noise }, st)[0];
+        const int C = 300, X = 200;
+        double err = 0;
+        for (int j = 0; j < C; ++j)
+        {
+            const float w = j < X ? (float) (j + 1) / (float) (X + 1) : 1.0f;
+            const float expect = noise[(size_t) (C / 2 + j)] * w + noise[(size_t) (C + j)] * (1.0f - w);
+            err = std::max (err, (double) std::abs (out[(size_t) (C + j)] - expect));
+        }
+        CHECK (err < 1e-5);
+    }
     // cycle length is in 44.1 kHz samples: 1000 at the Amiga rate is ~376 samples
     {
         StretchSettings st; st.cycleLength = 1000; st.sampleRate = kAmigaC3Rate;

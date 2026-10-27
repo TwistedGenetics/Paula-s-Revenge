@@ -4,9 +4,8 @@
 //    samples to the material's own rate).
 //  * Each cycle starts reading the source where the output "is" in source time
 //    (output position / time factor), and plays at the pitch ratio.
-//  * CLASSIC (matches the S3000XL recording): the start is moved by up to 10% of
-//    a cycle to where the source's level and slope best continue what the
-//    previous cycle was about to play, then a 3%-of-a-cycle blend.
+//  * CLASSIC (measured from real hardware recordings): no line-up; each cycle
+//    fades in linearly over 2/3 of a cycle while the previous one carries on.
 //  * REVISED: start lined up by waveform correlation (within 5%) and a longer
 //    30% blend: smoother, the joins nearly vanish.
 //  * HARD: no line-up and no blend; every join can click.
@@ -52,7 +51,7 @@ std::vector<std::vector<float>> cyclicStretch (const std::vector<std::vector<flo
     int searchRange = 0, fade = 0;
     switch (s.mode)
     {
-        case StretchSettings::Mode::Classic: searchRange = std::max (1, C / 10); fade = std::max (1, (int) std::lround (C * 0.03)); break;
+        case StretchSettings::Mode::Classic: fade = std::max (1, (int) std::lround (C * 2.0 / 3.0)); break;
         case StretchSettings::Mode::Revised: searchRange = std::max (1, C / 20); fade = std::max (2, (int) std::lround (C * 0.30)); break;
         case StretchSettings::Mode::Hard:    break;
     }
@@ -62,25 +61,9 @@ std::vector<std::vector<float>> cyclicStretch (const std::vector<std::vector<flo
     {
         const double ideal = (double) o / T;
         double start = ideal;
-        if (prevNext >= 0.0 && searchRange > 0)
+        if (prevNext >= 0.0 && searchRange > 0)   // REVISED: line the join up by waveform shape
         {
-            if (s.mode == StretchSettings::Mode::Classic)
             {
-                // level + slope match at the splice point
-                const float v0 = guide (prevNext), s0 = guide (prevNext + ratio) - v0;
-                double best = 1e30;
-                for (int d = -searchRange; d <= searchRange; ++d)
-                {
-                    const double p = ideal + d;
-                    if (p < 0) continue;
-                    const float v1 = guide (p), s1 = guide (p + ratio) - v1;
-                    const double cost = std::abs (v1 - v0) + 2.0 * std::abs (s1 - s0);
-                    if (cost < best) { best = cost; start = p; }
-                }
-            }
-            else
-            {
-                // waveform correlation over the blend region
                 const int W = std::max (32, fade);
                 double best = -1e30;
                 for (int d = -searchRange; d <= searchRange; ++d)

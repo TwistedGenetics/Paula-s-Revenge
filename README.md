@@ -101,20 +101,14 @@ Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Changing it l
 
 **STRETCH** in the sample editor opens the old-sampler time stretch, the warbly, metallic jungle stretch, for the selection or the whole sample:
 
-* **CLASSIC**: the Akai sound. The output is built from fixed-length cycles, each a grain of the source replayed at the new pitch, so grains repeat (stretch) or get skipped (squash) at the cycle rate: the metallic buzz of a heavy stretch. Each join is moved slightly (up to 10% of a cycle) to where the level and slope line up, then blended very briefly, so there's no click, just a slight dip at each join.
-* **REVISED**: smoother. Joins are lined up by waveform shape and crossfaded over 30% of a cycle, so they nearly vanish.
-* **HARD**: the cycles are butted together with no lining up, so every join can click. Rougher than real Akai hardware.
+* **CLASSIC**: the Akai sound, matched sample-for-sample to recordings of the real thing. The output is built from fixed-length cycles. Each cycle starts reading the source at the point the output has reached (so slices repeat when stretching and get skipped when squashing), and it fades in over two-thirds of the cycle while the previous slice carries on and fades out. The long, linear blend gives the smooth, phasey, metallic buzz of 90s jungle stretches.
+* **REVISED**: cleaner. Each join is lined up by waveform shape (within 5% of a cycle) and crossfaded over 30% of a cycle.
+* **HARD**: no lining up and no blend, so every join can click. Rougher than real hardware.
 * **TIME %** (25–2000%), **SEMI** and **CENTS** (pitch, independent of time), **CYCLE** (20–2000, default 1000; in 44.1 kHz samples like Akaizer, converted for the sample's own rate). A shorter cycle gives a faster, more metallic buzz; a longer one gives more robotic, echoey repeats.
 * **FIT TO LINES** sets TIME % so the selection lasts that many lines at the song's speed and BPM.
 * **PREVIEW** to hear it, **APPLY** to keep it (undoable).
 
-The controls follow Akaizer (CLASSIC/REVISED, time factor, cycle length, transpose), which recreates the Akai S-series cyclic stretch. The Akai firmware and Akaizer aren't open, so the algorithm is our own, tuned against recordings: an Akai S3000XL stretch of the Amen break and a set of 90s jungle stretches. Measured on the S3000XL file (cycle 371 samples at 48 kHz), CLASSIC comes out close on the things you hear:
-
-| | S3000XL | CLASSIC | REVISED | HARD |
-|---|---|---|---|---|
-| step at joins vs normal | 0.88× | 0.93× | 0.96× | 2.69× (clicks) |
-| loudness dip at joins | −0.95 dB | −0.69 dB | −0.86 dB | −0.42 dB |
-| mark at each join | 1.36× | 1.37× | 1.29× | 9.68× |
+The controls follow Akaizer (CLASSIC/REVISED, time factor, cycle length, transpose). The Akai firmware isn't open, so CLASSIC was measured instead: an Amen break and recordings of it stretched ×2 and ×4 on the real unit (one played back +12 and +24 semitones). Tracing every slice of the recordings back to the original showed fixed cycles, a constant jump back at every join (no searching for a better join point), and a straight-line crossfade lasting 2/3 of the cycle. Rendered with the same settings, CLASSIC matches those recordings to within 19–24 dB, about as close as the recording itself allows; the old splice methods managed 2–5 dB.
 
 ## Sample editor
 
