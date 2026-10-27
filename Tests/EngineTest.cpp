@@ -564,9 +564,9 @@ static void testTimeStretch()
     const int sr = 44100;
     std::vector<float> sine ((size_t) sr);
     for (int i = 0; i < sr; ++i) sine[(size_t) i] = 0.5f * std::sin (2.0 * kPi * 441.0 * i / sr);
-    for (auto mode : { StretchSettings::Mode::Classic, StretchSettings::Mode::Revised })
+    for (auto mode : { StretchSettings::Mode::Classic, StretchSettings::Mode::Revised, StretchSettings::Mode::Hard })
     {
-        StretchSettings st; st.mode = mode; st.cycleLength = 1000;
+        StretchSettings st; st.mode = mode; st.cycleLength = 1000; st.sampleRate = sr;
         st.timeFactor = 2.0;
         auto out = cyclicStretch ({ sine }, st)[0];
         CHECK (std::abs ((int) out.size() - 2 * sr) <= 1);
@@ -574,28 +574,38 @@ static void testTimeStretch()
         st.timeFactor = 1.0; st.semitones = 12.0;
         auto up = cyclicStretch ({ sine }, st)[0];
         const double hzUp = crossingsHz (up, 1000, (int) up.size() - 2000, sr);
-        std::printf ("stretch %s: x2 length keeps %.1f Hz (expect 441), +12 st gives %.1f Hz (expect 882), length %d\n",
-                     mode == StretchSettings::Mode::Classic ? "CLASSIC" : "REVISED", hz, hzUp, (int) up.size());
+        std::printf ("stretch mode %d: x2 length keeps %.1f Hz (expect 441), +12 st gives %.1f Hz (expect 882)\n", (int) mode, hz, hzUp);
         CHECK (std::abs (hz - 441.0) < 441.0 * 0.05);
         CHECK (std::abs (hzUp - 882.0) < 882.0 * 0.08);
         CHECK (up.size() == sine.size());
     }
-    // CLASSIC: the joins every cycle are where the jumps are (the metallic artefact)
+    // joins: CLASSIC/REVISED don't click (like the S3000XL recording), HARD does
+    for (auto mode : { StretchSettings::Mode::Classic, StretchSettings::Mode::Revised, StretchSettings::Mode::Hard })
     {
-        StretchSettings st; st.timeFactor = 1.37; st.cycleLength = 500;
+        StretchSettings st; st.mode = mode; st.timeFactor = 1.37; st.cycleLength = 500; st.sampleRate = sr;
         auto out = cyclicStretch ({ sine }, st)[0];
+        const int C = cycleSamples (st);
         double atJoin = 0, elsewhere = 0; int nj = 0, ne = 0;
-        for (size_t i = 1; i < out.size(); ++i)
+        // compare the step across each join with the steps right next to it
+        // (a 441 Hz sine and 500-sample cycles always join at the same phase)
+        for (size_t i = (size_t) C; i + 2 < out.size(); i += (size_t) C)
         {
-            const double d = std::abs (out[i] - out[i - 1]);
-            if (i % 500 == 0) { atJoin += d; ++nj; } else { elsewhere += d; ++ne; }
+            atJoin += std::abs (out[i] - out[i - 1]); ++nj;
+            elsewhere += 0.5 * (std::abs (out[i - 1] - out[i - 2]) + std::abs (out[i + 1] - out[i])); ++ne;
         }
-        std::printf ("cycle artefacts: mean jump at joins %.4f vs elsewhere %.4f\n", atJoin / nj, elsewhere / ne);
-        CHECK (atJoin / nj > 3.0 * elsewhere / ne);
+        const double ratio = (atJoin / nj) / (elsewhere / ne);
+        std::printf ("joins mode %d: step at joins %.2fx a normal step\n", (int) mode, ratio);
+        if (mode == StretchSettings::Mode::Hard) CHECK (ratio > 3.0);
+        else CHECK (ratio < 1.5);
+    }
+    // cycle length is in 44.1 kHz samples: 1000 at the Amiga rate is ~376 samples
+    {
+        StretchSettings st; st.cycleLength = 1000; st.sampleRate = kAmigaC3Rate;
+        CHECK (std::abs (cycleSamples (st) - 376) <= 1);
     }
     // stereo channels stay the same length and aligned
     {
-        StretchSettings st; st.timeFactor = 0.5;
+        StretchSettings st; st.timeFactor = 0.5; st.sampleRate = sr;
         auto out = cyclicStretch ({ sine, sine }, st);
         CHECK (out.size() == 2 && out[0] == out[1] && std::abs ((int) out[0].size() - sr / 2) <= 1);
     }

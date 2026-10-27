@@ -82,8 +82,12 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     resampleBtn.onClick = [this] { resampleTo (toBox.getValue(), rawBtn.getToggleState()); };
 
     stClassic.setToggleState (true, juce::dontSendNotification);
-    stClassic.onClick = [this] { stClassic.setToggleState (true, juce::dontSendNotification); stRevised.setToggleState (false, juce::dontSendNotification); };
-    stRevised.onClick = [this] { stRevised.setToggleState (true, juce::dontSendNotification); stClassic.setToggleState (false, juce::dontSendNotification); };
+    auto pickMode = [this] (PixButton* b)
+    {
+        for (auto* m : { &stClassic, &stRevised, &stHard }) m->setToggleState (m == b, juce::dontSendNotification);
+        repaint();
+    };
+    for (auto* m : { &stClassic, &stRevised, &stHard }) m->onClick = [pickMode, m] { pickMode (m); };
     for (auto* nb : { &stTime, &stCycle, &stLines, &stSemi, &stCents }) { nb->labelChars = 6; nb->valueChars = 4; nb->onChange = [this] (int) { repaint(); }; }
     stFit.onClick = [this]
     {
@@ -411,7 +415,7 @@ std::vector<juce::Component*> SampleEditor::mainControls()
 
 std::vector<juce::Component*> SampleEditor::stretchControls()
 {
-    return { &stClassic, &stRevised, &stCycle, &stTime, &stLines, &stFit, &stSemi, &stCents, &stPreview, &stApply, &stCancel };
+    return { &stClassic, &stRevised, &stHard, &stCycle, &stTime, &stLines, &stFit, &stSemi, &stCents, &stPreview, &stApply, &stCancel };
 }
 
 void SampleEditor::showStretch (bool show)
@@ -458,9 +462,9 @@ void SampleEditor::resized()
 
     // stretch panel uses the same space as the button rows
     stretchInfoArea = rows[0].toFloat();
-    layoutRow (rows[1], { &stClassic, &stRevised, &stCycle });
+    layoutRow (rows[1], { &stClassic, &stRevised, &stHard });
     layoutRow (rows[2], { &stTime, &stLines, &stFit });
-    layoutRow (rows[3], { &stSemi, &stCents });
+    layoutRow (rows[3], { &stCycle, &stSemi, &stCents });
     layoutRow (rows[5], { &stPreview, &stApply, &stCancel });
 
     auto area = inner.toFloat();
@@ -977,7 +981,9 @@ void SampleEditor::resampleTo (double hz, bool raw)
 StretchSettings SampleEditor::stretchSettings() const
 {
     StretchSettings st;
-    st.mode = stRevised.getToggleState() ? StretchSettings::Mode::Revised : StretchSettings::Mode::Classic;
+    st.mode = stRevised.getToggleState() ? StretchSettings::Mode::Revised
+            : stHard.getToggleState() ? StretchSettings::Mode::Hard : StretchSettings::Mode::Classic;
+    st.sampleRate = inst().rate;   // CYCLE is in 44.1 kHz samples, like Akaizer
     st.timeFactor = stTime.getValue() / 100.0;
     st.semitones = stSemi.getValue();
     st.cents = stCents.getValue();
@@ -1050,7 +1056,7 @@ void SampleEditor::applyStretch (const StretchSettings& st)
     if (hasSel()) { selB = selA + newLen; }
     else { viewStart = 0; viewLen = newLen; }
     stop();
-    commit (std::move (e), juce::String ("STRETCHED ") + (st.mode == StretchSettings::Mode::Classic ? "(CLASSIC) " : "(REVISED) ")
+    commit (std::move (e), juce::String ("STRETCHED ") + (st.mode == StretchSettings::Mode::Classic ? "(CLASSIC) " : st.mode == StretchSettings::Mode::Revised ? "(REVISED) " : "(HARD) ")
                          + juce::String (juce::roundToInt (st.timeFactor * 100)) + "%"
                          + (st.semitones != 0 || st.cents != 0 ? " " + juce::String (st.semitones + st.cents / 100.0, 2) + " ST" : juce::String()));
 }

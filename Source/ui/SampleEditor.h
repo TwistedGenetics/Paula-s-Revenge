@@ -96,7 +96,7 @@ private:
     NumberBox rateBox { "RATE", 500, 96000, 16574 }, toBox { "TO", 500, 96000, 11025 };
 
     // time-stretch panel (replaces the button rows while open)
-    PixButton stClassic { "CLASSIC", true }, stRevised { "REVISED", true }, stFit { "FIT TO LINES" },
+    PixButton stClassic { "CLASSIC", true }, stRevised { "REVISED", true }, stHard { "HARD", true }, stFit { "FIT TO LINES" },
               stPreview { "PREVIEW" }, stApply { "APPLY" }, stCancel { "CANCEL" };
     NumberBox stTime { "TIME %", 25, 2000, 100 }, stCycle { "CYCLE", 20, 2000, 1000 }, stLines { "LINES", 1, 256, 16 },
               stSemi { "SEMI", -36, 36, 0 }, stCents { "CENTS", -99, 99, 0 };
