@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.3.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,7 +24,9 @@ endif()
 add_library(prv_engine STATIC
     Source/engine/Player.cpp
     Source/engine/ModuleIO.cpp
-    Source/engine/SongOps.cpp)
+    Source/engine/SongOps.cpp
+    Source/engine/Commands.cpp
+    Source/engine/TimeStretch.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -64,6 +66,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/SampleEditor.cpp
     Source/ui/SampleBrowser.cpp
     Source/ui/ParamsPage.cpp
+    Source/ui/ArrangePage.cpp
     Source/StandaloneApp.cpp)
 
 if(APPLE)

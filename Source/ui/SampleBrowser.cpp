@@ -71,7 +71,7 @@ SampleBrowser::SampleBrowser (PaulaProcessor& p) : proc (p)
     volSlider.onChange = [this] (float v) { proc.previewGain = v; };
 
     for (auto* c : std::initializer_list<juce::Component*> { &upBtn, &homeBtn, &musicBtn, &desktopBtn, &downloadsBtn, &docsBtn, &volumesBtn, &finderBtn,
-                                                             &playBtn, &stopBtn, &autoBtn, &loadBtn, &cancelBtn, &volSlider })
+                                                             &playBtn, &stopBtn, &autoBtn, &loadBtn, &cancelBtn, &volSlider, &keepRateBtn })
         addAndMakeVisible (c);
 }
 
@@ -195,7 +195,7 @@ bool SampleBrowser::loadSelected()
     if (e.isDir) { setDirectory (e.file); return false; }
     Instrument in;
     juce::String err;
-    if (! importSample (e.file, in, err)) { if (onStatus) onStatus ("ERROR: " + err); return false; }
+    if (! importSample (e.file, in, err, keepRateBtn.getToggleState())) { if (onStatus) onStatus ("ERROR: " + err); return false; }
     stopAudition();
     const int idx = proc.editorState.instrument;
     proc.withLock ([&] { proc.player.jamAllOff(); std::swap (proc.song.instruments[(size_t) idx], in); });
@@ -247,7 +247,9 @@ void SampleBrowser::resized()
         autoBtn.setBounds (bottom1.removeFromLeft (w)); bottom1.removeFromLeft (gap);
         volSlider.setBounds (bottom1);
     }
-    cancelBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 4));
+    cancelBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 5));
+    bottom2.removeFromRight (gap);
+    keepRateBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 3));
     bottom2.removeFromRight (gap);
     loadBtn.setBounds (bottom2);
     r.removeFromBottom (gap * 2);

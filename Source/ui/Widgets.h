@@ -65,6 +65,8 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    bool allowTyping = true;   // double-click the number to type one in
 
     int preferredWidth (float px) const;
 

@@ -10,6 +10,7 @@
 #include "ui/SampleEditor.h"
 #include "ui/SampleBrowser.h"
 #include "ui/ParamsPage.h"
+#include "ui/ArrangePage.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -25,6 +26,7 @@ public:
     prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
     prv::ui::SampleBrowser& getBrowser() { return browser; }
     prv::ui::ParamsPage& getParams() { return params; }
+    prv::ui::ArrangePage& getArrange() { return arrange; }
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
@@ -72,7 +74,7 @@ private:
     PixButton tracksBtn { "8 TRACKS", true }, viewBtn { "BIG VIEW", true };
     PixButton hostPlayBtn { "HOST PLAY", true }, hostTempoBtn { "HOST BPM", true };
     PixButton nameBtn { "NAME" };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
@@ -83,6 +85,7 @@ private:
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;
+    prv::ui::ArrangePage arrange;
     prv::ui::OutputMeter outMeter;
     using View = PaulaProcessor::EditorState::View;
     View returnView = View::Pattern;

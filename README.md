@@ -54,10 +54,19 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 
 Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
 
+## Arrange page
+
+**ARRANGE** in the sequence panel opens the song order full size, each position with a picture of its block's notes:
+
+* Click a position, Shift-click to select a range, then drag it to a new place (a red line shows where it will land).
+* ▲ MOVE / ▼ MOVE (or `Alt+↑/↓`), COPY, CUT, PASTE, REPEAT (`Cmd+D`, duplicates the selection after itself), DELETE.
+* INSERT adds the BLOCK number after the cursor; SET makes the selected positions play that block.
+* `Cmd+Z` / `Cmd+Shift+Z` undo and redo; double-click a position or press Enter to go back to the pattern.
+
 ## Sequence tools
 
 * **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list.
-* **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into a new block 3, moves every later block up one number (the sequence follows, so nothing else changes), and points position 1 at the new block 3. Now you can change it without touching the other places block 2 is used.
+* **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into a new block 3, moves every later block up one number (the sequence follows, so nothing else changes), and points position 1 at the new block 3. The song order keeps the same length; only one new block number exists. Now you can change it without touching the other places block 2 is used. The status line says exactly what happened.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
 * `Cmd+Z` / `Cmd+Shift+Z` in the pattern undo and redo all of these.
 
@@ -84,11 +93,28 @@ LOAD in the instrument panel opens a browser in place of the pattern. Every samp
 
 Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FINDER… opens the normal Mac file dialog.
 
+## Sample rates
+
+Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Changing it leaves the sample data alone, so a lower rate plays lower and slower. In the sample editor: RATE (drag, use +/−, or double-click to type), PRESET steps through 8363 / 11025 / 16574 / 22050 / 32000 / 44100 / 48000. **RESAMPLE** converts the data to the TO rate while keeping the pitch: use a low rate (11025, 8000…) for lo-fi grit, with **RAW** for no anti-alias filtering, the rough old-sampler way. In the browser, **KEEP RATE** loads a file at its own rate instead of converting it to the Amiga rate (16574 Hz). The rate is shown on the instrument's waveform, saved in songs, used for EXPORT SAMPLES, and converted for SAVE MOD.
+
+## Time stretch (Akai style)
+
+**STRETCH** in the sample editor opens the old-sampler time stretch, the warbly, metallic jungle stretch, for the selection or the whole sample:
+
+* **CLASSIC**: the raw cyclic stretch: the sound is cut into cycles that are replayed at the new pitch and repeated or skipped to hit the new length, butted together with no smoothing. Exact pitch, slightly loose timing, lots of character.
+* **REVISED**: the same, but each cycle starts on a zero crossing with a tiny fade at the joins: tighter timing and a cleaner sound, with a little pitch wander.
+* **TIME %** (25–2000%), **SEMI** and **CENTS** (pitch, independent of time), **CYCLE** (20–2000 samples, default 1000; shorter is more metallic and flangey).
+* **FIT TO LINES** sets TIME % so the selection lasts that many lines at the song's speed and BPM.
+* **PREVIEW** to hear it, **APPLY** to keep it (undoable).
+
+The controls follow Akaizer (CLASSIC/REVISED, time factor, cycle length, transpose), which recreates the Akai S-series cyclic stretch. Akaizer and the Akai firmware aren't open, so the algorithm here is our own reconstruction from how they're described, not a copy.
+
 ## Sample editor
 
 EDIT in the instrument panel (or double-click the little waveform) opens a full-size editor. Stereo samples show left and right separately.
 
-* **Select:** drag in the waveform, Shift-click to extend, double-click or SEL ALL for everything. Click once to place the cursor (where PASTE inserts).
+* **Select:** drag in the waveform, Shift-click to extend, double-click or SEL ALL for everything. Click once to place the cursor (where PASTE inserts). **Grab either end of a selection** (the pointer changes to ↔) to move just that end; clicking inside a selection keeps it.
+* **Play it from the keyboard:** the computer keys (same layout as the pattern, `[` `]` for octave) and a MIDI keyboard play the sample at the key's pitch through the full instrument sound, several notes at once, with a playhead for each. **SEL KEYS** makes them play only the selection (looped when LOOP is on).
 * **Zoom:** mouse wheel or ZOOM +/-, FIT SEL, FIT ALL. Click or drag the overview strip to move around. Zoomed right in, you see each sample as a step, the way Paula plays it.
 * **DRAW:** draw the waveform with the mouse.
 * **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, SET LOOP (loop = selection), TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points move with the audio when you cut or paste.
@@ -159,6 +185,31 @@ Same numbering as ProTracker, so MOD files load straight in.
 | `EEx` | Delay the line by x lines |
 | `Fxx` | `01–1F` speed, `20–FF` BPM, `00` stop |
 
+### Extra commands (G–Z)
+
+Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, then two hex digits. Put the cursor on any command to see what it does in the help strip under the pattern.
+
+| Cmd | Effect |
+|---|---|
+| `Gxx` | Glide to the note over xx ticks |
+| `Hxx` | High-pass filter, cutoff xx (`00` 20 Hz – `FF` 20 kHz) |
+| `Kxx` | Chance: the step plays xx/FF of the time |
+| `Lxx` | Low-pass filter, cutoff xx |
+| `Mxx` | Micro-move: `01–7F` late by xx/128 of a line, `81–FF` early by (xx−80)/128 (early works inside a block, not across into the next) |
+| `Nxx` | Note length: release after xx ticks |
+| `Oxx` | Overdrive amount |
+| `Pxx` | Start at xx/256 of the sample |
+| `Qxx` | Filter resonance |
+| `Rxy` | Roll: retrigger every x ticks; y `1–7` quieter, `9–F` louder each time |
+| `Sxx` | Play slice `0–F` of 16 equal slices (stops at the slice end) |
+| `Txx` | Micro-tune: `80` = 0, each step = 1 cent |
+| `U01` / `U00` | Play backwards / forwards |
+| `Wxx` | Band-pass filter, cutoff xx |
+| `Xxy` | Randomise: x `0` note ±y semitones, `1` volume ±y×4, `2` pan ±y×16, `3` start up to y/16 |
+| `Zxx` | Bit crush to xx bits (`01–0F`) |
+
+Every track has a **second effect column** so a note can carry two effects; **FX2** on the bottom row shows or hides it (it starts hidden so the pattern text stays big). SAVE MOD keeps only one 0–F command per note and tells you when something was dropped.
+
 ## The Paula sound
 
 | Control | What it does |
@@ -183,7 +234,7 @@ Samples are resampled on load so `C-3` plays them at their original pitch (16.5 
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 3 adds instrument envelopes/filters/pans and track pans; older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 4 adds the second effect column, G–Z commands and sample rates (v3 added envelopes/filters/pans); older `.prv` files still load.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 

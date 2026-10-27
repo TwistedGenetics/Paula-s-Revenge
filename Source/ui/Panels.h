@@ -62,10 +62,11 @@ private:
     PixList list;
     PixButton insBtn { "INS" }, delBtn { "DEL" };
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) };
-    PixButton cloneInPlaceBtn { "CLONE IN PLACE" };
+    PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
 public:
-    std::function<void()> pushStructUndo;
+    std::function<void()> pushStructUndo, openArrange;
+    std::function<void (const juce::String&)> onStatus;
     void moveSelected (int delta);
     void cloneInPlace();
 };

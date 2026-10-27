@@ -196,6 +196,8 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     upBtn.onClick = [this] { moveSelected (-1); };
     downBtn.onClick = [this] { moveSelected (1); };
     cloneInPlaceBtn.onClick = [this] { cloneInPlace(); };
+    arrangeBtn.onClick = [this] { if (openArrange) openArrange(); };
+    addAndMakeVisible (arrangeBtn);
     addAndMakeVisible (upBtn);
     addAndMakeVisible (downBtn);
     addAndMakeVisible (cloneInPlaceBtn);
@@ -250,7 +252,7 @@ void SequencePanel::moveSelected (int delta)
 void SequencePanel::cloneInPlace()
 {
     auto& st = proc.editorState;
-    if ((int) proc.song.blocks.size() >= kMaxBlocks) return;
+    if ((int) proc.song.blocks.size() >= kMaxBlocks) { if (onStatus) onStatus ("CAN'T CLONE: THE SONG ALREADY HAS 256 BLOCKS"); return; }
     if (pushStructUndo) pushStructUndo();
     int nb = -1;
     // build the new song structure off the audio thread, then swap it in
@@ -265,9 +267,14 @@ void SequencePanel::cloneInPlace()
         seq = std::move (tmp.sequence);
     }
     if (nb < 0) return;
+    const int oldBlock = proc.song.sequence[(size_t) st.seqPos];
     proc.withLock ([&] { std::swap (proc.song.blocks, blocks); std::swap (proc.song.sequence, seq); });
     st.block = nb;
     changed();
+    if (onStatus)
+        onStatus ("POSITION " + juce::String (st.seqPos).paddedLeft ('0', 3) + " NOW PLAYS ITS OWN COPY OF BLOCK "
+                  + juce::String (oldBlock).paddedLeft ('0', 3) + ": BLOCK " + juce::String (nb).paddedLeft ('0', 3)
+                  + (nb < (int) proc.song.blocks.size() - 1 ? " (LATER BLOCKS RENUMBERED)" : ""));
 }
 
 void SequencePanel::refresh()
@@ -303,6 +310,8 @@ void SequencePanel::resized()
     const int aw = (int) (px * 6 * 3);
     upBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap);
     downBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap * 2);
+    arrangeBtn.setBounds (row2.removeFromRight ((int) (px * 6 * 7 + px * 4)));
+    row2.removeFromRight (gap);
     cloneInPlaceBtn.setBounds (row2);
     r.removeFromBottom ((int) px * 2);
     list.setBounds (r);
@@ -454,6 +463,14 @@ void WaveView::paint (juce::Graphics& g)
         const float y1 = mid - hi / 32768.0f * inner.getHeight() * 0.48f;
         const float y2 = mid - lo / 32768.0f * inner.getHeight() * 0.48f;
         g.fillRect (inner.getX() + x, y1, 1.0f, std::max (1.0f, y2 - y1));
+    }
+    const juce::String rateText = juce::String (juce::roundToInt (in.rate)) + "HZ" + (in.isStereo() ? " ST" : "");
+    {
+        auto box = juce::Rectangle<float> (PixelFont::textWidth (rateText, px) + px * 2, px * 9)
+                       .withPosition (r.getRight() - PixelFont::textWidth (rateText, px) - px * 5, r.getY() + px);
+        g.setColour (Theme::skin.bg.withAlpha (0.85f));
+        g.fillRect (box);
+        PixelFont::drawCentred (g, rateText, box, px, Theme::skin.text);
     }
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
 }

@@ -69,8 +69,9 @@ public:
     Mode getMode() const { return mode; }
     bool isPlaying() const { return mode != Mode::Stopped; }
 
-    // Live note preview (keyboard / MIDI). Uses its own voices.
-    void jamNoteOn (int note, int instrIndex, int velocity127 = 127);
+    // Live note preview (keyboard / MIDI). Uses its own voices. start/end
+    // (in samples) limit playback to a region; loopRegion loops it.
+    void jamNoteOn (int note, int instrIndex, int velocity127 = 127, int start = -1, int end = -1, bool loopRegion = false);
     void jamNoteOff (int note);
     void jamAllOff();
 
@@ -90,6 +91,8 @@ public:
     std::atomic<int>   songWraps { 0 };   // counts each time the song loops back (or stops on F00)
     std::atomic<float> uiLevel[kMaxTracks] {};
     std::atomic<float> uiOutL { 0.0f }, uiOutR { 0.0f };   // output peaks of the last block
+    std::atomic<int>   uiJamPos[kJamVoices] {};             // jam voice positions (-1 = silent), for playheads
+    std::atomic<int>   uiJamInstr[kJamVoices] {};
 
 private:
     struct Voice
@@ -106,7 +109,7 @@ private:
         int  outVolume = 64;
         int  pan = -1;              // -1 = Amiga default, 0..255 override
         // effect state
-        uint8_t cmd = 0, param = 0;
+        uint8_t cmd = 0, param = 0, cmd2 = 0, param2 = 0;
         uint8_t portaSpeed = 0, vibSpeed = 0, vibDepth = 0, tremSpeed = 0, tremDepth = 0;
         uint8_t vibPos = 0, tremPos = 0, vibWave = 0, tremWave = 0, offsetMem = 0;
         int  loopRow = 0, loopCount = 0;
@@ -118,6 +121,18 @@ private:
         struct EnvState { int stage = 0; float level = 0, relStep = 0; };   // stage 0 idle,1 A,2 D,3 S,4 R
         EnvState ampEnv, fltEnv;
         struct Svf { float ic1L = 0, ic2L = 0, ic1R = 0, ic2R = 0, a1 = 1, a2 = 0, a3 = 0, k = 2; int count = 0; } svf;
+        // playback region and direction
+        double regionStart = -1, regionEnd = -1;   // slice / selection limits (samples), -1 = none
+        bool   regionLoop = false;
+        bool   reverse = false;
+        double pitchMul = 1.0;                     // micro-tune
+        // extended commands
+        double glideStep = 0; int glideTicks = 0;
+        int    gateTicks = -1;                     // Nxx countdown
+        int    rollEvery = 0, rollVolStep = 0;     // Rxy
+        int    fltType = -1; float fltCutoff = 20000.0f, fltRes = -1.0f;   // H/L/W/Q overrides
+        float  drive = 0.0f; int crushBits = 0;    // Oxx / Zxx
+        Cell   microCell; long long microDelay = -1; bool earlyDone = false;  // Mxx
     };
 
     void resetVoices();
@@ -125,7 +140,14 @@ private:
     void processRow();
     void processCell (int ch, const Cell& cell);
     void triggerNote (Voice& v, const Cell& cell, int ch);
+    void applyRowCommand (Voice& v, uint8_t cmd, uint8_t param, const Cell& cell);
+    void tickCommand (Voice& v, uint8_t cmd, uint8_t param, double& vib, int& trem, int& arp);
     void tickEffects (int ch);
+    void scheduleEarlyNotes();
+    void setInstrument (Voice& v, int instrNumber);
+    double lineSamples() const;
+    uint32_t rng = 0x9E3779B9u;
+    uint32_t nextRandom() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
     void advanceLine();
     double samplesPerTick() const;
     void renderVoice (Voice& v, double inc, float& outL, float& outR);

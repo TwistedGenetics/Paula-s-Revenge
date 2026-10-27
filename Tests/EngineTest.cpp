@@ -3,6 +3,8 @@
 #include "engine/Player.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
+#include "engine/Commands.h"
+#include "engine/TimeStretch.h"
 #include <cstdio>
 #include <random>
 #include <fstream>
@@ -403,8 +405,206 @@ static void testSongOps()
     CHECK (cloneInPlace (full, 0) == -1);
 }
 
+// ---------------------------------------------------------------- v0.4 tests
+static Song oneShot (std::vector<int16_t> data, bool loop = true)
+{
+    Song s; s.numTracks = 4;
+    auto& in = s.instruments[0];
+    in.data = std::move (data); in.volume = 64;
+    if (loop) { in.loopStart = 0; in.loopLength = (int) in.data.size(); }
+    s.sequence = { 0 };
+    return s;
+}
+
+static std::vector<float> renderTrack (Song& s, int n, int sr = 48000)
+{
+    Player p; p.setSampleRate (sr); p.setSong (&s);
+    p.options.model = PaulaOptions::Model::Clean; p.options.zeroOrderHold = false; p.options.eightBit = false;
+    p.options.stereoSep = 0.0f;
+    p.playBlock (0);
+    std::vector<float> L ((size_t) n), R ((size_t) n);
+    p.render (L.data(), R.data(), n);
+    for (int i = 0; i < n; ++i) L[(size_t) i] += R[(size_t) i];
+    return L;
+}
+
+static int firstSound (const std::vector<float>& v, float thr = 1e-4f)
+{
+    for (size_t i = 0; i < v.size(); ++i) if (std::abs (v[i]) > thr) return (int) i;
+    return -1;
+}
+
+static double crossingsHz (const std::vector<float>& v, int a, int b, int sr)
+{
+    int c = 0;
+    for (int i = a + 1; i < b; ++i) if ((v[(size_t) i - 1] < 0) != (v[(size_t) i] < 0)) ++c;
+    return c / 2.0 / ((b - a) / (double) sr);
+}
+
+static std::vector<int16_t> square (int period, int len)
+{
+    std::vector<int16_t> d ((size_t) len);
+    for (int i = 0; i < len; ++i) d[(size_t) i] = (int16_t) ((i % period) < period / 2 ? 16000 : -16000);
+    return d;
+}
+
+static void testExtendedCommands()
+{
+    const int line = 5760;   // speed 6, 125 bpm, 48 kHz
+    // describe every command
+    for (int c = 0; c < kNumCommands; ++c) CHECK (! describeCommand (c, 0x40).empty());
+    CHECK (commandChar (cmdLetter ('L')) == 'L' && commandFromChar ('l') == cmdLetter ('L'));
+
+    // second column: volume in column 1, low-pass in column 2
+    {
+        Song s = oneShot (square (8, 64));
+        s.blocks[0].at (0, 0) = { 37, 1, 0xC, 0x40 };
+        const auto open = renderTrack (s, 9600);
+        s.blocks[0].at (0, 0).cmd2 = cmdLetter ('L'); s.blocks[0].at (0, 0).param2 = 0x30;
+        const auto shut = renderTrack (s, 9600);
+        double eo = 0, es = 0; for (int i = 2000; i < 9600; ++i) { eo += open[(size_t) i] * open[(size_t) i]; es += shut[(size_t) i] * shut[(size_t) i]; }
+        std::printf ("2nd column low-pass: energy %.1f -> %.1f\n", eo, es);
+        CHECK (es < eo * 0.2);
+    }
+    // chance: K00 never, KFF always
+    {
+        Song s = oneShot (square (8, 64));
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('K'), 0x00 };
+        CHECK (firstSound (renderTrack (s, 4000)) < 0);
+        s.blocks[0].at (0, 0).param = 0xFF;
+        CHECK (firstSound (renderTrack (s, 4000)) == 0 || firstSound (renderTrack (s, 4000)) < 5);
+    }
+    // micro-move: M40 = half a line late; MC0 on line 1 = half a line early
+    {
+        Song s = oneShot (square (8, 64));
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('M'), 0x40 };
+        const int late = firstSound (renderTrack (s, 2 * line));
+        s.blocks[0].at (0, 0) = Cell{};
+        s.blocks[0].at (1, 0) = { 37, 1, cmdLetter ('M'), 0xC0 };
+        const int early = firstSound (renderTrack (s, 2 * line));
+        std::printf ("micro-move: late onset %d (expect ~%d), early onset %d (expect ~%d)\n", late, line / 2, early, line / 2);
+        CHECK (std::abs (late - line / 2) < 50 && std::abs (early - line / 2) < 50);
+    }
+    // gate: N03 cuts after 3 ticks (no envelope)
+    {
+        Song s = oneShot (square (8, 64));
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('N'), 3 };
+        const auto v = renderTrack (s, line);
+        double after = 0; for (int i = 3 * 960 + 100; i < line; ++i) after += std::abs (v[(size_t) i]);
+        CHECK (after < 1e-3);
+    }
+    // reverse: a rising ramp played backwards starts high
+    {
+        std::vector<int16_t> ramp (4000);
+        for (int i = 0; i < 4000; ++i) ramp[(size_t) i] = (int16_t) (i * 8);
+        Song s = oneShot (ramp, false);
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('U'), 1 };
+        const auto v = renderTrack (s, 200);
+        std::printf ("reverse: first sample %.3f\n", v[2]);
+        CHECK (v[2] > 0.5f);
+    }
+    // slice: 16 flat slices with different levels, S05 plays the 6th
+    {
+        std::vector<int16_t> d (1600);
+        for (int i = 0; i < 1600; ++i) d[(size_t) i] = (int16_t) ((i / 100) * 1000);
+        Song s = oneShot (d, false);
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('S'), 5 };
+        const auto v = renderTrack (s, 6000);
+        const float expect = 5000.0f / 32768.0f;
+        std::printf ("slice: level %.3f (expect %.3f)\n", v[10], expect);
+        CHECK (std::abs (v[10] - expect) < 0.01f);
+        // and stops at the end of the slice (100 samples at 16574 Hz ~ 290 output samples)
+        CHECK (std::abs (v[1000]) < 1e-6f);
+    }
+    // micro-tune and per-instrument rate both change the pitch
+    {
+        Song s = oneShot (square (32, 64));
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        const double base = crossingsHz (renderTrack (s, 48000), 1000, 48000, 48000);
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('T'), (uint8_t) (128 + 100) };   // +100 cents
+        const double tuned = crossingsHz (renderTrack (s, 48000), 1000, 48000, 48000);
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        s.instruments[0].rate = kAmigaC3Rate * 2.0;
+        const double fast = crossingsHz (renderTrack (s, 48000), 1000, 48000, 48000);
+        std::printf ("pitch: base %.1f, +100c %.1f (expect %.1f), rate x2 %.1f\n", base, tuned, base * std::pow (2.0, 1.0 / 12.0), fast);
+        CHECK (std::abs (tuned - base * std::pow (2.0, 1.0 / 12.0)) < 3.0);
+        CHECK (std::abs (fast - base * 2.0) < 3.0);
+    }
+    // roll, glide, overdrive, crush, random: run and stay finite
+    {
+        Song s = oneShot (square (8, 64));
+        s.instruments[1] = s.instruments[0];
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('R'), 0x23, cmdLetter ('O'), 0xC0 };
+        s.blocks[0].at (2, 0) = { 49, 1, cmdLetter ('G'), 0x06, cmdLetter ('Z'), 4 };
+        s.blocks[0].at (4, 0) = { 37, 2, cmdLetter ('X'), 0x05, cmdLetter ('X'), 0x23 };
+        s.blocks[0].at (6, 0) = { 37, 1, cmdLetter ('H'), 0x80, cmdLetter ('Q'), 0xF0 };
+        s.blocks[0].at (8, 0) = { 37, 1, cmdLetter ('W'), 0x80, cmdLetter ('P'), 0x80 };
+        const auto v = renderTrack (s, 12 * line);
+        bool ok = true; for (float x : v) ok &= std::isfinite (x) && std::abs (x) < 4.0f;
+        CHECK (ok);
+    }
+    // MOD export drops G-Z and the second column, converts rates, and says so
+    {
+        Song s = oneShot (square (8, 64));
+        s.instruments[0].rate = 32000.0;
+        s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('L'), 0x40, 0xC, 0x20 };
+        std::vector<uint8_t> bytes;
+        auto w = saveMOD (s, bytes);
+        bool fx = false, rate = false;
+        for (auto& m : w.warnings) { fx |= m.find ("G-Z") != std::string::npos; rate |= m.find ("rate") != std::string::npos; }
+        CHECK (fx && rate);
+        Song back; CHECK (loadModule (bytes, back).ok);
+        CHECK (back.blocks[0].at (0, 0).cmd == 0xC && back.blocks[0].at (0, 0).param == 0x20);   // column 2 kept as the one PT command
+        CHECK (std::abs ((int) back.instruments[0].data.size() - (int) std::lround (64 / (32000.0 / kAmigaC3Rate))) <= 2);
+    }
+}
+
+static void testTimeStretch()
+{
+    const int sr = 44100;
+    std::vector<float> sine ((size_t) sr);
+    for (int i = 0; i < sr; ++i) sine[(size_t) i] = 0.5f * std::sin (2.0 * kPi * 441.0 * i / sr);
+    for (auto mode : { StretchSettings::Mode::Classic, StretchSettings::Mode::Revised })
+    {
+        StretchSettings st; st.mode = mode; st.cycleLength = 1000;
+        st.timeFactor = 2.0;
+        auto out = cyclicStretch ({ sine }, st)[0];
+        CHECK (std::abs ((int) out.size() - 2 * sr) <= 1);
+        const double hz = crossingsHz (out, 1000, (int) out.size() - 1000, sr);
+        st.timeFactor = 1.0; st.semitones = 12.0;
+        auto up = cyclicStretch ({ sine }, st)[0];
+        const double hzUp = crossingsHz (up, 1000, (int) up.size() - 2000, sr);
+        std::printf ("stretch %s: x2 length keeps %.1f Hz (expect 441), +12 st gives %.1f Hz (expect 882), length %d\n",
+                     mode == StretchSettings::Mode::Classic ? "CLASSIC" : "REVISED", hz, hzUp, (int) up.size());
+        CHECK (std::abs (hz - 441.0) < 441.0 * 0.05);
+        CHECK (std::abs (hzUp - 882.0) < 882.0 * 0.08);
+        CHECK (up.size() == sine.size());
+    }
+    // CLASSIC: the joins every cycle are where the jumps are (the metallic artefact)
+    {
+        StretchSettings st; st.timeFactor = 1.37; st.cycleLength = 500;
+        auto out = cyclicStretch ({ sine }, st)[0];
+        double atJoin = 0, elsewhere = 0; int nj = 0, ne = 0;
+        for (size_t i = 1; i < out.size(); ++i)
+        {
+            const double d = std::abs (out[i] - out[i - 1]);
+            if (i % 500 == 0) { atJoin += d; ++nj; } else { elsewhere += d; ++ne; }
+        }
+        std::printf ("cycle artefacts: mean jump at joins %.4f vs elsewhere %.4f\n", atJoin / nj, elsewhere / ne);
+        CHECK (atJoin / nj > 3.0 * elsewhere / ne);
+    }
+    // stereo channels stay the same length and aligned
+    {
+        StretchSettings st; st.timeFactor = 0.5;
+        auto out = cyclicStretch ({ sine, sine }, st);
+        CHECK (out.size() == 2 && out[0] == out[1] && std::abs ((int) out[0].size() - sr / 2) <= 1);
+    }
+}
+
 int main()
 {
+    testExtendedCommands();
+    testTimeStretch();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();

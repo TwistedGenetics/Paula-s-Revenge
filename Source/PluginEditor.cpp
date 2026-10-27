@@ -13,7 +13,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }, [this] (int b) { pattern.pushUndo (b); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), arrange (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -93,6 +93,16 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onStateChanged = [this] { refreshAll(); };
 
     instruments.openParams = [this] { setView (View::Params); };
+    sequence.openArrange = [this] { setView (View::Arrange); };
+    sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    arrange.onClose = [this] { setView (View::Pattern); };
+    arrange.onChanged = [this] { sequence.refresh(); blockPanel.refresh(); };
+    arrange.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    arrange.pushUndo = [this] { pattern.pushStructureUndo(); };
+    arrange.undo = [this] { pattern.undo(); };
+    arrange.redo = [this] { pattern.redo(); };
+    addChildComponent (arrange);
+    fx2Btn.onClick = [this, &st] { st.showFx2 = fx2Btn.getToggleState(); if (! st.showFx2) st.column = std::min (st.column, 5); refreshAll(); };
     params.onClose = [this] { setView (View::Pattern); };
     params.onChanged = [this] { instruments.refresh(); };
     addChildComponent (params);
@@ -116,7 +126,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &cleanBtn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &hostPlayBtn, &hostTempoBtn, &nameBtn, &statusLabel,
-            &skinBtn, &specBtn, &spectrum,
+            &skinBtn, &specBtn, &fx2Btn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
     if (proc.isRunningStandalone()) { hostPlayBtn.setVisible (false); hostTempoBtn.setVisible (false); }
@@ -146,7 +156,9 @@ void PaulaEditor::setView (View v)
     sampleEditor.setVisible (v == View::SampleEdit);
     browser.setVisible (v == View::Browser);
     params.setVisible (v == View::Params);
+    arrange.setVisible (v == View::Arrange);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
+    else if (v == View::Arrange) arrange.opened();
     else if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
     else if (v == View::Browser) browser.opened();
     else pattern.grabKeyboardFocus();
@@ -198,6 +210,8 @@ void PaulaEditor::refreshAll()
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
     skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
+    fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
+    if (! st.showFx2) st.column = std::min (st.column, 5);
     viewBtn.setEnabled (song.numTracks > 4);
     hostPlayBtn.setToggleState (proc.followHostTransport.load(), juce::dontSendNotification);
     hostTempoBtn.setToggleState (proc.followHostTempo.load(), juce::dontSendNotification);
@@ -224,6 +238,7 @@ void PaulaEditor::timerCallback()
     if (sampleEditor.isVisible()) sampleEditor.tick();
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
+    if (arrange.isVisible()) arrange.tick();
     outMeter.tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
@@ -345,6 +360,7 @@ void PaulaEditor::resized()
     nameBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
     skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
+    fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
     if (! proc.isRunningStandalone())
     {
         hostPlayBtn.setBounds (status.removeFromLeft (charsW (9))); status.removeFromLeft (gap);
@@ -393,6 +409,7 @@ void PaulaEditor::resized()
     sampleEditor.setBounds (main);
     browser.setBounds (main);
     params.setBounds (main);
+    arrange.setBounds (main);
 }
 
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
@@ -403,6 +420,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::SampleEdit: return sampleEditor.keyPressed (k);
         case View::Browser:    return browser.keyPressed (k);
         case View::Params:     return params.keyPressed (k);
+        case View::Arrange:    return arrange.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }

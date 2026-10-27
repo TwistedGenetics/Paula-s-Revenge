@@ -7,7 +7,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 3;   // v2: stereo samples, v3: instrument shaping + track pans
+    constexpr int kVersion = 4;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -46,6 +46,7 @@ juce::MemoryBlock writeSong (const Song& song)
                 const auto& c = b.at (l, t);
                 raw.writeByte ((char) c.note); raw.writeByte ((char) c.instr);
                 raw.writeByte ((char) c.cmd);  raw.writeByte ((char) c.param);
+                raw.writeByte ((char) c.cmd2); raw.writeByte ((char) c.param2);
             }
     }
     raw.writeShortBigEndian ((short) song.sequence.size());
@@ -85,6 +86,8 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeByte (in.amigaPan ? 1 : 0);
         raw.writeShortBigEndian ((short) in.pan);
     }
+    // v4: per-instrument C-3 rate
+    for (const auto& in : song.instruments) raw.writeDoubleBigEndian (in.rate);
 
     juce::MemoryOutputStream packed;
     {
@@ -124,7 +127,10 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             {
                 auto& c = b.at (l, t);
                 c.note = (uint8_t) in.readByte(); c.instr = (uint8_t) in.readByte();
-                c.cmd = (uint8_t) in.readByte() & 15; c.param = (uint8_t) in.readByte();
+                c.cmd = (uint8_t) in.readByte(); c.param = (uint8_t) in.readByte();
+                if (version >= 4) { c.cmd2 = (uint8_t) in.readByte(); c.param2 = (uint8_t) in.readByte(); }
+                if (c.cmd >= kNumCommands) c.cmd = 0;
+                if (c.cmd2 >= kNumCommands) c.cmd2 = 0;
                 if (c.instr > kMaxInstruments) c.instr = 0;
                 if (c.note > kNoteMax && c.note != kNoteOff) c.note = 0;
             }
@@ -179,6 +185,12 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             ins.pan = juce::jlimit (0, 255, (int) in.readShortBigEndian());
         }
     }
+    if (version >= 4 && ! in.isExhausted())
+        for (auto& ins : s.instruments)
+        {
+            const double r = in.readDoubleBigEndian();
+            ins.rate = std::isfinite (r) ? juce::jlimit (500.0, 192000.0, r) : kAmigaC3Rate;
+        }
     out = std::move (s);
     return true;
 }
@@ -275,7 +287,7 @@ namespace
     }
 }
 
-bool importSample (const juce::File& file, Instrument& out, juce::String& error)
+bool importSample (const juce::File& file, Instrument& out, juce::String& error, bool keepRate)
 {
     std::vector<float> L, R;
     double rate = 0;
@@ -283,8 +295,8 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error)
     if (! decodeAudioFile (file, L, R, rate, meta, error)) return false;
     if (L.empty() || rate <= 0) { error = "The sample is empty."; return false; }
 
-    // resample so C-3 plays the sample at its original pitch
-    const double ratio = rate / kSampleRateAtC3;
+    // resample so C-3 plays the sample at its original pitch (or keep the data as it is)
+    const double ratio = keepRate ? 1.0 : rate / kSampleRateAtC3;
     L = resampleTo (std::move (L), ratio);
     if (! R.empty()) { R = resampleTo (std::move (R), ratio); R.resize (L.size(), 0.0f); }
 
@@ -293,6 +305,7 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error)
     out.volume = meta.volume;
     out.data = toInt16 (L);
     if (! R.empty()) out.dataR = toInt16 (R);
+    out.rate = keepRate ? juce::jlimit (500.0, 192000.0, rate) : kAmigaC3Rate;
     out.loopStart = (int) std::lround (meta.loopStart / ratio);
     out.loopLength = (int) std::lround (meta.loopLength / ratio);
     if (! out.isLooped()) { out.loopStart = 0; out.loopLength = 0; }

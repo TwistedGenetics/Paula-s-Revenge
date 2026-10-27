@@ -27,15 +27,41 @@ constexpr uint8_t kNoteOff  = 127;
 constexpr double kPaulaClock = 3546895.0;
 constexpr double kPi = 3.14159265358979323846;
 
+// Rate (Hz) a sample plays at on C-3 in the Amiga convention
+constexpr double kAmigaC3Rate = 16574.27;
+
+// Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended.
+constexpr int kNumCommands = 36;
+inline char commandChar (int c) { return c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+inline int  commandFromChar (char ch)
+{
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
+    if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;
+    return -1;
+}
+constexpr uint8_t cmdLetter (char c) { return (uint8_t) (c - 'A' + 10); }
+
 struct Cell
 {
-    uint8_t note  = 0;   // 0 none, 1..96, kNoteOff
-    uint8_t instr = 0;   // 0 none, 1..63
-    uint8_t cmd   = 0;   // 0x0 .. 0xF
-    uint8_t param = 0;   // 0x00 .. 0xFF
+    uint8_t note   = 0;   // 0 none, 1..96, kNoteOff
+    uint8_t instr  = 0;   // 0 none, 1..63
+    uint8_t cmd    = 0;   // 0..35 (0-F ProTracker, G-Z extended)
+    uint8_t param  = 0;   // 0x00 .. 0xFF
+    uint8_t cmd2   = 0;   // second effect column
+    uint8_t param2 = 0;
 
-    bool isEmpty() const { return note == 0 && instr == 0 && cmd == 0 && param == 0; }
-    bool operator== (const Cell& o) const { return note == o.note && instr == o.instr && cmd == o.cmd && param == o.param; }
+    bool fx1Empty() const { return cmd == 0 && param == 0; }
+    bool fx2Empty() const { return cmd2 == 0 && param2 == 0; }
+    bool isEmpty() const { return note == 0 && instr == 0 && fx1Empty() && fx2Empty(); }
+    bool operator== (const Cell& o) const { return note == o.note && instr == o.instr && cmd == o.cmd && param == o.param && cmd2 == o.cmd2 && param2 == o.param2; }
+    // looks for a command in either column
+    bool has (uint8_t c, uint8_t& p) const
+    {
+        if (cmd == c && ! (c == 0 && param == 0)) { p = param; return true; }
+        if (cmd2 == c && ! (c == 0 && param2 == 0)) { p = param2; return true; }
+        return false;
+    }
 };
 
 struct Block
@@ -68,6 +94,7 @@ struct Instrument
     int volume     = 64;         // 0..64
     int finetune   = 0;          // -8..7 (1/8 semitone steps)
     int transpose  = 0;          // semitones
+    double rate    = kAmigaC3Rate; // Hz the sample plays at on C-3
 
     // sound shaping (all neutral by default, so MOD/MED/old songs sound as before)
     Envelope   volEnv;                      // when off, notes play at full level and OFF cuts

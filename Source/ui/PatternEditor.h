@@ -68,6 +68,9 @@ private:
 
     // geometry
     int visibleTracks() const;
+    int trackChars() const;
+    int numColumns() const;
+    float helpHeight() const;
     int firstTrack() const;
     float fontPx() const;
     float rowH() const;

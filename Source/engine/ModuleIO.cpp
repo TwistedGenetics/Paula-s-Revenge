@@ -394,23 +394,55 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
                     if (! b.at (l, t).isEmpty()) { upperUsed = true; break; }
     const int channels = upperUsed ? 8 : 4;
 
-    bool tooLong = false, instrTooHigh = false, bigSample = false;
+    bool tooLong = false, instrTooHigh = false, bigSample = false, rateChanged = false, fxDropped = false;
     for (const auto& b : song.blocks) if (b.lines > 64) tooLong = true;
+
+    // MOD samples are mono and play at the Amiga C-3 rate: convert copies
+    struct Smp { std::vector<int16_t> data; int loopStart = 0, loopLength = 0; bool looped = false; };
+    std::vector<Smp> smp (31);
+    for (int i = 0; i < 31; ++i)
+    {
+        const auto& in = song.instruments[(size_t) i];
+        auto& o = smp[(size_t) i];
+        std::vector<int16_t> mono = in.data;
+        if (in.isStereo()) for (size_t k = 0; k < mono.size(); ++k) mono[k] = (int16_t) ((in.data[k] + in.dataR[k]) / 2);
+        const double ratio = in.rate / kAmigaC3Rate;          // >1: the sample is denser than the Amiga rate
+        o.looped = in.isLooped();
+        o.loopStart = in.loopStart; o.loopLength = in.loopLength;
+        if (! mono.empty() && std::abs (ratio - 1.0) > 1e-6)
+        {
+            rateChanged = true;
+            const size_t n = (size_t) std::max (1.0, std::floor (mono.size() / ratio));
+            std::vector<int16_t> r (n);
+            for (size_t k = 0; k < n; ++k)
+            {
+                const double pos = k * ratio;
+                const size_t a = std::min (mono.size() - 1, (size_t) pos), b2 = std::min (mono.size() - 1, a + 1);
+                const double f = pos - (double) a;
+                r[k] = (int16_t) std::lround (mono[a] + (mono[b2] - mono[a]) * f);
+            }
+            mono.swap (r);
+            o.loopStart = (int) std::lround (o.loopStart / ratio);
+            o.loopLength = (int) std::lround (o.loopLength / ratio);
+        }
+        o.data = std::move (mono);
+    }
 
     putStr (out, song.name, 20);
     for (int i = 0; i < 31; ++i)
     {
         const auto& in = song.instruments[(size_t) i];
-        int len = (int) std::min<size_t> (in.data.size(), 131070) & ~1;
-        if (in.data.size() > 131070) bigSample = true;
+        const auto& sm = smp[(size_t) i];
+        int len = (int) std::min<size_t> (sm.data.size(), 131070) & ~1;
+        if (sm.data.size() > 131070) bigSample = true;
         putStr (out, in.name, 22);
         put16 (out, (uint16_t) (len / 2));
         put8 (out, (uint8_t) (in.finetune & 15));
         put8 (out, (uint8_t) std::clamp (in.volume, 0, 64));
-        if (in.isLooped() && in.loopStart + in.loopLength <= len)
+        if (sm.looped && sm.loopLength >= 4 && sm.loopStart + sm.loopLength <= len)
         {
-            put16 (out, (uint16_t) (in.loopStart / 2));
-            put16 (out, (uint16_t) std::max (1, in.loopLength / 2));
+            put16 (out, (uint16_t) (sm.loopStart / 2));
+            put16 (out, (uint16_t) std::max (1, sm.loopLength / 2));
         }
         else { put16 (out, 0); put16 (out, 1); }
     }
@@ -440,6 +472,14 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
             for (int ch = 0; ch < channels; ++ch)
             {
                 Cell c = row < lines ? b.at (row, ch) : Cell{};
+                // only one ProTracker command fits: keep column 1 if it's 0-F, else column 2
+                if (c.cmd > 15 || (c.fx1Empty() && ! c.fx2Empty()))
+                {
+                    if (c.cmd > 15) fxDropped = true;
+                    if (c.cmd2 <= 15) { c.cmd = c.cmd2; c.param = c.param2; c.cmd2 = 0; c.param2 = 0; }
+                    else { c.cmd = 0; c.param = 0; }
+                }
+                if (! c.fx2Empty()) fxDropped = true;
                 if (row == lines - 1 && ch == breakTrack) { c.cmd = 0xD; c.param = 0; }
                 int period = 0;
                 if (c.note == kNoteOff) { if (c.cmd == 0 && c.param == 0) { c.cmd = 0xC; c.param = 0; } }
@@ -455,14 +495,9 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
 
     for (int i = 0; i < 31; ++i)
     {
-        const auto& in = song.instruments[(size_t) i];
-        const int len = (int) std::min<size_t> (in.data.size(), 131070) & ~1;
-        for (int k = 0; k < len; ++k)
-        {
-            int v = in.data[(size_t) k];
-            if (in.isStereo()) v = (v + in.dataR[(size_t) k]) / 2;   // MOD samples are mono
-            put8 (out, (uint8_t) (int8_t) (v >> 8));
-        }
+        const auto& sm = smp[(size_t) i];
+        const int len = (int) std::min<size_t> (sm.data.size(), 131070) & ~1;
+        for (int k = 0; k < len; ++k) put8 (out, (uint8_t) (int8_t) (sm.data[(size_t) k] >> 8));
     }
 
     bool anyStereo = false;
@@ -472,6 +507,8 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
     for (int i = 0; i < 31; ++i) anyShaping |= song.instruments[(size_t) i].hasShaping();
     for (int t = 0; t < kMaxTracks; ++t) anyShaping |= song.trackPan[t] >= 0;
     if (anyShaping) res.warnings.push_back ("Envelopes, filters and pans can't be stored in a MOD and were left out.");
+    if (rateChanged) res.warnings.push_back ("Samples with their own rate were converted to the Amiga C-3 rate.");
+    if (fxDropped) res.warnings.push_back ("Extended (G-Z) and second-column effects can't go in a MOD and were left out.");
     if (song.blocks.size() > 128) res.warnings.push_back ("MOD files hold 128 patterns at most - extra blocks were left out.");
     if (tooLong) res.warnings.push_back ("Blocks longer than 64 lines were cut to 64 (MOD limit).");
     if (instrTooHigh) res.warnings.push_back ("Instruments above 31 can't go in a MOD and were left out.");

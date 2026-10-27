@@ -70,14 +70,18 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange } view = View::Pattern;
         bool showSpectrum = true;
+        bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust
         juce::String lastFolder;
     } editorState;
 
     // MIDI notes jam the current instrument; the editor records them when in edit mode
     std::atomic<int> jamInstrument { 0 };
+    // when set (>= 0) MIDI notes play only this region of the instrument (sample editor "SEL KEYS")
+    std::atomic<int> jamRangeStart { -1 }, jamRangeEnd { -1 };
+    std::atomic<bool> jamRangeLoop { false };
     bool popMidiNote (int& note);   // message thread
 
     // ---- audition player for the sample browser and the sample editor ----

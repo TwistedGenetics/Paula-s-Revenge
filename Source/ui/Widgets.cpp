@@ -148,6 +148,22 @@ void NumberBox::mouseDrag (const juce::MouseEvent& e)
     setValue (dragStart + steps * (hi - lo > 300 ? 4 : 1), true);
 }
 
+void NumberBox::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (! allowTyping || ! valueArea.contains (e.position)) return;
+    auto* w = new juce::AlertWindow (label.trim(), "Type a value (" + juce::String (lo) + " to " + juce::String (hi) + ")", juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor ("v", juce::String (value));
+    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<NumberBox> safe (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
+    {
+        if (r != 1 || safe == nullptr) return;
+        const auto t = w->getTextEditorContents ("v").trim();
+        if (t.containsAnyOf ("0123456789")) safe->setValue (t.getIntValue(), true);
+    }), true);
+}
+
 void NumberBox::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
     wheelAccum += w.deltaY * 8.0f;

@@ -40,7 +40,7 @@ private:
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " UP" }, homeBtn { "HOME" }, musicBtn { "MUSIC" }, desktopBtn { "DESKTOP" },
               downloadsBtn { "DOWNLOADS" }, docsBtn { "DOCUMENTS" }, volumesBtn { "DRIVES" }, finderBtn { "FINDER..." };
     PixButton playBtn { "PLAY" }, stopBtn { "STOP" }, autoBtn { "AUTO PLAY", true },
-              loadBtn { "LOAD INTO 01" }, cancelBtn { "CLOSE" };
+              loadBtn { "LOAD INTO 01" }, cancelBtn { "CLOSE" }, keepRateBtn { "KEEP RATE", true };
     PixSlider volSlider { "VOL" };
 
     juce::Rectangle<float> pathArea, infoArea, waveArea;

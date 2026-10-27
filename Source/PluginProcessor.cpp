@@ -188,7 +188,7 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         if (msg.isNoteOn())
         {
             const int note = juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23); // MIDI 60 -> C-3
-            player.jamNoteOn (note, jamInstrument.load(), msg.getVelocity());
+            player.jamNoteOn (note, jamInstrument.load(), msg.getVelocity(), jamRangeStart.load(), jamRangeEnd.load(), jamRangeLoop.load());
             midiFifo.write (1).forEach ([&] (int idx) { midiNotes[idx] = note; });
         }
         else if (msg.isNoteOff())
@@ -255,6 +255,7 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("fourTrack", e.fourTrackView, nullptr);
     st.setProperty ("dark", e.darkSkin, nullptr);
     st.setProperty ("spectrum", e.showSpectrum, nullptr);
+    st.setProperty ("fx2", e.showFx2, nullptr);
     st.setProperty ("zoom", e.uiZoom, nullptr);
     st.setProperty ("follow", e.follow, nullptr);
     st.setProperty ("folder", e.lastFolder, nullptr);
@@ -296,6 +297,7 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.fourTrackView = st.getProperty ("fourTrack", true);
     e.darkSkin = st.getProperty ("dark", true);
     e.showSpectrum = st.getProperty ("spectrum", true);
+    e.showFx2 = st.getProperty ("fx2", false);
     e.uiZoom = st.getProperty ("zoom", 0);
     e.follow = st.getProperty ("follow", true);
     e.lastFolder = st.getProperty ("folder", juce::String());

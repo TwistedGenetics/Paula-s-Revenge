@@ -1,12 +1,12 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
+#include "../engine/Commands.h"
 
 namespace prv::ui
 {
 namespace
 {
-    constexpr int kColOffset[6] = { 0, 4, 5, 7, 8, 9 };   // char offset of each cursor column in a track
-    constexpr int kTrackChars = 13;                        // "C-3 01 C20" + gap + VU bar
+    constexpr int kColOffset[9] = { 0, 4, 5, 7, 8, 9, 11, 12, 13 };   // char offset of each cursor column in a track
     constexpr int kLineNumChars = 4;
 
     juce::String hex2 (int v) { return juce::String::toHexString (v).toUpperCase().paddedLeft ('0', 2); }
@@ -19,6 +19,9 @@ PatternEditor::PatternEditor (PaulaProcessor& p) : proc (p), st (p.editorState)
 }
 
 // ---------------------------------------------------------------- geometry
+int PatternEditor::trackChars() const { return st.showFx2 ? 17 : 13; }   // "C-3 01 C20 L40" + gap + VU bar
+int PatternEditor::numColumns() const { return st.showFx2 ? 9 : 6; }
+
 int PatternEditor::visibleTracks() const
 {
     const int nt = proc.song.numTracks;
@@ -33,10 +36,12 @@ int PatternEditor::firstTrack() const
 
 float PatternEditor::fontPx() const
 {
-    const int chars = kLineNumChars + visibleTracks() * kTrackChars;
+    const int chars = kLineNumChars + visibleTracks() * trackChars();
     const float maxPx = Theme::px * 1.5f;
     return PixelFont::fitPx (chars, (float) getWidth() - 8.0f, maxPx);
 }
+
+float PatternEditor::helpHeight() const { return st.column >= 3 ? Theme::px * 12 : 0.0f; }
 
 float PatternEditor::rowH() const     { return fontPx() * (PixelFont::kCellH + 3); }
 float PatternEditor::headerH() const  { return fontPx() * 24; }
@@ -74,7 +79,7 @@ void PatternEditor::setPanFromX (int t, float x)
     proc.withLock ([&] { proc.song.trackPan[t] = v; });
     repaint();
 }
-float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * kTrackChars; }
+float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * trackChars(); }
 float PatternEditor::lineNumW() const { return fontPx() * (PixelFont::kCellW * kLineNumChars + 3); }
 int   PatternEditor::colChars (int column) const { return column == 0 ? 3 : 1; }
 
@@ -146,7 +151,8 @@ void PatternEditor::paint (juce::Graphics& g)
     const int blk = song.safeBlock (st.block);
     const auto& b = song.blocks[(size_t) blk];
     const int lines = b.lines;
-    const float area = bounds.getHeight() - hh;
+    const float helpH = helpHeight();
+    const float area = bounds.getHeight() - hh - helpH;
     const int visRows = std::max (1, (int) (area / rh));
     const int centre = visRows / 2;
     const float y0 = hh + (area - visRows * rh) * 0.5f;
@@ -182,11 +188,11 @@ void PatternEditor::paint (juce::Graphics& g)
             const float x = lnw + s * tw;
             const juce::String note = noteName (c.note);
             const juce::String ins = c.instr ? hex2 (c.instr) : "--";
-            const juce::String cmd = (c.cmd == 0 && c.param == 0) ? "---"
-                                   : juce::String::toHexString ((int) c.cmd).toUpperCase() + hex2 (c.param);
+            auto fx = [] (uint8_t cm, uint8_t pa) { return (cm == 0 && pa == 0) ? juce::String ("---") : juce::String::charToString ((juce::juce_wchar) commandChar (cm)) + hex2 (pa); };
             PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
             PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
-            PixelFont::addText ((c.cmd || c.param) ? text : dimText, cmd, x + 7 * cw, ty, px);
+            PixelFont::addText (c.fx1Empty() ? dimText : text, fx (c.cmd, c.param), x + 7 * cw, ty, px);
+            if (st.showFx2) PixelFont::addText (c.fx2Empty() ? dimText : text, fx (c.cmd2, c.param2), x + 11 * cw, ty, px);
         }
 
         if (r == centre && st.track >= first && st.track < first + nVis)
@@ -207,7 +213,7 @@ void PatternEditor::paint (juce::Graphics& g)
     for (int s = 0; s < nVis; ++s)
     {
         const int t = first + s;
-        const float x = lnw + s * tw + 10.4f * cw;
+        const float x = lnw + s * tw + (st.showFx2 ? 14.4f : 10.4f) * cw;
         const float w = 1.4f * cw;
         // dB scale: -42 dB .. -3 dB fills the column
         const float db = juce::Decibels::gainToDecibels (vu[t], -100.0f);
@@ -235,6 +241,24 @@ void PatternEditor::paint (juce::Graphics& g)
     g.setColour (sk.text);
     g.fillRectList (text);
 
+    // effect help: what the command under the cursor does, in full-size text
+    if (helpH > 0)
+    {
+        auto hr = bounds.withTop (bounds.getBottom() - helpH);
+        g.setColour (Theme::panel);
+        g.fillRect (hr);
+        Theme::bevel (g, hr.reduced (1.0f), true, std::max (1.0f, Theme::px * 0.5f));
+        const auto& c = b.at (st.line, st.track);
+        const bool second = st.column >= 6;
+        const uint8_t cm = second ? c.cmd2 : c.cmd, pa = second ? c.param2 : c.param;
+        juce::String help = (cm == 0 && pa == 0)
+            ? juce::String ("FX ") + (second ? "2" : "1") + ": TYPE 0-F (CLASSIC) OR G-Z (EXTRA), THEN TWO HEX DIGITS"
+            : juce::String (describeCommand (cm, pa));
+        float hp = Theme::px;
+        while (hp > 1.5f && PixelFont::textWidth (help, hp) > hr.getWidth() - Theme::px * 4) hp -= 0.25f;
+        PixelFont::drawLeft (g, help, hr.reduced (Theme::px * 2, 0), hp, Theme::ink);
+    }
+
     g.setColour (Theme::ink);
     if (st.editMode) g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
     else             g.drawRect (bounds, 1.0f);
@@ -244,7 +268,7 @@ void PatternEditor::paint (juce::Graphics& g)
         const float hp = std::max (1.5f, px * 0.75f);
         const juce::String hint = "CLICK HERE TO TYPE";
         auto box = juce::Rectangle<float> (PixelFont::textWidth (hint, hp) + hp * 4, hp * 11)
-                       .withPosition (bounds.getRight() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - hp * 14);
+                       .withPosition (bounds.getRight() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - helpHeight() - hp * 14);
         g.setColour (Theme::panel);
         g.fillRect (box);
         Theme::bevel (g, box, true, 1.0f);
@@ -330,7 +354,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     }
 
     const float rh = rowH();
-    const float area = (float) getHeight() - hh;
+    const float area = (float) getHeight() - hh - helpHeight();
     const int visRows = std::max (1, (int) (area / rh));
     const float y0 = hh + (area - visRows * rh) * 0.5f;
     const int r = (int) std::floor ((e.position.y - y0) / rh);
@@ -343,7 +367,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
         const float rel = e.position.x - colX (slot, 0);
         const int ch = (int) std::floor (rel / (px * PixelFont::kCellW));
         int col = 0;
-        for (int c = 5; c >= 0; --c) if (ch >= kColOffset[c]) { col = c; break; }
+        for (int c = numColumns() - 1; c >= 0; --c) if (ch >= kColOffset[c]) { col = c; break; }
         st.column = col;
     }
     changed();
@@ -396,8 +420,8 @@ void PatternEditor::moveLine (int delta)
 void PatternEditor::moveColumn (int delta)
 {
     st.column += delta;
-    if (st.column < 0) { st.column = 5; moveTrack (-1); return; }
-    if (st.column > 5) { st.column = 0; moveTrack (1); return; }
+    if (st.column < 0) { st.column = numColumns() - 1; moveTrack (-1); return; }
+    if (st.column >= numColumns()) { st.column = 0; moveTrack (1); return; }
     changed();
 }
 
@@ -511,8 +535,11 @@ void PatternEditor::enterHex (int v)
             case 1: c.instr = (uint8_t) std::min (kMaxInstruments, (v << 4) | (c.instr & 15)); break;
             case 2: c.instr = (uint8_t) std::min (kMaxInstruments, (c.instr & 0xF0) | v); break;
             case 3: c.cmd = (uint8_t) v; break;
-            case 4: c.param = (uint8_t) ((v << 4) | (c.param & 15)); break;
-            case 5: c.param = (uint8_t) ((c.param & 0xF0) | v); break;
+            case 4: c.param = (uint8_t) (((v & 15) << 4) | (c.param & 15)); break;
+            case 5: c.param = (uint8_t) ((c.param & 0xF0) | (v & 15)); break;
+            case 6: c.cmd2 = (uint8_t) v; break;
+            case 7: c.param2 = (uint8_t) (((v & 15) << 4) | (c.param2 & 15)); break;
+            case 8: c.param2 = (uint8_t) ((c.param2 & 0xF0) | (v & 15)); break;
             default: break;
         }
     });
@@ -528,7 +555,8 @@ void PatternEditor::clearField()
         auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
         if (st.column == 0) { c.note = 0; c.instr = 0; }
         else if (st.column <= 2) c.instr = 0;
-        else { c.cmd = 0; c.param = 0; }
+        else if (st.column <= 5) { c.cmd = 0; c.param = 0; }
+        else { c.cmd2 = 0; c.param2 = 0; }
     });
     advance();
     changed();
@@ -752,9 +780,10 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         return false;
     }
 
-    // hex columns
+    // command columns take 0-9 and A-Z; the others are hex
     int hv = -1;
-    if (ch >= '0' && ch <= '9') hv = (int) (ch - '0');
+    if (st.column == 3 || st.column == 6) hv = commandFromChar ((char) ch);
+    else if (ch >= '0' && ch <= '9') hv = (int) (ch - '0');
     else if (ch >= 'a' && ch <= 'f') hv = (int) (ch - 'a' + 10);
     if (hv >= 0) { enterHex (hv); return true; }
     return false;
