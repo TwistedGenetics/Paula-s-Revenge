@@ -74,6 +74,7 @@ public:
     std::function<void()> onClose;
     std::function<void (const juce::String&)> onStatus;
     std::function<void (bool song)> onPlayStop;
+    std::function<void()> onOctave;      // [ ] changed the octave
 
     enum class Page { Strips, Channel, Effect };
     Page page() const { return currentPage; }
@@ -89,7 +90,11 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    bool keyStateChanged (bool) override;              // note keys released
+    void focusLost (FocusChangeType) override { releaseNotes(); }
+    void visibilityChanged() override { if (! isVisible()) releaseNotes(); }
     void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
+    void releaseNotes();
 
     // ---- used by the strips
     template <typename Fn> void edit (const juce::String& label, bool merge, Fn&& fn, bool effectsChanged = false);
@@ -102,6 +107,7 @@ public:
 
 private:
     PaulaProcessor& proc;
+    std::map<int, int> heldKeys;   // key code -> note being played (the computer keyboard plays the instrument)
     Page currentPage = Page::Strips, effectReturn = Page::Strips;
     int chTrack = 0, fxSlot = 0;
 

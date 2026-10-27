@@ -45,7 +45,7 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 
 ## Mixer
 
-**MIXER** on the bottom row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. One strip per track (4 or 8), then the two send returns and the master, each with a level meter:
+**MIXER** on the bottom row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. While it's open the computer keyboard still plays the current instrument (same note keys as the pattern; `[` `]` change octave, `-` `=` change instrument; the title shows which one), so you can play while you set levels. A MIDI keyboard plays it too. These notes go through the master bus. One strip per track (4 or 8), then the two send returns and the master, each with a level meter:
 
 | Strip part | What it does |
 |---|---|

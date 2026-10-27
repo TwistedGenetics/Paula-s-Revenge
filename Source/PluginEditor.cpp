@@ -125,6 +125,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     mixer.onClose = [this] { setView (View::Pattern); };
     mixer.onStatus = [this] (const juce::String& m) { setStatus (m); };
     mixer.onPlayStop = [this] (bool song) { pattern.togglePlayStop (song); refreshAll(); };
+    mixer.onOctave = [this] { refreshAll(); mixer.repaint(); };
     addChildComponent (mixer);
     mixerBtn.onClick = [this] { setView (proc.editorState.view == View::Mixer ? View::Pattern : View::Mixer); };
     fx2Btn.onClick = [this, &st] { st.showFx2 = fx2Btn.getToggleState(); if (! st.showFx2) st.column = std::min (st.column, 5); refreshAll(); };

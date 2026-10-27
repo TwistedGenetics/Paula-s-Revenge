@@ -1028,7 +1028,65 @@ bool MixerPage::keyPressed (const juce::KeyPress& k)
         if (k == juce::KeyPress::leftKey)  { prevBtn.onClick(); return true; }
         if (k == juce::KeyPress::rightKey) { nextBtn.onClick(); return true; }
     }
+    const auto mods = k.getModifiers();
+    if (mods.isCommandDown() || mods.isCtrlDown() || mods.isAltDown()) return false;   // undo etc. go to the main window
+
+    // the computer keyboard plays the current instrument (same keys as the pattern)
+    auto& st = proc.editorState;
+    const auto ch = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());
+    if (ch == '[' || ch == ']')
+    {
+        st.octave = juce::jlimit (0, 6, st.octave + (ch == ']' ? 1 : -1));
+        if (onStatus) onStatus ("OCTAVE " + juce::String (st.octave));
+        if (onOctave) onOctave();
+        return true;
+    }
+    if (ch == '-' || ch == '=')
+    {
+        // previous / next instrument, as in the pattern
+        st.instrument = juce::jlimit (0, kMaxInstruments - 1, st.instrument + (ch == '=' ? 1 : -1));
+        proc.jamInstrument = st.instrument;
+        if (onOctave) onOctave();
+        return true;
+    }
+    static const char* lower = "zsxdcvgbhnjm,l.;/";
+    static const char* upper = "q2w3er5t6y7ui9o0p";
+    int note = -1;
+    for (int i = 0; lower[i]; ++i) if (ch == (juce::juce_wchar) lower[i]) note = st.octave * 12 + i + 1;
+    for (int i = 0; upper[i]; ++i) if (ch == (juce::juce_wchar) upper[i]) note = (st.octave + 1) * 12 + i + 1;
+    if (note <= 0) return false;
+    note = juce::jlimit (1, (int) kNoteMax, note);
+    if (heldKeys.count (k.getKeyCode()) == 0)
+    {
+        heldKeys[k.getKeyCode()] = note;
+        proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
+    }
+    return true;
+}
+
+bool MixerPage::keyStateChanged (bool)
+{
+    for (auto it = heldKeys.begin(); it != heldKeys.end();)
+    {
+        if (! juce::KeyPress::isKeyCurrentlyDown (it->first))
+        {
+            const int n = it->second;
+            proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            it = heldKeys.erase (it);
+        }
+        else ++it;
+    }
     return false;
+}
+
+void MixerPage::releaseNotes()
+{
+    for (const auto& kv : heldKeys)
+    {
+        const int n = kv.second;
+        proc.withLock ([&] { proc.player.jamNoteOff (n); });
+    }
+    heldKeys.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -1038,7 +1096,14 @@ juce::String MixerPage::pageTitle() const
     {
         case Page::Channel: return "MIXER - TRACK " + juce::String (chTrack + 1) + " CHANNEL";
         case Page::Effect:  return "MIXER - " + slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1);
-        default:            return "MIXER";
+        default:
+        {
+            // what the computer keyboard plays here
+            const int i = proc.editorState.instrument;
+            const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, i)];
+            return "MIXER   KEYS PLAY " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " "
+                 + juce::String (in.name).toUpperCase() + "  OCT " + juce::String (proc.editorState.octave);
+        }
     }
 }
 
