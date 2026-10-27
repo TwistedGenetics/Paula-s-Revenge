@@ -16,8 +16,8 @@ ArrangePage::ArrangePage (PaulaProcessor& p) : proc (p)
     insertBtn.onClick = [this] { insertBlock (blockBox.getValue()); };
     setBtn.onClick    = [this] { setBlock (blockBox.getValue()); };
     deleteBtn.onClick = [this] { deleteSelection(); };
-    undoBtn.onClick   = [this] { if (undo) undo(); opened(); };
-    redoBtn.onClick   = [this] { if (redo) redo(); opened(); };
+    undoBtn.onClick   = [this] { proc.history.undo(); opened(); };
+    redoBtn.onClick   = [this] { proc.history.redo(); opened(); };
     closeBtn.onClick  = [this] { if (onClose) onClose(); };
     blockBox.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
     blockBox.labelChars = 6;
@@ -61,7 +61,7 @@ void ArrangePage::changed (const juce::String& status)
 
 void ArrangePage::edit (std::function<void (std::vector<int>&)> fn, const juce::String& status)
 {
-    if (pushUndo) pushUndo();
+    proc.history.structure ("ARRANGE: " + status);
     std::vector<int> seq = proc.song.sequence;
     fn (seq);
     if (seq.empty()) seq.push_back (0);
@@ -341,7 +341,7 @@ bool ArrangePage::keyPressed (const juce::KeyPress& k)
         if (ch == 'v') { paste(); return true; }
         if (ch == 'd') { repeatSelection(); return true; }
         if (ch == 'a') { select (0, n - 1); return true; }
-        if (ch == 'z') { if (m.isShiftDown()) { if (redo) redo(); } else if (undo) undo(); opened(); return true; }
+        if (ch == 'z') { if (m.isShiftDown()) proc.history.redo(); else proc.history.undo(); opened(); return true; }
         return false;
     }
     if (m.isAltDown() && (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)) { moveSelection (code == juce::KeyPress::upKey ? -1 : 1); return true; }

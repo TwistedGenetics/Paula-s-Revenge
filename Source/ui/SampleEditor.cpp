@@ -2,6 +2,7 @@
 #include "SampleEditor.h"
 #include "../SongFile.h"
 #include "../engine/TimeStretch.h"
+#include "../engine/Slicer.h"
 
 namespace prv::ui
 {
@@ -31,6 +32,31 @@ namespace
     }
 
     int16_t clip16 (double v) { return (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (v)); }
+
+    // move slice points after the range [a, b) became newLen samples long
+    // (remove: newLen 0, insert at p: a == b == p)
+    void mapSlices (Instrument& in, int a, int b, int newLen)
+    {
+        if (in.slices.empty()) return;
+        const double f = b > a ? (double) newLen / (b - a) : 1.0;
+        for (auto& p : in.slices)
+        {
+            if (p < a) continue;
+            if (p >= b) p += newLen - (b - a);
+            else p = a + (int) std::lround ((p - a) * f);
+        }
+        tidySlices (in.slices, (int) in.data.size());
+    }
+
+    juce::String pitchText (double semis)
+    {
+        if (std::abs (semis) < 0.005) return "SAME PITCH";
+        const int whole = (int) std::lround (semis);
+        const int cents = (int) std::lround ((semis - whole) * 100.0);
+        const juce::String note = noteName ((uint8_t) juce::jlimit (1, (int) kNoteMax, 37 + whole));
+        return juce::String (semis > 0 ? "UP " : "DOWN ") + juce::String (std::abs (semis), std::abs (semis - whole) < 0.005 ? 0 : 2) + " ST (C-3 PLAYS AS "
+             + note + (cents != 0 ? juce::String (cents > 0 ? " +" : " ") + juce::String (cents) + " CENTS" : juce::String()) + ")";
+    }
 }
 
 SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
@@ -81,6 +107,37 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     };
     resampleBtn.onClick = [this] { resampleTo (toBox.getValue(), rawBtn.getToggleState()); };
 
+    // loop points
+    loopOnBtn.onClick = [this]
+    {
+        const auto& in = inst();
+        if (loopOnBtn.getToggleState())
+        {
+            // turn on: the selection if there is one, else the whole sample
+            if (hasSel()) setLoop (selA, selB, true);
+            else setLoop (0, length(), true);
+        }
+        else setLoop (in.loopStart, in.loopStart + in.loopLength, false);
+    };
+    pingBtn.onClick = [this] { setPingPong (pingBtn.getToggleState()); };
+    for (auto* nb : { &loopStartBox, &loopEndBox }) { nb->labelChars = 5; nb->valueChars = 6; }
+    loopStartBox.onChange = [this] (int v) { const auto& in = inst(); if (in.isLooped()) setLoop (v, in.loopStart + in.loopLength, true); };
+    loopEndBox.onChange   = [this] (int v) { const auto& in = inst(); if (in.isLooped()) setLoop (in.loopStart, v, true); };
+
+    // slicer
+    sliceBtn.onClick = [this] { showSlicer (true); };
+    slSens.labelChars = 4; slSens.valueChars = 3;
+    slCount.labelChars = 5; slCount.valueChars = 2;
+    slAuto.onClick   = [this] { autoSlice (slSens.getValue() / 100.0f); };
+    slEven.onClick   = [this] { evenSlice (slCount.getValue()); };
+    slAdd.onClick    = [this] { addSliceAt (hasSel() ? selA : cursor); };
+    slRemove.onClick = [this] { removeSlice (selectedSlice >= 0 ? selectedSlice : sliceAt (hasSel() ? selA : cursor)); };
+    slClear.onClick  = [this] { clearSlices(); };
+    slKeys.onClick   = [this] { setSliceKeys (slKeys.getToggleState()); };
+    slPlay.onClick   = [this] { selectSlice (selectedSlice >= 0 ? selectedSlice : std::max (0, sliceAt (cursor)), true); };
+    slDone.onClick   = [this] { showSlicer (false); };
+    for (auto* c : slicerControls()) addChildComponent (c);
+
     stClassic.setToggleState (true, juce::dontSendNotification);
     auto pickMode = [this] (PixButton* b)
     {
@@ -107,10 +164,12 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     for (auto* b : { &playBtn, &playSelBtn, &loopBtn, &stopBtn, &zoomInBtn, &zoomOutBtn, &showAllBtn, &zoomSelBtn, &selAllBtn, &drawBtn,
                      &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn, &silenceBtn, &reverseBtn, &normBtn, &fadeInBtn, &fadeOutBtn,
                      &gainDownBtn, &gainUpBtn, &loopSelBtn, &monoBtn, &undoBtn, &redoBtn, &closeBtn,
-                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn })
+                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn, &loopOnBtn, &pingBtn, &sliceBtn })
         addAndMakeVisible (b);
     addAndMakeVisible (rateBox);
     addAndMakeVisible (toBox);
+    addAndMakeVisible (loopStartBox);
+    addAndMakeVisible (loopEndBox);
 
     instrumentSelected();
 }
@@ -128,13 +187,29 @@ void SampleEditor::instrumentSelected()
     if (instrIndex != proc.editorState.instrument)
     {
         instrIndex = proc.editorState.instrument;
-        undoStack.clear(); redoStack.clear();
         selA = selB = 0; cursor = 0;
         viewStart = 0; viewLen = std::max (1, length());
     }
     rateBox.setValue (juce::roundToInt (inst().rate));
+    if (selectedSlice >= inst().numSlices()) selectedSlice = -1;
+    syncLoopControls();
     clampView();
     repaint();
+}
+
+void SampleEditor::syncLoopControls()
+{
+    const auto& in = inst();
+    const int len = std::max (1, length());
+    loopOnBtn.setToggleState (in.isLooped(), juce::dontSendNotification);
+    pingBtn.setToggleState (in.pingPong, juce::dontSendNotification);
+    loopStartBox.setRange (0, std::max (0, len - 4));
+    loopEndBox.setRange (std::min (4, len), len);
+    loopStartBox.setValue (in.isLooped() ? in.loopStart : 0);
+    loopEndBox.setValue (in.isLooped() ? in.loopStart + in.loopLength : len);
+    loopStartBox.setEnabled (in.isLooped());
+    loopEndBox.setEnabled (in.isLooped());
+    slKeys.setToggleState (in.sliceKeys, juce::dontSendNotification);
 }
 
 void SampleEditor::clampView()
@@ -174,9 +249,7 @@ void SampleEditor::selectAll() { selA = 0; selB = length(); updateJamRange(); re
 
 void SampleEditor::pushUndo()
 {
-    undoStack.push_back (inst());
-    if (undoStack.size() > 40) undoStack.erase (undoStack.begin());
-    redoStack.clear();
+    proc.history.instrument (proc.editorState.instrument, "SAMPLE EDIT");
 }
 
 void SampleEditor::commit (Instrument&& edited, const juce::String& what)
@@ -184,29 +257,16 @@ void SampleEditor::commit (Instrument&& edited, const juce::String& what)
     stop();
     proc.withLock ([&] { std::swap (proc.song.instruments[(size_t) proc.editorState.instrument], edited); });
     // `edited` now holds the old data and is freed here, off the audio thread
+    syncLoopControls();
     clampView();
     repaint();
     if (onChanged) onChanged();
+    if (what.isNotEmpty()) proc.history.relabelLast (what);
     if (onStatus && what.isNotEmpty()) onStatus (what);
 }
 
-void SampleEditor::undo()
-{
-    if (undoStack.empty()) return;
-    redoStack.push_back (inst());
-    Instrument prev = std::move (undoStack.back());
-    undoStack.pop_back();
-    commit (std::move (prev), "UNDO");
-}
-
-void SampleEditor::redo()
-{
-    if (redoStack.empty()) return;
-    undoStack.push_back (inst());
-    Instrument next = std::move (redoStack.back());
-    redoStack.pop_back();
-    commit (std::move (next), "REDO");
-}
+void SampleEditor::undo() { stop(); proc.history.undo(); }
+void SampleEditor::redo() { stop(); proc.history.redo(); }
 
 // ------------------------------------------------------------------ editing
 void SampleEditor::apply (Op op)
@@ -239,16 +299,17 @@ void SampleEditor::apply (Op op)
         case Op::Cut:
         case Op::Delete:
         {
-            if (! sel) { undoStack.pop_back(); if (onStatus) onStatus ("SELECT SOMETHING FIRST"); return; }
+            if (! sel) { proc.history.dropLast(); if (onStatus) onStatus ("SELECT SOMETHING FIRST"); return; }
             forEachChan ([&] (std::vector<int16_t>& d) { d.erase (d.begin() + a, d.begin() + b); });
             loopAfterRemove (e, a, b);
+            mapSlices (e, a, b, 0);
             cursor = a; selA = selB = 0;
             msg = (op == Op::Cut ? "CUT " : "DELETED ") + fmt (b - a) + " SAMPLES";
             break;
         }
         case Op::Crop:
         {
-            if (! sel) { undoStack.pop_back(); if (onStatus) onStatus ("SELECT WHAT TO KEEP FIRST"); return; }
+            if (! sel) { proc.history.dropLast(); if (onStatus) onStatus ("SELECT WHAT TO KEEP FIRST"); return; }
             forEachChan ([&] (std::vector<int16_t>& d) { d = std::vector<int16_t> (d.begin() + a, d.begin() + b); });
             if (e.loopLength >= 4)
             {
@@ -258,6 +319,9 @@ void SampleEditor::apply (Op op)
                 e.loopStart = ls; e.loopLength = le - ls;
                 if (! e.isLooped()) e.loopStart = e.loopLength = 0;
             }
+            for (auto& p : e.slices) p -= a;
+            tidySlices (e.slices, b - a);
+            if (e.slices.size() <= 1) e.slices.clear();
             selA = 0; selB = b - a; cursor = 0; viewStart = 0; viewLen = b - a;
             msg = "CROPPED TO " + fmt (b - a) + " SAMPLES";
             break;
@@ -276,10 +340,12 @@ void SampleEditor::apply (Op op)
             {
                 forEachChan ([&] (std::vector<int16_t>& d) { d.erase (d.begin() + a, d.begin() + b); });
                 loopAfterRemove (e, a, b);
+                mapSlices (e, a, b, 0);
             }
             e.data.insert (e.data.begin() + at, cl.begin(), cl.end());
             if (wantStereo) e.dataR.insert (e.dataR.begin() + at, cr.begin(), cr.end());
             loopAfterInsert (e, at, (int) cl.size());
+            mapSlices (e, at, at, (int) cl.size());
             selA = at; selB = at + (int) cl.size(); cursor = selB;
             if (len == 0) { viewStart = 0; viewLen = (double) cl.size(); }
             msg = "PASTED " + fmt ((int) cl.size()) + " SAMPLES";
@@ -326,13 +392,13 @@ void SampleEditor::apply (Op op)
             break;
         }
         case Op::LoopToSel:
-            if (! sel) { undoStack.pop_back(); if (onStatus) onStatus ("SELECT THE LOOP FIRST"); return; }
-            if (b - a < 4) { undoStack.pop_back(); if (onStatus) onStatus ("LOOP IS TOO SHORT"); return; }
+            if (! sel) { proc.history.dropLast(); if (onStatus) onStatus ("SELECT THE LOOP FIRST"); return; }
+            if (b - a < 4) { proc.history.dropLast(); if (onStatus) onStatus ("LOOP IS TOO SHORT"); return; }
             e.loopStart = a; e.loopLength = b - a;
             msg = "LOOP SET TO " + fmt (a) + " - " + fmt (b);
             break;
         case Op::ToMono:
-            if (! stereo) { undoStack.pop_back(); if (onStatus) onStatus ("ALREADY MONO"); return; }
+            if (! stereo) { proc.history.dropLast(); if (onStatus) onStatus ("ALREADY MONO"); return; }
             for (size_t i = 0; i < e.data.size(); ++i) e.data[i] = (int16_t) ((e.data[i] + e.dataR[i]) / 2);
             e.dataR.clear();
             msg = "MIXED TO MONO";
@@ -410,7 +476,13 @@ std::vector<juce::Component*> SampleEditor::mainControls()
              &silenceBtn, &reverseBtn, &normBtn, &gainDownBtn, &gainUpBtn,
              &fadeInBtn, &fadeOutBtn, &loopSelBtn, &monoBtn, &drawBtn,
              &stretchBtn, &undoBtn, &redoBtn, &closeBtn,
-             &rateBox, &presetBtn, &toBox, &rawBtn, &resampleBtn };
+             &rateBox, &presetBtn, &toBox, &rawBtn, &resampleBtn,
+             &loopOnBtn, &pingBtn, &loopStartBox, &loopEndBox, &sliceBtn };
+}
+
+std::vector<juce::Component*> SampleEditor::slicerControls()
+{
+    return { &slAuto, &slSens, &slEven, &slCount, &slAdd, &slRemove, &slClear, &slKeys, &slPlay, &slDone };
 }
 
 std::vector<juce::Component*> SampleEditor::stretchControls()
@@ -420,9 +492,21 @@ std::vector<juce::Component*> SampleEditor::stretchControls()
 
 void SampleEditor::showStretch (bool show)
 {
+    if (show && slicerOpen) showSlicer (false);
     stretchOpen = show;
     for (auto* c : mainControls()) c->setVisible (! show);
     for (auto* c : stretchControls()) c->setVisible (show);
+    resized();
+    repaint();
+}
+
+void SampleEditor::showSlicer (bool show)
+{
+    if (show && stretchOpen) showStretch (false);
+    slicerOpen = show;
+    for (auto* c : mainControls()) c->setVisible (! show);
+    for (auto* c : slicerControls()) c->setVisible (show);
+    syncLoopControls();
     resized();
     repaint();
 }
@@ -442,20 +526,22 @@ void SampleEditor::resized()
     };
     auto inner = r.reduced (gap);
     std::vector<juce::Rectangle<int>> rows;
-    for (int i = 0; i < 7; ++i) { rows.insert (rows.begin(), inner.removeFromBottom (rowH)); inner.removeFromBottom (gap); }
+    for (int i = 0; i < 9; ++i) { rows.insert (rows.begin(), inner.removeFromBottom (rowH)); inner.removeFromBottom (gap); }
     inner.removeFromBottom (gap);
     layoutRow (rows[0], { &playBtn, &playSelBtn, &loopBtn, &stopBtn, &selKeysBtn });
     layoutRow (rows[1], { &zoomInBtn, &zoomOutBtn, &zoomSelBtn, &showAllBtn, &selAllBtn });
     layoutRow (rows[2], { &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn });
     layoutRow (rows[3], { &silenceBtn, &reverseBtn, &normBtn, &gainDownBtn, &gainUpBtn });
-    layoutRow (rows[4], { &fadeInBtn, &fadeOutBtn, &loopSelBtn, &monoBtn, &drawBtn });
-    layoutRow (rows[5], { &stretchBtn, &undoBtn, &redoBtn, &closeBtn });
+    layoutRow (rows[4], { &fadeInBtn, &fadeOutBtn, &monoBtn, &drawBtn, &sliceBtn });
+    layoutRow (rows[5], { &loopOnBtn, &pingBtn, &loopSelBtn });          // loop: on/off, mode, from selection
+    layoutRow (rows[6], { &loopStartBox, &loopEndBox });                  // loop points
+    layoutRow (rows[7], { &stretchBtn, &undoBtn, &redoBtn, &closeBtn });
     {
-        auto row = rows[6];
+        auto row = rows[8];
         const float unit = (row.getWidth() - gap * 4) / 8.0f;
-        rateBox.setBounds (row.removeFromLeft ((int) (unit * 2.15f))); row.removeFromLeft (gap);
-        presetBtn.setBounds (row.removeFromLeft ((int) (unit * 1.25f))); row.removeFromLeft (gap);
-        toBox.setBounds (row.removeFromLeft ((int) (unit * 1.95f))); row.removeFromLeft (gap);
+        rateBox.setBounds (row.removeFromLeft ((int) (unit * 2.45f))); row.removeFromLeft (gap);
+        presetBtn.setBounds (row.removeFromLeft ((int) (unit * 1.2f))); row.removeFromLeft (gap);
+        toBox.setBounds (row.removeFromLeft ((int) (unit * 2.0f))); row.removeFromLeft (gap);
         rawBtn.setBounds (row.removeFromLeft ((int) (unit * 0.8f))); row.removeFromLeft (gap);
         resampleBtn.setBounds (row);
     }
@@ -465,7 +551,15 @@ void SampleEditor::resized()
     layoutRow (rows[1], { &stClassic, &stRevised, &stHard });
     layoutRow (rows[2], { &stTime, &stLines, &stFit });
     layoutRow (rows[3], { &stCycle, &stSemi, &stCents });
-    layoutRow (rows[5], { &stPreview, &stApply, &stCancel });
+    layoutRow (rows[7], { &stPreview, &stApply, &stCancel });
+
+    // slicer panel uses the same space too (help text on rows 0, 1 and 5)
+    slicerInfoArea = rows[0].toFloat().getUnion (rows[1].toFloat());
+    slicerHelpArea = rows[5].toFloat().getUnion (rows[6].toFloat());
+    layoutRow (rows[2], { &slAuto, &slSens, &slEven, &slCount });
+    layoutRow (rows[3], { &slAdd, &slRemove, &slClear });
+    layoutRow (rows[4], { &slKeys, &slPlay });
+    layoutRow (rows[7], { &slDone });
 
     auto area = inner.toFloat();
     headerArea = area.removeFromTop (px * 20);
@@ -474,6 +568,26 @@ void SampleEditor::resized()
     area.removeFromBottom (px * 2);
     waveArea = area;
     clampView();
+}
+
+juce::Rectangle<float> SampleEditor::loopHandle (int which) const
+{
+    const auto& in = inst();
+    const float px = Theme::px;
+    const int pos = which == 1 ? in.loopStart : in.loopStart + in.loopLength;
+    const float w = px * 8, h = px * 9;
+    const float x = sampleToX (pos);
+    return juce::Rectangle<float> (which == 1 ? x : x - w, waveArea.getY(), w, h);
+}
+
+juce::Rectangle<float> SampleEditor::sliceHandle (int i) const
+{
+    const auto& in = inst();
+    const float px = Theme::px;
+    if (i < 0 || i >= in.numSlices()) return {};
+    const juce::String label = juce::String (i + 1);
+    const float w = PixelFont::textWidth (label, px) + px * 3, h = px * 9;
+    return juce::Rectangle<float> (sampleToX (in.slices[(size_t) i]), waveArea.getBottom() - h, w, h);
 }
 
 void SampleEditor::paintLane (juce::Graphics& g, juce::Rectangle<float> lane, const std::vector<int16_t>& d, juce::Colour col)
@@ -535,7 +649,10 @@ void SampleEditor::paint (juce::Graphics& g)
     {
         const juce::String idx = juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2);
         const juce::String top = "SAMPLE " + idx + "  " + (in.name.empty() ? juce::String ("(NO NAME)") : juce::String (in.name));
-        const juce::String topR = juce::String (len) + " SMP  " + juce::String (juce::roundToInt (in.rate)) + " HZ  " + (in.isStereo() ? "STEREO" : "MONO");
+        const double shift = in.pitchShift();
+        const juce::String topR = juce::String (len) + " SMP  " + juce::String (juce::roundToInt (in.rate)) + " HZ"
+                                + (std::abs (shift) >= 0.005 ? " (" + juce::String (shift > 0 ? "+" : "") + juce::String (shift, 1) + " ST)" : juce::String())
+                                + "  " + (in.isStereo() ? "STEREO" : "MONO");
         const juce::String bot = hasSel() ? "SEL " + juce::String (selA) + " - " + juce::String (selB) + "  (" + juce::String (selB - selA) + ")"
                                           : "POS " + juce::String (cursor);
         const juce::String botR = "OCT " + juce::String (proc.editorState.octave) + (lastNote > 0 ? "   NOTE " + juce::String (noteName ((uint8_t) lastNote)) : juce::String())
@@ -591,16 +708,39 @@ void SampleEditor::paint (juce::Graphics& g)
         }
         else paintLane (g, waveArea.reduced (0, px), in.data, sk.track[0]);
 
-        // loop markers
+        // slice markers with numbered tabs at the bottom
+        if (in.numSlices() > 0)
+        {
+            float lastRight = -1e9f;
+            for (int i = 0; i < in.numSlices(); ++i)
+            {
+                const float x = sampleToX (in.slices[(size_t) i]);
+                const bool sel = i == selectedSlice;
+                g.setColour (sel ? sk.hot : sk.track[3]);
+                g.fillRect (x - 0.5f, waveArea.getY(), std::max (1.0f, px * (sel ? 0.75f : 0.5f)), waveArea.getHeight());
+                auto tab = sliceHandle (i);
+                if (tab.getX() < lastRight) continue;   // no room for the number
+                g.fillRect (tab);
+                PixelFont::drawCentred (g, juce::String (i + 1), tab, px, sk.bg);
+                lastRight = tab.getRight() + px;
+            }
+        }
+        // loop markers with grab handles at the top
         if (in.isLooped())
         {
-            g.setColour (sk.hot);
-            for (int m : { in.loopStart, in.loopStart + in.loopLength })
+            for (int which : { 1, 2 })
             {
+                g.setColour (sk.hot);
+                const int m = which == 1 ? in.loopStart : in.loopStart + in.loopLength;
                 const float x = sampleToX (m);
                 g.fillRect (x - 1.0f, waveArea.getY(), 2.0f, waveArea.getHeight());
+                auto hnd = loopHandle (which);
+                g.fillRect (hnd);
+                PixelFont::drawCentred (g, which == 1 ? "S" : "E", hnd, px, sk.bg);
             }
-            PixelFont::draw (g, "LOOP", sampleToX (in.loopStart) + px * 2, waveArea.getBottom() - px * 9, px, sk.hot);
+            const juce::String lt = in.pingPong ? "PING-PONG LOOP" : "LOOP";
+            if (sampleToX (in.loopStart + in.loopLength) - sampleToX (in.loopStart) > PixelFont::textWidth (lt, px) + px * 20)
+                PixelFont::draw (g, lt, sampleToX (in.loopStart) + px * 10, waveArea.getY() + px * 1.5f, px, sk.hot);
         }
         // cursor + playhead
         g.setColour (sk.text);
@@ -645,6 +785,21 @@ void SampleEditor::paint (juce::Graphics& g)
     }
     Theme::bevel (g, overviewArea, false, std::max (1.0f, px * 0.5f));
 
+    if (slicerOpen)
+    {
+        const juce::String t1 = juce::String (in.numSlices()) + " SLICES" + (in.sliceKeys ? " - KEYS PLAY SLICES (C-3 = 1)" : " - S00 PLAYS SLICE 1");
+        const juce::String t2 = "DRAG A NUMBERED TAB TO MOVE IT";
+        const juce::String t3 = "DOUBLE-CLICK THE WAVE TO ADD";
+        const juce::String t4 = "ALT+CLICK A TAB TO REMOVE IT";
+        auto r1 = slicerInfoArea.withHeight (slicerInfoArea.getHeight() / 2), r2 = slicerInfoArea.withTrimmedTop (slicerInfoArea.getHeight() / 2);
+        auto r3 = slicerHelpArea.withHeight (slicerHelpArea.getHeight() / 2), r4 = slicerHelpArea.withTrimmedTop (slicerHelpArea.getHeight() / 2);
+        for (auto [t, r] : { std::pair { t1, r1 }, std::pair { t2, r2 }, std::pair { t3, r3 }, std::pair { t4, r4 } })
+        {
+            float tp = px;
+            while (tp > 1.5f && PixelFont::textWidth (t, tp) > r.getWidth()) tp -= 0.5f;
+            PixelFont::drawLeft (g, t, r, tp, Theme::ink);
+        }
+    }
     if (stretchOpen)
     {
         const double sel = hasSel() ? selB - selA : len;
@@ -705,6 +860,37 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
     }
     if (! waveArea.contains (e.position)) return;
 
+    // loop handles (top) and slice tabs (bottom)
+    dragLoopMarker = 0; dragSlice = -1;
+    if (inst().isLooped() && ! drawMode)
+        for (int which : { 2, 1 })
+            if (loopHandle (which).expanded (Theme::px).contains (e.position))
+            {
+                dragLoopMarker = which;
+                proc.history.instrument (proc.editorState.instrument, "LOOP POINTS");
+                // hear the loop while it's moved
+                const auto& in = inst();
+                const int from = std::max (in.loopStart, in.loopStart + in.loopLength - (int) (in.rate * 0.4));
+                proc.withLock ([&] { proc.player.jamNoteFrom (37, proc.editorState.instrument, which == 1 ? in.loopStart : from); });
+                auditioningLoop = true;
+                return;
+            }
+    if (! drawMode)
+        for (int i = inst().numSlices() - 1; i >= 0; --i)
+            if (sliceHandle (i).expanded (Theme::px * 0.5f).contains (e.position))
+            {
+                if (e.mods.isAltDown() || e.mods.isRightButtonDown()) { removeSlice (i); return; }
+                selectedSlice = i;
+                if (i > 0)   // the first slice always starts at 0
+                {
+                    dragSlice = i;
+                    proc.history.instrument (proc.editorState.instrument, "MOVE SLICE " + juce::String (i + 1));
+                }
+                else selectSlice (0, true);
+                repaint();
+                return;
+            }
+
     if (drawMode)
     {
         pushUndo();
@@ -755,6 +941,35 @@ void SampleEditor::mouseDrag (const juce::MouseEvent& e)
         clampView(); repaint();
         return;
     }
+    if (dragLoopMarker != 0)
+    {
+        const int s = juce::jlimit (0, length(), (int) std::lround (xToSample (juce::jlimit (waveArea.getX(), waveArea.getRight(), e.position.x))));
+        const int which = dragLoopMarker;
+        proc.withLock ([&] {
+            auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+            int a = in.loopStart, b = in.loopStart + in.loopLength;
+            if (which == 1) a = juce::jlimit (0, b - 4, s); else b = juce::jlimit (a + 4, (int) in.data.size(), s);
+            in.loopStart = a; in.loopLength = b - a;
+        });
+        syncLoopControls();
+        repaint();
+        return;
+    }
+    if (dragSlice >= 0)
+    {
+        if (e.getDistanceFromDragStart() < 3) return;
+        const int s = juce::jlimit (0, length() - 1, (int) std::lround (xToSample (juce::jlimit (waveArea.getX(), waveArea.getRight(), e.position.x))));
+        const int i = dragSlice;
+        proc.withLock ([&] {
+            auto& sl = proc.song.instruments[(size_t) proc.editorState.instrument].slices;
+            if (i <= 0 || i >= (int) sl.size()) return;
+            const int lo = sl[(size_t) i - 1] + 1;
+            const int hi = i + 1 < (int) sl.size() ? sl[(size_t) i + 1] - 1 : length() - 1;
+            sl[(size_t) i] = juce::jlimit (lo, std::max (lo, hi), s);
+        });
+        repaint();
+        return;
+    }
     if (drawMode) { if (lastDrawSample >= 0 || waveArea.contains (e.position)) drawAt (e); return; }
     if (pendingInside && e.getDistanceFromDragStart() > 3)
     {
@@ -773,8 +988,26 @@ void SampleEditor::mouseDrag (const juce::MouseEvent& e)
     repaint();
 }
 
-void SampleEditor::mouseUp (const juce::MouseEvent&)
+void SampleEditor::mouseUp (const juce::MouseEvent& e)
 {
+    if (dragLoopMarker != 0)
+    {
+        dragLoopMarker = 0;
+        if (auditioningLoop) { proc.withLock ([&] { proc.player.jamNoteOff (37); }); auditioningLoop = false; }
+        const auto& in = inst();
+        proc.history.relabelLast ("LOOP " + juce::String (in.loopStart) + "-" + juce::String (in.loopStart + in.loopLength));
+        if (onStatus) onStatus ("LOOP " + juce::String (in.loopStart) + " - " + juce::String (in.loopStart + in.loopLength)
+                                + (in.pingPong ? " (PING-PONG)" : ""));
+        syncLoopControls();
+        if (onChanged) onChanged();
+    }
+    if (dragSlice >= 0)
+    {
+        const int i = dragSlice;
+        dragSlice = -1;
+        if (e.getDistanceFromDragStart() < 3) { proc.history.dropLast(); selectSlice (i, true); }
+        else if (onChanged) onChanged();
+    }
     if (drawMode && lastDrawSample >= 0)
     {
         lastDrawSample = -1;
@@ -789,15 +1022,19 @@ void SampleEditor::mouseUp (const juce::MouseEvent&)
 void SampleEditor::mouseMove (const juce::MouseEvent& e)
 {
     const float edge = std::max (6.0f, Theme::px * 2.5f);
-    const bool nearEdge = hasSel() && waveArea.contains (e.position) && ! drawMode
+    bool nearEdge = hasSel() && waveArea.contains (e.position) && ! drawMode
                        && (std::abs (e.position.x - sampleToX (selA)) <= edge || std::abs (e.position.x - sampleToX (selB)) <= edge);
+    if (inst().isLooped()) for (int w : { 1, 2 }) nearEdge = nearEdge || loopHandle (w).expanded (Theme::px).contains (e.position);
+    for (int i = 1; i < inst().numSlices(); ++i) nearEdge = nearEdge || sliceHandle (i).expanded (Theme::px * 0.5f).contains (e.position);
     setMouseCursor (nearEdge ? juce::MouseCursor::LeftRightResizeCursor
                              : (drawMode && waveArea.contains (e.position) ? juce::MouseCursor::CrosshairCursor : juce::MouseCursor::NormalCursor));
 }
 
 void SampleEditor::mouseDoubleClick (const juce::MouseEvent& e)
 {
-    if (waveArea.contains (e.position) && ! drawMode) selectAll();
+    if (! waveArea.contains (e.position) || drawMode) return;
+    if (slicerOpen) addSliceAt (juce::jlimit (0, std::max (0, length() - 1), (int) std::lround (xToSample (e.position.x))));
+    else selectAll();
 }
 
 void SampleEditor::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
@@ -924,8 +1161,11 @@ void SampleEditor::setRate (double hz)
     if (std::abs (hz - inst().rate) < 0.5) return;
     pushUndo();
     Instrument e = inst();
+    const double old = e.rate;
+    if (e.natRate <= 0) e.natRate = old;
     e.rate = hz;
-    commit (std::move (e), "RATE " + juce::String (juce::roundToInt (hz)) + " HZ (C-3)");
+    commit (std::move (e), "RATE " + juce::String (juce::roundToInt (old)) + " > " + juce::String (juce::roundToInt (hz)) + " HZ: "
+                           + pitchText (12.0 * std::log2 (hz / old)));
     rateBox.setValue (juce::roundToInt (hz));
 }
 
@@ -970,10 +1210,13 @@ void SampleEditor::resampleTo (double hz, bool raw)
     e.loopStart = (int) std::lround (cur.loopStart / ratio);
     e.loopLength = (int) std::lround (cur.loopLength / ratio);
     if (! e.isLooped()) e.loopStart = e.loopLength = 0;
+    for (auto& p : e.slices) p = (int) std::lround (p / ratio);
+    tidySlices (e.slices, (int) e.data.size());
+    if (e.natRate > 0) e.natRate *= hz / cur.rate;   // the pitch doesn't change
     e.rate = hz;
     selA = (int) std::lround (selA / ratio); selB = (int) std::lround (selB / ratio); cursor = (int) std::lround (cursor / ratio);
     viewStart /= ratio; viewLen /= ratio;
-    commit (std::move (e), "RESAMPLED TO " + juce::String (juce::roundToInt (hz)) + " HZ" + (raw ? " (RAW)" : ""));
+    commit (std::move (e), "RESAMPLED TO " + juce::String (juce::roundToInt (hz)) + " HZ" + (raw ? " (RAW)" : "") + " - PITCH KEPT");
     rateBox.setValue (juce::roundToInt (hz));
 }
 
@@ -1053,11 +1296,126 @@ void SampleEditor::applyStretch (const StretchSettings& st)
         e.loopLength = (int) std::lround (e.loopLength * st.timeFactor);
     }
     if (! e.isLooped()) e.loopStart = e.loopLength = 0;
+    mapSlices (e, a, b, newLen);
     if (hasSel()) { selB = selA + newLen; }
     else { viewStart = 0; viewLen = newLen; }
     stop();
     commit (std::move (e), juce::String ("STRETCHED ") + (st.mode == StretchSettings::Mode::Classic ? "(CLASSIC) " : st.mode == StretchSettings::Mode::Revised ? "(REVISED) " : "(HARD) ")
                          + juce::String (juce::roundToInt (st.timeFactor * 100)) + "%"
                          + (st.semitones != 0 || st.cents != 0 ? " " + juce::String (st.semitones + st.cents / 100.0, 2) + " ST" : juce::String()));
+}
+// --------------------------------------------------------------- loop points
+template <typename Fn> void SampleEditor::editInPlace (const juce::String& what, bool merge, Fn&& fn)
+{
+    proc.history.instrument (proc.editorState.instrument, what, merge);
+    proc.withLock ([&] { fn (proc.song.instruments[(size_t) proc.editorState.instrument]); });
+    syncLoopControls();
+    repaint();
+    if (onChanged) onChanged();
+}
+
+void SampleEditor::setLoop (int start, int end, bool on)
+{
+    const int len = length();
+    if (on && len < 4) { if (onStatus) onStatus ("THE SAMPLE IS TOO SHORT TO LOOP"); syncLoopControls(); return; }
+    start = juce::jlimit (0, std::max (0, len - 4), std::min (start, end));
+    end = juce::jlimit (start + 4, len, std::max (end, start + 4));
+    editInPlace (on ? "LOOP POINTS" : "LOOP OFF", on, [&] (Instrument& in)
+    {
+        if (on) { in.loopStart = start; in.loopLength = end - start; }
+        else { in.loopStart = 0; in.loopLength = 0; }
+    });
+    if (onStatus) onStatus (on ? "LOOP " + juce::String (start) + " - " + juce::String (end) + (inst().pingPong ? " (PING-PONG)" : "") : juce::String ("LOOP OFF"));
+}
+
+void SampleEditor::setPingPong (bool on)
+{
+    editInPlace (on ? "PING-PONG ON" : "PING-PONG OFF", false, [on] (Instrument& in) { in.pingPong = on; });
+    if (onStatus) onStatus (on ? (inst().isLooped() ? "PING-PONG LOOP: PLAYS THE LOOP BACK AND FORTH" : "PING-PONG ON - TURN LOOP ON TO HEAR IT")
+                               : juce::String ("FORWARD LOOP"));
+}
+
+// --------------------------------------------------------------- slicing
+int SampleEditor::sliceAt (int pos) const
+{
+    const auto& sl = inst().slices;
+    int found = -1;
+    for (int i = 0; i < (int) sl.size(); ++i) if (sl[(size_t) i] <= pos) found = i;
+    return found;
+}
+
+void SampleEditor::selectSlice (int index, bool playIt)
+{
+    int a = 0, b = 0;
+    if (! inst().sliceRange (index, a, b)) return;
+    selectedSlice = index;
+    selA = a; selB = b; cursor = a;
+    updateJamRange();
+    if (playIt) play (true);
+    if (onStatus) onStatus ("SLICE " + juce::String (index + 1) + " OF " + juce::String (inst().numSlices()) + ": " + juce::String (a) + " - " + juce::String (b)
+                            + (inst().sliceKeys ? " (KEY " + juce::String (noteName ((uint8_t) juce::jlimit (1, (int) kNoteMax, 37 + index))) + ")" : juce::String()));
+    repaint();
+}
+
+void SampleEditor::autoSlice (float sensitivity)
+{
+    const auto& in = inst();
+    if (! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
+    auto found = detectSlices (in.data, in.dataR, in.rate, sensitivity);
+    editInPlace ("AUTO SLICE", false, [&] (Instrument& i2) { std::swap (i2.slices, found); });
+    selectedSlice = -1;
+    if (onStatus) onStatus ("FOUND " + juce::String (inst().numSlices()) + " SLICES (SENS " + juce::String (juce::roundToInt (sensitivity * 100))
+                            + " - HIGHER FINDS QUIETER HITS)");
+}
+
+void SampleEditor::evenSlice (int count)
+{
+    if (! inst().hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
+    auto sl = evenSlices (length(), count);
+    editInPlace ("EVEN SLICES", false, [&] (Instrument& in) { std::swap (in.slices, sl); });
+    selectedSlice = -1;
+    if (onStatus) onStatus (juce::String (inst().numSlices()) + " EQUAL SLICES");
+}
+
+void SampleEditor::addSliceAt (int pos)
+{
+    if (! inst().hasData() || pos <= 0 || pos >= length()) { if (onStatus) onStatus ("PUT THE CURSOR INSIDE THE SAMPLE TO ADD A SLICE"); return; }
+    auto sl = inst().slices;
+    if (std::find (sl.begin(), sl.end(), pos) != sl.end()) return;
+    sl.push_back (pos);
+    tidySlices (sl, length());
+    editInPlace ("ADD SLICE", false, [&] (Instrument& in) { std::swap (in.slices, sl); });
+    selectedSlice = sliceAt (pos);
+    if (onStatus) onStatus ("ADDED SLICE " + juce::String (selectedSlice + 1) + " - " + juce::String (inst().numSlices()) + " SLICES");
+}
+
+void SampleEditor::removeSlice (int index)
+{
+    auto sl = inst().slices;
+    if (index <= 0 || index >= (int) sl.size())
+    {
+        if (onStatus) onStatus (index == 0 ? "SLICE 1 ALWAYS STARTS AT 0 - USE CLEAR ALL" : "PICK A SLICE TAB FIRST");
+        return;
+    }
+    sl.erase (sl.begin() + index);
+    if (sl.size() <= 1) sl.clear();
+    editInPlace ("REMOVE SLICE", false, [&] (Instrument& in) { std::swap (in.slices, sl); });
+    selectedSlice = -1;
+    if (onStatus) onStatus ("REMOVED A SLICE - " + juce::String (inst().numSlices()) + " SLICES");
+}
+
+void SampleEditor::clearSlices()
+{
+    editInPlace ("CLEAR SLICES", false, [] (Instrument& in) { in.slices.clear(); in.sliceKeys = false; });
+    selectedSlice = -1;
+    if (onStatus) onStatus ("NO SLICES - SXX PLAYS 1/16 PARTS");
+}
+
+void SampleEditor::setSliceKeys (bool on)
+{
+    if (on && inst().numSlices() == 0) evenSlice (slCount.getValue());
+    editInPlace (on ? "SLICE TO KEYS ON" : "SLICE TO KEYS OFF", false, [on] (Instrument& in) { in.sliceKeys = on; });
+    if (on && selKeysBtn.getToggleState()) setSelKeys (false);   // keys play slices, not the selection
+    if (onStatus) onStatus (on ? "NOTES PLAY SLICES: C-3 = SLICE 1, C#3 = SLICE 2 ... (IN PATTERNS TOO)" : juce::String ("NOTES PLAY THE WHOLE SAMPLE"));
 }
 } // namespace prv::ui

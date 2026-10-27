@@ -38,4 +38,34 @@ int cloneInPlace (Song& song, int seqPos)
     song.sequence[(size_t) seqPos] = nb;
     return nb;
 }
+bool doubleBlockLength (Block& b)
+{
+    const int n = b.lines;
+    if (n < 1 || n * 2 > kMaxLines) return false;
+    for (int l = 0; l < n; ++l) b.rows[(size_t) (n + l)] = b.rows[(size_t) l];
+    b.lines = n * 2;
+    return true;
+}
+
+bool halveBlockLength (Block& b, bool& secondHalfDiffered)
+{
+    secondHalfDiffered = false;
+    const int n = b.lines;
+    if (n < 2) return false;
+    const int keep = (n + 1) / 2;
+    for (int l = keep; l < n; ++l)
+    {
+        const int src = l - keep;
+        for (int t = 0; t < kMaxTracks; ++t)
+        {
+            const Cell& a = b.at (l, t);
+            const Cell& c = b.at (src, t);
+            if (a.note != c.note || a.instr != c.instr || a.cmd != c.cmd || a.param != c.param || a.cmd2 != c.cmd2 || a.param2 != c.param2)
+                secondHalfDiffered = true;
+        }
+        b.rows[(size_t) l].fill (Cell{});
+    }
+    b.lines = keep;
+    return true;
+}
 } // namespace prv

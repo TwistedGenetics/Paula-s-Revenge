@@ -187,7 +187,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     };
     list.onMove = [this, &st] (int from, int to)
     {
-        if (pushStructUndo) pushStructUndo();
+        if (pushStructUndo) pushStructUndo ("MOVE SEQUENCE ENTRY");
         bool moved = false;
         proc.withLock ([&] { moved = moveSequenceEntry (proc.song, from, to); });
         if (moved) { st.seqPos = to; changed(); }
@@ -205,7 +205,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     insBtn.onClick = [this, &st]
     {
         if (proc.song.sequence.size() >= (size_t) kMaxSequence) return;
-        if (pushStructUndo) pushStructUndo();
+        if (pushStructUndo) pushStructUndo ("INSERT SEQUENCE ENTRY");
         proc.withLock ([&] {
             const int b = proc.song.sequence[(size_t) st.seqPos];
             proc.song.sequence.insert (proc.song.sequence.begin() + st.seqPos + 1, b);
@@ -216,7 +216,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     delBtn.onClick = [this, &st]
     {
         if (proc.song.sequence.size() <= 1) return;
-        if (pushStructUndo) pushStructUndo();
+        if (pushStructUndo) pushStructUndo ("DELETE SEQUENCE ENTRY");
         proc.withLock ([&] { proc.song.sequence.erase (proc.song.sequence.begin() + st.seqPos); });
         st.seqPos = std::min (st.seqPos, (int) proc.song.sequence.size() - 1);
         st.block = proc.song.safeBlock (proc.song.sequence[(size_t) st.seqPos]);
@@ -227,7 +227,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     blockBox.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
     blockBox.onChange = [this, &st] (int v)
     {
-        if (pushStructUndo) pushStructUndo();
+        if (pushStructUndo) pushStructUndo ("SEQUENCE BLOCK NUMBER");
         proc.withLock ([&] { proc.song.sequence[(size_t) st.seqPos] = proc.song.safeBlock (v); });
         st.block = proc.song.safeBlock (v);
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);
@@ -243,7 +243,7 @@ void SequencePanel::moveSelected (int delta)
     auto& st = proc.editorState;
     const int to = st.seqPos + delta;
     if (to < 0 || to >= (int) proc.song.sequence.size()) return;
-    if (pushStructUndo) pushStructUndo();
+    if (pushStructUndo) pushStructUndo ("MOVE SEQUENCE ENTRY");
     proc.withLock ([&] { moveSequenceEntry (proc.song, st.seqPos, to); });
     st.seqPos = to;
     changed();
@@ -253,7 +253,7 @@ void SequencePanel::cloneInPlace()
 {
     auto& st = proc.editorState;
     if ((int) proc.song.blocks.size() >= kMaxBlocks) { if (onStatus) onStatus ("CAN'T CLONE: THE SONG ALREADY HAS 256 BLOCKS"); return; }
-    if (pushStructUndo) pushStructUndo();
+    if (pushStructUndo) pushStructUndo ("CLONE IN PLACE");
     int nb = -1;
     // build the new song structure off the audio thread, then swap it in
     std::vector<Block> blocks = proc.song.blocks;
@@ -318,8 +318,8 @@ void SequencePanel::resized()
 }
 
 // =========================================================================== Block
-BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::function<void (int)> u)
-    : proc (p), changed (std::move (c)), pushUndo (std::move (u))
+BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c)
+    : proc (p), changed (std::move (c))
 {
     auto& st = proc.editorState;
     current.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
@@ -331,15 +331,15 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     };
     lines.onChange = [this, &st] (int v)
     {
-        pushUndo (st.block);
+        proc.history.block (st.block, "BLOCK LINES", true);
         proc.withLock ([&] { proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].lines = juce::jlimit (1, kMaxLines, v); });
         st.line = std::min (st.line, v - 1);
         changed();
     };
     newBtn.onClick = [this, &st]
     {
-        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() >= (size_t) kMaxBlocks) return;
+        if (pushStructUndo) pushStructUndo ("NEW BLOCK");
         proc.withLock ([&] { proc.song.blocks.push_back (Block{}); });
         st.block = (int) proc.song.blocks.size() - 1;
         st.line = 0;
@@ -347,16 +347,16 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     };
     cloneBtn.onClick = [this, &st]
     {
-        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() >= (size_t) kMaxBlocks) return;
+        if (pushStructUndo) pushStructUndo ("CLONE BLOCK");
         proc.withLock ([&] { proc.song.blocks.push_back (proc.song.blocks[(size_t) proc.song.safeBlock (st.block)]); });
         st.block = (int) proc.song.blocks.size() - 1;
         changed();
     };
     delBtn.onClick = [this, &st]
     {
-        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() <= 1) return;
+        if (pushStructUndo) pushStructUndo ("DELETE BLOCK");
         const int del = proc.song.safeBlock (st.block);
         proc.withLock ([&] {
             proc.song.blocks.erase (proc.song.blocks.begin() + del);
@@ -372,14 +372,16 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     {
         const int a = proc.song.safeBlock (st.block), b = a + delta;
         if (b < 0 || b >= (int) proc.song.blocks.size()) return;
-        if (pushStructUndo) pushStructUndo();
+        if (pushStructUndo) pushStructUndo ("CHANGE BLOCK NUMBER");
         proc.withLock ([&] { swapBlockNumbers (proc.song, a, b); });
         st.block = b;
         changed();
     };
     numDownBtn.onClick = [swapWith] { swapWith (-1); };
     numUpBtn.onClick = [swapWith] { swapWith (1); };
-    for (auto* c2 : std::initializer_list<juce::Component*> { &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel, &numDownBtn, &numUpBtn })
+    doubleBtn.onClick = [this] { if (onDouble) onDouble(); };
+    halveBtn.onClick = [this] { if (onHalve) onHalve(); };
+    for (auto* c2 : std::initializer_list<juce::Component*> { &doubleBtn, &halveBtn, &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel, &numDownBtn, &numUpBtn })
         addAndMakeVisible (c2);
 }
 
@@ -406,6 +408,9 @@ void BlockPanel::resized()
     current.setBounds (row1);
     r.removeFromTop ((int) px * 2);
     auto row2 = r.removeFromTop (rowH);
+    const int sb = (int) (px * 6 * 3 + px * 4);
+    halveBtn.setBounds (row2.removeFromRight (sb)); row2.removeFromRight ((int) px);
+    doubleBtn.setBounds (row2.removeFromRight (sb)); row2.removeFromRight ((int) px * 2);
     lines.setBounds (row2);
     r.removeFromTop ((int) px * 2);
     auto row3 = r.removeFromTop (rowH);
@@ -487,6 +492,7 @@ void WaveView::mouseDown (const juce::MouseEvent& e)
     const float xs = 2.0f + w * in.loopStart / n;
     const float xe = 2.0f + w * (in.loopStart + in.loopLength) / n;
     dragging = std::abs (e.position.x - xs) < std::abs (e.position.x - xe) ? 1 : 2;
+    proc.history.instrument (proc.editorState.instrument, "LOOP POINTS");
     mouseDrag (e);
 }
 
@@ -533,6 +539,7 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     clearBtn.onClick = [this]
     {
         Instrument empty;
+        proc.history.instrument (proc.editorState.instrument, "CLEAR INSTRUMENT");
         proc.withLock ([&] { std::swap (proc.song.instruments[(size_t) proc.editorState.instrument], empty); proc.player.jamAllOff(); });
         changed();
     };
@@ -548,28 +555,29 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
         {
             if (result != 1 || safe == nullptr) return;
             const auto name = w->getTextEditorContents ("name").toUpperCase().substring (0, 22).toStdString();
+            safe->proc.history.instrument (idx, "INSTRUMENT NAME");
             safe->proc.withLock ([&] { safe->proc.song.instruments[(size_t) idx].name = name; });
             safe->changed();
         }), true);
     };
 
-    vol.onChange   = [this] (int v) { editInstrument ([v] (Instrument& in) { in.volume = v; }); };
-    fine.onChange  = [this] (int v) { editInstrument ([v] (Instrument& in) { in.finetune = v; }); };
-    trans.onChange = [this] (int v) { editInstrument ([v] (Instrument& in) { in.transpose = v; }); };
+    vol.onChange   = [this] (int v) { editInstrument ("INSTRUMENT VOLUME", [v] (Instrument& in) { in.volume = v; }); };
+    fine.onChange  = [this] (int v) { editInstrument ("FINETUNE", [v] (Instrument& in) { in.finetune = v; }); };
+    trans.onChange = [this] (int v) { editInstrument ("TRANSPOSE", [v] (Instrument& in) { in.transpose = v; }); };
     loopBtn.onClick = [this]
     {
         const bool on = loopBtn.getToggleState();
-        editInstrument ([on] (Instrument& in)
+        editInstrument ("LOOP", [on] (Instrument& in)
         {
             if (on && in.hasData()) { in.loopStart = 0; in.loopLength = (int) in.data.size(); }
             else { in.loopStart = 0; in.loopLength = 0; }
         });
     };
-    loopStart.onChange = [this] (int v) { editInstrument ([v] (Instrument& in) {
+    loopStart.onChange = [this] (int v) { editInstrument ("LOOP START", [v] (Instrument& in) {
         if (! in.isLooped()) return;
         const int end = in.loopStart + in.loopLength;
         in.loopStart = juce::jlimit (0, end - 4, v); in.loopLength = end - in.loopStart; }); };
-    loopLen.onChange = [this] (int v) { editInstrument ([v] (Instrument& in) {
+    loopLen.onChange = [this] (int v) { editInstrument ("LOOP LENGTH", [v] (Instrument& in) {
         if (! in.isLooped()) return;
         in.loopLength = juce::jlimit (4, (int) in.data.size() - in.loopStart, v); }); };
     loopStart.labelChars = loopLen.labelChars = 5;
@@ -582,8 +590,9 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
         addAndMakeVisible (comp);
 }
 
-template <typename Fn> void InstrumentPanel::editInstrument (Fn&& fn)
+template <typename Fn> void InstrumentPanel::editInstrument (const juce::String& what, Fn&& fn)
 {
+    proc.history.instrument (proc.editorState.instrument, what, true);
     proc.withLock ([&] { fn (proc.song.instruments[(size_t) proc.editorState.instrument]); });
     changed();
 }
@@ -606,6 +615,7 @@ void InstrumentPanel::loadSample()
         juce::String err;
         if (! importSample (file, in, err)) { self.status ("ERROR: " + err); return; }
         const int idx = self.proc.editorState.instrument;
+        self.proc.history.instrument (idx, "LOAD SAMPLE");
         self.proc.withLock ([&] { self.proc.player.jamAllOff(); std::swap (self.proc.song.instruments[(size_t) idx], in); });
         self.status ("LOADED " + file.getFileName().toUpperCase() + " INTO " + juce::String::toHexString (idx + 1).toUpperCase().paddedLeft ('0', 2));
         self.changed();

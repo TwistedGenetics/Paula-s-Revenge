@@ -54,6 +54,22 @@ public:
     void showStretch (bool show);
     bool isStretchOpen() const { return stretchOpen; }
 
+    // loop points (also used by tests); end is exclusive
+    void setLoop (int start, int end, bool on);
+    void setPingPong (bool on);
+
+    // slicing (also used by tests)
+    void showSlicer (bool show);
+    bool isSlicerOpen() const { return slicerOpen; }
+    void autoSlice (float sensitivity);       // 0..1
+    void evenSlice (int count);
+    void addSliceAt (int pos);
+    void removeSlice (int index);
+    void clearSlices();
+    void setSliceKeys (bool on);
+    void selectSlice (int index, bool play);
+    int  sliceAt (int pos) const;             // slice containing pos (-1 if none)
+
     // play the edited sample from the keyboard (also used by tests)
     void keyNoteOn (int note);
     void keyNoteOff (int note);
@@ -78,12 +94,16 @@ private:
     std::map<int, int> heldKeys;      // key code -> note
     int  lastNote = 0;
     bool stretchOpen = false;
+    bool slicerOpen = false;
+    int  dragLoopMarker = 0;          // 1 = loop start, 2 = loop end
+    int  dragSlice = -1;              // slice marker being dragged
+    int  selectedSlice = -1;
+    bool auditioningLoop = false;
 
-    std::vector<Instrument> undoStack, redoStack;
     struct Clip { std::vector<int16_t> left, right; bool empty() const { return left.empty(); } };
     static Clip clipboard;
 
-    PixButton playBtn { "PLAY" }, playSelBtn { juce::String::charToString ((juce::juce_wchar) 1) + " SEL" }, loopBtn { "LOOP", true }, stopBtn { "STOP" },
+    PixButton playBtn { "PLAY" }, playSelBtn { juce::String::charToString ((juce::juce_wchar) 1) + " SEL" }, loopBtn { "REPEAT", true }, stopBtn { "STOP" },
               zoomInBtn { "ZOOM +" }, zoomOutBtn { "ZOOM -" }, showAllBtn { "FIT ALL" }, zoomSelBtn { "FIT SEL" },
               selAllBtn { "SEL ALL" }, drawBtn { "DRAW", true },
               cutBtn { "CUT" }, copyBtn { "COPY" }, pasteBtn { "PASTE" }, deleteBtn { "DELETE" }, cropBtn { "CROP" },
@@ -92,8 +112,21 @@ private:
               gainDownBtn { "VOL -" }, gainUpBtn { "VOL +" }, loopSelBtn { "SET LOOP" }, monoBtn { "TO MONO" },
               undoBtn { "UNDO" }, redoBtn { "REDO" }, closeBtn { "CLOSE" },
               selKeysBtn { "SEL KEYS", true }, stretchBtn { "STRETCH" },
-              presetBtn { "PRESET" }, rawBtn { "RAW", true }, resampleBtn { "RESAMPLE" };
+              presetBtn { "PRESET" }, rawBtn { "RAW", true }, resampleBtn { "RESAMPLE" },
+              loopOnBtn { "LOOP", true }, pingBtn { "PING-PONG", true }, sliceBtn { "SLICE" };
     NumberBox rateBox { "RATE", 500, 96000, 16574 }, toBox { "TO", 500, 96000, 11025 };
+    NumberBox loopStartBox { "START", 0, 1, 0 }, loopEndBox { "END", 0, 1, 0 };
+
+    // slicer panel (replaces the button rows while open)
+    PixButton slAuto { "AUTO" }, slEven { "EVEN" }, slAdd { "ADD AT CURSOR" }, slRemove { "REMOVE" }, slClear { "CLEAR ALL" },
+              slKeys { "SLICE TO KEYS", true }, slPlay { "PLAY SLICE" }, slDone { "DONE" };
+    NumberBox slSens { "SENS", 1, 100, 50 }, slCount { "COUNT", 2, 64, 8 };
+    std::vector<juce::Component*> slicerControls();
+    juce::Rectangle<float> slicerInfoArea, slicerHelpArea;
+    juce::Rectangle<float> loopHandle (int which) const;   // 1 start, 2 end (top of the waveform)
+    juce::Rectangle<float> sliceHandle (int index) const;  // numbered tab at the bottom
+    void syncLoopControls();
+    template <typename Fn> void editInPlace (const juce::String& what, bool merge, Fn&& fn);
 
     // time-stretch panel (replaces the button rows while open)
     PixButton stClassic { "CLASSIC", true }, stRevised { "REVISED", true }, stHard { "HARD", true }, stFit { "FIT TO LINES" },

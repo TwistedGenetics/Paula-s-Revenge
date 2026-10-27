@@ -20,13 +20,13 @@ rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 
 | Area | What it does |
 |---|---|
-| Title bar | NEW, LOAD, SAVE (native `.prv`), SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
-| Transport | Play song, play block, stop, edit mode, BPM, speed (ticks per line), octave, step |
+| Title bar | NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
+| Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
 | Sequence | The song order, with a scrollbar. Click a position to jump to it. INS / DEL entries, set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag a row) move the selected position. CLONE IN PLACE gives this position its own copy of the block (see below) |
-| Block | Pick, add, clone or delete blocks; set the number of lines (1–256). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
+| Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. Volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the little waveform (double-click it to open the editor). Double-click a name to rename. Alt-click to preview |
-| Pattern editor | 8 tracks. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
-| Paula strip | Output character (see below), stereo separation, volume, and an L/R output meter |
+| Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
+| Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, host sync |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
@@ -63,14 +63,26 @@ Envelopes and filters run per note on top of the Paula sound. They're saved in `
 * INSERT adds the BLOCK number after the cursor; SET makes the selected positions play that block.
 * `Cmd+Z` / `Cmd+Shift+Z` undo and redo; double-click a position or press Enter to go back to the pattern.
 
+## Looping part of a block
+
+Drag down the **line numbers** to mark some lines (or Shift-click a line to mark from the cursor to there; `Cmd+[` / `Cmd+]` set the start / end at the cursor). The marked lines turn red and playback goes round them: `Space` starts at the first marked line, and song playback also loops there once it reaches that block. `Bxx`/`Dxx` jumps inside the loop are ignored so it keeps going. **LOOP** on the transport row turns it off and on again; marking new lines turns it on.
+
+## Undo and redo
+
+One history covers everything: notes and effects, block lengths, the sequence and block numbers, instrument settings and sound shaping, sample edits, loop points and slices, and song settings (BPM, speed, name, tracks, pans). `Cmd+Z` / `Cmd+Shift+Z` work on every page, and so do the **UNDO** / **REDO** buttons in the title bar (the sample editor and arrange page have their own buttons too). The status line says what was undone, e.g. `UNDO: TRANSPOSE TRACK +1`. It keeps the last 200 steps; loading or starting a song clears it.
+
 ## Sequence tools
 
 * **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list.
 * **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into a new block 3, moves every later block up one number (the sequence follows, so nothing else changes), and points position 1 at the new block 3. The song order keeps the same length; only one new block number exists. Now you can change it without touching the other places block 2 is used. The status line says exactly what happened.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
-* `Cmd+Z` / `Cmd+Shift+Z` in the pattern undo and redo all of these.
+* UNDO / REDO (`Cmd+Z` / `Cmd+Shift+Z`) undo and redo all of these.
 
 ## Saving and your samples
+
+**SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
+
+v0.6 also fixes LOAD for `.prv` songs: earlier versions mistook a saved song for an old SoundTracker module and loaded rubbish. Songs inside Live sets were never affected, and old `.prv` files load correctly now.
 
 Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
 
@@ -82,20 +94,30 @@ The app uses the normal Mac window: **red** quits, **yellow** minimises to the D
 
 LOAD in the instrument panel opens a browser in place of the pattern. Every sample you highlight **plays straight away** (turn AUTO PLAY off to stop that), with its rate, length, mono/stereo and a waveform shown underneath.
 
+* **Click the waveform** to play from that point (drag to scrub).
+* **Play it at different pitches** with the computer keys (same layout as the pattern, `C-3` on `Z` at octave 3 = as recorded, `[` `]` change octave) or a MIDI keyboard (MIDI 60 = as recorded).
+* Samples load at their own rate, so they sound exactly as recorded. To lower the rate, use RATE / RESAMPLE in the sample editor.
+
 | Key | Action |
 |---|---|
 | `↑` `↓` / `PgUp` `PgDn` | Move (and hear) the next sample |
 | `→` / `Enter` on a folder | Open it · `←` or `Backspace` goes up |
 | `Enter` / double-click | Load into the current instrument |
 | `Space` | Play / stop |
-| A letter | Jump to the next name starting with it |
+| Note keys | Play the sample at that pitch |
+| `Alt` + a letter | Jump to the next name starting with it |
 | `Esc` | Close |
 
 Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FINDER… opens the normal Mac file dialog.
 
 ## Sample rates
 
-Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Changing it leaves the sample data alone, so a lower rate plays lower and slower. In the sample editor: RATE (drag, use +/−, or double-click to type), PRESET steps through 8363 / 11025 / 16574 / 22050 / 32000 / 44100 / 48000. **RESAMPLE** converts the data to the TO rate while keeping the pitch: use a low rate (11025, 8000…) for lo-fi grit, with **RAW** for no anti-alias filtering, the rough old-sampler way. In the browser, **KEEP RATE** loads a file at its own rate instead of converting it to the Amiga rate (16574 Hz). The rate is shown on the instrument's waveform, saved in songs, used for EXPORT SAMPLES, and converted for SAVE MOD.
+Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Samples load at their own rate (a 44.1 kHz WAV plays at 44100 on C-3, so it sounds as recorded). Rates are set in the sample editor:
+
+* **RATE** (drag, use +/−, or double-click to type), **PRESET** steps through 8363 / 11025 / 16574 / 22050 / 32000 / 44100 / 48000. This leaves the sample data alone, so a lower rate plays lower and slower. The status line says how far it moves the pitch, e.g. `RATE 44100 > 22050 HZ: DOWN 12 ST (C-3 PLAYS AS C-2)`, and the header keeps showing the total, e.g. `22050 HZ (-12.0 ST)`. (The shift in semitones is 12 × log₂(new rate ÷ old rate).)
+* **RESAMPLE** converts the data to the TO rate while keeping the pitch: use a low rate (11025, 8000…) for lo-fi grit, with **RAW** for no anti-alias filtering, the rough old-sampler way.
+
+The rate is shown on the instrument's waveform, saved in songs, used for EXPORT SAMPLES, and converted for SAVE MOD.
 
 ## Time stretch (Akai style)
 
@@ -118,10 +140,20 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 * **Play it from the keyboard:** the computer keys (same layout as the pattern, `[` `]` for octave) and a MIDI keyboard play the sample at the key's pitch through the full instrument sound, several notes at once, with a playhead for each. **SEL KEYS** makes them play only the selection (looped when LOOP is on).
 * **Zoom:** mouse wheel or ZOOM +/-, FIT SEL, FIT ALL. Click or drag the overview strip to move around. Zoomed right in, you see each sample as a step, the way Paula plays it.
 * **DRAW:** draw the waveform with the mouse.
-* **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, SET LOOP (loop = selection), TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points move with the audio when you cut or paste.
-* **Play:** PLAY plays from the cursor (looping the sample's loop when LOOP is on), ▶ SEL plays just the selection.
+* **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points and slices move with the audio when you cut, paste, resample or stretch.
+* **Loop:** **LOOP** turns the instrument's loop on (the selection, or the whole sample) and off. Drag the **S** and **E** handles at the top of the waveform to move the start and end; you hear the loop while you drag. START / END type exact values, SET LOOP loops the selection. **PING-PONG** plays the loop forwards then backwards instead of jumping back to the start (saved in songs; SAVE MOD stores it as a normal loop).
+* **Play:** PLAY plays from the cursor, ▶ SEL plays just the selection, REPEAT loops whatever's playing.
 * Keys: `Space` play/stop, `Cmd+X/C/V`, `Cmd+A`, `Delete`, `Cmd+Z` / `Cmd+Shift+Z`, `←` `→` scroll, `↑` `↓` zoom, `Esc` close.
-* UNDO/REDO keep the last 40 edits per sample.
+* UNDO/REDO share the one history with every other page.
+
+## Slicing
+
+**SLICE** in the sample editor opens the slicer:
+
+* **AUTO** finds the hits (drum hits, notes) by jumps in loudness; **SENS** (1–100) sets how quiet a hit it will catch. **EVEN** cuts **COUNT** (2–64) equal slices.
+* The slices show as numbered tabs along the bottom of the waveform. Drag a tab to move that slice point, double-click the waveform to add one, Alt-click a tab to remove it (or ADD AT CURSOR / REMOVE / CLEAR ALL). Click a tab to select and hear that slice.
+* **SLICE TO KEYS**: notes play slices instead of the whole sample: `C-3` = slice 1, `C#3` = slice 2, `D-3` = slice 3 and so on, each at its own pitch and stopping at the end of its slice. This works in patterns, from the computer keys and from MIDI. To pitch one hit up or down, add `Ixx` to that note (`I8C` = an octave up, `I7B` = 5 semitones down).
+* Without SLICE TO KEYS, `Sxx` plays slice xx+1 of the instrument's slices (`S00` = slice 1). Instruments with no slice points still split into 16 equal parts, as before.
 
 ## Stereo samples
 
@@ -137,9 +169,9 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P` | Notes, upper octave |
 | `1` | Note off |
 | `0–9 A–F` | Hex entry in the instrument / command columns |
-| `Space` | Edit mode on/off (stops playback if playing) |
+| `Space` | Play / stop the block (from the loop start when a loop is marked) · `Shift+Space` the song |
+| `Esc` | Edit mode on/off |
 | `Enter` | Play block · `Shift+Enter` play song · `Cmd+Enter` play block from the cursor |
-| `Esc` | Stop |
 | Arrows | Move · `Shift+↑/↓` 4 lines · `Shift+←/→` track |
 | `Tab` / `Shift+Tab` | Next / previous track |
 | `PgUp` / `PgDn`, `Home` / `End` | Jump |
@@ -150,7 +182,9 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Alt+Delete` | Insert a blank line (pushes the track down) |
 | `Cmd+C / X / V` | Copy / cut / paste track · add `Shift` for the whole block |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
-| `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
+| `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
+| `Cmd+S` / `Cmd+Shift+S` | Save / save as |
 
 A MIDI keyboard (or Ableton's MIDI) plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
@@ -194,6 +228,7 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 |---|---|
 | `Gxx` | Glide to the note over xx ticks |
 | `Hxx` | High-pass filter, cutoff xx (`00` 20 Hz – `FF` 20 kHz) |
+| `Ixx` | Transpose just this note: `80` = none, `8C` = +12, `74` = −12 (±48 semitones). Handy for pitching single slices |
 | `Kxx` | Chance: the step plays xx/FF of the time |
 | `Lxx` | Low-pass filter, cutoff xx |
 | `Mxx` | Micro-move: `01–7F` late by xx/128 of a line, `81–FF` early by (xx−80)/128 (early works inside a block, not across into the next) |
@@ -202,7 +237,7 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 | `Pxx` | Start at xx/256 of the sample |
 | `Qxx` | Filter resonance |
 | `Rxy` | Roll: retrigger every x ticks; y `1–7` quieter, `9–F` louder each time |
-| `Sxx` | Play slice `0–F` of 16 equal slices (stops at the slice end) |
+| `Sxx` | Play slice xx+1 of the instrument's slice points, or of 16 equal parts if it has none (stops at the slice end) |
 | `Txx` | Micro-tune: `80` = 0, each step = 1 cent |
 | `U01` / `U00` | Play backwards / forwards |
 | `Wxx` | Band-pass filter, cutoff xx |
@@ -211,20 +246,31 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 
 Every track has a **second effect column** so a note can carry two effects; **FX2** on the bottom row shows or hides it (it starts hidden so the pattern text stays big). SAVE MOD keeps only one 0–F command per note and tells you when something was dropped.
 
-## The Paula sound
+## The Paula sound (and the Akais)
 
 | Control | What it does |
 |---|---|
 | A500 | 4.4 kHz output filter of the original A500 — warm and dull |
 | A1200 | Open output filter — brighter, more aliasing sparkle |
 | CLEAN | No output filtering at all |
+| S950 | Akai S950: 12-bit, stepped variable-rate playback, its 6-pole voice filter (see below) |
+| S1000 | Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output (see below) |
 | STEPPED | Sample-and-hold playback like the real chip (off = smooth interpolation) |
 | 8-BIT | Samples are played at 8-bit resolution |
 | CRUNCH | In 8-track songs, track pairs are mixed together and squashed back to 8 bits, the way 8-channel Amiga trackers did it in software |
 | LED | The "LED" lowpass filter, on at the start of the song (commands `E00`/`E01` switch it while playing) |
 | SEP | How far tracks lean to the Amiga sides (tracks 1+4 left, 2+3 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
 
-Samples are resampled on load so `C-3` plays them at their original pitch (16.5 kHz, the Amiga convention). For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it.
+For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it, or slice it (see Slicing).
+
+### The Akai modes
+
+These model the playback side of the two samplers behind so much 90s jungle. What's known about the hardware, and what the model does with it:
+
+* **S950** — 12-bit samples and a variable sample rate up to 48 kHz ([Wikipedia](https://en.wikipedia.org/wiki/Akai_S900), [polynominal.com](https://www.polynominal.com/akai-s950/)). Like the S900 it plays samples back at a variable rate rather than interpolating (the S1000 review below contrasts the two). Its filter is a 6th-order Butterworth switched-capacitor low-pass with no resonance ([ALM's MUM M8, a recreation of it](https://www.juno.co.uk/products/alm-busy-circuits-alm-mum-m8-akais-s950/679163-01)). The model: sample data cut to 12 bits, stepped (sample-and-hold) playback at each voice's own rate, so pitched-down samples keep their grit and steps, and the 6-pole Butterworth low-pass at its open setting (16 kHz, an estimate; the real one is set per sample) plus output coupling. STEPPED, 8-BIT, CRUNCH and LED are Amiga features and switch off in this mode.
+* **S1000** — 16-bit, 44.1 kHz, pitched with an interpolation algorithm that a 1988 review found "extremely clean" and brighter than variable-rate playback; its filter is an 18 dB/octave low-pass with no resonance ([Music Technology, Dec 1988](https://www.muzines.co.uk/articles/akai-s1000/2303)). The model: full 16-bit data, interpolated playback and a steep 8th-order reconstruction filter at 19.5 kHz. The per-sample filter isn't part of the mode (use the instrument's PARAMS filter).
+
+Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For the full old-sampler sound, also lower the sample's rate (RESAMPLE, with RAW for no filtering).
 
 ## In Ableton
 
@@ -235,7 +281,8 @@ Samples are resampled on load so `C-3` plays them at their original pitch (16.5 
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 4 adds the second effect column, G–Z commands and sample rates (v3 added envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 5 adds ping-pong loops and slices (v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 

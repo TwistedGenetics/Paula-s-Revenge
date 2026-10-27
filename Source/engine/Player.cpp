@@ -25,7 +25,8 @@ namespace
     constexpr uint8_t C_G = cmdLetter ('G'), C_H = cmdLetter ('H'), C_K = cmdLetter ('K'), C_L = cmdLetter ('L'),
                       C_M = cmdLetter ('M'), C_N = cmdLetter ('N'), C_O = cmdLetter ('O'), C_P = cmdLetter ('P'),
                       C_Q = cmdLetter ('Q'), C_R = cmdLetter ('R'), C_S = cmdLetter ('S'), C_T = cmdLetter ('T'),
-                      C_U = cmdLetter ('U'), C_W = cmdLetter ('W'), C_X = cmdLetter ('X'), C_Z = cmdLetter ('Z');
+                      C_U = cmdLetter ('U'), C_W = cmdLetter ('W'), C_X = cmdLetter ('X'), C_Z = cmdLetter ('Z'),
+                      C_I = cmdLetter ('I');
 
     float cutoffFromParam (uint8_t p) { return (float) (20.0 * std::pow (1000.0, p / 255.0)); }
 
@@ -64,6 +65,8 @@ void Player::setSampleRate (double sr)
     sampleRate = sr > 0 ? sr : 44100.0;
     updateFilters();
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
+    for (auto& b : akL) b.reset();
+    for (auto& b : akR) b.reset();
 }
 
 void Player::updateFilters()
@@ -76,6 +79,21 @@ void Player::updateFilters()
     hpL.setLowpass (5.2, sampleRate); hpR = hpL;
     // "LED" filter: 2-pole Butterworth-ish lowpass ~3.1 kHz, Q 0.66
     ledL.setLowpass (3091.0, 0.660, sampleRate); ledR = ledL;
+
+    // Akai: a Butterworth low-pass built from 2-pole sections
+    //  S950: the voice filter (6th-order Butterworth switched-capacitor, MF6 type) fully open
+    //  S1000: the DAC's steep reconstruction filter (8th order) just below 20 kHz
+    akStages = 0;
+    if (options.isAkai())
+    {
+        static const double q6[] = { 0.5176, 0.7071, 1.9319 };
+        static const double q8[] = { 0.5098, 0.6013, 0.9000, 2.5629 };
+        const bool s950 = options.model == PaulaOptions::Model::S950;
+        const double fc = std::min (s950 ? kS950Cutoff : kS1000Cutoff, nyq);
+        akStages = s950 ? 3 : 4;
+        for (int k = 0; k < akStages; ++k) { akL[k].setLowpass (fc, s950 ? q6[k] : q8[k], sampleRate); akR[k] = akL[k]; }
+        hpL.setLowpass (s950 ? 12.0 : 4.0, sampleRate); hpR = hpL;   // output coupling
+    }
 }
 
 void Player::resetVoices()
@@ -138,7 +156,16 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
     v.volume = v.outVolume = std::clamp (in.volume * velocity127 / 127, 0, 64);
     v.jamNote = note;
     const int len = (int) in.data.size();
-    if (start >= 0 && start < len)
+    if (start < 0 && in.sliceKeys && in.numSlices() > 0)
+    {
+        // slice to keys: C-3 = slice 1, C#3 = slice 2... each at its own pitch
+        int a = 0, b = 0;
+        if (! in.sliceRange (note - 37, a, b)) { v.active = false; return; }
+        v.note = std::clamp (37 + in.transpose, 1, (int) kNoteMax);
+        v.period = v.outPeriod = periodFor (v.note, v.finetune);
+        v.regionStart = a; v.regionEnd = b; v.pos = a;
+    }
+    else if (start >= 0 && start < len)
     {
         v.regionStart = start;
         v.regionEnd = (end > start && end <= len) ? end : len;
@@ -148,6 +175,20 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
     v.active = true;
     startShaping (v);
     uiJamInstr[slot] = instrIndex;
+}
+
+void Player::jamNoteFrom (int note, int instrIndex, int pos)
+{
+    jamNoteOn (note, instrIndex, 127, -1, -1, false);
+    if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
+    const auto& in = song->instruments[(size_t) instrIndex];
+    const int slot = (jamNext + kJamVoices - 1) % kJamVoices;
+    Voice& v = voices[kMaxTracks + slot];
+    if (! v.active || v.instr != instrIndex) return;
+    v.regionStart = v.regionEnd = -1;
+    v.note = std::clamp (note + in.transpose, 1, (int) kNoteMax);
+    v.period = v.outPeriod = periodFor (v.note, v.finetune);
+    v.pos = std::clamp ((double) pos, 0.0, std::max (0.0, (double) in.data.size() - 1.0));
 }
 
 void Player::jamNoteOff (int note)
@@ -221,7 +262,7 @@ void Player::processRow()
 void Player::scheduleEarlyNotes()
 {
     const Block& b = song->blocks[(size_t) block];
-    const int next = line + 1;
+    const int next = (inLineLoop() && line == lpTo) ? lpFrom : line + 1;
     if (next >= b.lines) return;   // not across block boundaries
     for (int ch = 0; ch < std::min (song->numTracks, kMaxTracks); ++ch)
     {
@@ -257,7 +298,19 @@ void Player::triggerNote (Voice& v, const Cell& cell, int)
     uint8_t p = 0;
     // reset per-note state
     v.regionStart = v.regionEnd = -1; v.regionLoop = false;
-    v.reverse = false; v.pitchMul = 1.0;
+    v.reverse = false; v.pingBack = false; v.pitchMul = 1.0;
+
+    // slice to keys: the note picks the slice (C-3 = slice 1) and plays it at its own pitch
+    int keySlice = -1;
+    if (in.sliceKeys && in.numSlices() > 0)
+    {
+        keySlice = (int) cell.note - 37;
+        int a = 0, b = 0;
+        if (! in.sliceRange (keySlice, a, b)) { v.active = false; return; }
+        note = 37 + in.transpose;
+    }
+    // Ixx: transpose just this note (I80 = none, I8C = +12, I74 = -12)
+    if (cell.has (C_I, p) && p != 0) note += std::clamp ((int) p - 128, -48, 48);
     v.glideTicks = 0; v.gateTicks = -1; v.rollEvery = 0;
     v.fltType = -1; v.fltRes = -1.0f; v.drive = 0.0f; v.crushBits = 0;
 
@@ -283,11 +336,27 @@ void Player::triggerNote (Voice& v, const Cell& cell, int)
         }
     }
     if (cell.has (C_P, p)) v.pos = std::floor (p / 256.0 * len);
-    if (cell.has (C_S, p))
+    if (keySlice >= 0)
     {
-        const int sl = p & 15;
-        v.regionStart = std::floor (sl * len / 16.0);
-        v.regionEnd = std::floor ((sl + 1) * len / 16.0);
+        int a = 0, b = 0;
+        in.sliceRange (keySlice, a, b);
+        v.regionStart = a; v.regionEnd = b; v.pos = a;
+    }
+    else if (cell.has (C_S, p))
+    {
+        int a = 0, b = 0;
+        if (in.numSlices() > 0)
+        {
+            // the instrument's own slice points (S00 = slice 1)
+            if (! in.sliceRange (p % in.numSlices(), a, b)) { a = 0; b = (int) len; }
+            v.regionStart = a; v.regionEnd = b;
+        }
+        else
+        {
+            const int sl = p & 15;
+            v.regionStart = std::floor (sl * len / 16.0);
+            v.regionEnd = std::floor ((sl + 1) * len / 16.0);
+        }
         v.pos = v.regionStart;
     }
     if (cell.has (C_X, p) && (p >> 4) == 3 && (p & 15))
@@ -609,6 +678,15 @@ void Player::tickEffects (int ch)
     v.outVolume = std::clamp (v.volume + trem, 0, 64);
 }
 
+void Player::setLineLoop (int b, int from, int to)
+{
+    if (b < 0 || song == nullptr || b >= (int) song->blocks.size()) { lpBlock = -1; return; }
+    const int lines = song->blocks[(size_t) b].lines;
+    lpFrom = std::clamp (std::min (from, to), 0, lines - 1);
+    lpTo = std::clamp (std::max (from, to), 0, lines - 1);
+    lpBlock = b;
+}
+
 void Player::advanceLine()
 {
     if (rowDelay > 0) { rowDelayCount = rowDelay; rowDelay = 0; }
@@ -618,6 +696,14 @@ void Player::advanceLine()
     const int lines = song->blocks[(size_t) block].lines;
     const int seqLen = (int) song->sequence.size();
 
+    if (inLineLoop() && loopJumpLine < 0)
+    {
+        // the marked loop wins over block ends and pattern jumps
+        line = line >= std::min (lpTo, lines - 1) ? lpFrom : line + 1;
+        breakLine = jumpPos = -1;
+        uiSeqPos = seqPos; uiBlock = block; uiLine = line;
+        return;
+    }
     if (loopJumpLine >= 0)
     {
         line = std::clamp (loopJumpLine, 0, lines - 1);
@@ -661,7 +747,7 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
     const bool stereo = in.isStereo();
     const auto& dr = stereo ? in.dataR : in.data;
     const int last = (int) d.size() - 1;
-    const bool eight = options.eightBit;
+    const int drop = options.dropBits();
 
     // playback window: a slice/selection region, or the instrument's loop
     bool looped = in.isLooped();
@@ -675,10 +761,11 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
         loopStart = begin;
     }
     const double loopLen = end - loopStart;
+    const bool ping = looped && in.pingPong && v.regionStart < 0 && loopLen >= 2.0;
 
-    auto conv = [eight] (int s) -> float
+    auto conv = [drop] (int s) -> float
     {
-        if (eight) s = (s >> 8) * 256;
+        if (drop > 0) s = (s >> drop) * (1 << drop);   // 8-bit Paula / 12-bit S950
         return (float) s / 32768.0f;
     };
 
@@ -690,18 +777,33 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
         L = conv (d[idx]);
         R = stereo ? conv (dr[idx]) : L;
         v.pos -= inc;
-        if (v.pos < begin) { if (looped && loopLen >= 4) v.pos = end - 1.0; else v.active = false; }
+        if (v.pingBack && v.pos < loopStart)
+        {
+            // ping-pong: bounce off the loop start and go forwards again
+            v.pos = std::min (end - 1.0, loopStart + (loopStart - v.pos));
+            v.reverse = v.pingBack = false;
+        }
+        else if (v.pos < begin) { if (looped && loopLen >= 4) v.pos = end - 1.0; else v.active = false; }
     }
     else
     {
+        bool bounced = false;
         auto wrap = [&] (double& p) -> bool
         {
             if (p < end) return true;
             if (! looped || loopLen < 1.0) return false;
+            if (ping)
+            {
+                // ping-pong: bounce off the loop end and play backwards
+                p = std::max (loopStart, end - 1.0 - (p - end));
+                v.reverse = v.pingBack = true;
+                bounced = true;
+                return true;
+            }
             while (p >= end) p -= loopLen;
             return true;
         };
-        if (options.zeroOrderHold)
+        if (options.stepped())
         {
             // Integrate the stepped (sample-and-hold) waveform across this output
             // sample: keeps Paula's stepped character but tames host-rate aliasing.
@@ -717,9 +819,11 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
                 if (stereo) accR += conv (dr[idx]) * step;
                 p += step; remaining -= step;
                 if (! wrap (p)) { alive = false; break; }
+                if (bounced) break;
             }
-            L = (float) (accL / inc);
-            R = stereo ? (float) (accR / inc) : L;
+            const double used = std::max (1e-9, inc - remaining);   // less than inc if a ping-pong bounce cut it short
+            L = (float) (accL / used);
+            R = stereo ? (float) (accR / used) : L;
             v.pos = p;
             if (! alive) v.active = false;
         }
@@ -838,7 +942,7 @@ void Player::render (float* left, float* right, int numSamples)
                 if (! isFixed[a] && ! isFixed[b] && ! st[a] && ! st[b])
                 {
                     float s = (valL[a] + valL[b]) * 0.5f;
-                    if (options.crunch8ch && options.eightBit) s = quant8 (s);
+                    if (options.crunches()) s = quant8 (s);
                     addPanned (s, sidePan (p), L, R);
                 }
                 else
@@ -846,7 +950,7 @@ void Player::render (float* left, float* right, int numSamples)
                     float pl = 0, pr = 0;
                     addVoice (a, 0.5f, sidePan (p), pl, pr);
                     addVoice (b, 0.5f, sidePan (p), pl, pr);
-                    if (options.crunch8ch && options.eightBit) { pl = quant8 (pl); pr = quant8 (pr); }
+                    if (options.crunches()) { pl = quant8 (pl); pr = quant8 (pr); }
                     L += pl; R += pr;
                 }
             }
@@ -863,12 +967,18 @@ void Player::render (float* left, float* right, int numSamples)
         }
 
         // analogue output stage
-        if (options.model != PaulaOptions::Model::Clean)
+        if (akStages > 0)
+        {
+            for (int k = 0; k < akStages; ++k) { L = akL[k].process (L); R = akR[k].process (R); }
+            L = hpL.hp (L);
+            R = hpR.hp (R);
+        }
+        else if (options.model != PaulaOptions::Model::Clean)
         {
             L = hpL.hp (lpL.lp (L));
             R = hpR.hp (lpR.lp (R));
         }
-        if (ledOn)
+        if (ledOn && ! options.isAkai())
         {
             L = ledL.process (L);
             R = ledR.process (R);

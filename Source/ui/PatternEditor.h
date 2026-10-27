@@ -36,27 +36,35 @@ public:
     void deleteLine();
     void togglePlayStop (bool song);
     void stopPlayback();
+    void toggleEdit();
+    void doubleBlock();
+    void halveBlock();
+
+    // marked loop (lines of the current block)
+    void setLoopRange (int from, int to);   // also turns the loop on
+    void setLoopOn (bool on);
+    void syncLoop();                        // push the loop to the player
+    std::function<void (const juce::String&)> onStatus;
 
     // notifies the main editor that cursor/block/edit/octave etc. changed
     std::function<void()> onStateChanged;
 
-    void pushUndo (int blockIndex);
-    void pushStructureUndo();          // before any change to block numbers / the sequence
+    void pushUndo (int blockIndex, const juce::String& what);
+    void pushStructureUndo (const juce::String& what);   // before any change to block numbers / the sequence
     std::function<void (int)> onMoveSequence;   // Alt+Up/Down
 
 private:
     PaulaProcessor& proc;
     PaulaProcessor::EditorState& st;
 
-    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; int seqPos = 0, block = 0; };
-    struct UndoEntry { int block = 0; prv::Block data; std::shared_ptr<Structure> structure; };
-    std::shared_ptr<Structure> snapshot() const;
-    void restore (UndoEntry& e, std::vector<UndoEntry>& opposite);
     int panDragTrack = -1;
+    int loopDragFrom = -1;              // dragging over the line numbers
+    juce::Rectangle<float> cornerRect() const;
+    void askBlockNumber();
+    int lineAtY (float y) const;
     juce::Rectangle<float> headerRect (int slot) const;
     juce::Rectangle<float> panRect (int slot) const;
     void setPanFromX (int track, float x);
-    std::vector<UndoEntry> undoStack, redoStack;
 
     std::vector<prv::Cell> trackClip;
     int trackClipLines = 0;

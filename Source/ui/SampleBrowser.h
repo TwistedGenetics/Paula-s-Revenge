@@ -28,6 +28,12 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    bool keyStateChanged (bool) override;
+    void visibilityChanged() override;
+    void playFrom (int sample);               // also used by tests
+    void playNote (int note);                 // tracker note number, C-3 = original pitch
+    int  loadedLength() const { return auditionLength; }
 
 private:
     PaulaProcessor& proc;
@@ -40,7 +46,7 @@ private:
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " UP" }, homeBtn { "HOME" }, musicBtn { "MUSIC" }, desktopBtn { "DESKTOP" },
               downloadsBtn { "DOWNLOADS" }, docsBtn { "DOCUMENTS" }, volumesBtn { "DRIVES" }, finderBtn { "FINDER..." };
     PixButton playBtn { "PLAY" }, stopBtn { "STOP" }, autoBtn { "AUTO PLAY", true },
-              loadBtn { "LOAD INTO 01" }, cancelBtn { "CLOSE" }, keepRateBtn { "KEEP RATE", true };
+              loadBtn { "LOAD INTO 01" }, cancelBtn { "CLOSE" };
     PixSlider volSlider { "VOL" };
 
     juce::Rectangle<float> pathArea, infoArea, waveArea;
@@ -51,8 +57,11 @@ private:
     juce::File auditionFile;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    void audition (const juce::File&);
+    void audition (const juce::File&, bool playNow);
     void stopAudition();
+    int  noteForKey (const juce::KeyPress&) const;
+    std::map<int, int> heldKeys;
+    double auditionRate = 44100.0;
     void updateLoadLabel();
     static bool isAudioFile (const juce::File&);
 };

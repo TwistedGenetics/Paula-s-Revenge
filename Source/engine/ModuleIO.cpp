@@ -507,6 +507,16 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
     for (int i = 0; i < 31; ++i) anyShaping |= song.instruments[(size_t) i].hasShaping();
     for (int t = 0; t < kMaxTracks; ++t) anyShaping |= song.trackPan[t] >= 0;
     if (anyShaping) res.warnings.push_back ("Envelopes, filters and pans can't be stored in a MOD and were left out.");
+    {
+        bool ping = false, sliced = false;
+        for (int i = 0; i < 31 && i < kMaxInstruments; ++i)
+        {
+            ping = ping || (song.instruments[(size_t) i].pingPong && song.instruments[(size_t) i].isLooped());
+            sliced = sliced || song.instruments[(size_t) i].sliceKeys;
+        }
+        if (ping) res.warnings.push_back ("Ping-pong loops were saved as normal (forward) loops.");
+        if (sliced) res.warnings.push_back ("Slice-to-keys instruments play the whole sample in a MOD.");
+    }
     if (rateChanged) res.warnings.push_back ("Samples with their own rate were converted to the Amiga C-3 rate.");
     if (fxDropped) res.warnings.push_back ("Extended (G-Z) and second-column effects can't go in a MOD and were left out.");
     if (song.blocks.size() > 128) res.warnings.push_back ("MOD files hold 128 patterns at most - extra blocks were left out.");

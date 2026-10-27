@@ -91,10 +91,13 @@ struct Instrument
     std::vector<int16_t> dataR;  // right channel; empty for mono samples
     int loopStart  = 0;          // in samples
     int loopLength = 0;          // in samples, < 4 = no loop
+    bool pingPong  = false;      // loop back and forth instead of jumping to the start
     int volume     = 64;         // 0..64
     int finetune   = 0;          // -8..7 (1/8 semitone steps)
     int transpose  = 0;          // semitones
     double rate    = kAmigaC3Rate; // Hz the sample plays at on C-3
+    double natRate = 0;            // rate at which it sounds as recorded (0 = same as rate); RATE changes move away from it
+    double pitchShift() const { return natRate > 0 ? 12.0 * std::log2 (rate / natRate) : 0.0; }   // semitones
 
     // sound shaping (all neutral by default, so MOD/MED/old songs sound as before)
     Envelope   volEnv;                      // when off, notes play at full level and OFF cuts
@@ -106,6 +109,19 @@ struct Instrument
     float      keyTrack    = 0.0f;          // 0..1 (1 = cutoff follows the note fully)
     bool       amigaPan    = true;          // follow the Amiga L/R track layout
     int        pan         = 128;           // 0..255 when amigaPan is off
+
+    // slicing: start points of each slice (sorted, first is 0). Empty = no slices.
+    std::vector<int> slices;
+    bool       sliceKeys   = false;         // notes play slices: C-3 = slice 1, C#3 = slice 2...
+    int  numSlices() const { return (int) slices.size(); }
+    // start/end of slice i (end exclusive); false if there's no such slice
+    bool sliceRange (int i, int& start, int& end) const
+    {
+        if (i < 0 || i >= (int) slices.size()) return false;
+        start = std::clamp (slices[(size_t) i], 0, (int) data.size());
+        end = i + 1 < (int) slices.size() ? std::clamp (slices[(size_t) i + 1], start, (int) data.size()) : (int) data.size();
+        return end > start;
+    }
 
     bool hasShaping() const { return volEnv.on || filter != FilterType::Off || ! amigaPan; }
 

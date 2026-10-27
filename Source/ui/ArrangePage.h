@@ -12,7 +12,7 @@ class ArrangePage : public juce::Component
 public:
     explicit ArrangePage (PaulaProcessor&);
 
-    std::function<void()> onClose, onChanged, pushUndo, undo, redo;
+    std::function<void()> onClose, onChanged;
     std::function<void (const juce::String&)> onStatus;
 
     void opened();

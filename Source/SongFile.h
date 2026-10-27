@@ -16,8 +16,9 @@ bool loadSongFile (const juce::File& file, Song& out, juce::String& error, juce:
 
 // Load a WAV/AIFF/FLAC/MP3/8SVX sample. The audio is resampled so that
 // note C-3 plays it back at its original pitch (16574 Hz, Amiga convention).
-// keepRate: don't resample; the instrument plays the file at its own rate on C-3
-bool importSample (const juce::File& file, Instrument& out, juce::String& error, bool keepRate = false);
+// keepRate (the default): don't resample; the instrument plays the file at its
+// own rate on C-3. false converts it to the Amiga rate (16574 Hz on C-3).
+bool importSample (const juce::File& file, Instrument& out, juce::String& error, bool keepRate = true);
 constexpr double kSampleRateAtC3 = 16574.27;
 
 // Decode an audio file at its own sample rate (for previews). `right` is left

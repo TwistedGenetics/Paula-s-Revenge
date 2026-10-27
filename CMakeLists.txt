@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.5.1 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,7 +26,8 @@ add_library(prv_engine STATIC
     Source/engine/ModuleIO.cpp
     Source/engine/SongOps.cpp
     Source/engine/Commands.cpp
-    Source/engine/TimeStretch.cpp)
+    Source/engine/TimeStretch.cpp
+    Source/engine/Slicer.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -50,12 +51,15 @@ juce_add_plugin(PaulasRevenge
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Synth Sampler
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
-    MICROPHONE_PERMISSION_ENABLED FALSE)
+    MICROPHONE_PERMISSION_ENABLED FALSE
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_1024.png"
+    ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_32.png")
 
 juce_generate_juce_header(PaulasRevenge)
 
 target_sources(PaulasRevenge PRIVATE
     Source/PluginProcessor.cpp
+    Source/History.cpp
     Source/PluginEditor.cpp
     Source/SongFile.cpp
     Source/ui/PixelFont.cpp

@@ -35,6 +35,7 @@ std::string commandName (int c)
     switch (commandChar (c))
     {
         case 'G': return "GLIDE";          case 'H': return "HIGH-PASS";      case 'K': return "CHANCE";
+        case 'I': return "NOTE TRANSPOSE";
         case 'L': return "LOW-PASS";       case 'M': return "MICRO-MOVE";     case 'N': return "NOTE LENGTH";
         case 'O': return "OVERDRIVE";      case 'P': return "POSITION";       case 'Q': return "RESONANCE";
         case 'R': return "ROLL";           case 'S': return "SLICE";          case 'T': return "MICRO-TUNE";
@@ -90,6 +91,9 @@ std::string describeCommand (int c, uint8_t p)
     {
         case 'G': return head + fmt ("GLIDE TO THE NOTE OVER %d TICKS", std::max (1, (int) p));
         case 'H': return head + fmt ("HIGH-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
+        case 'I':
+            if (p == 0 || p == 0x80) return head + "NO TRANSPOSE (I8C = +12, I74 = -12)";
+            return head + fmt ("TRANSPOSE THIS NOTE %+d SEMITONES", std::clamp ((int) p - 128, -48, 48));
         case 'K': return head + fmt ("PLAY THIS STEP %d%% OF THE TIME", pct (p));
         case 'L': return head + fmt ("LOW-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
         case 'M':
@@ -101,7 +105,7 @@ std::string describeCommand (int c, uint8_t p)
         case 'P': return head + fmt ("START AT %d%% OF THE SAMPLE", (int) std::lround (p / 256.0 * 100));
         case 'Q': return head + fmt ("FILTER RESONANCE %d%%", pct (p));
         case 'R': return head + fmt ("ROLL EVERY %d TICKS", std::max (1, x)) + (y == 0 || y == 8 ? "" : y < 8 ? fmt (", %d QUIETER EACH", y * 4) : fmt (", %d LOUDER EACH", (y - 8) * 4));
-        case 'S': return head + fmt ("PLAY SLICE %d OF 16", (p & 15) + 1);
+        case 'S': return head + fmt ("PLAY SLICE %d (OF THE SAMPLE'S SLICES, ELSE OF 16)", (int) p + 1);
         case 'T': return head + fmt ("MICRO-TUNE %+d CENTS", (int) p - 128);
         case 'U': return head + ((p & 1) ? "PLAY BACKWARDS" : "PLAY FORWARDS");
         case 'W': return head + fmt ("BAND-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));

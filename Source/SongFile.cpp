@@ -7,7 +7,8 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 4;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates
+    constexpr int kVersion = 5;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+                                  // v5: ping-pong loops + slices
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -88,6 +89,14 @@ juce::MemoryBlock writeSong (const Song& song)
     }
     // v4: per-instrument C-3 rate
     for (const auto& in : song.instruments) raw.writeDoubleBigEndian (in.rate);
+    // v5: loop mode and slices
+    for (const auto& in : song.instruments)
+    {
+        raw.writeByte ((in.pingPong ? 1 : 0) | (in.sliceKeys ? 2 : 0));
+        raw.writeDoubleBigEndian (in.natRate);
+        raw.writeShortBigEndian ((short) std::min (in.numSlices(), 1024));
+        for (int i = 0; i < std::min (in.numSlices(), 1024); ++i) raw.writeIntBigEndian (in.slices[(size_t) i]);
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -191,6 +200,24 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             const double r = in.readDoubleBigEndian();
             ins.rate = std::isfinite (r) ? juce::jlimit (500.0, 192000.0, r) : kAmigaC3Rate;
         }
+    if (version >= 5 && ! in.isExhausted())
+        for (auto& ins : s.instruments)
+        {
+            const int flags = in.readByte();
+            ins.pingPong = (flags & 1) != 0;
+            ins.sliceKeys = (flags & 2) != 0;
+            const double nr = in.readDoubleBigEndian();
+            ins.natRate = std::isfinite (nr) && nr >= 0 ? juce::jlimit (0.0, 192000.0, nr) : 0.0;
+            const int n = juce::jlimit (0, 1024, (int) (unsigned short) in.readShortBigEndian());
+            ins.slices.clear();
+            for (int i = 0; i < n && ! in.isExhausted(); ++i)
+            {
+                const int pos = in.readIntBigEndian();
+                if (pos >= 0 && pos < (int) ins.data.size()) ins.slices.push_back (pos);
+            }
+            std::sort (ins.slices.begin(), ins.slices.end());
+            ins.slices.erase (std::unique (ins.slices.begin(), ins.slices.end()), ins.slices.end());
+        }
     out = std::move (s);
     return true;
 }
@@ -200,10 +227,19 @@ bool loadSongFile (const juce::File& file, Song& out, juce::String& error, juce:
     juce::MemoryBlock mb;
     if (! file.loadFileAsData (mb) || mb.getSize() == 0) { error = "Couldn't read " + file.getFileName(); return false; }
 
-    // native format is gzip (starts 1F 8B)
+    // native format: zlib-compressed (starts 78 xx; a valid zlib header is a multiple
+    // of 31). Earlier versions only looked for a gzip header (1F 8B), so a saved
+    // song was misread as a module.
     const auto* b = static_cast<const uint8_t*> (mb.getData());
-    if (mb.getSize() > 2 && b[0] == 0x1F && b[1] == 0x8B)
-        return readSong (mb.getData(), mb.getSize(), out, error);
+    const bool zlibHeader = mb.getSize() > 2 && (b[0] & 0x0F) == 8 && ((b[0] << 8) | b[1]) % 31 == 0;
+    const bool gzipHeader = mb.getSize() > 2 && b[0] == 0x1F && b[1] == 0x8B;
+    if (zlibHeader || gzipHeader || file.hasFileExtension ("prv"))
+    {
+        Song s;
+        juce::String err;
+        if (readSong (mb.getData(), mb.getSize(), s, err)) { out = std::move (s); return true; }
+        if (file.hasFileExtension ("prv")) { error = err; return false; }
+    }
 
     std::vector<uint8_t> bytes (b, b + mb.getSize());
     auto r = loadModule (bytes, out);
@@ -306,6 +342,7 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error,
     out.data = toInt16 (L);
     if (! R.empty()) out.dataR = toInt16 (R);
     out.rate = keepRate ? juce::jlimit (500.0, 192000.0, rate) : kAmigaC3Rate;
+    out.natRate = out.rate;
     out.loopStart = (int) std::lround (meta.loopStart / ratio);
     out.loopLength = (int) std::lround (meta.loopLength / ratio);
     if (! out.isLooped()) { out.loopStart = 0; out.loopLength = 0; }

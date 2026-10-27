@@ -64,6 +64,10 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     player.jamAllOff();
     std::swap (song, newSong);   // the old song is freed by the caller's temporary, outside the audio path
     player.setSong (&song);
+    player.setLineLoop (-1, 0, 0);
+    editorState.loopOn = false;
+    editorState.loopBlock = -1;
+    history.clear();
 }
 
 bool PaulaProcessor::popMidiNote (int& note)
@@ -73,7 +77,8 @@ bool PaulaProcessor::popMidiNote (int& note)
     return got != 0;
 }
 
-std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::startPreview (std::unique_ptr<PreviewAudio> audio, int start, int end, bool loop)
+std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::startPreview (std::unique_ptr<PreviewAudio> audio, int start, int end, bool loop,
+                                                                            double pitch, bool playNow)
 {
     if (audio == nullptr || audio->left.empty()) return stopPreview();
     const int len = (int) audio->left.size();
@@ -84,10 +89,33 @@ std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::startPreview (std:
     {
         const juce::SpinLock::ScopedLockType sl (lock);
         std::swap (preview, audio);
-        prevPos = start; prevStart = start; prevEnd = end; prevLoop = loop; prevPlaying = true;
+        prevPos = start; prevStart = start; prevEnd = end; prevLoop = loop; prevPlaying = playNow;
+        prevPitch = juce::jlimit (0.01, 64.0, pitch);
+    }
+    previewPos = playNow ? start : -1;
+    return audio;
+}
+
+void PaulaProcessor::restartPreview (int start, double pitch)
+{
+    {
+        const juce::SpinLock::ScopedLockType sl (lock);
+        if (preview == nullptr) return;
+        const int len = (int) preview->left.size();
+        prevStart = juce::jlimit (0, std::max (0, len - 1), start);
+        prevPos = prevStart; prevEnd = len; prevLoop = false; prevPlaying = true;
+        prevPitch = juce::jlimit (0.01, 64.0, pitch);
     }
     previewPos = start;
-    return audio;
+}
+
+void PaulaProcessor::pausePreview()
+{
+    {
+        const juce::SpinLock::ScopedLockType sl (lock);
+        prevPlaying = false;
+    }
+    previewPos = -1;
 }
 
 std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::stopPreview()
@@ -107,7 +135,7 @@ void PaulaProcessor::renderPreview (float* l, float* r, int n)
     if (! prevPlaying || preview == nullptr) return;
     const auto& a = *preview;
     const bool stereo = ! a.right.empty();
-    const double inc = a.rate / std::max (1.0, currentRate);
+    const double inc = a.rate * prevPitch / std::max (1.0, currentRate);
     const float g = previewGain.load();
     for (int i = 0; i < n; ++i)
     {
@@ -185,7 +213,14 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     {
         const auto msg = meta.getMessage();
         renderTo (juce::jlimit (0, n, meta.samplePosition));
-        if (msg.isNoteOn())
+        if (msg.isNoteOn() && midiToPreview.load() && preview != nullptr)
+        {
+            // sample browser: play the highlighted file at this note's pitch
+            prevStart = 0; prevPos = 0; prevEnd = (int) preview->left.size(); prevLoop = false; prevPlaying = true;
+            prevPitch = std::pow (2.0, (msg.getNoteNumber() - 60) / 12.0);
+            previewPos = 0;
+        }
+        else if (msg.isNoteOn())
         {
             const int note = juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23); // MIDI 60 -> C-3
             player.jamNoteOn (note, jamInstrument.load(), msg.getVelocity(), jamRangeStart.load(), jamRangeEnd.load(), jamRangeLoop.load());
@@ -259,6 +294,8 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("zoom", e.uiZoom, nullptr);
     st.setProperty ("follow", e.follow, nullptr);
     st.setProperty ("folder", e.lastFolder, nullptr);
+    st.setProperty ("sampleFolder", e.sampleFolder, nullptr);
+    st.setProperty ("file", e.currentFile, nullptr);
 
     juce::MemoryOutputStream mos (destData, false);
     st.writeToStream (mos);
@@ -279,7 +316,7 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     {
         const juce::SpinLock::ScopedLockType sl (lock);
         auto& o = player.options;
-        o.model = (prv::PaulaOptions::Model) juce::jlimit (0, 2, (int) st.getProperty ("model", 0));
+        o.model = (prv::PaulaOptions::Model) juce::jlimit (0, 4, (int) st.getProperty ("model", 0));
         o.zeroOrderHold = st.getProperty ("zoh", true);
         o.eightBit = st.getProperty ("eightBit", true);
         o.crunch8ch = st.getProperty ("crunch", true);
@@ -301,6 +338,8 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.uiZoom = st.getProperty ("zoom", 0);
     e.follow = st.getProperty ("follow", true);
     e.lastFolder = st.getProperty ("folder", juce::String());
+    e.sampleFolder = st.getProperty ("sampleFolder", juce::String());
+    e.currentFile = st.getProperty ("file", juce::String());
     jamInstrument = e.instrument;
 }
 

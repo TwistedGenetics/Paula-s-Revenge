@@ -65,7 +65,8 @@ private:
     PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
 public:
-    std::function<void()> pushStructUndo, openArrange;
+    std::function<void (const juce::String&)> pushStructUndo;
+    std::function<void()> openArrange;
     std::function<void (const juce::String&)> onStatus;
     void moveSelected (int delta);
     void cloneInPlace();
@@ -74,7 +75,7 @@ public:
 class BlockPanel : public juce::Component
 {
 public:
-    BlockPanel (PaulaProcessor&, std::function<void()> changed, std::function<void (int)> pushUndo);
+    BlockPanel (PaulaProcessor&, std::function<void()> changed);
     void refresh();
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -82,14 +83,15 @@ public:
 private:
     PaulaProcessor& proc;
     std::function<void()> changed;
-    std::function<void (int)> pushUndo;
     NumberBox current { "BLOCK", 0, 255, 0 };
     NumberBox lines { "LINES", 1, 256, 64 };
+    PixButton doubleBtn { "X2" }, halveBtn { "1/2" };
     PixButton newBtn { "NEW" }, cloneBtn { "CLONE" }, delBtn { "DEL" };
     PixButton numDownBtn { "NUM -" }, numUpBtn { "NUM +" };
     PixLabel  countLabel;
 public:
-    std::function<void()> pushStructUndo;
+    std::function<void (const juce::String&)> pushStructUndo;
+    std::function<void()> onDouble, onHalve;
 };
 
 class WaveView : public juce::Component
@@ -129,7 +131,7 @@ private:
     WaveView wave;
     std::unique_ptr<juce::FileChooser> chooser;
 
-    template <typename Fn> void editInstrument (Fn&& fn);
+    template <typename Fn> void editInstrument (const juce::String& what, Fn&& fn);
 };
 
 } // namespace prv::ui

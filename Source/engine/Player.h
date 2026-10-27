@@ -7,10 +7,20 @@
 namespace prv
 {
 
+// Akai output filter corners (Hz); see README for where these come from
+constexpr double kS950Cutoff  = 16000.0;
+constexpr double kS1000Cutoff = 19500.0;
+
 struct PaulaOptions
 {
-    enum class Model { A500, A1200, Clean };
+    // A500/A1200/Clean: Amiga Paula. S950/S1000: Akai samplers (see README)
+    enum class Model { A500, A1200, Clean, S950, S1000 };
     Model model        = Model::A500;   // analogue output filter model
+    bool isAkai() const { return model == Model::S950 || model == Model::S1000; }
+    // what the model actually does with the Amiga options
+    bool stepped() const   { return model == Model::S950 ? true : model == Model::S1000 ? false : zeroOrderHold; }
+    int  dropBits() const  { return model == Model::S950 ? 4 : model == Model::S1000 ? 0 : (eightBit ? 8 : 0); }   // 16 - bit depth
+    bool crunches() const  { return ! isAkai() && crunch8ch && eightBit; }
     bool  zeroOrderHold = true;         // stepped Paula playback (vs. linear interpolation)
     bool  eightBit      = true;         // quantise sample data to 8 bits
     bool  crunch8ch     = true;         // requantise mixed track pairs in 8-track songs
@@ -67,11 +77,20 @@ public:
     void playBlock (int block, int line = 0);
     void stop();
     Mode getMode() const { return mode; }
+
+    // Loop lines from..to (inclusive) of one block while playing; block < 0 = off.
+    // Bxx/Dxx inside the loop are ignored so it keeps going round.
+    void setLineLoop (int blockIndex, int from, int to);
+    int  loopBlock() const { return lpBlock; }
+    int  loopFrom() const { return lpFrom; }
+    int  loopTo() const { return lpTo; }
     bool isPlaying() const { return mode != Mode::Stopped; }
 
     // Live note preview (keyboard / MIDI). Uses its own voices. start/end
     // (in samples) limit playback to a region; loopRegion loops it.
     void jamNoteOn (int note, int instrIndex, int velocity127 = 127, int start = -1, int end = -1, bool loopRegion = false);
+    // Play the instrument from sample `pos` with its own loop (ping-pong too): loop auditioning.
+    void jamNoteFrom (int note, int instrIndex, int pos);
     void jamNoteOff (int note);
     void jamAllOff();
 
@@ -125,6 +144,7 @@ private:
         double regionStart = -1, regionEnd = -1;   // slice / selection limits (samples), -1 = none
         bool   regionLoop = false;
         bool   reverse = false;
+        bool   pingBack = false;                   // going backwards in a ping-pong loop
         double pitchMul = 1.0;                     // micro-tune
         // extended commands
         double glideStep = 0; int glideTicks = 0;
@@ -172,6 +192,8 @@ private:
     double tempoOverride = 0;
     bool ledOn = false;
 
+    int  lpBlock = -1, lpFrom = 0, lpTo = 0;   // line loop
+    bool inLineLoop() const { return lpBlock >= 0 && block == lpBlock && line >= lpFrom && line <= lpTo; }
     int  breakLine = -1;   // pending Dxx
     int  jumpPos   = -1;   // pending Bxx
     int  loopJumpLine = -1; // pending E6x
@@ -181,6 +203,8 @@ private:
     // output filters
     OnePole lpL, lpR, hpL, hpR;
     Biquad  ledL, ledR;
+    Biquad  akL[4], akR[4];   // Akai output filter (cascaded 2-pole sections)
+    int     akStages = 0;
     PaulaOptions::Model lastModel = PaulaOptions::Model::A500;
 };
 

@@ -1,0 +1,15 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Paula's Revenge icon, simplified for 16-32 px: bars instead of text -->
+  <defs>
+    <linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f1ecdf"/><stop offset="1" stop-color="#bdb49e"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="58" height="58" rx="13" fill="url(#bezel)" stroke="#8f8772" stroke-width="1.5"/>
+  <rect x="9" y="9" width="46" height="38" rx="8" fill="#0d2716" stroke="#5e5848" stroke-width="2"/>
+  <rect x="14" y="15" width="30" height="5" rx="1" fill="#86ffa2"/>
+  <rect x="10" y="25.5" width="44" height="7" fill="#ff3434"/>
+  <rect x="14" y="37" width="30" height="5" rx="1" fill="#86ffa2"/>
+  <circle cx="49" cy="54" r="3" fill="#ff3434"/>
+  <rect x="18" y="52.5" width="20" height="3" rx="1.5" fill="#8f8772"/>
+</svg>

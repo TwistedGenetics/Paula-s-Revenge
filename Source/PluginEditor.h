@@ -30,6 +30,8 @@ public:
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
+    bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
+    bool saveSongDirect();
 
 private:
     void timerCallback() override;
@@ -40,6 +42,9 @@ private:
     void newSong();
     void loadSong();
     void saveSong();
+    void saveSongAs();
+    bool writeSongTo (const juce::File&);
+    void historyRestored (const juce::String&);
     void exportMod();
     void exportWav();
     void exportSamples();
@@ -51,7 +56,8 @@ private:
     using PixLabel  = prv::ui::PixLabel;
 
     // title bar
-    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" }, smpBtn { "EXPORT SAMPLES" };
+    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, saveAsBtn { "SAVE AS" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" }, smpBtn { "EXPORT SAMPLES" };
+    PixButton undoBtn { "UNDO" }, redoBtn { "REDO" };
     PixButton zoomOut { "A-" }, zoomIn { "A+" };
 
     // transport
@@ -60,12 +66,14 @@ private:
     PixButton stopBtn { juce::String::charToString ((juce::juce_wchar) 2) + " STOP" };
     PixButton editBtn { juce::String::charToString ((juce::juce_wchar) 5) + " EDIT", true };
     PixButton followBtn { "FOLLOW", true };
+    PixButton loopBtn { "LOOP", true };
     PixButton panelsBtn { "PANELS", true };
     NumberBox tempoBox { "BPM", 32, 255, 125 }, speedBox { "SPD", 1, 31, 6 }, octBox { "OCT", 0, 6, 3 }, stepBox { "STEP", 0, 16, 1 };
     PixLabel  posLabel;
 
     // paula strip
     PixButton a500Btn { "A500", true }, a1200Btn { "A1200", true }, cleanBtn { "CLEAN", true };
+    PixButton s950Btn { "S950", true }, s1000Btn { "S1000", true };
     PixButton steppedBtn { "STEPPED", true }, eightBitBtn { "8-BIT", true }, crunchBtn { "CRUNCH", true }, ledBtn { "LED", true };
     PixLabel  ledLabel { {}, false };
     PixSlider sepSlider { "SEP" }, volSlider { "VOL" };
@@ -91,7 +99,7 @@ private:
     View returnView = View::Pattern;
 
     std::unique_ptr<juce::FileChooser> chooser;
-    juce::File currentFile;
+    bool lastDirty = false;
     juce::String statusText;
     int statusTimer = 0;
     bool showPanels = true;

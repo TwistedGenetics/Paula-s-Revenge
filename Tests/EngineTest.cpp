@@ -5,6 +5,7 @@
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
 #include "engine/TimeStretch.h"
+#include "engine/Slicer.h"
 #include <cstdio>
 #include <random>
 #include <fstream>
@@ -628,8 +629,254 @@ static void testTimeStretch()
     }
 }
 
+// ---------------------------------------------------------------- v0.6 tests
+static double rmsOf (const std::vector<float>& v, int a, int b)
+{
+    double e = 0; for (int i = a; i < b; ++i) e += v[(size_t) i] * v[(size_t) i];
+    return std::sqrt (e / std::max (1, b - a));
+}
+
+static void testDoubleHalve()
+{
+    Block b; b.lines = 4;
+    for (int l = 0; l < 4; ++l) b.at (l, 0) = Cell { (uint8_t) (37 + l), 1, 0xC, (uint8_t) (l * 8), cmdLetter ('L'), (uint8_t) l };
+    CHECK (doubleBlockLength (b));
+    CHECK (b.lines == 8);
+    bool same = true;
+    for (int l = 0; l < 4; ++l)
+    {
+        const auto& a = b.at (l, 0); const auto& c = b.at (l + 4, 0);
+        same = same && a.note == c.note && a.instr == c.instr && a.cmd == c.cmd && a.param == c.param && a.cmd2 == c.cmd2 && a.param2 == c.param2;
+    }
+    CHECK (same);
+    CHECK (b.at (0, 0).note == 37 && b.at (3, 0).note == 40);   // first half untouched
+    bool differed = true;
+    Block h = b;
+    CHECK (halveBlockLength (h, differed) && ! differed && h.lines == 4 && h.at (5, 0).note == 0);
+    b.at (6, 0).note = 60;
+    CHECK (halveBlockLength (b, differed) && differed && b.lines == 4);
+    Block big; big.lines = 200;
+    CHECK (! doubleBlockLength (big) && big.lines == 200);
+    Block one; one.lines = 1;
+    CHECK (! halveBlockLength (one, differed));
+    Block full; full.lines = 128;
+    CHECK (doubleBlockLength (full) && full.lines == 256);
+}
+
+static void testLineLoop()
+{
+    Song s = oneShot (square (100, 4800));
+    auto& b = s.blocks[0]; b.lines = 16;
+    b.at (0, 0) = { 37, 1, 0, 0 };
+    b.at (6, 1) = { 0, 0, 0xD, 0x00 };    // a pattern break inside the loop is ignored
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.setLineLoop (0, 4, 7);
+    p.playBlock (0, 4);
+    std::vector<float> L (960), R (960);
+    int minLine = 99, maxLine = -1;
+    for (int k = 0; k < 6 * 40; ++k)   // ~40 lines
+    {
+        p.render (L.data(), R.data(), 960);
+        minLine = std::min (minLine, p.uiLine.load()); maxLine = std::max (maxLine, p.uiLine.load());
+    }
+    std::printf ("line loop 4-7: lines seen %d..%d\n", minLine, maxLine);
+    CHECK (minLine == 4 && maxLine == 7);
+    // without the loop the break moves on
+    p.setLineLoop (-1, 0, 0);
+    p.playBlock (0, 4);
+    bool left = false;
+    for (int k = 0; k < 6 * 10; ++k) { p.render (L.data(), R.data(), 960); left = left || p.uiLine.load() < 4 || p.uiLine.load() > 7; }
+    CHECK (left);
+    // a loop on another block doesn't affect this one
+    s.blocks.push_back (Block{});
+    p.setLineLoop (1, 0, 3);
+    p.playBlock (0, 0);
+    int maxL = 0;
+    for (int k = 0; k < 6 * 12; ++k) { p.render (L.data(), R.data(), 960); maxL = std::max (maxL, p.uiLine.load()); }
+    CHECK (maxL > 3);
+}
+
+static void testPingPong()
+{
+    // a rising ramp: a forward loop jumps back down, ping-pong turns round smoothly
+    std::vector<int16_t> ramp (64);
+    for (int i = 0; i < 64; ++i) ramp[(size_t) i] = (int16_t) (i * 400);
+    for (bool ping : { false, true })
+    {
+        Song s = oneShot (ramp);
+        s.instruments[0].rate = 48000;   // one sample per output sample on C-3
+        s.instruments[0].pingPong = ping;
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        for (bool zoh : { false, true })
+        {
+            Player p; p.setSampleRate (48000); p.setSong (&s);
+            p.options.model = PaulaOptions::Model::Clean; p.options.zeroOrderHold = zoh; p.options.eightBit = false; p.options.stereoSep = 0.0f;
+            p.playBlock (0);
+            std::vector<float> L (2000), R (2000);
+            p.render (L.data(), R.data(), 2000);
+            float maxStep = 0; int turns = 0, lastDir = 0;
+            for (int i = 200; i < 1999; ++i)
+            {
+                const float d = L[(size_t) i + 1] - L[(size_t) i];
+                maxStep = std::max (maxStep, std::abs (d));
+                const int dir = d > 1e-6f ? 1 : d < -1e-6f ? -1 : 0;   // (stepped playback repeats a sample at each turn)
+                if (dir != 0) { if (lastDir != 0 && dir != lastDir) ++turns; lastDir = dir; }
+            }
+            std::printf ("ping-pong %d (stepped %d): biggest step %.3f, turns %d\n", (int) ping, (int) zoh, maxStep, turns);
+            if (ping) { CHECK (maxStep < 0.05f); CHECK (turns >= 20); }
+            else CHECK (maxStep > 0.2f);
+        }
+    }
+}
+
+static void testSlices()
+{
+    // four flat slices, each louder than the one before
+    std::vector<int16_t> d (4000);
+    for (int i = 0; i < 4000; ++i) d[(size_t) i] = (int16_t) ((i / 1000 + 1) * 4000);
+    Song s = oneShot (d, false);
+    auto& in = s.instruments[0];
+    in.rate = 48000;
+    in.slices = { 0, 1000, 2000, 3000 };
+    int a = 0, b = 0;
+    CHECK (in.sliceRange (3, a, b) && a == 3000 && b == 4000);
+    CHECK (! in.sliceRange (4, a, b));
+    auto level = [&] (Cell c)
+    {
+        s.blocks[0].clear();
+        s.blocks[0].at (0, 0) = c;
+        auto v = renderTrack (s, 3000);
+        const int on = firstSound (v);
+        if (on < 0) return std::pair<double, int> { 0.0, 0 };
+        int len = 0; for (int i = on; i < 3000; ++i) if (std::abs (v[(size_t) i]) > 1e-4f) ++len;
+        return std::pair<double, int> { rmsOf (v, on + 10, on + 500), len };
+    };
+    // slice to keys: D-3 = slice 3
+    in.sliceKeys = true;
+    const auto s1 = level ({ 37, 1, 0, 0 }), s3 = level ({ 39, 1, 0, 0 }), s5 = level ({ 41, 1, 0, 0 });
+    std::printf ("slice keys: slice 1 level %.3f len %d, slice 3 level %.3f len %d, slice 5 %.3f\n", s1.first, s1.second, s3.first, s3.second, s5.first);
+    CHECK (std::abs (s3.first / s1.first - 3.0) < 0.1);
+    CHECK (std::abs (s1.second - 1000) <= 20);   // stops at the end of the slice
+    CHECK (s5.first == 0.0);                      // no slice 5
+    // Sxx uses the slice points (S01 = slice 2)
+    in.sliceKeys = false;
+    const auto sx = level ({ 37, 1, cmdLetter ('S'), 0x01 });
+    CHECK (std::abs (sx.first / s1.first - 2.0) < 0.1 && std::abs (sx.second - 1000) <= 20);
+    // without slice points S still divides into 16
+    in.slices.clear();
+    const auto s16 = level ({ 37, 1, cmdLetter ('S'), 0x00 });
+    CHECK (std::abs (s16.second - 250) <= 10);
+    // keyboard / MIDI notes follow slice to keys too
+    in.slices = { 0, 1000, 2000, 3000 }; in.sliceKeys = true;
+    {
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.model = PaulaOptions::Model::Clean; p.options.zeroOrderHold = false; p.options.eightBit = false; p.options.stereoSep = 0.0f;
+        p.jamNoteOn (40, 0);   // D#3 = slice 4
+        std::vector<float> L (3000), R (3000);
+        p.render (L.data(), R.data(), 3000);
+        for (int i = 0; i < 3000; ++i) L[(size_t) i] += R[(size_t) i];
+        int len = 0; for (float x : L) if (std::abs (x) > 1e-4f) ++len;
+        std::printf ("jam slice 4: len %d\n", len);
+        CHECK (std::abs (len - 1000) <= 20);
+    }
+    // finding hits
+    {
+        const int sr = 44100;
+        std::vector<int16_t> hits ((size_t) sr * 2), none;
+        std::mt19937 rng (3);
+        const int at[] = { 0, 11025, 22050, 33075, 52000, 70000 };
+        for (int h : at)
+            for (int i = 0; i < 6000; ++i)
+                hits[(size_t) (h + i)] = (int16_t) (((int) (rng() % 30000) - 15000) * std::exp (-i / 1200.0));
+        auto found = detectSlices (hits, none, sr, 0.5f);
+        std::printf ("detect: %d slices:", (int) found.size());
+        for (int f : found) std::printf (" %d", f);
+        std::printf ("\n");
+        CHECK (found.size() == 6);
+        for (size_t k = 0; k < std::min (found.size(), (size_t) 6); ++k) CHECK (std::abs (found[k] - at[k]) < 300);
+        CHECK (evenSlices (1000, 4) == std::vector<int> ({ 0, 250, 500, 750 }));
+        std::vector<int> t { 900, -5, 300, 300, 1200, 0 };
+        tidySlices (t, 1000);
+        CHECK (t == std::vector<int> ({ 0, 300, 900 }));
+    }
+}
+
+static void testNoteTranspose()
+{
+    Song s = oneShot (square (100, 4800));
+    s.instruments[0].rate = 48000;   // C-3 plays the square at 480 Hz
+    s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+    const double base = crossingsHz (renderTrack (s, 9600), 1000, 9000, 48000);
+    s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('I'), 0x8C };
+    const double up = crossingsHz (renderTrack (s, 9600), 1000, 9000, 48000);
+    s.blocks[0].at (0, 0) = { 37, 1, cmdLetter ('I'), 0x7B };
+    const double down = crossingsHz (renderTrack (s, 9600), 1000, 9000, 48000);
+    std::printf ("I command: %.1f Hz, I8C %.1f Hz (x2), I7B %.1f Hz (-5 st)\n", base, up, down);
+    CHECK (std::abs (base - 480) < 10);
+    CHECK (std::abs (up / base - 2.0) < 0.03);
+    CHECK (std::abs (down / base - std::pow (2.0, -5 / 12.0)) < 0.03);
+    CHECK (describeCommand (cmdLetter ('I'), 0x8C).find ("+12") != std::string::npos);
+}
+
+static void testAkaiModels()
+{
+    PaulaOptions o;
+    o.model = PaulaOptions::Model::S950;
+    CHECK (o.stepped() && o.dropBits() == 4 && ! o.crunches());
+    o.model = PaulaOptions::Model::S1000;
+    CHECK (! o.stepped() && o.dropBits() == 0);
+    o.model = PaulaOptions::Model::A500; o.eightBit = true;
+    CHECK (o.dropBits() == 8);
+
+    auto play = [] (PaulaOptions::Model m, std::vector<int16_t> data, double rate)
+    {
+        Song s = oneShot (std::move (data));
+        s.instruments[0].rate = rate;
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.model = m; p.options.stereoSep = 0.0f;
+        p.playBlock (0);
+        std::vector<float> L (24000), R (24000);
+        p.render (L.data(), R.data(), 24000);
+        for (int i = 0; i < 24000; ++i) L[(size_t) i] += R[(size_t) i];
+        return L;
+    };
+    // 12-bit: a signal below the S950's smallest step vanishes, the S1000 keeps it
+    {
+        std::vector<int16_t> tiny (480);
+        for (int i = 0; i < 480; ++i) tiny[(size_t) i] = (int16_t) ((i % 48) < 24 ? 12 : 0);
+        const double r950 = rmsOf (play (PaulaOptions::Model::S950, tiny, 48000), 4000, 24000);
+        const double r1000 = rmsOf (play (PaulaOptions::Model::S1000, tiny, 48000), 4000, 24000);
+        std::printf ("tiny signal: S950 rms %.2e, S1000 rms %.2e\n", r950, r1000);
+        CHECK (r950 < 1e-6 && r1000 > 1e-5);
+    }
+    // output filters: 6-pole at 16 kHz (S950), 8-pole at 19.5 kHz (S1000)
+    auto tone = [] (double hz)
+    {
+        std::vector<int16_t> d (4800);   // 0.1 s loop at 48 kHz, whole cycles
+        for (int i = 0; i < 4800; ++i) d[(size_t) i] = (int16_t) (12000 * std::sin (2 * 3.14159265358979 * hz * i / 48000.0));
+        return d;
+    };
+    auto gainDb = [&] (PaulaOptions::Model m, double hz)
+    {
+        const double ref = rmsOf (play (PaulaOptions::Model::Clean, tone (hz), 48000), 4000, 24000);
+        return 20 * std::log10 (rmsOf (play (m, tone (hz), 48000), 4000, 24000) / ref);
+    };
+    const double a1k = gainDb (PaulaOptions::Model::S950, 1000), a10k = gainDb (PaulaOptions::Model::S950, 10000), a20k = gainDb (PaulaOptions::Model::S950, 20000);
+    const double b10k = gainDb (PaulaOptions::Model::S1000, 10000), b20k = gainDb (PaulaOptions::Model::S1000, 20000);
+    std::printf ("S950: 1k %.1f dB, 10k %.1f dB, 20k %.1f dB   S1000: 10k %.1f dB, 20k %.1f dB\n", a1k, a10k, a20k, b10k, b20k);
+    CHECK (std::abs (a1k) < 0.5 && std::abs (a10k) < 1.0 && a20k < -9.0);
+    CHECK (std::abs (b10k) < 0.5 && b20k < -3.0 && b20k > a20k);
+}
+
 int main()
 {
+    testDoubleHalve();
+    testLineLoop();
+    testPingPong();
+    testSlices();
+    testNoteTranspose();
+    testAkaiModels();
     testExtendedCommands();
     testTimeStretch();
     testBalance();

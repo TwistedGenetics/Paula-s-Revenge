@@ -111,6 +111,7 @@ Instrument& ParamsPage::inst()
 
 template <typename Fn> void ParamsPage::edit (Fn&& fn)
 {
+    proc.history.instrument (proc.editorState.instrument, "SOUND SHAPING", true);
     proc.withLock ([&] { fn (inst()); });
     repaint();
     if (onChanged) onChanged();
@@ -264,7 +265,7 @@ void ParamsPage::paint (juce::Graphics& g)
 bool ParamsPage::keyPressed (const juce::KeyPress& k)
 {
     if (k.getKeyCode() == juce::KeyPress::escapeKey) { if (onClose) onClose(); return true; }
-    if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;
+    if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;   // undo etc. go to the main window
     static const char* lower = "zsxdcvgbhnjm,l.;/";
     static const char* upper = "q2w3er5t6y7ui9o0p";
     const auto ch = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());

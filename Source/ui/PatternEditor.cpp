@@ -1,6 +1,7 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
 #include "../engine/Commands.h"
+#include "../engine/SongOps.h"
 
 namespace prv::ui
 {
@@ -76,9 +77,28 @@ void PatternEditor::setPanFromX (int t, float x)
     auto pr = panRect (t - firstTrack());
     int v = juce::jlimit (0, 255, juce::roundToInt ((x - pr.getX()) / std::max (1.0f, pr.getWidth()) * 255.0f));
     if (std::abs (v - 128) <= 6) v = 128;   // snap to centre
+    proc.history.settings ("TRACK " + juce::String (t + 1) + " PAN", true);
     proc.withLock ([&] { proc.song.trackPan[t] = v; });
     repaint();
 }
+juce::Rectangle<float> PatternEditor::cornerRect() const
+{
+    const float px = fontPx();
+    const float cw = px * PixelFont::kCellW;
+    return juce::Rectangle<float> (0, 0, lineNumW() - cw * 0.75f, headerH()).reduced (px * 0.75f, px);
+}
+
+int PatternEditor::lineAtY (float y) const
+{
+    const float rh = rowH();
+    const float hh = headerH();
+    const float area = (float) getHeight() - hh - helpHeight();
+    const int visRows = std::max (1, (int) (area / rh));
+    const float y0 = hh + (area - visRows * rh) * 0.5f;
+    const int r = (int) std::floor ((y - y0) / rh);
+    return st.line + (r - visRows / 2);
+}
+
 float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * trackChars(); }
 float PatternEditor::lineNumW() const { return fontPx() * (PixelFont::kCellW * kLineNumChars + 3); }
 int   PatternEditor::colChars (int column) const { return column == 0 ? 3 : 1; }
@@ -146,6 +166,20 @@ void PatternEditor::paint (juce::Graphics& g)
         g.fillRect (mx - px * 0.75f, trough.getY() - px * 0.5f, px * 1.5f, trough.getHeight() + px);
     }
 
+    // ---- corner: the block being edited
+    {
+        auto cr = cornerRect();
+        g.setColour (Theme::panel);
+        g.fillRect (cr);
+        Theme::bevel (g, cr, true, line);
+        auto top = cr.withHeight (cr.getHeight() * 0.42f);
+        PixelFont::drawCentred (g, "BLK", top, px, Theme::ink);
+        const juce::String num = juce::String (proc.song.safeBlock (st.block)).paddedLeft ('0', 3);
+        float np = px * 1.6f;
+        while (np > px && PixelFont::textWidth (num, np) > cr.getWidth() - px) np -= px * 0.1f;
+        PixelFont::drawCentred (g, num, cr.withTrimmedTop (top.getHeight()).withTrimmedBottom (px * 0.5f), np, Theme::ink);
+    }
+
     // ---- rows
     const auto& song = proc.song;
     const int blk = song.safeBlock (st.block);
@@ -178,6 +212,16 @@ void PatternEditor::paint (juce::Graphics& g)
             g.fillRect (rowRect.withHeight (line).withBottomY (rowRect.getBottom()));
         }
 
+        if (st.loopBlock == blk && l >= st.loopFrom && l <= st.loopTo)
+        {
+            auto lr = rowRect.withWidth (lnw - cw * 0.75f - line);
+            g.setColour (st.loopOn ? sk.hot.withAlpha (0.45f) : sk.dim.withAlpha (0.35f));
+            g.fillRect (lr);
+            g.setColour (st.loopOn ? sk.hot : sk.dim);
+            g.fillRect (lr.withWidth (px));
+            if (l == st.loopFrom) g.fillRect (lr.withHeight (line));
+            if (l == st.loopTo)   g.fillRect (lr.withHeight (line).withBottomY (lr.getBottom()));
+        }
         const float ty = std::round (y + (rh - 7 * px) * 0.5f);
         PixelFont::addText (text, juce::String (l).paddedLeft ('0', 3), px * 2.5f, ty, px);
 
@@ -302,7 +346,7 @@ void PatternEditor::tick()
     // MIDI notes from the host or a MIDI keyboard
     int note;
     while (proc.popMidiNote (note))
-        if (st.editMode) { pushUndo (st.block); proc.withLock ([&] {
+        if (st.editMode) { pushUndo (st.block, "MIDI NOTE"); proc.withLock ([&] {
                 auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
                 c.note = (uint8_t) note; c.instr = (uint8_t) (st.instrument + 1); });
             advance(); changed(); }
@@ -327,6 +371,8 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     const int nVis = visibleTracks();
     const int first = firstTrack();
 
+    loopDragFrom = -1;
+    if (cornerRect().contains (e.position)) { askBlockNumber(); return; }
     const int slot = (int) std::floor ((e.position.x - lineNumW() + px * PixelFont::kCellW * 0.5f) / trackW());
     if (e.position.y < hh)
     {
@@ -353,13 +399,19 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
-    const float rh = rowH();
-    const float area = (float) getHeight() - hh - helpHeight();
-    const int visRows = std::max (1, (int) (area / rh));
-    const float y0 = hh + (area - visRows * rh) * 0.5f;
-    const int r = (int) std::floor ((e.position.y - y0) / rh);
-    const int l = st.line + (r - visRows / 2);
-    if (l >= 0 && l < blockLines() && ! (proc.player.isPlaying() && st.follow)) st.line = l;
+    const int l = juce::jlimit (0, blockLines() - 1, lineAtY (e.position.y));
+    if (e.mods.isShiftDown())
+    {
+        // shift+click: loop from the cursor line to here
+        setLoopRange (st.line, l);
+        return;
+    }
+    if (e.position.x < lineNumW() - px * PixelFont::kCellW * 0.75f)
+    {
+        loopDragFrom = l;   // dragging over the line numbers marks a loop (the view stays put)
+        return;
+    }
+    if (! (proc.player.isPlaying() && st.follow)) st.line = l;
 
     if (slot >= 0 && slot < nVis)
     {
@@ -375,7 +427,65 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
 
 void PatternEditor::mouseDrag (const juce::MouseEvent& e)
 {
-    if (panDragTrack >= 0) setPanFromX (panDragTrack, e.position.x);
+    if (panDragTrack >= 0) { setPanFromX (panDragTrack, e.position.x); return; }
+    if (loopDragFrom >= 0 && e.getDistanceFromDragStart() > 3)
+    {
+        const int l = juce::jlimit (0, blockLines() - 1, lineAtY (e.position.y));
+        setLoopRange (loopDragFrom, l);
+    }
+}
+
+void PatternEditor::askBlockNumber()
+{
+    auto* w = new juce::AlertWindow ("Go to block", "Block number (0-" + juce::String ((int) proc.song.blocks.size() - 1) + ")", juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor ("num", juce::String (proc.song.safeBlock (st.block)));
+    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<PatternEditor> safe (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
+    {
+        if (r != 1 || safe == nullptr) return;
+        const auto txt = w->getTextEditorContents ("num").trim();
+        if (txt.isEmpty() || ! txt.containsOnly ("0123456789")) return;
+        auto& self = *safe;
+        self.st.block = self.proc.song.safeBlock (txt.getIntValue());
+        self.st.line = std::min (self.st.line, self.blockLines() - 1);
+        self.changed();
+        self.grabKeyboardFocus();
+    }), true);
+}
+
+// ---------------------------------------------------------------- loop
+void PatternEditor::setLoopRange (int from, int to)
+{
+    st.loopBlock = proc.song.safeBlock (st.block);
+    st.loopFrom = juce::jlimit (0, blockLines() - 1, std::min (from, to));
+    st.loopTo = juce::jlimit (0, blockLines() - 1, std::max (from, to));
+    st.loopOn = true;
+    syncLoop();
+    if (onStatus) onStatus ("LOOP LINES " + juce::String (st.loopFrom).paddedLeft ('0', 3) + "-" + juce::String (st.loopTo).paddedLeft ('0', 3)
+                            + " OF BLOCK " + juce::String (st.loopBlock).paddedLeft ('0', 3) + " (LOOP BUTTON TURNS IT OFF)");
+    changed();
+}
+
+void PatternEditor::setLoopOn (bool on)
+{
+    if (on && st.loopBlock < 0)
+    {
+        if (onStatus) onStatus ("MARK A LOOP FIRST: DRAG OVER THE LINE NUMBERS, OR SHIFT+CLICK A LINE");
+        st.loopOn = false;
+        changed();
+        return;
+    }
+    st.loopOn = on;
+    syncLoop();
+    changed();
+}
+
+void PatternEditor::syncLoop()
+{
+    if (st.loopBlock >= (int) proc.song.blocks.size()) { st.loopBlock = -1; st.loopOn = false; }
+    proc.withLock ([&] { proc.player.setLineLoop (st.loopOn ? st.loopBlock : -1, st.loopFrom, st.loopTo); });
 }
 
 void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
@@ -385,6 +495,7 @@ void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
     if (slot >= 0 && slot < visibleTracks() && e.position.y > headerRect (slot).getCentreY())
     {
         const int t = firstTrack() + slot;
+        proc.history.settings ("TRACK " + juce::String (t + 1) + " PAN AUTO");
         proc.withLock ([&] { proc.song.trackPan[t] = -1; });
         panDragTrack = -1;
         repaint();
@@ -439,82 +550,25 @@ void PatternEditor::advance()
 }
 
 // ---------------------------------------------------------------- editing
-void PatternEditor::pushUndo (int blockIndex)
+void PatternEditor::pushUndo (int blockIndex, const juce::String& what)
 {
-    blockIndex = proc.song.safeBlock (blockIndex);
-    UndoEntry e;
-    e.block = blockIndex;
-    e.data = proc.song.blocks[(size_t) blockIndex];
-    undoStack.push_back (std::move (e));
-    if (undoStack.size() > 200) undoStack.erase (undoStack.begin());
-    redoStack.clear();
+    proc.history.block (blockIndex, what);
 }
 
-std::shared_ptr<PatternEditor::Structure> PatternEditor::snapshot() const
+void PatternEditor::pushStructureUndo (const juce::String& what)
 {
-    auto sn = std::make_shared<Structure>();
-    sn->blocks = proc.song.blocks;
-    sn->sequence = proc.song.sequence;
-    sn->seqPos = st.seqPos;
-    sn->block = st.block;
-    return sn;
+    proc.history.structure (what);
 }
 
-void PatternEditor::pushStructureUndo()
-{
-    UndoEntry e;
-    e.structure = snapshot();
-    undoStack.push_back (std::move (e));
-    if (undoStack.size() > 200) undoStack.erase (undoStack.begin());
-    redoStack.clear();
-}
-
-void PatternEditor::restore (UndoEntry& e, std::vector<UndoEntry>& opposite)
-{
-    if (e.structure)
-    {
-        UndoEntry back; back.structure = snapshot();
-        opposite.push_back (std::move (back));
-        auto blocks = e.structure->blocks;
-        auto seq = e.structure->sequence;
-        proc.withLock ([&] { std::swap (proc.song.blocks, blocks); std::swap (proc.song.sequence, seq); });
-        st.seqPos = juce::jlimit (0, (int) proc.song.sequence.size() - 1, e.structure->seqPos);
-        st.block = proc.song.safeBlock (e.structure->block);
-    }
-    else
-    {
-        if (e.block >= (int) proc.song.blocks.size()) return;
-        UndoEntry back; back.block = e.block; back.data = proc.song.blocks[(size_t) e.block];
-        opposite.push_back (std::move (back));
-        proc.withLock ([&] { proc.song.blocks[(size_t) e.block] = e.data; });
-        st.block = e.block;
-    }
-    st.line = std::min (st.line, blockLines() - 1);
-    changed();
-}
-
-void PatternEditor::undo()
-{
-    if (undoStack.empty()) return;
-    auto e = std::move (undoStack.back());
-    undoStack.pop_back();
-    restore (e, redoStack);
-}
-
-void PatternEditor::redo()
-{
-    if (redoStack.empty()) return;
-    auto e = std::move (redoStack.back());
-    redoStack.pop_back();
-    restore (e, undoStack);
-}
+void PatternEditor::undo() { proc.history.undo(); }
+void PatternEditor::redo() { proc.history.redo(); }
 
 void PatternEditor::enterNote (int note)
 {
     note = juce::jlimit (1, (int) kNoteMax, note);
     proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
     if (! st.editMode) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "NOTE " + juce::String (noteName ((uint8_t) note)));
     proc.withLock ([&] {
         auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
         c.note = (uint8_t) note;
@@ -527,7 +581,7 @@ void PatternEditor::enterNote (int note)
 void PatternEditor::enterHex (int v)
 {
     if (! st.editMode) return;
-    pushUndo (st.block);
+    pushUndo (st.block, st.column <= 2 ? "INSTRUMENT NUMBER" : "EFFECT");
     proc.withLock ([&] {
         auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
         switch (st.column)
@@ -550,7 +604,7 @@ void PatternEditor::enterHex (int v)
 void PatternEditor::clearField()
 {
     if (! st.editMode) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "CLEAR");
     proc.withLock ([&] {
         auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
         if (st.column == 0) { c.note = 0; c.instr = 0; }
@@ -565,7 +619,7 @@ void PatternEditor::clearField()
 void PatternEditor::insertLine()
 {
     if (! st.editMode) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "INSERT LINE");
     proc.withLock ([&] {
         auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
         for (int l = b.lines - 1; l > st.line; --l) b.at (l, st.track) = b.at (l - 1, st.track);
@@ -577,7 +631,7 @@ void PatternEditor::insertLine()
 void PatternEditor::deleteLine()
 {
     if (! st.editMode) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "DELETE LINE");
     proc.withLock ([&] {
         auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
         for (int l = st.line; l < b.lines - 1; ++l) b.at (l, st.track) = b.at (l + 1, st.track);
@@ -594,7 +648,7 @@ void PatternEditor::copyTrack (bool cut)
     trackClipLines = b.lines;
     if (cut)
     {
-        pushUndo (st.block);
+        pushUndo (st.block, "CUT TRACK");
         proc.withLock ([&] {
             auto& bb = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
             for (int l = 0; l < bb.lines; ++l) bb.at (l, st.track) = Cell{};
@@ -606,7 +660,7 @@ void PatternEditor::copyTrack (bool cut)
 void PatternEditor::pasteTrack()
 {
     if (trackClip.empty()) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "PASTE TRACK");
     proc.withLock ([&] {
         auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
         for (int l = 0; l < b.lines && l < (int) trackClip.size(); ++l) b.at (l, st.track) = trackClip[(size_t) l];
@@ -619,7 +673,7 @@ void PatternEditor::copyBlock (bool cut)
     blockClip = std::make_unique<Block> (proc.song.blocks[(size_t) proc.song.safeBlock (st.block)]);
     if (cut)
     {
-        pushUndo (st.block);
+        pushUndo (st.block, "CUT BLOCK");
         proc.withLock ([&] { proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].clear(); });
         changed();
     }
@@ -628,7 +682,7 @@ void PatternEditor::copyBlock (bool cut)
 void PatternEditor::pasteBlock()
 {
     if (! blockClip) return;
-    pushUndo (st.block);
+    pushUndo (st.block, "PASTE BLOCK");
     proc.withLock ([&] { proc.song.blocks[(size_t) proc.song.safeBlock (st.block)] = *blockClip; });
     st.line = std::min (st.line, blockLines() - 1);
     changed();
@@ -636,7 +690,7 @@ void PatternEditor::pasteBlock()
 
 void PatternEditor::transposeTrack (int semis)
 {
-    pushUndo (st.block);
+    pushUndo (st.block, "TRANSPOSE TRACK " + juce::String (semis > 0 ? "+" : "") + juce::String (semis));
     proc.withLock ([&] {
         auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
         for (int l = 0; l < b.lines; ++l)
@@ -650,12 +704,58 @@ void PatternEditor::transposeTrack (int semis)
 
 void PatternEditor::togglePlayStop (bool songMode)
 {
+    if (proc.player.isPlaying()) { stopPlayback(); return; }
+    syncLoop();
+    const bool loopHere = st.loopOn && st.loopBlock == proc.song.safeBlock (st.block);
     proc.withLock ([&] {
-        if (proc.player.isPlaying()) proc.player.stop();
-        else if (songMode) proc.player.playSong (st.seqPos, 0);
-        else proc.player.playBlock (st.block, 0);
+        if (songMode) proc.player.playSong (st.seqPos, 0);
+        else proc.player.playBlock (st.block, loopHere ? st.loopFrom : 0);
     });
     changed();
+}
+
+void PatternEditor::toggleEdit()
+{
+    st.editMode = ! st.editMode;
+    changed();
+}
+
+void PatternEditor::doubleBlock()
+{
+    const int b = proc.song.safeBlock (st.block);
+    const int n = proc.song.blocks[(size_t) b].lines;
+    if (n * 2 > kMaxLines) { if (onStatus) onStatus ("CAN'T DOUBLE: BLOCKS CAN HAVE UP TO 256 LINES"); return; }
+    pushUndo (b, "DOUBLE BLOCK LENGTH");
+    Block copy = proc.song.blocks[(size_t) b];
+    doubleBlockLength (copy);
+    proc.withLock ([&] { std::swap (proc.song.blocks[(size_t) b], copy); });
+    if (onStatus) onStatus ("BLOCK " + juce::String (b).paddedLeft ('0', 3) + " IS NOW " + juce::String (n * 2) + " LINES: LINES "
+                            + juce::String (n).paddedLeft ('0', 3) + "-" + juce::String (n * 2 - 1).paddedLeft ('0', 3) + " REPEAT THE FIRST HALF");
+    changed();
+}
+
+void PatternEditor::halveBlock()
+{
+    const int b = proc.song.safeBlock (st.block);
+    const int n = proc.song.blocks[(size_t) b].lines;
+    if (n < 2) { if (onStatus) onStatus ("CAN'T HALVE A 1-LINE BLOCK"); return; }
+    Block copy = proc.song.blocks[(size_t) b];
+    bool differed = false;
+    halveBlockLength (copy, differed);
+    auto doIt = [this, b, n, copy = std::make_shared<Block> (std::move (copy)), differed]
+    {
+        pushUndo (b, "HALVE BLOCK LENGTH");
+        proc.withLock ([&] { std::swap (proc.song.blocks[(size_t) b], *copy); });
+        st.line = std::min (st.line, blockLines() - 1);
+        if (onStatus) onStatus ("BLOCK " + juce::String (b).paddedLeft ('0', 3) + " IS NOW " + juce::String ((n + 1) / 2) + " LINES"
+                                + (differed ? juce::String (" - UNDO TO GET THE SECOND HALF BACK") : juce::String()));
+        changed();
+    };
+    if (! differed) { doIt(); return; }
+    juce::Component::SafePointer<PatternEditor> safe (this);
+    juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon, "Halve block",
+        "The second half of this block is different from the first half and will be removed.", "Halve", "Cancel", this,
+        juce::ModalCallbackFunction::create ([safe, doIt] (int r) { if (r == 1 && safe != nullptr) doIt(); }));
 }
 
 void PatternEditor::stopPlayback()
@@ -701,13 +801,9 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     if (code == juce::KeyPress::homeKey) { st.line = 0; changed(); return true; }
     if (code == juce::KeyPress::endKey)  { st.line = blockLines() - 1; changed(); return true; }
 
-    // --- transport
-    if (code == juce::KeyPress::spaceKey)
-    {
-        if (proc.player.isPlaying()) stopPlayback();
-        else { st.editMode = ! st.editMode; changed(); }
-        return true;
-    }
+    // --- transport: space plays/stops (shift = song), esc toggles edit mode
+    if (code == juce::KeyPress::spaceKey) { togglePlayStop (shift); return true; }
+    if (code == juce::KeyPress::escapeKey) { toggleEdit(); return true; }
     if (code == juce::KeyPress::returnKey)
     {
         proc.withLock ([&] {
@@ -718,7 +814,6 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         changed();
         return true;
     }
-    if (code == juce::KeyPress::escapeKey) { stopPlayback(); return true; }
 
     // --- clipboard / undo
     if (cmd)
@@ -726,6 +821,9 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         const auto ch = juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code);
         if (ch == 'z') { if (shift) redo(); else undo(); return true; }
         if (ch == 'y') { redo(); return true; }
+        const auto tc = k.getTextCharacter();
+        if (code == '[' || tc == '[') { setLoopRange (st.line, st.loopBlock == proc.song.safeBlock (st.block) ? std::max (st.line, st.loopTo) : st.line); return true; }
+        if (code == ']' || tc == ']') { setLoopRange (st.loopBlock == proc.song.safeBlock (st.block) ? std::min (st.line, st.loopFrom) : st.line, st.line); return true; }
         if (ch == 'c') { if (shift) copyBlock (false); else copyTrack (false); return true; }
         if (ch == 'x') { if (shift) copyBlock (true);  else copyTrack (true);  return true; }
         if (ch == 'v') { if (shift) pasteBlock(); else pasteTrack(); return true; }
@@ -759,7 +857,7 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         if (ch == '1' || ch == '`')
         {
             if (! st.editMode) return true;
-            pushUndo (st.block);
+            pushUndo (st.block, "NOTE OFF");
             proc.withLock ([&] {
                 auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
                 c.note = kNoteOff; c.instr = 0;

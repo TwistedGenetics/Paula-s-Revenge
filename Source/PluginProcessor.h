@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "engine/Song.h"
 #include "engine/Player.h"
+#include "History.h"
 
 class PaulaProcessor : public juce::AudioProcessor
 {
@@ -45,6 +46,9 @@ public:
         fn();
     }
 
+    // one undo/redo history shared by every page (kept while the window is closed)
+    History history { *this };
+
     // Replace the whole song (loading). Stops playback.
     void replaceSong (prv::Song&& newSong);
 
@@ -74,7 +78,12 @@ public:
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust
-        juce::String lastFolder;
+        juce::String lastFolder;      // songs
+        juce::String sampleFolder;    // sample browser
+        juce::String currentFile;     // where SAVE writes ("" = ask)
+        // marked loop in the pattern (lines, inclusive); loopBlock < 0 = none
+        bool loopOn = false;
+        int  loopBlock = -1, loopFrom = 0, loopTo = 0;
     } editorState;
 
     // MIDI notes jam the current instrument; the editor records them when in edit mode
@@ -92,8 +101,15 @@ public:
     };
     // Starts playing `audio` from `start` to `end` (samples). Returns the
     // previous preview so it is freed on the calling (message) thread.
-    std::unique_ptr<PreviewAudio> startPreview (std::unique_ptr<PreviewAudio> audio, int start = 0, int end = -1, bool loop = false);
+    // `pitch` speeds it up (2 = an octave higher); playNow = false just loads it.
+    std::unique_ptr<PreviewAudio> startPreview (std::unique_ptr<PreviewAudio> audio, int start = 0, int end = -1, bool loop = false,
+                                                double pitch = 1.0, bool playNow = true);
     std::unique_ptr<PreviewAudio> stopPreview();
+    void restartPreview (int start, double pitch);   // replay what's loaded (no-op if nothing is)
+    void pausePreview();                              // stop but keep it loaded
+    bool hasPreview() const { return preview != nullptr; }
+    // while set, MIDI notes play the loaded preview at their pitch (MIDI 60 = original)
+    std::atomic<bool> midiToPreview { false };
     std::atomic<int>  previewPos { -1 };    // current position, -1 when silent
     std::atomic<float> previewGain { 0.8f };
 
@@ -108,7 +124,7 @@ private:
     juce::AbstractFifo midiFifo { 64 };
     int midiNotes[64] {};
     std::unique_ptr<PreviewAudio> preview;
-    double prevPos = 0;
+    double prevPos = 0, prevPitch = 1.0;
     int prevStart = 0, prevEnd = 0;
     bool prevLoop = false, prevPlaying = false;
     void renderPreview (float* l, float* r, int n);

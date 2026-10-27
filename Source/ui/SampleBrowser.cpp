@@ -1,6 +1,7 @@
 // Paula's Revenge - sample browser that auditions files as you move through them
 #include "SampleBrowser.h"
 #include "../SongFile.h"
+#include "../Prefs.h"
 
 namespace prv::ui
 {
@@ -60,7 +61,7 @@ SampleBrowser::SampleBrowser (PaulaProcessor& p) : proc (p)
         });
     };
 
-    playBtn.onClick   = [this] { if (selected < (int) entries.size() && ! entries[(size_t) selected].isDir) audition (entries[(size_t) selected].file); };
+    playBtn.onClick   = [this] { if (selected < (int) entries.size() && ! entries[(size_t) selected].isDir) { if (auditionFile == entries[(size_t) selected].file && proc.hasPreview()) playFrom (0); else audition (entries[(size_t) selected].file, true); } };
     stopBtn.onClick   = [this] { stopAudition(); };
     loadBtn.onClick   = [this] { loadSelected(); };
     cancelBtn.onClick = [this] { stopAudition(); if (onClose) onClose(); };
@@ -71,16 +72,23 @@ SampleBrowser::SampleBrowser (PaulaProcessor& p) : proc (p)
     volSlider.onChange = [this] (float v) { proc.previewGain = v; };
 
     for (auto* c : std::initializer_list<juce::Component*> { &upBtn, &homeBtn, &musicBtn, &desktopBtn, &downloadsBtn, &docsBtn, &volumesBtn, &finderBtn,
-                                                             &playBtn, &stopBtn, &autoBtn, &loadBtn, &cancelBtn, &volSlider, &keepRateBtn })
+                                                             &playBtn, &stopBtn, &autoBtn, &loadBtn, &cancelBtn, &volSlider })
         addAndMakeVisible (c);
 }
 
-SampleBrowser::~SampleBrowser() { stopAudition(); }
+SampleBrowser::~SampleBrowser() { proc.midiToPreview = false; auto old = proc.stopPreview(); }
+
+void SampleBrowser::visibilityChanged()
+{
+    proc.midiToPreview = isVisible();
+    if (! isVisible()) { auto old = proc.stopPreview(); auditioning = false; auditionFile = juce::File(); }
+}
 
 void SampleBrowser::opened()
 {
     const auto& st = proc.editorState;
-    juce::File start = st.lastFolder.isNotEmpty() ? juce::File (st.lastFolder) : juce::File();
+    juce::File start = st.sampleFolder.isNotEmpty() ? juce::File (st.sampleFolder) : juce::File();
+    if (! start.isDirectory()) start = juce::File (prv::prefs().getValue ("sampleFolder"));
     if (! start.isDirectory()) start = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
     if (! start.isDirectory()) start = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
     if (start != dir || entries.empty()) setDirectory (start);
@@ -98,7 +106,7 @@ void SampleBrowser::setDirectory (const juce::File& d)
     if (! d.isDirectory()) { if (onStatus) onStatus ("CAN'T OPEN " + d.getFullPathName()); return; }
     const auto previous = dir;
     dir = d;
-    proc.editorState.lastFolder = d.getFullPathName();
+    prv::rememberFolder (proc.editorState.sampleFolder, "sampleFolder", d);
     entries.clear();
 
     juce::Array<juce::File> dirs, files;
@@ -138,12 +146,14 @@ void SampleBrowser::selectRow (int row, bool doAudition)
     list.selected = selected;
     list.ensureVisible (selected);
     const auto& e = entries[(size_t) selected];
-    if (! e.isDir && doAudition && autoBtn.getToggleState()) audition (e.file);
-    else if (e.isDir) { info = "FOLDER"; peaks.clear(); }
+    // always load the file so its waveform shows and keys/clicks can play it
+    if (! e.isDir) { if (e.file != auditionFile || ! proc.hasPreview()) audition (e.file, doAudition && autoBtn.getToggleState());
+                     else if (doAudition && autoBtn.getToggleState()) playFrom (0); }
+    else { info = "FOLDER"; peaks.clear(); stopAudition(); auditionFile = juce::File(); }
     repaint();
 }
 
-void SampleBrowser::audition (const juce::File& f)
+void SampleBrowser::audition (const juce::File& f, bool playNow)
 {
     std::vector<float> L, R;
     double rate = 0;
@@ -169,23 +179,52 @@ void SampleBrowser::audition (const juce::File& f)
         peaks[(size_t) x] = { lo, hi };
     }
     auditionLength = (int) L.size();
+    auditionRate = rate;
 
     auto audio = std::make_unique<PaulaProcessor::PreviewAudio>();
     audio->left = std::move (L);
     audio->right = std::move (R);
     audio->rate = rate;
-    auto old = proc.startPreview (std::move (audio));
+    auto old = proc.startPreview (std::move (audio), 0, -1, false, 1.0, playNow);
     old.reset();
-    auditioning = true;
+    auditioning = playNow;
     auditionFile = f;
     repaint();
 }
 
 void SampleBrowser::stopAudition()
 {
-    if (auditioning) { auto old = proc.stopPreview(); old.reset(); }
+    proc.pausePreview();   // keep it loaded so clicks and keys still play it
     auditioning = false;
     repaint();
+}
+
+void SampleBrowser::playFrom (int sample)
+{
+    if (! proc.hasPreview()) return;
+    proc.restartPreview (juce::jlimit (0, std::max (0, auditionLength - 1), sample), 1.0);
+    auditioning = true;
+    repaint();
+}
+
+void SampleBrowser::playNote (int note)
+{
+    if (! proc.hasPreview()) return;
+    proc.restartPreview (0, std::pow (2.0, (note - 37) / 12.0));   // C-3 = as recorded
+    auditioning = true;
+    if (onStatus) onStatus ("PLAYING " + juce::String (noteName ((uint8_t) juce::jlimit (1, (int) kNoteMax, note))) + " (C-3 = ORIGINAL PITCH)");
+    repaint();
+}
+
+int SampleBrowser::noteForKey (const juce::KeyPress& k) const
+{
+    static const char* lower = "zsxdcvgbhnjm,l.;/";
+    static const char* upper = "q2w3er5t6y7ui9o0p";
+    const auto ch = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());
+    const int oct = proc.editorState.octave;
+    for (int i = 0; lower[i]; ++i) if (ch == (juce::juce_wchar) lower[i]) return oct * 12 + i + 1;
+    for (int i = 0; upper[i]; ++i) if (ch == (juce::juce_wchar) upper[i]) return (oct + 1) * 12 + i + 1;
+    return -1;
 }
 
 bool SampleBrowser::loadSelected()
@@ -195,9 +234,10 @@ bool SampleBrowser::loadSelected()
     if (e.isDir) { setDirectory (e.file); return false; }
     Instrument in;
     juce::String err;
-    if (! importSample (e.file, in, err, keepRateBtn.getToggleState())) { if (onStatus) onStatus ("ERROR: " + err); return false; }
+    if (! importSample (e.file, in, err)) { if (onStatus) onStatus ("ERROR: " + err); return false; }
     stopAudition();
     const int idx = proc.editorState.instrument;
+    proc.history.instrument (idx, "LOAD SAMPLE");
     proc.withLock ([&] { proc.player.jamAllOff(); std::swap (proc.song.instruments[(size_t) idx], in); });
     if (onStatus) onStatus ("LOADED " + e.file.getFileName().toUpperCase() + " INTO "
                             + juce::String::toHexString (idx + 1).toUpperCase().paddedLeft ('0', 2)
@@ -247,9 +287,7 @@ void SampleBrowser::resized()
         autoBtn.setBounds (bottom1.removeFromLeft (w)); bottom1.removeFromLeft (gap);
         volSlider.setBounds (bottom1);
     }
-    cancelBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 5));
-    bottom2.removeFromRight (gap);
-    keepRateBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 3));
+    cancelBtn.setBounds (bottom2.removeFromRight (bottom2.getWidth() / 4));
     bottom2.removeFromRight (gap);
     loadBtn.setBounds (bottom2);
     r.removeFromBottom (gap * 2);
@@ -272,7 +310,7 @@ void SampleBrowser::paint (juce::Graphics& g)
     if (path.length() > maxChars) path = "..." + path.getLastCharacters (maxChars - 3);
     PixelFont::drawLeft (g, path, pathArea.withTrimmedLeft (px), px, Theme::ink);
 
-    juce::String line = info.isEmpty() ? juce::String ("UP/DOWN TO BROWSE - ENTER TO LOAD - SPACE PLAYS") : info;
+    juce::String line = info.isEmpty() ? juce::String ("UP/DOWN BROWSE - ENTER LOADS - SPACE PLAYS - KEYS PLAY PITCHES") : info;
     if (auditioning && auditionFile.exists()) line = auditionFile.getFileName() + "   " + info;
     float ip = px;
     while (ip > 1.5f && PixelFont::textWidth (line, ip) > infoArea.getWidth()) ip -= 0.5f;
@@ -292,6 +330,15 @@ void SampleBrowser::paint (juce::Graphics& g)
             g.fillRect (waveArea.getX() + x * colW, y1, std::max (1.0f, colW), std::max (1.0f, y2 - y1));
         }
         const int pos = proc.previewPos.load();
+        {
+            // hint in a solid box at the bottom right so it doesn't sit on the waveform
+            const juce::String hint = "CLICK TO PLAY FROM THERE";
+            const float hw = PixelFont::textWidth (hint, px) + px * 4;
+            auto box = juce::Rectangle<float> (waveArea.getRight() - hw - px, waveArea.getBottom() - px * 10, hw, px * 9);
+            g.setColour (sk.bg);
+            g.fillRect (box);
+            PixelFont::drawCentred (g, hint, box, px, sk.dim);
+        }
         if (auditioning && pos >= 0 && auditionLength > 0)
         {
             g.setColour (sk.hot);
@@ -308,7 +355,26 @@ void SampleBrowser::paint (juce::Graphics& g)
     }
 }
 
-void SampleBrowser::mouseDown (const juce::MouseEvent&) { grabKeyboardFocus(); }
+void SampleBrowser::mouseDown (const juce::MouseEvent& e)
+{
+    grabKeyboardFocus();
+    if (waveArea.contains (e.position) && auditionLength > 0)
+        playFrom ((int) ((e.position.x - waveArea.getX()) / std::max (1.0f, waveArea.getWidth()) * auditionLength));
+}
+
+void SampleBrowser::mouseDrag (const juce::MouseEvent& e)
+{
+    // scrub: keep restarting from the mouse position
+    if (waveArea.contains (e.mouseDownPosition) && auditionLength > 0 && e.getDistanceFromDragStart() > 2)
+        playFrom ((int) (juce::jlimit (0.0f, 1.0f, (e.position.x - waveArea.getX()) / std::max (1.0f, waveArea.getWidth())) * auditionLength));
+}
+
+bool SampleBrowser::keyStateChanged (bool)
+{
+    for (auto it = heldKeys.begin(); it != heldKeys.end();)
+        it = juce::KeyPress::isKeyCurrentlyDown (it->first) ? std::next (it) : heldKeys.erase (it);
+    return false;
+}
 
 bool SampleBrowser::keyPressed (const juce::KeyPress& k)
 {
@@ -341,9 +407,24 @@ bool SampleBrowser::keyPressed (const juce::KeyPress& k)
         return true;
     }
     if (code == juce::KeyPress::escapeKey) { cancelBtn.triggerClick(); return true; }
-    // type a letter to jump to the next entry starting with it
-    const auto ch = juce::CharacterFunctions::toUpperCase (k.getTextCharacter());
-    if (ch > ' ' && ! k.getModifiers().isCommandDown())
+    if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;
+    // octave keys as in the pattern
+    const auto tc = k.getTextCharacter();
+    if (tc == '[') { proc.editorState.octave = std::max (0, proc.editorState.octave - 1); if (onStatus) onStatus ("OCTAVE " + juce::String (proc.editorState.octave)); return true; }
+    if (tc == ']') { proc.editorState.octave = std::min (6, proc.editorState.octave + 1); if (onStatus) onStatus ("OCTAVE " + juce::String (proc.editorState.octave)); return true; }
+    // note keys play the highlighted sample at that pitch
+    if (! k.getModifiers().isAltDown())
+    {
+        const int note = noteForKey (k);
+        if (note > 0)
+        {
+            if (heldKeys.count (code) == 0) { heldKeys[code] = note; playNote (note); }
+            return true;
+        }
+    }
+    // option + a letter jumps to the next entry starting with it
+    const auto ch = juce::CharacterFunctions::toUpperCase ((juce::juce_wchar) (code < 128 ? code : 0));
+    if (k.getModifiers().isAltDown() && ch > ' ')
     {
         for (int n = 1; n <= (int) entries.size(); ++n)
         {
