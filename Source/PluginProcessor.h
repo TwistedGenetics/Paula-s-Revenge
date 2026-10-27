@@ -49,15 +49,13 @@ public:
     // one undo/redo history shared by every page (kept while the window is closed)
     History history { *this };
 
+    // Make the mixer's effect objects match song.mixer (message thread; call after
+    // changing an effect type, loading, undo).
+    void updateMixerEffects();
+
     // Replace the whole song (loading). Stops playback.
     void replaceSong (prv::Song&& newSong);
-
-    // host sync settings
-    std::atomic<bool> followHostTransport { true };
-    std::atomic<bool> followHostTempo { true };
-    std::atomic<bool> hostIsPlaying { false };
-    std::atomic<double> hostBpm { 0.0 };
-    bool isRunningStandalone() const { return wrapperType == wrapperType_Standalone; }
+    bool isRunningStandalone() const { return true; }   // v0.8: the app is standalone only
 
     // editor state that should survive closing the window / reloading the set
     struct EditorState
@@ -74,7 +72,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer } view = View::Pattern;
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust
@@ -119,7 +117,6 @@ public:
 
 private:
     double currentRate = 44100.0;
-    bool wasHostPlaying = false;
     juce::HeapBlock<float> scratchL, scratchR;
     int scratchSize = 0;
     juce::AbstractFifo midiFifo { 64 };

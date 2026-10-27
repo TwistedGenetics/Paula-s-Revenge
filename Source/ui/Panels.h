@@ -40,6 +40,9 @@ public:
 
 private:
     int scroll = 0;
+    WheelSteps wheel;
+    EdgeScroller edgeScroll;
+    float lastDragY = 0;
     int hoverTagRow = -1;
     int repeatDir = 0;            // arrow button held: -1 up, +1 down
     int dragRow = -1, dropRow = -1;

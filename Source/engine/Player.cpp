@@ -64,6 +64,7 @@ void Player::setSampleRate (double sr)
 {
     sampleRate = sr > 0 ? sr : 44100.0;
     updateFilters();
+    mixerEngine.prepare (sampleRate);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
     for (auto& b : akL) b.reset();
     for (auto& b : akR) b.reset();
@@ -885,7 +886,43 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
 
 void Player::render (float* left, float* right, int numSamples)
 {
+    // in blocks the mixer can take
+    for (int done = 0; done < numSamples;)
+    {
+        const int n = std::min (numSamples - done, MixerEngine::kMaxBlock);
+        renderChunk (left + done, right + done, n);
+        done += n;
+    }
+}
+
+void Player::outputStage (float& L, float& R, bool led)
+{
+    if (akStages > 0)
+    {
+        for (int k = 0; k < akStages; ++k) { L = akL[k].process (L); R = akR[k].process (R); }
+        L = hpL.hp (L);
+        R = hpR.hp (R);
+    }
+    else if (options.model != PaulaOptions::Model::Clean)
+    {
+        L = hpL.hp (lpL.lp (L));
+        R = hpR.hp (lpR.lp (R));
+    }
+    if (led && ! options.isAkai())
+    {
+        L = ledL.process (L);
+        R = ledR.process (R);
+    }
+    const float g = options.master;
+    L = softClip (L * g);
+    R = softClip (R * g);
+}
+
+void Player::renderChunk (float* left, float* right, int numSamples)
+{
     if (options.model != lastModel) updateFilters();
+    // with a mixer in use each track goes to its own buffer first
+    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat());
 
     float peaks[kMaxTracks] = {};
     const int nt = song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0;
@@ -965,6 +1002,34 @@ void Player::render (float* left, float* right, int numSamples)
             else addPanned (valL[ch] * scale, p, L, R);
         };
 
+        // preview (jam) notes
+        float jl = 0, jr = 0;
+        for (int j = kMaxTracks; j < kVoices; ++j)
+        {
+            const float p = isFixed[j] ? fixedPos[j] : 0.0f;
+            if (st[j]) { jl += valL[j] * 0.5f * std::min (1.0f, 1.0f - p); jr += valR[j] * 0.5f * std::min (1.0f, 1.0f + p); }
+            else addPanned (valL[j] * 0.7f, p, jl, jr);
+        }
+
+        if (mixActive)
+        {
+            // each track on its own (paired tracks in 8-track songs share the level they'd have had)
+            const float scale = nt > 4 ? 0.5f : 1.0f;
+            for (int t = 0; t < kMaxTracks; ++t)
+            {
+                float tl = 0, tr = 0;
+                if (t < nt)
+                {
+                    addVoice (t, scale, sidePan (nt > 4 ? t / 2 : t), tl, tr);
+                    if (nt > 4 && options.crunches()) { tl = quant8 (tl); tr = quant8 (tr); }
+                }
+                trkL[t][i] = tl; trkR[t][i] = tr;
+            }
+            jamL[i] = jl; jamR[i] = jr;
+            ledBuf[i] = ledOn;
+            continue;
+        }
+
         float L = 0, R = 0;
         if (nt > 4)
         {
@@ -991,34 +1056,19 @@ void Player::render (float* left, float* right, int numSamples)
         {
             for (int t = 0; t < nt; ++t) addVoice (t, 1.0f, sidePan (t), L, R);
         }
-        for (int j = kMaxTracks; j < kVoices; ++j)
-        {
-            const float p = isFixed[j] ? fixedPos[j] : 0.0f;
-            if (st[j]) { L += valL[j] * 0.5f * std::min (1.0f, 1.0f - p); R += valR[j] * 0.5f * std::min (1.0f, 1.0f + p); }
-            else addPanned (valL[j] * 0.7f, p, L, R);
-        }
+        L += jl; R += jr;
+        outputStage (L, R, ledOn);
+        left[i] = L; right[i] = R;
+    }
 
-        // analogue output stage
-        if (akStages > 0)
-        {
-            for (int k = 0; k < akStages; ++k) { L = akL[k].process (L); R = akR[k].process (R); }
-            L = hpL.hp (L);
-            R = hpR.hp (R);
-        }
-        else if (options.model != PaulaOptions::Model::Clean)
-        {
-            L = hpL.hp (lpL.lp (L));
-            R = hpR.hp (lpR.lp (R));
-        }
-        if (ledOn && ! options.isAkai())
-        {
-            L = ledL.process (L);
-            R = ledR.process (R);
-        }
-
-        const float g = options.master;
-        left[i]  = softClip (L * g);
-        right[i] = softClip (R * g);
+    if (mixActive)
+    {
+        float* tl[kMaxTracks]; float* tr[kMaxTracks];
+        for (int t = 0; t < kMaxTracks; ++t) { tl[t] = trkL[t]; tr[t] = trkR[t]; }
+        // the song's beat tempo (4 lines a beat) for synced delays
+        const double bpm = (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed);
+        mixerEngine.process (song->mixer, tl, tr, nt, jamL, jamR, left, right, numSamples, bpm);
+        for (int i = 0; i < numSamples; ++i) outputStage (left[i], right[i], ledBuf[i]);
     }
 
     for (int t = 0; t < kMaxTracks; ++t)

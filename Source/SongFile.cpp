@@ -8,8 +8,29 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 6;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
-                                  // v5: ping-pong loops + slices, v6: song sections
+    constexpr int kVersion = 7;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+                                  // v5: ping-pong loops + slices, v6: song sections, v7: mixer
+
+    void writeSlot (juce::OutputStream& o, const FxSlot& s)
+    {
+        o.writeByte ((char) s.type);
+        o.writeByte (s.bypass ? 1 : 0);
+        for (float v : s.p) o.writeFloatBigEndian (v);
+    }
+
+    void readSlot (juce::InputStream& in, FxSlot& s)
+    {
+        const int t = (uint8_t) in.readByte();
+        s.type = t < (int) FxType::Count ? (FxType) t : FxType::None;
+        s.bypass = in.readByte() != 0;
+        for (float& v : s.p) { const float f = in.readFloatBigEndian(); v = std::isfinite (f) ? juce::jlimit (0.0f, 1.0f, f) : 0.0f; }
+    }
+
+    float readFloat (juce::InputStream& in, float lo, float hi, float def)
+    {
+        const float f = in.readFloatBigEndian();
+        return std::isfinite (f) ? juce::jlimit (lo, hi, f) : def;
+    }
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -104,6 +125,30 @@ juce::MemoryBlock writeSong (const Song& song)
     {
         raw.writeShortBigEndian ((short) song.sections[i].pos);
         writeStr (raw, song.sections[i].name);
+    }
+    // v7: mixer
+    {
+        const auto& m = song.mixer;
+        for (const auto& c : m.ch)
+        {
+            raw.writeFloatBigEndian (c.volumeDb);
+            for (const auto& b : c.eq.band)
+            {
+                raw.writeByte (b.on ? 1 : 0);
+                raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
+            }
+            for (const auto& sl : c.inserts) writeSlot (raw, sl);
+            for (int k = 0; k < kSends; ++k) { raw.writeFloatBigEndian (c.send[k]); raw.writeByte (c.sendPre[k] ? 1 : 0); }
+        }
+        for (const auto& r : m.ret)
+        {
+            raw.writeFloatBigEndian (r.volumeDb);
+            raw.writeShortBigEndian ((short) r.pan);
+            raw.writeByte (r.mute ? 1 : 0);
+            for (const auto& sl : r.inserts) writeSlot (raw, sl);
+        }
+        raw.writeFloatBigEndian (m.master.volumeDb);
+        for (const auto& sl : m.master.inserts) writeSlot (raw, sl);
     }
 
     juce::MemoryOutputStream packed;
@@ -237,6 +282,32 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             s.sections.push_back (sec);
         }
         tidySections (s.sections, (int) s.sequence.size());
+    }
+    if (version >= 7 && ! in.isExhausted())
+    {
+        auto& m = s.mixer;
+        for (auto& c : m.ch)
+        {
+            c.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
+            for (auto& b : c.eq.band)
+            {
+                b.on = in.readByte() != 0;
+                b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
+                b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
+                b.q = readFloat (in, 0.1f, 10.0f, 0.7f);
+            }
+            for (auto& sl : c.inserts) readSlot (in, sl);
+            for (int k = 0; k < kSends; ++k) { c.send[k] = readFloat (in, 0.0f, 1.0f, 0.0f); c.sendPre[k] = in.readByte() != 0; }
+        }
+        for (auto& r : m.ret)
+        {
+            r.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
+            r.pan = juce::jlimit (0, 255, (int) in.readShortBigEndian());
+            r.mute = in.readByte() != 0;
+            for (auto& sl : r.inserts) readSlot (in, sl);
+        }
+        m.master.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
+        for (auto& sl : m.master.inserts) readSlot (in, sl);
     }
     out = std::move (s);
     return true;
@@ -376,6 +447,7 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
     p.options = options;
     p.setSampleRate (sampleRate);
     p.setSong (&song);
+    p.mixer().syncEffectsNow (song.mixer);   // the song's mixer is part of the render
     p.playSong();
 
     file.deleteFile();

@@ -2,10 +2,12 @@
 #pragma once
 
 #include "Song.h"
+#include "Mixer.h"
 #include <atomic>
 
 namespace prv
 {
+static_assert (kMixTracks == kMaxTracks, "one mixer strip per track");
 
 // Akai output filter corners (Hz); see README for where these come from
 constexpr double kS950Cutoff  = 16000.0;
@@ -112,6 +114,10 @@ public:
     PaulaOptions options;
     std::atomic<bool> mute[kMaxTracks] {};
 
+    // the mixer (EQ, inserts, sends) used when the song's mixer isn't flat
+    MixerEngine& mixer() { return mixerEngine; }
+    bool forceMixPath = false;    // tests: use the mixer path even when flat
+
     // Read by the UI
     std::atomic<int>   uiSeqPos { 0 }, uiBlock { 0 }, uiLine { 0 }, uiTempo { 125 }, uiSpeed { 6 };
     std::atomic<bool>  uiLed { false };
@@ -177,6 +183,12 @@ private:
     uint32_t rng = 0x9E3779B9u;
     uint32_t nextRandom() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
     void advanceLine();
+    void renderChunk (float* left, float* right, int numSamples);
+    void outputStage (float& L, float& R, bool led);
+    MixerEngine mixerEngine;
+    float trkL[kMaxTracks][MixerEngine::kMaxBlock] {}, trkR[kMaxTracks][MixerEngine::kMaxBlock] {};
+    float jamL[MixerEngine::kMaxBlock] {}, jamR[MixerEngine::kMaxBlock] {};
+    bool  ledBuf[MixerEngine::kMaxBlock] {};
     double samplesPerTick() const;
     void renderVoice (Voice& v, double inc, float& outL, float& outR);
     double vibratoDelta (uint8_t pos, uint8_t depth, uint8_t wave, int shift) const;

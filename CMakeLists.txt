@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.7.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,14 +27,15 @@ add_library(prv_engine STATIC
     Source/engine/SongOps.cpp
     Source/engine/Commands.cpp
     Source/engine/TimeStretch.cpp
-    Source/engine/Slicer.cpp)
+    Source/engine/Slicer.cpp
+    Source/engine/MixerTypes.cpp
+    Source/engine/Effects.cpp
+    Source/engine/Mixer.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-set(PRV_FORMATS VST3 Standalone)
-if(APPLE)
-    list(APPEND PRV_FORMATS AU)
-endif()
+# v0.8: the standalone app only (no plug-in builds)
+set(PRV_FORMATS Standalone)
 
 juce_add_plugin(PaulasRevenge
     COMPANY_NAME "Twisted Genetics"
@@ -71,6 +72,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/SampleBrowser.cpp
     Source/ui/ParamsPage.cpp
     Source/ui/ArrangePage.cpp
+    Source/ui/MixerPage.cpp
     Source/StandaloneApp.cpp)
 
 if(APPLE)

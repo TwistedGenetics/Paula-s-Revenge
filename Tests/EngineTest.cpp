@@ -6,7 +6,11 @@
 #include "engine/Commands.h"
 #include "engine/TimeStretch.h"
 #include "engine/Slicer.h"
+#include "engine/Mixer.h"
+#include "engine/Effects.h"
 #include <cstdio>
+#include <set>
+#include <functional>
 #include <random>
 #include <fstream>
 #include <cstdlib>
@@ -919,6 +923,150 @@ static void testBlockSwitchAndSections()
     }
 }
 
+// ---------------------------------------------------------------- v0.8 mixer
+static std::vector<float> renderMix (Song& s, int n, bool force, PaulaOptions::Model model = PaulaOptions::Model::Clean, std::vector<float>* right = nullptr)
+{
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.options.model = model; p.options.stereoSep = 0.2f;
+    p.forceMixPath = force;
+    p.mixer().syncEffectsNow (s.mixer);
+    p.playBlock (0);
+    std::vector<float> L ((size_t) n), R ((size_t) n);
+    p.render (L.data(), R.data(), n);
+    if (right) *right = R;
+    return L;
+}
+
+static void testMixer()
+{
+    // a flat mixer sounds exactly like no mixer (4 and 8 tracks, A500, stereo panning)
+    for (int tracks : { 4, 8 })
+    {
+        Song s = makeSong();
+        s.numTracks = tracks;
+        std::vector<float> ra, rb;
+        auto a = renderMix (s, 48000, false, PaulaOptions::Model::A500, &ra);
+        auto b = renderMix (s, 48000, true, PaulaOptions::Model::A500, &rb);
+        double maxDiff = 0;
+        for (size_t i = 0; i < a.size(); ++i) maxDiff = std::max ({ maxDiff, (double) std::abs (a[i] - b[i]), (double) std::abs (ra[i] - rb[i]) });
+        std::printf ("flat mixer, %d tracks: biggest difference %.2e\n", tracks, maxDiff);
+        CHECK (maxDiff < (tracks == 8 ? 0.02 : 1e-5));   // (8-track CRUNCH squashes each track instead of each pair)
+    }
+    {
+        MixerSettings m;
+        CHECK (m.isFlat());
+        m.ch[2].send[0] = 0.1f; CHECK (! m.isFlat());
+        m = MixerSettings {}; m.ch[0].eq.band[kEqMid1].on = true; CHECK (! m.isFlat());
+        m = MixerSettings {}; initFxSlot (m.ch[1].inserts[2], FxType::Delay); CHECK (! m.isFlat());
+        m.ch[1].inserts[2].bypass = true; CHECK (m.isFlat());
+        CHECK (m.ret[0].inserts[0].type == FxType::Reverb && m.ret[1].inserts[0].type == FxType::Delay);
+    }
+
+    // one quiet square on track 1; the fader, sends and returns act on it
+    auto quiet = [] { Song s = oneShot (square (100, 4800)); s.instruments[0].volume = 16; s.blocks[0].at (0, 0) = { 37, 1, 0, 0 }; return s; };
+    {
+        Song s = quiet();
+        const double base = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        s.mixer.ch[0].volumeDb = -6.0206f;
+        const double half = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        s.mixer.ch[0].volumeDb = -60.0f;
+        const double off = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        std::printf ("fader: 0 dB %.4f, -6 dB %.4f, off %.6f\n", base, half, off);
+        CHECK (std::abs (half / base - 0.5) < 0.01 && off < 1e-6);
+        // post-fader send into a return with no effects adds a copy; pre-fader send works with the fader down
+        s.mixer.ch[0].volumeDb = 0.0f;
+        for (auto& r : s.mixer.ret) for (auto& sl : r.inserts) sl = FxSlot {};
+        s.mixer.ch[0].send[0] = 0.5f;
+        const double withSend = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        s.mixer.ch[0].volumeDb = -60.0f; s.mixer.ch[0].sendPre[0] = true;
+        const double preOnly = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        s.mixer.ret[0].mute = true;
+        const double muted = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        std::printf ("send: post 50%% %.4f (x%.2f), pre-fader only %.4f (x%.2f), return muted %.6f\n", withSend, withSend / base, preOnly, preOnly / base, muted);
+        CHECK (std::abs (withSend / base - 1.5) < 0.02 && std::abs (preOnly / base - 0.5) < 0.02 && muted < 1e-6);
+    }
+    // EQ curve and processing
+    {
+        ChannelEq eq;
+        eq.band[kEqMid1] = { true, 1000.0f, 12.0f, 1.0f };
+        eq.band[kEqLowShelf] = { true, 120.0f, -6.0f, 0.7f };
+        eq.band[kEqHighPass] = { true, 40.0f, 0.0f, 0.7f };
+        const double at1k = ChannelEqProcessor::responseDb (eq, 1000, 48000), at30 = ChannelEqProcessor::responseDb (eq, 25, 48000),
+                     at10k = ChannelEqProcessor::responseDb (eq, 10000, 48000), at80 = ChannelEqProcessor::responseDb (eq, 80, 48000);
+        std::printf ("EQ: 1k %.1f dB, 80 Hz %.1f dB, 25 Hz %.1f dB, 10k %.1f dB\n", at1k, at80, at30, at10k);
+        CHECK (std::abs (at1k - 12.0) < 0.5 && at80 < -3.5 && at30 < -10 && std::abs (at10k) < 0.5);
+        ChannelEqProcessor proc; proc.prepare (48000);
+        std::vector<float> L (9600), R (9600);
+        for (int i = 0; i < 9600; ++i) L[(size_t) i] = R[(size_t) i] = 0.1f * (float) std::sin (2 * 3.14159265358979 * 1000 * i / 48000.0);
+        proc.process (L.data(), R.data(), 9600, eq);
+        double e = 0; for (int i = 4800; i < 9600; ++i) e += L[(size_t) i] * L[(size_t) i];
+        const double g = std::sqrt (e / 4800) / (0.1 / std::sqrt (2.0));
+        std::printf ("EQ on a 1 kHz tone: x%.2f (expect ~3.98)\n", g);
+        CHECK (std::abs (g - 3.98) < 0.2);
+    }
+    // each effect does something sensible
+    {
+        auto run = [] (FxType t, std::vector<float> in, std::function<void (FxSlot&)> set)
+        {
+            FxSlot sl; initFxSlot (sl, t); set (sl);
+            auto fx = makeEffect (t); fx->prepare (48000);
+            std::vector<float> R = in;
+            for (int i = 0; i < (int) in.size(); i += 512)
+                fx->process (in.data() + i, R.data() + i, std::min (512, (int) in.size() - i), sl.p, 120.0);
+            return in;
+        };
+        std::vector<float> sine5k (24000), imp (48000, 0.0f), loud (24000);
+        for (int i = 0; i < 24000; ++i) { sine5k[(size_t) i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 5000 * i / 48000.0); loud[(size_t) i] = 0.9f * (float) std::sin (2 * 3.14159265358979 * 200 * i / 48000.0); }
+        imp[0] = 1.0f;
+        const double r5k = rmsOf (sine5k, 4800, 24000);
+        const double lp = rmsOf (run (FxType::Filter, sine5k, [] (FxSlot& s) { s.p[0] = 0; s.p[1] = 0.4f; }), 4800, 24000);   // ~316 Hz low-pass
+        const double hp = rmsOf (run (FxType::Filter, sine5k, [] (FxSlot& s) { s.p[0] = 1; s.p[1] = 0.4f; }), 4800, 24000);
+        std::printf ("filter: 5 kHz through LP 316 Hz x%.3f, HP x%.3f\n", lp / r5k, hp / r5k);
+        CHECK (lp / r5k < 0.05 && std::abs (hp / r5k - 1.0) < 0.1);
+        auto crushed = run (FxType::Drive, sine5k, [] (FxSlot& s) { s.p[0] = 0; s.p[1] = 0; });   // 2 bits
+        std::set<float> levels (crushed.begin() + 100, crushed.end());
+        std::printf ("drive at 2 bits: %d distinct levels\n", (int) levels.size());
+        CHECK (levels.size() <= 5);
+        const double comp = rmsOf (run (FxType::Compressor, loud, [] (FxSlot& s) { s.p[0] = 0.5f; s.p[1] = 1.0f; s.p[4] = 0; }), 4800, 24000);
+        std::printf ("compressor -24 dB 20:1: loud tone x%.3f\n", comp / rmsOf (loud, 4800, 24000));
+        CHECK (comp / rmsOf (loud, 4800, 24000) < 0.25);
+        auto echo = run (FxType::Delay, imp, [] (FxSlot& s) { s.p[0] = (float) (std::log (100.0) / std::log (2000.0)); s.p[1] = 0; s.p[2] = 0; s.p[3] = 1; s.p[5] = 1; });
+        int at = (int) (std::max_element (echo.begin() + 10, echo.end()) - echo.begin());
+        std::printf ("delay 100 ms: echo at sample %d (expect 4800)\n", at);
+        CHECK (std::abs (at - 4800) <= 3);
+        auto synced = run (FxType::Delay, imp, [] (FxSlot& s) { s.p[0] = 0.5f; s.p[1] = 1; s.p[2] = 0; s.p[3] = 1; s.p[5] = 1; });   // 1/8 at 120 = 250 ms
+        at = (int) (std::max_element (synced.begin() + 10, synced.end()) - synced.begin());
+        std::printf ("delay 1/8 at 120 BPM: echo at sample %d (expect 12000)\n", at);
+        CHECK (std::abs (at - 12000) <= 3);
+        auto verb = run (FxType::Reverb, imp, [] (FxSlot& s) { s.p[4] = 1; });
+        const double tail = rmsOf (verb, 9600, 24000);
+        std::printf ("reverb tail rms %.5f\n", tail);
+        CHECK (tail > 1e-4);
+        auto ch = run (FxType::Chorus, sine5k, [] (FxSlot&) {});
+        bool finite = true; double diff = 0;
+        for (size_t i = 0; i < ch.size(); ++i) { finite &= std::isfinite (ch[i]); diff += std::abs (ch[i] - sine5k[i]); }
+        CHECK (finite && diff > 10.0);
+        for (int t = 1; t < (int) FxType::Count; ++t)
+            for (int k = 0; k < (int) fxParams ((FxType) t).size(); ++k)
+            {
+                FxSlot sl; initFxSlot (sl, (FxType) t);
+                CHECK (! fxParamText ((FxType) t, k, sl.p).empty());
+            }
+    }
+    // a song with a delay insert keeps sounding after the note stops; the mixer runs through the Player
+    {
+        Song s = quiet();
+        s.instruments[0].loopLength = 0; s.instruments[0].data.resize (480);
+        initFxSlot (s.mixer.ch[0].inserts[0], FxType::Delay);
+        s.mixer.ch[0].inserts[0].p[1] = 0; s.mixer.ch[0].inserts[0].p[0] = (float) (std::log (100.0) / std::log (2000.0));
+        s.mixer.ch[0].inserts[0].p[2] = 0.5f;
+        auto v = renderMix (s, 24000, false);
+        const double after = rmsOf (v, 4700, 5200);   // the first echo, well after the 10 ms note
+        std::printf ("song with a delay insert: echo rms %.5f\n", after);
+        CHECK (after > 1e-3);
+    }
+}
+
 static void testAkaiModels()
 {
     PaulaOptions o;
@@ -980,6 +1128,7 @@ int main()
     testAkaiModels();
     testInstrumentLevel();
     testBlockSwitchAndSections();
+    testMixer();
     testExtendedCommands();
     testTimeStretch();
     testBalance();

@@ -91,16 +91,66 @@ public:
     float valueChars = 4.5f;
 
     void setValue (float v, bool notify = false);
+    void setLabel (const juce::String& l) { if (l != label) { label = l; repaint(); } }
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     float defaultValue = 0.5f;
+    std::function<void()> onDoubleClick;   // replaces the reset-to-default when set
+    std::function<void()> onDragStart;     // e.g. to mark an undo step
 
 private:
     juce::String label;
+    float dragStartValue = 0;
+    float wheelAccum = 0;
     juce::Rectangle<float> trough() const;
     void setFromX (float x);
+};
+
+// Turns mouse-wheel / trackpad scrolling into whole steps at a calm rate:
+// one step per wheel notch, and a gentle trackpad swipe moves a few steps.
+struct WheelSteps
+{
+    float accum = 0;
+    float stepsPerUnit = 10.0f;   // trackpad: steps per unit of scroll
+    int operator() (const juce::MouseWheelDetails& w)
+    {
+        const float d = std::abs (w.deltaY) >= std::abs (w.deltaX) ? w.deltaY : w.deltaX;
+        if (! w.isSmooth)
+        {
+            // a mouse wheel: one step per notch, whatever the acceleration
+            accum = 0;
+            return d > 0 ? -1 : (d < 0 ? 1 : 0);
+        }
+        accum += -d * stepsPerUnit;
+        const int steps = (int) accum;
+        accum -= (float) steps;
+        return steps;
+    }
+};
+
+// Scrolls at a steady rate while a drag is held past an edge (timer driven).
+class EdgeScroller : private juce::Timer
+{
+public:
+    std::function<void (int dir)> onStep;   // move one step (-1 up/left, +1 down/right), then redo the drag
+    // overshoot: how far (in pixels) the pointer is past the edge; negative = before the start
+    void update (float overshoot, float unit)
+    {
+        dir = overshoot < 0 ? -1 : (overshoot > 0 ? 1 : 0);
+        if (dir == 0) { stopTimer(); return; }
+        // about 12 steps a second, up to ~30 further out
+        const float far = juce::jlimit (0.0f, 1.0f, std::abs (overshoot) / std::max (1.0f, unit * 6.0f));
+        const int ms = juce::roundToInt (80.0f - 47.0f * far);
+        if (! isTimerRunning()) { startTimer (ms); }
+        else if (std::abs (getTimerInterval() - ms) > 8) startTimer (ms);
+    }
+    void stop() { dir = 0; stopTimer(); }
+private:
+    int dir = 0;
+    void timerCallback() override { if (dir != 0 && onStep) onStep (dir); }
 };
 
 // Static pixel-font text

@@ -364,15 +364,27 @@ void ArrangePage::mouseDrag (const juce::MouseEvent& e)
     if (dragFrom < 0) return;
     if (! dragging && e.getDistanceFromDragStart() < 6) return;
     dragging = true;
-    if (e.position.y < listArea.getY()) scroll = std::max (0, scroll - 1);
-    if (e.position.y > listArea.getBottom()) scroll = std::min (std::max (0, (int) proc.song.sequence.size() - visibleRows()), scroll + 1);
-    const float rel = (e.position.y - listArea.getY()) / rowH();
-    dropAt = juce::jlimit (0, (int) proc.song.sequence.size(), scroll + juce::roundToInt (rel));
-    repaint();
+    lastDragY = e.position.y;
+    auto place = [this]
+    {
+        const float rel = (juce::jlimit (listArea.getY(), listArea.getBottom(), lastDragY) - listArea.getY()) / rowH();
+        dropAt = juce::jlimit (0, (int) proc.song.sequence.size(), scroll + juce::roundToInt (rel));
+        repaint();
+    };
+    // held past the top or bottom: scroll at a steady pace
+    edgeScroll.onStep = [this, place] (int dir)
+    {
+        scroll = juce::jlimit (0, std::max (0, (int) proc.song.sequence.size() - visibleRows()), scroll + dir);
+        place();
+    };
+    edgeScroll.update (e.position.y < listArea.getY() ? e.position.y - listArea.getY()
+                         : (e.position.y > listArea.getBottom() ? e.position.y - listArea.getBottom() : 0.0f), rowH());
+    place();
 }
 
 void ArrangePage::mouseUp (const juce::MouseEvent&)
 {
+    edgeScroll.stop();
     if (dragging && dropAt >= 0) moveSelectionTo (dropAt);
     dragging = false; dragFrom = dropAt = -1;
     repaint();
@@ -386,7 +398,9 @@ void ArrangePage::mouseDoubleClick (const juce::MouseEvent& e)
 
 void ArrangePage::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
-    scroll = juce::jlimit (0, std::max (0, (int) proc.song.sequence.size() - visibleRows()), scroll + (w.deltaY > 0 ? -1 : 1));
+    const int n = wheel (w);
+    if (n == 0) return;
+    scroll = juce::jlimit (0, std::max (0, (int) proc.song.sequence.size() - visibleRows()), scroll + n);
     repaint();
 }
 

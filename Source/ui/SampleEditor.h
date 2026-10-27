@@ -81,6 +81,7 @@ private:
     int instrIndex = -1;
 
     double viewStart = 0, viewLen = 1;
+    WheelSteps zoomWheel;
     int selA = 0, selB = 0;           // selB > selA means a selection
     int cursor = 0;
     int dragAnchor = 0;

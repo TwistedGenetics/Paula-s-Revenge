@@ -45,6 +45,9 @@ private:
     int cursor = 0, anchor = 0, scroll = 0;
     int dragFrom = -1, dropAt = -1;
     bool dragging = false;
+    WheelSteps wheel;
+    EdgeScroller edgeScroll;
+    float lastDragY = 0;
     std::vector<int> clip;
 
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " MOVE" }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) + " MOVE" },

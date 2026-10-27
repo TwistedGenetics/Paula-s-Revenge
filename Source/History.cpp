@@ -27,6 +27,10 @@ History::Entry History::capture (Kind kind, int index) const
             e.inst = std::make_shared<prv::Instrument> (song.instruments[(size_t) e.index]);
             e.bytes = (e.inst->data.size() + e.inst->dataR.size()) * sizeof (int16_t) + 256;
             break;
+        case Kind::Mixer:
+            e.mix = std::make_shared<prv::MixerSettings> (song.mixer);
+            e.bytes = sizeof (prv::MixerSettings);
+            break;
         case Kind::Settings:
         {
             auto s = std::make_shared<Settings>();
@@ -68,6 +72,7 @@ void History::block (int b, const juce::String& label, bool merge)      { record
 void History::structure (const juce::String& label)                      { record (Kind::Structure, 0, label, false); }
 void History::instrument (int i, const juce::String& label, bool merge)  { record (Kind::Instrument, i, label, merge); }
 void History::settings (const juce::String& label, bool merge)           { record (Kind::Settings, 0, label, merge); }
+void History::mixer (const juce::String& label, bool merge)              { record (Kind::Mixer, 0, label, merge); }
 
 void History::relabelLast (const juce::String& label)
 {
@@ -119,6 +124,10 @@ void History::apply (Entry& e)
             proc.withLock ([&] { proc.player.jamAllOff(); std::swap (song.instruments[(size_t) e.index], *e.inst); });
             st.instrument = e.index;
             break;
+        case Kind::Mixer:
+            proc.withLock ([&] { std::swap (song.mixer, *e.mix); });
+            proc.updateMixerEffects();
+            break;
         case Kind::Settings:
         {
             auto& s = *e.settings;
@@ -142,7 +151,7 @@ bool History::step (std::vector<Entry>& from, std::vector<Entry>& to, const char
     auto e = std::move (from.back());
     from.pop_back();
     // keep what's there now so the step can be reversed
-    auto back = capture (e.kind, e.kind == Kind::Structure || e.kind == Kind::Settings ? 0 : e.index);
+    auto back = capture (e.kind, e.kind == Kind::Structure || e.kind == Kind::Settings || e.kind == Kind::Mixer ? 0 : e.index);
     back.label = e.label;
     back.state = current;
     apply (e);

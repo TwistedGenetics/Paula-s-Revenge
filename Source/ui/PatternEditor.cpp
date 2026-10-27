@@ -17,6 +17,55 @@ PatternEditor::PatternEditor (PaulaProcessor& p) : proc (p), st (p.editorState)
 {
     setWantsKeyboardFocus (true);
     setOpaque (true);
+    wheel.stepsPerUnit = 12.0f;
+    edgeScroll.onStep = [this] (int dir)
+    {
+        if (proc.player.isPlaying() && st.follow) return;
+        const float maxTop = (float) std::max (0, blockLines() - fullRows());
+        const float nt = juce::jlimit (0.0f, maxTop, viewTop + (float) dir);
+        if (nt == viewTop) return;
+        viewTop = nt;
+        applyDrag (lastDragPos);
+        repaint();
+    };
+}
+
+float PatternEditor::rowsArea() const { return std::max (1.0f, (float) getHeight() - headerH() - helpHeight()); }
+int PatternEditor::fullRows() const   { return std::max (1, (int) std::floor (rowsArea() / rowH())); }
+
+void PatternEditor::updateView (bool fromTick)
+{
+    const int lines = blockLines();
+    const int full = fullRows();
+    const float maxTop = (float) std::max (0, lines - full);
+    const int blk = proc.song.safeBlock (st.block);
+    const bool following = proc.player.isPlaying() && st.follow;
+    if (following)
+    {
+        // playback glides through the view, the playing line about 40% down
+        const float target = juce::jlimit (0.0f, maxTop, (float) (st.line - (int) std::floor (full * 0.4f)));
+        if (blk != viewBlock || std::abs (target - viewTop) > (float) full) viewTop = target;
+        else if (fromTick)
+        {
+            viewTop += (target - viewTop) * 0.35f;
+            if (std::abs (target - viewTop) < 0.02f) viewTop = target;
+        }
+    }
+    else
+    {
+        viewTop = std::round (viewTop);
+        if (st.line != viewLine || blk != viewBlock || full != viewFull)
+        {
+            // keep the cursor on screen: keys keep a few lines of context, a click doesn't scroll
+            const int m = wantMargin ? std::min (3, (full - 1) / 4) : 0;
+            if ((float) st.line < viewTop + (float) m) viewTop = (float) (st.line - m);
+            if ((float) st.line > viewTop + (float) (full - 1 - m)) viewTop = (float) (st.line - (full - 1 - m));
+        }
+    }
+    viewTop = juce::jlimit (0.0f, maxTop, viewTop);
+    viewLine = st.line;
+    viewBlock = blk;
+    viewFull = full;
 }
 
 // ---------------------------------------------------------------- geometry
@@ -90,13 +139,7 @@ juce::Rectangle<float> PatternEditor::cornerRect() const
 
 int PatternEditor::lineAtY (float y) const
 {
-    const float rh = rowH();
-    const float hh = headerH();
-    const float area = (float) getHeight() - hh - helpHeight();
-    const int visRows = std::max (1, (int) (area / rh));
-    const float y0 = hh + (area - visRows * rh) * 0.5f;
-    const int r = (int) std::floor ((y - y0) / rh);
-    return st.line + (r - visRows / 2);
+    return (int) std::floor (viewTop + (y - headerH()) / rowH());
 }
 
 float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * trackChars(); }
@@ -187,9 +230,12 @@ void PatternEditor::paint (juce::Graphics& g)
     const int lines = b.lines;
     const float helpH = helpHeight();
     const float area = bounds.getHeight() - hh - helpH;
-    const int visRows = std::max (1, (int) (area / rh));
-    const int centre = visRows / 2;
-    const float y0 = hh + (area - visRows * rh) * 0.5f;
+    if (! (proc.player.isPlaying() && st.follow)) updateView (false);
+    const int firstRow = (int) std::floor (viewTop);
+    const int visRows = (int) std::ceil (area / rh) + 1;
+    auto rowY = [&] (int l) { return std::round (hh + ((float) l - viewTop) * rh); };
+    g.saveState();
+    g.reduceClipRegion (juce::Rectangle<float> (0, hh, bounds.getWidth(), area).toNearestInt());
 
     const bool playing = proc.player.isPlaying();
     const int playBlock = proc.player.uiBlock.load();
@@ -198,14 +244,15 @@ void PatternEditor::paint (juce::Graphics& g)
     juce::RectangleList<float> text, dimText;
     for (int r = 0; r < visRows; ++r)
     {
-        const int l = st.line + (r - centre);
+        const int l = firstRow + r;
         if (l < 0 || l >= lines) continue;
-        const float y = y0 + r * rh;
+        const float y = rowY (l);
         auto rowRect = juce::Rectangle<float> (0, y, bounds.getWidth(), rh);
+        const bool cursorRow = l == st.line;
 
-        if (r == centre)       { g.setColour (sk.band);   g.fillRect (rowRect); }
+        if (cursorRow)         { g.setColour (sk.band);   g.fillRect (rowRect); }
         else if (l % 4 == 0)   { g.setColour (sk.stripe); g.fillRect (rowRect); }
-        if (playing && playBlock == blk && playLine == l && ! (st.follow && r == centre))
+        if (playing && playBlock == blk && playLine == l && ! (st.follow && cursorRow))
         {
             g.setColour (sk.text);
             g.fillRect (rowRect.withHeight (line));
@@ -239,7 +286,7 @@ void PatternEditor::paint (juce::Graphics& g)
             if (st.showFx2) PixelFont::addText (c.fx2Empty() ? dimText : text, fx (c.cmd2, c.param2), x + 11 * cw, ty, px);
         }
 
-        if (r == centre && st.track >= first && st.track < first + nVis)
+        if (cursorRow && st.track >= first && st.track < first + nVis)
         {
             const float cx = colX (st.track - first, st.column) - px * 0.5f;
             auto cr = juce::Rectangle<float> (cx, y + px * 0.5f, colChars (st.column) * cw, rh - px);
@@ -259,9 +306,9 @@ void PatternEditor::paint (juce::Graphics& g)
         g.setColour (sk.hot.withAlpha (0.28f));
         for (int r = 0; r < visRows; ++r)
         {
-            const int l = st.line + (r - centre);
+            const int l = firstRow + r;
             if (l < sel.l0 || l > sel.l1) continue;
-            const float y = y0 + r * rh;
+            const float y = rowY (l);
             for (int c = sel.c0; c <= sel.c1; ++c)
             {
                 const int slot = c / gpt - first, grp = c % gpt;
@@ -274,6 +321,13 @@ void PatternEditor::paint (juce::Graphics& g)
             }
         }
     }
+
+    // the rows' text, clipped to the rows area
+    g.setColour (sk.dim);
+    g.fillRectList (dimText);
+    g.setColour (sk.text);
+    g.fillRectList (text);
+    g.restoreState();
 
     // ---- per-track VU bars: a segmented column at the right edge of each track
     const float segH = std::max (2.0f, px * 3);
@@ -304,11 +358,6 @@ void PatternEditor::paint (juce::Graphics& g)
         g.setColour (s == 0 ? sk.rule : sk.track[first + s - 1]);
         g.fillRect (x - line * 0.5f, hh, line * 2.0f, bounds.getHeight() - hh);
     }
-
-    g.setColour (sk.dim);
-    g.fillRectList (dimText);
-    g.setColour (sk.text);
-    g.fillRectList (text);
 
     // effect help: what the command under the cursor does, in full-size text
     if (helpH > 0)
@@ -376,6 +425,10 @@ void PatternEditor::tick()
                 c.note = (uint8_t) note; c.instr = (uint8_t) (st.instrument + 1); });
             advance(); changed(); }
 
+    const float oldTop = viewTop;
+    if (proc.player.isPlaying() && st.follow) updateView (true);
+    if (viewTop != oldTop) dirty = true;
+
     if (dirty || st.line != lastDrawnLine || st.block != lastDrawnBlock) repaint();
     lastDrawnLine = st.line; lastDrawnBlock = st.block;
 }
@@ -390,6 +443,10 @@ void PatternEditor::changed()
 void PatternEditor::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    // hit-test against the view as it's shown (the cursor may have moved since the last paint)
+    if (! (proc.player.isPlaying() && st.follow)) updateView (false);
+    wantMargin = false;
+    lastDragPos = e.position;
     panDragTrack = -1;
     const float px = fontPx();
     const float hh = headerH();
@@ -461,6 +518,7 @@ bool PatternEditor::cellAt (juce::Point<float> p, int& line, int& track, int& co
 
 void PatternEditor::mouseUp (const juce::MouseEvent&)
 {
+    edgeScroll.stop();
     if (downInGrid && ! selDragging)
     {
         // plain click: move the cursor there and drop any selection
@@ -476,21 +534,30 @@ void PatternEditor::mouseUp (const juce::MouseEvent&)
 void PatternEditor::mouseDrag (const juce::MouseEvent& e)
 {
     if (panDragTrack >= 0) { setPanFromX (panDragTrack, e.position.x); return; }
-    if (loopDragFrom >= 0 && e.getDistanceFromDragStart() > 3)
+    if (e.getDistanceFromDragStart() <= 3 && ! selDragging) return;
+    if (downInGrid) selDragging = true;
+    if (! selDragging && loopDragFrom < 0) return;
+    lastDragPos = e.position;
+    applyDrag (e.position);
+    // held past the top or bottom: scroll at a steady pace (faster further out)
+    const float top = headerH() + rowH() * 0.5f, bottom = (float) getHeight() - helpHeight() - rowH() * 0.5f;
+    const float over = e.position.y < top ? e.position.y - top : (e.position.y > bottom ? e.position.y - bottom : 0.0f);
+    edgeScroll.update (over, rowH());
+}
+
+void PatternEditor::applyDrag (juce::Point<float> pos)
+{
+    const float top = headerH(), bottom = (float) getHeight() - helpHeight();
+    auto p = pos;
+    p.y = juce::jlimit (top + 1.0f, bottom - 1.0f, p.y);
+    if (loopDragFrom >= 0)
     {
-        const int l = juce::jlimit (0, blockLines() - 1, lineAtY (e.position.y));
+        const int l = juce::jlimit (0, blockLines() - 1, lineAtY (p.y));
         setLoopRange (loopDragFrom, l);
     }
-    if (downInGrid && (selDragging || e.getDistanceFromDragStart() > 3))
+    if (downInGrid && selDragging)
     {
-        selDragging = true;
-        // past the top or bottom: scroll
-        const float top = headerH(), bottom = (float) getHeight() - helpHeight();
-        if (e.position.y < top + rowH() * 0.5f && st.line > 0 && ! (proc.player.isPlaying() && st.follow)) --st.line;
-        if (e.position.y > bottom - rowH() * 0.5f && st.line < blockLines() - 1 && ! (proc.player.isPlaying() && st.follow)) ++st.line;
-        auto p = e.position;
         p.x = juce::jlimit (lineNumW(), lineNumW() + trackW() * visibleTracks() - 1.0f, p.x);
-        p.y = juce::jlimit (top + 1.0f, bottom - 1.0f, p.y);
         int line = 0, track = 0, column = 0;
         if (cellAt (p, line, track, column))
             selectRange (downLine, line, downTrack, groupOfColumn (downColumn), track, groupOfColumn (column));
@@ -661,8 +728,12 @@ void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
 void PatternEditor::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
     if (proc.player.isPlaying() && st.follow) return;
-    const int d = w.deltaY > 0 ? -1 : (w.deltaY < 0 ? 1 : 0);
-    if (d) moveLine (d * (std::abs (w.deltaY) > 0.3f ? 4 : 1));
+    // one line per wheel notch; trackpad swipes are scaled down. No wrap-around.
+    const int d = wheel (w);
+    if (d == 0) return;
+    wantMargin = true;
+    const int nl = juce::jlimit (0, blockLines() - 1, st.line + d);
+    if (nl != st.line) { st.line = nl; changed(); }
 }
 
 void PatternEditor::focusLost (FocusChangeType)
@@ -938,6 +1009,7 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     const int code = k.getKeyCode();
     const bool cmd = mods.isCommandDown();
     const bool shift = mods.isShiftDown();
+    wantMargin = true;
 
     // --- move the current song position (Alt+Up/Down)
     if (mods.isAltDown() && ! cmd && (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey))

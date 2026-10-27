@@ -1,6 +1,6 @@
 # PAULA'S REVENGE
 
-An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. Runs as a **standalone app** and as a **VST3 / AU instrument** in Ableton Live. Black and white, big pixel text, keyboard-driven.
+An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects and two send buses). Big pixel text, keyboard-driven.
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
@@ -10,9 +10,10 @@ It's an original program inspired by the classic Amiga trackers of the early 90s
 
 Every green build publishes a release. Open **Releases** on the right of the
 repo page, download **PaulasRevenge-macOS.zip** from the newest one, and
-follow the `INSTALL.txt` inside: copy the app into Applications and the
-`.vst3` and `.component` into your plug-in folders, clear macOS quarantine,
-rescan in Ableton. Builds are universal (Apple Silicon + Intel).
+follow the `INSTALL.txt` inside: copy the app into Applications and clear
+macOS quarantine. Builds are universal (Apple Silicon + Intel).
+
+Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 
 ---
 
@@ -27,7 +28,7 @@ rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
-| Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, host sync |
+| Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, **MIXER** (`Cmd+2`) |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
 
@@ -40,7 +41,37 @@ Every track comes out of both speakers by default. How a track is panned, in ord
 3. **The instrument's pan** (PARAMS page), when its AMIGA L/R button is off.
 4. Otherwise **Amiga style**: tracks 1 and 4 lean left, 2 and 3 lean right, by the **SEP** amount (20% by default, 0% = all centred). Stereo samples play centred with their own stereo image.
 
-The **L / R meter** on the right of the Paula strip shows the balance. The plugin and app only run in stereo, and the standalone app turns on both of your interface's first two outputs if an old setup had only one.
+The **L / R meter** on the right of the Paula strip shows the balance. The app only runs in stereo, and turns on both of your interface's first two outputs if an old setup had only one.
+
+## Mixer
+
+**MIXER** on the bottom row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. One strip per track (4 or 8), then the two send returns and the master, each with a level meter:
+
+| Strip part | What it does |
+|---|---|
+| Name | Click a track's name (or **EQ**) for its channel page |
+| EQ | Lit when any EQ band is on |
+| 3 insert slots | Click a slot to open its effect page. `Shift`-click bypasses / un-bypasses it (a bypassed slot is dimmed) |
+| A, B | How much goes to send A / send B. `AP` / `BP` = sent pre-fader. Drag sideways; double-click = off |
+| PAN | The track's pan (the same one as the bar under the track name). Double-click = AUTO |
+| Fader | −INF to +6 dB, with the meter beside it (red above 0 dB). Drag the cap; `Shift` = fine; double-click = 0 dB; the wheel moves it ½ dB a notch |
+| M / S | Mute / solo (the same as clicking the track names) |
+
+**Channel page** — a response curve and five EQ bands: HIGH-PASS, LOW SHELF, MID 1, MID 2 (bells with Q) and HIGH SHELF. Click a band's name to switch it on; moving one of its bars switches it on too. EQ FLAT resets them. On the right: the track's three inserts, the two sends with PRE (pre-fader) switches, and the fader. `<` `>` (or ← →) step through the tracks.
+
+**Effect page** — pick the slot's effect: FILTER (resonant low/band/high-pass), DRIVE (drive, bit crush, sample-rate reduction, tone), COMP (compressor, with MIX for parallel compression), DELAY (time in ms, or SYNC to the song's tempo from 1/32 to 1/2, dotted and triplet; feedback, tone, PING-pong), REVERB (size, damping, width, pre-delay) and CHORUS. Every page has BYPASS and DEFAULTS. `<` `>` step through all the slots.
+
+**Returns** — SEND A starts with a reverb and SEND B with a delay, both fully wet; they're silent until a track sends to them. Each has three inserts, a fader, a balance and a mute. **Master** has three inserts and a fader, and then comes the machine's output stage (A500/A1200/CLEAN/S950/S1000 and their options).
+
+Signal flow per track: EQ → inserts → pre-fader sends → fader → post-fader sends → master. A mixer with nothing changed (all faders at 0 dB, no EQ, no effects, no sends) is skipped, so the song sounds exactly as it did before v0.8. Everything in the mixer is saved in the song, undoable, and included in RENDER WAV. (The insert slots are built so plug-in effects can be added later.)
+
+## Scrolling and the mouse
+
+* The pattern fills its area from line 0 at the top. The cursor moves freely and the view only scrolls when it gets within a few lines of the top or bottom edge; at the end of a block the last line sits on the bottom row. A click moves the cursor without moving the view.
+* With FOLLOW on, the view glides along with playback, the playing line about 40% of the way down.
+* The wheel moves one line (or list row, or zoom step) per notch however fast it's spun; trackpad swipes are scaled down. The wheel doesn't wrap from the last line back to the first.
+* Holding a drag past an edge (selecting notes, marking a loop, moving positions in the sequence or the arrange page) scrolls at a steady pace — about 12 lines a second, faster the further past the edge you go.
+* Sliders and number boxes move relative to where you grab them, at a calm rate; hold `Shift` for fine adjustment. The mouse wheel also nudges them.
 
 ## Instrument parameters (PARAMS)
 
@@ -210,8 +241,9 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
 | `Cmd+S` / `Cmd+Shift+S` | Save / save as |
+| `Cmd+2` / `Cmd+1` | Mixer / pattern |
 
-A MIDI keyboard (or Ableton's MIDI) plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
+A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
 ## Effect commands
 
@@ -297,16 +329,13 @@ These model the playback side of the two samplers behind so much 90s jungle. Wha
 
 Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For the full old-sampler sound, also lower the sample's rate (RESAMPLE, with RAW for no filtering).
 
-## In Ableton
+## Rendering
 
-* **HOST PLAY** — the song starts when Ableton starts and stops with it.
-* **HOST BPM** — follows Ableton's tempo (at speed 6, one line = a 16th note). `Fxx` tempo changes in the song are ignored while this is on.
-* The whole song, instruments and settings are saved inside your Live set.
-* **RENDER WAV** writes the song once through as a 24-bit stereo WAV.
+**RENDER WAV** writes the song once through as a 24-bit stereo WAV, mixer and all.
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 6 adds song sections (v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 7 adds the mixer (v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

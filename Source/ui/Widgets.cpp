@@ -144,8 +144,11 @@ void NumberBox::mouseDown (const juce::MouseEvent& e) { dragStart = value; juce:
 void NumberBox::mouseDrag (const juce::MouseEvent& e)
 {
     if (! valueArea.contains (e.mouseDownPosition)) return;
-    const int steps = -e.getDistanceFromDragStartY() / std::max (2, juce::roundToInt (Theme::px * 2));
-    setValue (dragStart + steps * (hi - lo > 300 ? 4 : 1), true);
+    // calm: one step per ~4 font pixels of movement; Shift = finer still and single steps
+    const bool fine = e.mods.isShiftDown();
+    const int pixelsPerStep = std::max (3, juce::roundToInt (Theme::px * (fine ? 8.0f : 4.0f)));
+    const int steps = -e.getDistanceFromDragStartY() / pixelsPerStep;
+    setValue (dragStart + steps * (! fine && hi - lo > 300 ? 4 : 1), true);
 }
 
 void NumberBox::mouseDoubleClick (const juce::MouseEvent& e)
@@ -166,9 +169,10 @@ void NumberBox::mouseDoubleClick (const juce::MouseEvent& e)
 
 void NumberBox::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
-    wheelAccum += w.deltaY * 8.0f;
-    while (wheelAccum >= 1.0f)  { setValue (value + 1, true); wheelAccum -= 1.0f; }
-    while (wheelAccum <= -1.0f) { setValue (value - 1, true); wheelAccum += 1.0f; }
+    WheelSteps steps { wheelAccum, 6.0f };
+    const int n = steps (w);
+    wheelAccum = steps.accum;
+    if (n != 0) setValue (value - n, true);   // wheel up = higher
 }
 
 // ---------------------------------------------------------------------------
@@ -217,9 +221,36 @@ void PixSlider::setFromX (float x)
     setValue ((x - t.getX()) / std::max (1.0f, t.getWidth()), true);
 }
 
-void PixSlider::mouseDown (const juce::MouseEvent& e) { setFromX (e.position.x); }
-void PixSlider::mouseDrag (const juce::MouseEvent& e) { setFromX (e.position.x); }
-void PixSlider::mouseDoubleClick (const juce::MouseEvent&) { setValue (defaultValue, true); }
+void PixSlider::mouseDown (const juce::MouseEvent& e)
+{
+    if (onDragStart) onDragStart();
+    // a click in the trough jumps there; dragging then moves relative to that, calmly
+    if (trough().contains (e.position) && ! e.mods.isShiftDown()) setFromX (e.position.x);
+    dragStartValue = value;
+}
+
+void PixSlider::mouseDrag (const juce::MouseEvent& e)
+{
+    auto t = trough().reduced (Theme::px);
+    const float fine = e.mods.isShiftDown() ? 0.1f : 1.0f;   // Shift: fine
+    setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);
+}
+
+void PixSlider::mouseDoubleClick (const juce::MouseEvent&)
+{
+    if (onDoubleClick) onDoubleClick();
+    else setValue (defaultValue, true);
+}
+
+void PixSlider::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    WheelSteps steps { wheelAccum, 10.0f };
+    const int n = steps (w);
+    wheelAccum = steps.accum;
+    if (n == 0) return;
+    if (onDragStart) onDragStart();
+    setValue (value - n * (e.mods.isShiftDown() ? 0.002f : 0.01f), true);
+}
 
 // ---------------------------------------------------------------------------
 void PixLabel::paint (juce::Graphics& g)

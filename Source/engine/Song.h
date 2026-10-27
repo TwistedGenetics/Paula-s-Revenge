@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include "MixerTypes.h"
 
 namespace prv
 {
@@ -149,6 +150,7 @@ struct Song
     std::vector<Block> blocks;
     std::vector<int> sequence;         // block indices
     std::vector<SongSection> sections; // sorted by pos, at most one per position
+    MixerSettings mixer;               // flat by default: plays exactly as without a mixer
     std::array<Instrument, kMaxInstruments> instruments;
 
     Song() { reset(); }
@@ -161,6 +163,7 @@ struct Song
         blocks.assign (1, Block{});
         sequence.assign (1, 0);
         sections.clear();
+        mixer = MixerSettings {};
         for (auto& i : instruments) i.clear();
     }
 

@@ -14,7 +14,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), arrange (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), arrange (p), mixer (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -82,8 +82,6 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         refreshAll();
     };
     viewBtn.onClick = [this, &st] { st.fourTrackView = viewBtn.getToggleState(); refreshAll(); };
-    hostPlayBtn.onClick  = [this] { proc.followHostTransport = hostPlayBtn.getToggleState(); };
-    hostTempoBtn.onClick = [this] { proc.followHostTempo = hostTempoBtn.getToggleState(); };
     nameBtn.onClick = [this]
     {
         auto* w = new juce::AlertWindow ("Song name", "Name this song", juce::MessageBoxIconType::NoIcon);
@@ -112,6 +110,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     arrange.onChanged = [this] { sequence.refresh(); blockPanel.refresh(); };
     arrange.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (arrange);
+    mixer.onClose = [this] { setView (View::Pattern); };
+    mixer.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    mixer.onPlayStop = [this] (bool song) { pattern.togglePlayStop (song); refreshAll(); };
+    addChildComponent (mixer);
+    mixerBtn.onClick = [this] { setView (proc.editorState.view == View::Mixer ? View::Pattern : View::Mixer); };
     fx2Btn.onClick = [this, &st] { st.showFx2 = fx2Btn.getToggleState(); if (! st.showFx2) st.column = std::min (st.column, 5); refreshAll(); };
     params.onClose = [this] { setView (View::Pattern); };
     params.onChanged = [this] { instruments.refresh(); };
@@ -137,11 +140,10 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &modBtn, &wavBtn, &smpBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
-            &tracksBtn, &viewBtn, &hostPlayBtn, &hostTempoBtn, &nameBtn, &statusLabel,
+            &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
-    if (proc.isRunningStandalone()) { hostPlayBtn.setVisible (false); hostTempoBtn.setVisible (false); }
 
     panelsBtn.setToggleState (true, juce::dontSendNotification);
     setStatus (kHelpText);
@@ -169,6 +171,7 @@ void PaulaEditor::historyRestored (const juce::String& what)
     pattern.syncLoop();
     if (params.isVisible()) params.refresh();
     if (arrange.isVisible()) arrange.opened();
+    if (mixer.isVisible()) mixer.refresh();
     setStatus (what);
     refreshAll();
     repaint();
@@ -180,16 +183,21 @@ void PaulaEditor::setView (View v)
     if (v == View::Browser && st.view != View::Browser) returnView = st.view;
     if (st.view == View::SampleEdit && v != View::SampleEdit) sampleEditor.stop();
     if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
+    const bool layoutChange = (st.view == View::Mixer) != (v == View::Mixer);
     st.view = v;
+    if (layoutChange) resized();
     pattern.setVisible (v == View::Pattern);
     sampleEditor.setVisible (v == View::SampleEdit);
     browser.setVisible (v == View::Browser);
     params.setVisible (v == View::Params);
     arrange.setVisible (v == View::Arrange);
+    mixer.setVisible (v == View::Mixer);
+    mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
     else if (v == View::Arrange) arrange.opened();
     else if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
     else if (v == View::Browser) browser.opened();
+    else if (v == View::Mixer) mixer.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -257,8 +265,6 @@ void PaulaEditor::refreshAll()
     fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
     if (! st.showFx2) st.column = std::min (st.column, 5);
     viewBtn.setEnabled (song.numTracks > 4);
-    hostPlayBtn.setToggleState (proc.followHostTransport.load(), juce::dontSendNotification);
-    hostTempoBtn.setToggleState (proc.followHostTempo.load(), juce::dontSendNotification);
 
     proc.jamInstrument = st.instrument;
     sequence.refresh();
@@ -283,6 +289,7 @@ void PaulaEditor::timerCallback()
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
     if (arrange.isVisible()) arrange.tick();
+    if (mixer.isVisible()) mixer.tick();
     outMeter.tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
@@ -305,9 +312,7 @@ void PaulaEditor::timerCallback()
     // while playing, the tempo/speed boxes and the LED button show the live values
     if (playing)
     {
-        const double hostBpm = proc.hostBpm.load();
-        const bool host = ! proc.isRunningStandalone() && proc.followHostTempo.load() && hostBpm > 0;
-        tempoBox.setValue (host ? juce::roundToInt (hostBpm) : proc.player.uiTempo.load());
+        tempoBox.setValue (proc.player.uiTempo.load());
         speedBox.setValue (proc.player.uiSpeed.load());
         ledBtn.setToggleState (proc.player.uiLed.load(), juce::dontSendNotification);
     }
@@ -420,14 +425,10 @@ void PaulaEditor::resized()
     followBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     panelsBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     nameBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
+    mixerBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
-    if (! proc.isRunningStandalone())
-    {
-        hostPlayBtn.setBounds (status.removeFromLeft (charsW (9))); status.removeFromLeft (gap);
-        hostTempoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
-    }
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -448,10 +449,13 @@ void PaulaEditor::resized()
 
     // main area
     auto main = r.reduced (gap, 0);
-    sequence.setVisible (showPanels);
-    blockPanel.setVisible (showPanels);
-    instruments.setVisible (showPanels);
-    if (showPanels)
+    // the mixer uses the whole width
+    if (st.view == View::Mixer) mixer.setBounds (main);
+    const bool panels = showPanels && st.view != View::Mixer;
+    sequence.setVisible (panels);
+    blockPanel.setVisible (panels);
+    instruments.setVisible (panels);
+    if (panels)
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
@@ -462,7 +466,7 @@ void PaulaEditor::resized()
         left.removeFromTop (gap);
         instruments.setBounds (left);
     }
-    spectrum.setVisible (st.showSpectrum);
+    spectrum.setVisible (st.showSpectrum && st.view != View::Mixer);
     if (st.showSpectrum)
     {
         spectrum.setBounds (main.removeFromBottom ((int) (px * 22)));
@@ -485,6 +489,8 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 's') { if (m.isShiftDown()) saveSongAs(); else saveSong(); return true; }
         if (ch == 'z') { if (m.isShiftDown()) redoBtn.onClick(); else undoBtn.onClick(); return true; }
         if (ch == 'y') { redoBtn.onClick(); return true; }
+        if (ch == '2') { mixerBtn.onClick(); return true; }
+        if (ch == '1') { setView (View::Pattern); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
     switch (proc.editorState.view)
@@ -493,6 +499,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Browser:    return browser.keyPressed (k);
         case View::Params:     return params.keyPressed (k);
         case View::Arrange:    return arrange.keyPressed (k);
+        case View::Mixer:      return mixer.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }

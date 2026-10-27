@@ -155,16 +155,22 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
     if (dragRow < 0 || ! onMove) return;
     if (! reordering && e.getDistanceFromDragStart() < 6) return;
     reordering = true;
-    // drag past the ends to scroll
-    if (e.position.y < 0) scrollBy (-1);
-    if (e.position.y > getHeight()) scrollBy (1);
-    dropRow = juce::jlimit (0, getNumRows() - 1, rowAt (juce::jlimit (0.0f, (float) getHeight() - 1, e.position.y)));
-    repaint();
+    // held past the ends: scroll at a steady pace
+    lastDragY = e.position.y;
+    auto place = [this]
+    {
+        dropRow = juce::jlimit (0, getNumRows() - 1, rowAt (juce::jlimit (0.0f, (float) getHeight() - 1, lastDragY)));
+        repaint();
+    };
+    edgeScroll.onStep = [this, place] (int dir) { scrollBy (dir); place(); };
+    edgeScroll.update (e.position.y < 0 ? e.position.y : (e.position.y > getHeight() ? e.position.y - (float) getHeight() : 0.0f), Theme::px * 11);
+    place();
 }
 
 void PixList::mouseUp (const juce::MouseEvent&)
 {
     if (reordering && dropRow >= 0 && dropRow != dragRow && onMove) onMove (dragRow, dropRow);
+    edgeScroll.stop();
     reordering = false; dragRow = dropRow = -1;
     repeatDir = 0; thumbGrab = -1.0f;
     stopTimer();
@@ -193,7 +199,8 @@ void PixList::mouseDoubleClick (const juce::MouseEvent& e)
 
 void PixList::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
-    scrollBy (w.deltaY > 0 ? -1 : (w.deltaY < 0 ? 1 : 0));
+    const int n = wheel (w);
+    if (n != 0) scrollBy (n);
 }
 
 void PixList::ensureVisible (int row)

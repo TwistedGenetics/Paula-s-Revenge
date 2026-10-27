@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   macos:
-    name: macOS universal (Standalone + VST3 + AU)
+    name: macOS universal (standalone app)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -34,31 +34,19 @@ jobs:
         run: |
           ART="build/PaulasRevenge_artefacts/Release"
           codesign --force --deep --sign - "$ART/Standalone/Paula's Revenge.app"
-          codesign --force --deep --sign - "$ART/VST3/Paula's Revenge.vst3"
-          codesign --force --deep --sign - "$ART/AU/Paula's Revenge.component"
 
-      - name: Validate AU (auval)
+      - name: Check the app starts
         run: |
-          mkdir -p ~/Library/Audio/Plug-Ins/Components
-          cp -R "build/PaulasRevenge_artefacts/Release/AU/Paula's Revenge.component" ~/Library/Audio/Plug-Ins/Components/
-          killall -9 AudioComponentRegistrar || true
-          auval -a | grep -i twisted || true
-          auval -strict -v aumu PlRv Twgn
-
-      - name: Validate VST3 (pluginval)
-        run: |
-          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
-          unzip -q pluginval.zip
-          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 7 --validate-in-process \
-            --validate "build/PaulasRevenge_artefacts/Release/VST3/Paula's Revenge.vst3"
+          APP="build/PaulasRevenge_artefacts/Release/Standalone/Paula's Revenge.app/Contents/MacOS/Paula's Revenge"
+          test -x "$APP"
+          file "$APP" | grep -q arm64
+          file "$APP" | grep -q x86_64
 
       - name: Package
         run: |
           ART="build/PaulasRevenge_artefacts/Release"
           mkdir -p dist
           ditto "$ART/Standalone/Paula's Revenge.app" "dist/Paula's Revenge.app"
-          ditto "$ART/VST3/Paula's Revenge.vst3" "dist/Paula's Revenge.vst3"
-          ditto "$ART/AU/Paula's Revenge.component" "dist/Paula's Revenge.component"
           cp INSTALL.txt dist/
           cp docs/screenshot.png dist/ 2>/dev/null || true
           cd dist && ditto -c -k --keepParent . ../PaulasRevenge-macOS.zip
@@ -83,4 +71,4 @@ jobs:
             --latest \
             --notes "$(git log -1 --pretty=%B)
 
-          Install: unzip, then follow INSTALL.txt (app into Applications, .vst3 and .component into your plug-in folders, clear quarantine, rescan in Ableton)."
+          Install: unzip, then follow INSTALL.txt (app into Applications, clear quarantine)."

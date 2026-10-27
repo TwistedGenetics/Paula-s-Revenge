@@ -57,8 +57,16 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     scratchR.allocate ((size_t) scratchSize, true);
 }
 
+void PaulaProcessor::updateMixerEffects()
+{
+    std::vector<std::unique_ptr<prv::Effect>> old;
+    withLock ([&] { player.mixer().syncEffects (song.mixer, old); });
+    // `old` is freed here, outside the audio lock
+}
+
 void PaulaProcessor::replaceSong (prv::Song&& newSong)
 {
+    std::vector<std::unique_ptr<prv::Effect>> oldEffects;   // declared first: freed after the lock is released
     const juce::SpinLock::ScopedLockType sl (lock);
     player.stop();
     player.jamAllOff();
@@ -68,6 +76,8 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     editorState.loopOn = false;
     editorState.loopBlock = -1;
     history.clear();
+    player.mixer().reset();
+    player.mixer().syncEffects (song.mixer, oldEffects);   // (allocates under the lock; only on load)
 }
 
 bool PaulaProcessor::popMidiNote (int& note)
@@ -169,19 +179,6 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     const int n = buffer.getNumSamples();
     buffer.clear();
 
-    // host transport + tempo
-    bool playing = false;
-    double bpm = 0.0;
-    if (! isRunningStandalone())
-        if (auto* ph = getPlayHead())
-            if (auto pos = ph->getPosition())
-            {
-                playing = pos->getIsPlaying();
-                if (auto b = pos->getBpm()) bpm = *b;
-            }
-    hostIsPlaying = playing;
-    hostBpm = bpm;
-
     if (n > scratchSize)
     {
         scratchSize = n;
@@ -190,14 +187,6 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     }
 
     const juce::SpinLock::ScopedLockType sl (lock);
-
-    if (! isRunningStandalone() && followHostTransport.load())
-    {
-        if (playing && ! wasHostPlaying) player.playSong (0, 0);
-        if (! playing && wasHostPlaying) player.stop();
-    }
-    wasHostPlaying = playing;
-    player.setTempoOverride ((! isRunningStandalone() && followHostTempo.load() && bpm > 0) ? bpm : 0.0);
 
     // render in slices between MIDI events so notes land sample-accurately
     int done = 0;
@@ -279,8 +268,6 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("crunch", o.crunch8ch, nullptr);
     st.setProperty ("sep3", o.stereoSep, nullptr);   // new key: the old 75% default isn't carried over
     st.setProperty ("master", o.master, nullptr);
-    st.setProperty ("hostTransport", followHostTransport.load(), nullptr);
-    st.setProperty ("hostTempo", followHostTempo.load(), nullptr);
     const auto& e = editorState;
     st.setProperty ("instrument", e.instrument, nullptr);
     st.setProperty ("octave", e.octave, nullptr);
@@ -323,8 +310,6 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
         o.stereoSep = st.getProperty ("sep3", 0.2f);
         o.master = st.getProperty ("master", 1.0f);
     }
-    followHostTransport = (bool) st.getProperty ("hostTransport", true);
-    followHostTempo = (bool) st.getProperty ("hostTempo", true);
     auto& e = editorState;
     e.instrument = st.getProperty ("instrument", 0);
     e.octave = st.getProperty ("octave", 3);

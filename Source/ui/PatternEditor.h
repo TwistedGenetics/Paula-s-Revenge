@@ -24,6 +24,11 @@ public:
 
     // called ~30x a second by the main editor
     void tick();
+    void resized() override { updateView (false); }
+
+    // the view: the line shown at the top (fractional while following playback)
+    float getViewTop() const { return viewTop; }
+    int   fullRows() const;      // whole rows that fit
 
     // actions also reachable from buttons
     void undo();
@@ -90,6 +95,18 @@ private:
     std::vector<prv::Cell> trackClip;
     int trackClipLines = 0;
     std::unique_ptr<prv::Block> blockClip;
+
+    // scrolling: line 0 sits at the top; the view moves when the cursor nears an edge
+    float viewTop = 0;
+    int viewLine = -1, viewBlock = -1, viewFull = -1;
+    bool wantMargin = true;            // keyboard moves keep a few lines of context; clicks don't
+    void updateView (bool fromTick);
+    float rowsArea() const;
+    EdgeScroller edgeScroll;
+    juce::Point<float> lastDragPos;
+    juce::ModifierKeys lastDragMods;
+    void applyDrag (juce::Point<float>);
+    WheelSteps wheel;
 
     std::map<int, int> heldKeys;   // key code -> jam note
     float vu[prv::kMaxTracks] {};

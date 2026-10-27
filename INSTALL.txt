@@ -1,17 +1,14 @@
 PAULA'S REVENGE - INSTALL (Mac, Apple Silicon or Intel)
 
-Copy Paula's Revenge.app       -> /Applications/
-Copy Paula's Revenge.vst3      -> ~/Library/Audio/Plug-Ins/VST3/
-Copy Paula's Revenge.component -> ~/Library/Audio/Plug-Ins/Components/
-
-(~ is your home folder. In Finder press Cmd+Shift+G and paste the path.)
+Copy Paula's Revenge.app -> /Applications/
 
 Then in Terminal (downloaded files are quarantined by macOS):
 
   xattr -dr com.apple.quarantine "/Applications/Paula's Revenge.app"
-  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paula's Revenge.vst3"
-  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Paula's Revenge.component"
-  killall -9 AudioComponentRegistrar
 
-Ableton: Settings > Plug-Ins > Rescan. It appears as an instrument
-under Twisted Genetics.
+Open it from Applications. Audio and MIDI devices are under
+Paula's Revenge > Audio/MIDI Settings... (Cmd+,).
+
+(From v0.8 Paula's Revenge is a standalone app only; the old VST3/AU
+plug-ins are no longer built. You can delete them from
+~/Library/Audio/Plug-Ins/VST3 and ~/Library/Audio/Plug-Ins/Components.)

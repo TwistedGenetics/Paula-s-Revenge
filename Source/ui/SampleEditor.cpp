@@ -1042,11 +1042,16 @@ void SampleEditor::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseW
     if (! waveArea.contains (e.position)) return;
     if (std::abs (w.deltaX) > std::abs (w.deltaY))
     {
-        viewStart -= w.deltaX * viewLen * 0.5;
+        // sideways: scroll calmly (a full swipe moves about a fifth of the view)
+        viewStart -= w.deltaX * viewLen * (w.isSmooth ? 0.2 : 0.1);
         clampView(); repaint();
     }
-    else if (w.deltaY != 0)
-        zoom (w.deltaY > 0 ? 0.8 : 1.25, xToSample (e.position.x));
+    else
+    {
+        // up/down: one zoom step per wheel notch; trackpad swipes are scaled down
+        const int n = zoomWheel (w);
+        for (int i = 0; i < std::abs (n); ++i) zoom (n < 0 ? 0.85 : 1.0 / 0.85, xToSample (e.position.x));
+    }
 }
 
 // ------------------------------------------------------------------ keys

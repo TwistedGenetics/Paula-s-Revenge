@@ -22,6 +22,7 @@ public:
     void structure (const juce::String& label);
     void instrument (int index, const juce::String& label, bool merge = false);
     void settings (const juce::String& label, bool merge = false);
+    void mixer (const juce::String& label, bool merge = false);
 
     void relabelLast (const juce::String& label);   // after an edit whose name is only known later
     void dropLast();                                  // the change didn't happen after all
@@ -46,7 +47,7 @@ public:
     static constexpr size_t kMaxBytes = (size_t) 384 << 20;
 
 private:
-    enum class Kind { Block, Structure, Instrument, Settings };
+    enum class Kind { Block, Structure, Instrument, Settings, Mixer };
     struct Settings
     {
         std::string name;
@@ -67,6 +68,7 @@ private:
         std::shared_ptr<Structure> structure;
         std::shared_ptr<prv::Instrument> inst;
         std::shared_ptr<Settings> settings;
+        std::shared_ptr<prv::MixerSettings> mix;
         size_t bytes = 0;
     };
 
