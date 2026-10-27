@@ -6,6 +6,9 @@
 #include "ui/Widgets.h"
 #include "ui/PatternEditor.h"
 #include "ui/Panels.h"
+#include "ui/Spectrum.h"
+#include "ui/SampleEditor.h"
+#include "ui/SampleBrowser.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -16,6 +19,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    void refreshMeters() { timerCallback(); }   // also used by the screenshot test
+    void setView (PaulaProcessor::EditorState::View);
+    prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
+    prv::ui::SampleBrowser& getBrowser() { return browser; }
 
 private:
     void timerCallback() override;
@@ -59,12 +66,18 @@ private:
     PixButton tracksBtn { "8 TRACKS", true }, viewBtn { "BIG VIEW", true };
     PixButton hostPlayBtn { "HOST PLAY", true }, hostTempoBtn { "HOST BPM", true };
     PixButton nameBtn { "NAME" };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
     prv::ui::SequencePanel sequence;
     prv::ui::BlockPanel blockPanel;
     prv::ui::InstrumentPanel instruments;
+    prv::ui::Spectrum spectrum;
+    prv::ui::SampleEditor sampleEditor;
+    prv::ui::SampleBrowser browser;
+    using View = PaulaProcessor::EditorState::View;
+    View returnView = View::Pattern;
 
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File currentFile;

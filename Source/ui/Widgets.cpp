@@ -4,6 +4,34 @@
 namespace prv::ui
 {
 float Theme::px = 3.0f;
+Theme::Skin Theme::skin;
+
+void Theme::setSkin (bool dark)
+{
+    Skin k;
+    k.dark = dark;
+    if (dark)
+    {
+        k.bg = juce::Colour (0xff141a24);       k.text = juce::Colour (0xfff4ecd6);
+        k.dim = juce::Colour (0xff566074);      k.stripe = juce::Colour (0xff1c2432);
+        k.band = juce::Colour (0xff334058);     k.cursor = juce::Colour (0xff5a6a88);
+        k.cursorEdge = juce::Colour (0xfff4ecd6); k.rule = juce::Colour (0xff3a4458);
+        k.hot = juce::Colour (0xffff5a4a);      k.specBar = juce::Colour (0xfff4ecd6);
+        const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
+        for (int i = 0; i < 8; ++i) k.track[i] = juce::Colour (t[i]);
+    }
+    else
+    {
+        k.bg = juce::Colour (0xffffffff);       k.text = juce::Colour (0xff000000);
+        k.dim = juce::Colour (0xff8c8c8c);      k.stripe = juce::Colour (0xffefefef);
+        k.band = juce::Colour (0xffc4c4c4);     k.cursor = juce::Colour (0xffb0b0b0);
+        k.cursorEdge = juce::Colour (0xff000000); k.rule = juce::Colour (0xff000000);
+        k.hot = juce::Colour (0xffd01818);      k.specBar = juce::Colour (0xff000000);
+        const juce::uint32 t[8] = { 0xff00869c, 0xff9c1f94, 0xffb85e00, 0xff2f8010, 0xff1f56c0, 0xffc0301f, 0xff7a6c00, 0xff0a8058 };
+        for (int i = 0; i < 8; ++i) k.track[i] = juce::Colour (t[i]);
+    }
+    skin = k;
+}
 
 void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t)
 {

@@ -10,7 +10,7 @@ void PixList::paint (juce::Graphics& g)
     const float px = Theme::px;
     const float rh = rowHeight();
     auto r = getLocalBounds().toFloat();
-    g.setColour (Theme::paper);
+    g.setColour (Theme::skin.bg);
     g.fillRect (r);
 
     const int n = getNumRows ? getNumRows() : 0;
@@ -23,18 +23,18 @@ void PixList::paint (juce::Graphics& g)
         auto rr = juce::Rectangle<float> (0, i * rh, r.getWidth(), rh);
         if (row == selected)
         {
-            g.setColour (Theme::band);
+            g.setColour (Theme::skin.band);
             g.fillRect (rr);
-            g.setColour (Theme::ink);
+            g.setColour (Theme::skin.text);
             g.drawRect (rr.reduced (1.0f), std::max (1.0f, px * 0.5f));
         }
         const float ty = std::round (rr.getY() + (rh - 7 * px) * 0.5f);
         if (row == playing) PixelFont::addText (text, juce::String::charToString ((juce::juce_wchar) 1), px * 1.0f, ty, px);
         PixelFont::addText (isRowDim (row) ? dim : text, getRowText (row), px * 8.0f, ty, px);
     }
-    g.setColour (Theme::faint);
+    g.setColour (Theme::skin.dim);
     g.fillRectList (dim);
-    g.setColour (Theme::ink);
+    g.setColour (Theme::skin.text);
     g.fillRectList (text);
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
 
@@ -43,7 +43,7 @@ void PixList::paint (juce::Graphics& g)
     {
         const float h = r.getHeight() * visibleRows() / (float) n;
         const float y = (r.getHeight() - h) * scroll / (float) std::max (1, n - visibleRows());
-        g.setColour (Theme::ink);
+        g.setColour (Theme::skin.text);
         g.fillRect (r.getRight() - px * 2, y, px * 1.5f, h);
     }
 }
@@ -255,13 +255,13 @@ void WaveView::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
-    g.setColour (Theme::paper);
+    g.setColour (Theme::skin.bg);
     g.fillRect (r);
     const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
     auto inner = r.reduced (2.0f);
     if (! in.hasData())
     {
-        PixelFont::drawCentred (g, "NO SAMPLE", inner, px, Theme::faint);
+        PixelFont::drawCentred (g, "NO SAMPLE", inner, px, Theme::skin.dim);
         Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
         return;
     }
@@ -270,13 +270,13 @@ void WaveView::paint (juce::Graphics& g)
     {
         const float x1 = inner.getX() + inner.getWidth() * in.loopStart / n;
         const float x2 = inner.getX() + inner.getWidth() * (in.loopStart + in.loopLength) / n;
-        g.setColour (Theme::stripe.darker (0.08f));
+        g.setColour (Theme::skin.stripe);
         g.fillRect (x1, inner.getY(), x2 - x1, inner.getHeight());
-        g.setColour (Theme::ink);
+        g.setColour (Theme::skin.track[0]);
         g.fillRect (x1, inner.getY(), std::max (1.0f, px * 0.5f), inner.getHeight());
         g.fillRect (x2 - std::max (1.0f, px * 0.5f), inner.getY(), std::max (1.0f, px * 0.5f), inner.getHeight());
     }
-    g.setColour (Theme::ink);
+    g.setColour (Theme::skin.text);
     const float mid = inner.getCentreY();
     g.fillRect (inner.getX(), mid, inner.getWidth(), 1.0f);
     const int cols = (int) inner.getWidth();
@@ -292,6 +292,8 @@ void WaveView::paint (juce::Graphics& g)
     }
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
 }
+
+void WaveView::mouseDoubleClick (const juce::MouseEvent&) { if (openEditor) openEditor(); }
 
 void WaveView::mouseDown (const juce::MouseEvent& e)
 {
@@ -343,7 +345,8 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     list.onDoubleClick = [this] (int) { nameBtn.triggerClick(); };
     addAndMakeVisible (list);
 
-    loadBtn.onClick = [this] { loadSample(); };
+    loadBtn.onClick = [this] { if (openBrowser) openBrowser(); else loadSample(); };
+    editBtn.onClick = [this] { if (openSampleEditor) openSampleEditor(); };
     clearBtn.onClick = [this]
     {
         Instrument empty;
@@ -390,8 +393,9 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     loopStart.valueChars = loopLen.valueChars = 6;
     vol.labelChars = fine.labelChars = trans.labelChars = 4;
     wave.changed = [this] { changed(); };
+    wave.openEditor = [this] { if (openSampleEditor) openSampleEditor(); };
 
-    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &clearBtn, &nameBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
+    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &editBtn, &clearBtn, &nameBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
         addAndMakeVisible (comp);
 }
 
@@ -476,8 +480,10 @@ void InstrumentPanel::resized()
     fine.setBounds (pRow1);
     r.removeFromBottom (gap);
     auto bRow = r.removeFromBottom (rowH);
-    const int bw = (bRow.getWidth() - (int) px * 2) / 3;
+    const int bw = (bRow.getWidth() - (int) px * 3) / 4;
     loadBtn.setBounds (bRow.removeFromLeft (bw));
+    bRow.removeFromLeft ((int) px);
+    editBtn.setBounds (bRow.removeFromLeft (bw));
     bRow.removeFromLeft ((int) px);
     clearBtn.setBounds (bRow.removeFromLeft (bw));
     bRow.removeFromLeft ((int) px);

@@ -6,7 +6,7 @@ namespace prv::ui
 namespace
 {
     constexpr int kColOffset[6] = { 0, 4, 5, 7, 8, 9 };   // char offset of each cursor column in a track
-    constexpr int kTrackChars = 11;                        // "C-3 01 C20" + gap
+    constexpr int kTrackChars = 13;                        // "C-3 01 C20" + gap + VU bar
     constexpr int kLineNumChars = 4;
 
     juce::String hex2 (int v) { return juce::String::toHexString (v).toUpperCase().paddedLeft ('0', 2); }
@@ -39,7 +39,7 @@ float PatternEditor::fontPx() const
 }
 
 float PatternEditor::rowH() const     { return fontPx() * (PixelFont::kCellH + 3); }
-float PatternEditor::headerH() const  { return fontPx() * 18; }
+float PatternEditor::headerH() const  { return fontPx() * 14; }
 float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * kTrackChars; }
 float PatternEditor::lineNumW() const { return fontPx() * (PixelFont::kCellW * kLineNumChars + 3); }
 int   PatternEditor::colChars (int column) const { return column == 0 ? 3 : 1; }
@@ -57,12 +57,14 @@ int PatternEditor::blockLines() const
 // ---------------------------------------------------------------- painting
 void PatternEditor::paint (juce::Graphics& g)
 {
+    const auto& sk = Theme::skin;
     const float px = fontPx();
     const float rh = rowH();
     const float hh = headerH();
     const auto bounds = getLocalBounds().toFloat();
+    const float line = std::max (1.0f, px * 0.5f);
 
-    g.fillAll (Theme::paper);
+    g.fillAll (sk.bg);
 
     const int nVis = visibleTracks();
     const int first = firstTrack();
@@ -70,30 +72,23 @@ void PatternEditor::paint (juce::Graphics& g)
     const float lnw = lineNumW();
     const float cw = px * PixelFont::kCellW;
 
-    // ---- track headers with mute + level meters
+    // ---- track headers: grey bevelled tabs with a coloured strip per track
+    g.setColour (Theme::panel);
+    g.fillRect (bounds.withHeight (hh));
     for (int s = 0; s < nVis; ++s)
     {
         const int t = first + s;
-        auto r = juce::Rectangle<float> (lnw + s * tw, 0, tw - cw * 0.5f, hh).reduced (px * 0.5f, px);
+        auto r = juce::Rectangle<float> (lnw + s * tw - cw * 0.5f, 0, tw - cw * 0.5f, hh).reduced (px * 0.5f, px);
         const bool muted = proc.player.mute[t].load();
         g.setColour (muted ? Theme::pressed : Theme::panel);
         g.fillRect (r);
-        Theme::bevel (g, r, ! muted, std::max (1.0f, px * 0.5f));
-        auto top = r.removeFromTop (r.getHeight() * 0.5f);
+        Theme::bevel (g, r, ! muted, line);
+        auto strip = r.removeFromBottom (px * 3).reduced (px, 0);
+        g.setColour (muted ? Theme::faint : sk.track[t]);
+        g.fillRect (strip);
         juce::String label = muted ? "MUTED" : "TRACK " + juce::String (t + 1);
-        if (PixelFont::textWidth (label, px) > top.getWidth() - px * 2) label = muted ? "M" + juce::String (t + 1) : "T" + juce::String (t + 1);
-        PixelFont::drawCentred (g, label, top, px, Theme::ink);
-        auto meter = r.reduced (px * 1.5f, px * 1.5f);
-        g.setColour (Theme::paper);
-        g.fillRect (meter);
-        g.setColour (Theme::ink);
-        g.drawRect (meter, 1.0f);
-        // segmented meter
-        const int segs = 16;
-        const float sw = meter.getWidth() / segs;
-        const int lit = juce::roundToInt (juce::jlimit (0.0f, 1.0f, vu[t] * 1.6f) * segs);
-        for (int k = 0; k < lit; ++k)
-            g.fillRect (meter.getX() + k * sw + 1.0f, meter.getY() + 2.0f, sw - 2.0f, meter.getHeight() - 4.0f);
+        if (PixelFont::textWidth (label, px) > r.getWidth() - px * 2) label = muted ? "M" + juce::String (t + 1) : "T" + juce::String (t + 1);
+        PixelFont::drawCentred (g, label, r, px, Theme::ink);
     }
 
     // ---- rows
@@ -118,21 +113,13 @@ void PatternEditor::paint (juce::Graphics& g)
         const float y = y0 + r * rh;
         auto rowRect = juce::Rectangle<float> (0, y, bounds.getWidth(), rh);
 
-        if (r == centre)
-        {
-            g.setColour (Theme::band);
-            g.fillRect (rowRect);
-        }
-        else if (l % 4 == 0)
-        {
-            g.setColour (Theme::stripe);
-            g.fillRect (rowRect);
-        }
+        if (r == centre)       { g.setColour (sk.band);   g.fillRect (rowRect); }
+        else if (l % 4 == 0)   { g.setColour (sk.stripe); g.fillRect (rowRect); }
         if (playing && playBlock == blk && playLine == l && ! (st.follow && r == centre))
         {
-            g.setColour (Theme::ink);
-            g.fillRect (rowRect.withHeight (std::max (1.0f, px * 0.5f)));
-            g.fillRect (rowRect.withHeight (std::max (1.0f, px * 0.5f)).withBottomY (rowRect.getBottom()));
+            g.setColour (sk.text);
+            g.fillRect (rowRect.withHeight (line));
+            g.fillRect (rowRect.withHeight (line).withBottomY (rowRect.getBottom()));
         }
 
         const float ty = std::round (y + (rh - 7 * px) * 0.5f);
@@ -147,59 +134,70 @@ void PatternEditor::paint (juce::Graphics& g)
             const juce::String ins = c.instr ? hex2 (c.instr) : "--";
             const juce::String cmd = (c.cmd == 0 && c.param == 0) ? "---"
                                    : juce::String::toHexString ((int) c.cmd).toUpperCase() + hex2 (c.param);
-            auto& dst = (c.isEmpty() ? dimText : text);
-            PixelFont::addText (c.note ? text : dst, note, x, ty, px);
-            PixelFont::addText (c.instr ? text : dst, ins, x + 4 * cw, ty, px);
-            PixelFont::addText ((c.cmd || c.param) ? text : dst, cmd, x + 7 * cw, ty, px);
+            PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
+            PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
+            PixelFont::addText ((c.cmd || c.param) ? text : dimText, cmd, x + 7 * cw, ty, px);
         }
 
-        // cursor field
         if (r == centre && st.track >= first && st.track < first + nVis)
         {
             const float cx = colX (st.track - first, st.column) - px * 0.5f;
-            const float cwid = colChars (st.column) * cw;
-            auto cr = juce::Rectangle<float> (cx, y + px * 0.5f, cwid, rh - px);
-            g.setColour (Theme::pressed);
+            auto cr = juce::Rectangle<float> (cx, y + px * 0.5f, colChars (st.column) * cw, rh - px);
+            g.setColour (sk.cursor);
             g.fillRect (cr);
-            g.setColour (Theme::ink);
+            g.setColour (sk.cursorEdge);
             g.drawRect (cr, std::max (1.0f, px * (st.editMode ? 0.75f : 0.4f)));
         }
     }
 
-    // separators between tracks
-    g.setColour (Theme::ink);
+    // ---- per-track VU bars: a segmented column at the right edge of each track
+    const float segH = std::max (2.0f, px * 3);
+    const float vuTop = hh + px * 2, vuBottom = bounds.getBottom() - px * 2;
+    const int segs = std::max (4, (int) ((vuBottom - vuTop) / segH));
+    for (int s = 0; s < nVis; ++s)
+    {
+        const int t = first + s;
+        const float x = lnw + s * tw + 10.4f * cw;
+        const float w = 1.4f * cw;
+        // dB scale: -42 dB .. -3 dB fills the column
+        const float db = juce::Decibels::gainToDecibels (vu[t], -100.0f);
+        const int lit = juce::roundToInt (juce::jlimit (0.0f, 1.0f, (db + 42.0f) / 39.0f) * segs);
+        g.setColour (sk.track[t].withAlpha (sk.dark ? 0.16f : 0.12f));
+        g.fillRect (x, vuTop, w, vuBottom - vuTop);
+        for (int k = 0; k < lit; ++k)
+        {
+            const float yy = vuBottom - (k + 1) * segH;
+            g.setColour (k >= segs - std::max (2, segs / 8) ? sk.hot : sk.track[t]);
+            g.fillRect (x, yy + 1.0f, w, segH - 2.0f);
+        }
+    }
+
+    // ---- coloured rules between tracks
     for (int s = 0; s <= nVis; ++s)
     {
         const float x = std::round (lnw + s * tw - cw * 0.75f);
-        g.fillRect (x, hh, std::max (1.0f, px * 0.5f), bounds.getHeight() - hh);
+        g.setColour (s == 0 ? sk.rule : sk.track[first + s - 1]);
+        g.fillRect (x - line * 0.5f, hh, line * 2.0f, bounds.getHeight() - hh);
     }
 
-    g.setColour (Theme::faint);
+    g.setColour (sk.dim);
     g.fillRectList (dimText);
-    g.setColour (Theme::ink);
+    g.setColour (sk.text);
     g.fillRectList (text);
 
-    // edit-mode frame: a heavy border so it's obvious when keys write notes
-    if (st.editMode)
-    {
-        g.setColour (Theme::ink);
-        g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
-    }
-    else
-    {
-        g.setColour (Theme::ink);
-        g.drawRect (bounds, 1.0f);
-    }
+    g.setColour (Theme::ink);
+    if (st.editMode) g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
+    else             g.drawRect (bounds, 1.0f);
+
     if (hasKeyboardFocus (false) == false)
     {
         const float hp = std::max (1.5f, px * 0.75f);
         const juce::String hint = "CLICK HERE TO TYPE";
         auto box = juce::Rectangle<float> (PixelFont::textWidth (hint, hp) + hp * 4, hp * 11)
                        .withPosition (bounds.getRight() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - hp * 14);
-        g.setColour (Theme::paper);
+        g.setColour (Theme::panel);
         g.fillRect (box);
-        g.setColour (Theme::ink);
-        g.drawRect (box, 1.0f);
+        Theme::bevel (g, box, true, 1.0f);
         PixelFont::drawCentred (g, hint, box, hp, Theme::ink);
     }
 }

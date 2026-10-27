@@ -24,10 +24,43 @@ rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 | Transport | Play song, play block, stop, edit mode, BPM, speed (ticks per line), octave, step |
 | Sequence | The song order. Click a position to jump to it; INS / DEL entries; set which block plays there |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256) |
-| Instruments | 63 slots. LOAD a sample (WAV, AIFF, FLAC, MP3, 8SVX), volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the waveform. Double-click a name to rename. Alt-click to preview |
+| Instruments | 63 slots. LOAD opens the sample browser, EDIT opens the sample editor. Volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the little waveform (double-click it to open the editor). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. Click a track header to mute it, Alt/right-click to solo |
 | Paula strip | Output character (see below), stereo separation, volume |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, host sync |
+
+The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
+
+## Sample browser
+
+LOAD in the instrument panel opens a browser in place of the pattern. Every sample you highlight **plays straight away** (turn AUTO PLAY off to stop that), with its rate, length, mono/stereo and a waveform shown underneath.
+
+| Key | Action |
+|---|---|
+| `↑` `↓` / `PgUp` `PgDn` | Move (and hear) the next sample |
+| `→` / `Enter` on a folder | Open it · `←` or `Backspace` goes up |
+| `Enter` / double-click | Load into the current instrument |
+| `Space` | Play / stop |
+| A letter | Jump to the next name starting with it |
+| `Esc` | Close |
+
+Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FINDER… opens the normal Mac file dialog.
+
+## Sample editor
+
+EDIT in the instrument panel (or double-click the little waveform) opens a full-size editor. Stereo samples show left and right separately.
+
+* **Select:** drag in the waveform, Shift-click to extend, double-click or SEL ALL for everything. Click once to place the cursor (where PASTE inserts).
+* **Zoom:** mouse wheel or ZOOM +/-, FIT SEL, FIT ALL. Click or drag the overview strip to move around. Zoomed right in, you see each sample as a step, the way Paula plays it.
+* **DRAW:** draw the waveform with the mouse.
+* **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, SET LOOP (loop = selection), TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points move with the audio when you cut or paste.
+* **Play:** PLAY plays from the cursor (looping the sample's loop when LOOP is on), ▶ SEL plays just the selection.
+* Keys: `Space` play/stop, `Cmd+X/C/V`, `Cmd+A`, `Delete`, `Cmd+Z` / `Cmd+Shift+Z`, `←` `→` scroll, `↑` `↓` zoom, `Esc` close.
+* UNDO/REDO keep the last 40 edits per sample.
+
+## Stereo samples
+
+Stereo files stay stereo. A stereo sample plays with its own stereo image, centred, instead of following the Amiga left/right track layout (`8xx` still pans it). Mono samples behave exactly as before. Stereo is saved in `.prv` songs; SAVE MOD mixes stereo samples down to mono because the MOD format can't hold stereo. TO MONO in the sample editor converts one yourself.
 
 **BIG VIEW** is on by default so the pattern text is large. Tab to track 5 and the view flips to tracks 5–8. Turn BIG VIEW off, or hide the panels, to see all 8 tracks at once.
 

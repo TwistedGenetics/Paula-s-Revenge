@@ -12,9 +12,13 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       pattern (p),
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }, [this] (int b) { pattern.pushUndo (b); }),
-      instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); })
+      instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
+      spectrum (p), sampleEditor (p), browser (p)
 {
     auto& st = proc.editorState;
+    Theme::setSkin (st.darkSkin);
+    skinBtn.onClick = [this, &st] { st.darkSkin = skinBtn.getToggleState(); Theme::setSkin (st.darkSkin); repaint(); refreshAll(); };
+    specBtn.onClick = [this, &st] { st.showSpectrum = specBtn.getToggleState(); resized(); };
 
     // ---- title bar
     newBtn.onClick  = [this] { newSong(); };
@@ -88,11 +92,23 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     pattern.onStateChanged = [this] { refreshAll(); };
 
+    instruments.openBrowser = [this] { setView (View::Browser); };
+    instruments.openSampleEditor = [this] { setView (View::SampleEdit); };
+    sampleEditor.onChanged = [this] { instruments.refresh(); };
+    sampleEditor.onClose = [this] { setView (View::Pattern); };
+    sampleEditor.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    browser.onLoaded = [this] { refreshAll(); setView (returnView); };
+    browser.onClose = [this] { setView (returnView); };
+    browser.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    addChildComponent (sampleEditor);
+    addChildComponent (browser);
+
     for (auto* c : std::initializer_list<juce::Component*> {
             &newBtn, &loadBtn, &saveBtn, &modBtn, &wavBtn, &zoomOut, &zoomIn,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &cleanBtn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &hostPlayBtn, &hostTempoBtn, &nameBtn, &statusLabel,
+            &skinBtn, &specBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
     if (proc.isRunningStandalone()) { hostPlayBtn.setVisible (false); hostTempoBtn.setVisible (false); }
@@ -104,11 +120,27 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     setResizeLimits (960, 640, 4000, 2400);
     setSize (1440, 900);
     refreshAll();
+    setView (st.view == View::Browser ? View::Pattern : st.view);
     startTimerHz (30);
     juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PaulaEditor> (this)] { if (safe) safe->pattern.grabKeyboardFocus(); });
 }
 
 PaulaEditor::~PaulaEditor() { stopTimer(); }
+
+void PaulaEditor::setView (View v)
+{
+    auto& st = proc.editorState;
+    if (v == View::Browser && st.view != View::Browser) returnView = st.view;
+    if (st.view == View::SampleEdit && v != View::SampleEdit) sampleEditor.stop();
+    st.view = v;
+    pattern.setVisible (v == View::Pattern);
+    sampleEditor.setVisible (v == View::SampleEdit);
+    browser.setVisible (v == View::Browser);
+    if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
+    else if (v == View::Browser) browser.opened();
+    else pattern.grabKeyboardFocus();
+    refreshAll();
+}
 
 // ---------------------------------------------------------------------------
 void PaulaEditor::applyOptions()
@@ -153,6 +185,8 @@ void PaulaEditor::refreshAll()
     tracksBtn.setToggleState (song.numTracks > 4, juce::dontSendNotification);
     tracksBtn.setButtonText (song.numTracks > 4 ? "8 TRK" : "4 TRK");
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
+    skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
+    specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     viewBtn.setEnabled (song.numTracks > 4);
     hostPlayBtn.setToggleState (proc.followHostTransport.load(), juce::dontSendNotification);
     hostTempoBtn.setToggleState (proc.followHostTempo.load(), juce::dontSendNotification);
@@ -175,6 +209,9 @@ void PaulaEditor::setStatus (const juce::String& s)
 void PaulaEditor::timerCallback()
 {
     pattern.tick();
+    if (spectrum.isVisible()) spectrum.tick();
+    if (sampleEditor.isVisible()) sampleEditor.tick();
+    if (browser.isVisible()) browser.tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
     const int seqNow = proc.player.uiSeqPos.load();
@@ -292,6 +329,8 @@ void PaulaEditor::resized()
     followBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     panelsBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     nameBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
+    skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
+    specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     if (! proc.isRunningStandalone())
     {
         hostPlayBtn.setBounds (status.removeFromLeft (charsW (9))); status.removeFromLeft (gap);
@@ -328,13 +367,26 @@ void PaulaEditor::resized()
         left.removeFromTop (gap);
         instruments.setBounds (left);
     }
+    spectrum.setVisible (st.showSpectrum);
+    if (st.showSpectrum)
+    {
+        spectrum.setBounds (main.removeFromBottom ((int) (px * 22)));
+        main.removeFromBottom (gap);
+    }
     pattern.setBounds (main);
+    sampleEditor.setBounds (main);
+    browser.setBounds (main);
 }
 
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
 {
-    // keys that land on the window (e.g. after clicking a button) go to the pattern editor
-    return pattern.keyPressed (k);
+    // keys that land on the window (e.g. after clicking a button) go to the active view
+    switch (proc.editorState.view)
+    {
+        case View::SampleEdit: return sampleEditor.keyPressed (k);
+        case View::Browser:    return browser.keyPressed (k);
+        default:               return pattern.keyPressed (k);
+    }
 }
 
 // ---------------------------------------------------------------------------

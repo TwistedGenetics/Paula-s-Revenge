@@ -457,9 +457,17 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
     {
         const auto& in = song.instruments[(size_t) i];
         const int len = (int) std::min<size_t> (in.data.size(), 131070) & ~1;
-        for (int k = 0; k < len; ++k) put8 (out, (uint8_t) (int8_t) (in.data[(size_t) k] >> 8));
+        for (int k = 0; k < len; ++k)
+        {
+            int v = in.data[(size_t) k];
+            if (in.isStereo()) v = (v + in.dataR[(size_t) k]) / 2;   // MOD samples are mono
+            put8 (out, (uint8_t) (int8_t) (v >> 8));
+        }
     }
 
+    bool anyStereo = false;
+    for (int i = 0; i < 31; ++i) anyStereo |= song.instruments[(size_t) i].isStereo();
+    if (anyStereo) res.warnings.push_back ("Stereo samples were mixed down to mono (MOD limit).");
     if (song.blocks.size() > 128) res.warnings.push_back ("MOD files hold 128 patterns at most - extra blocks were left out.");
     if (tooLong) res.warnings.push_back ("Blocks longer than 64 lines were cut to 64 (MOD limit).");
     if (instrTooHigh) res.warnings.push_back ("Instruments above 31 can't go in a MOD and were left out.");

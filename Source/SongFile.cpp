@@ -7,7 +7,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 1;
+    constexpr int kVersion = 2;   // v2: stereo samples
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -61,6 +61,8 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeIntBigEndian (in.loopLength);
         raw.writeIntBigEndian ((int) in.data.size());
         for (auto s : in.data) raw.writeShortBigEndian (s);
+        raw.writeByte (in.isStereo() ? 1 : 0);
+        if (in.isStereo()) for (auto s : in.dataR) raw.writeShortBigEndian (s);
     }
 
     juce::MemoryOutputStream packed;
@@ -123,6 +125,11 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         const int len = juce::jlimit (0, 1 << 24, in.readIntBigEndian());
         ins.data.resize ((size_t) len);
         for (auto& v : ins.data) v = in.readShortBigEndian();
+        if (version >= 2 && in.readByte() != 0)
+        {
+            ins.dataR.resize ((size_t) len);
+            for (auto& v : ins.dataR) v = in.readShortBigEndian();
+        }
         if (! ins.isLooped()) { ins.loopStart = 0; ins.loopLength = 0; }
     }
     out = std::move (s);
@@ -147,71 +154,100 @@ bool loadSongFile (const juce::File& file, Song& out, juce::String& error, juce:
     return true;
 }
 
-bool importSample (const juce::File& file, Instrument& out, juce::String& error)
+bool decodeAudioFile (const juce::File& file, std::vector<float>& left, std::vector<float>& right,
+                      double& rate, Instrument& meta, juce::String& error)
 {
     juce::MemoryBlock mb;
     if (! file.loadFileAsData (mb)) { error = "Couldn't read " + file.getFileName(); return false; }
-
-    std::vector<float> mono;
-    double rate = 0;
-    Instrument tmp;
+    left.clear(); right.clear();
+    meta.clear();
     std::vector<uint8_t> bytes ((const uint8_t*) mb.getData(), (const uint8_t*) mb.getData() + mb.getSize());
 
-    if (load8SVX (bytes, tmp, rate))
+    Instrument svx;
+    if (load8SVX (bytes, svx, rate))
     {
-        mono.resize (tmp.data.size());
-        for (size_t i = 0; i < mono.size(); ++i) mono[i] = tmp.data[i] / 32768.0f;
+        left.resize (svx.data.size());
+        for (size_t i = 0; i < left.size(); ++i) left[i] = svx.data[i] / 32768.0f;
+        meta = svx; meta.data.clear();
+        return ! left.empty();
     }
-    else
-    {
-        juce::AudioFormatManager fm;
-        fm.registerBasicFormats();
-        std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (file));
-        if (reader == nullptr) { error = "Unsupported audio file: " + file.getFileName(); return false; }
-        rate = reader->sampleRate;
-        const auto maxLen = (juce::int64) (rate * 30.0); // 30 seconds is plenty for a tracker sample
-        const int len = (int) std::min (reader->lengthInSamples, maxLen);
-        juce::AudioBuffer<float> buf ((int) reader->numChannels, len);
-        reader->read (&buf, 0, len, 0, true, true);
-        mono.assign ((size_t) len, 0.0f);
-        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
-            for (int i = 0; i < len; ++i) mono[(size_t) i] += buf.getSample (ch, i) / (float) buf.getNumChannels();
-        tmp.name = file.getFileNameWithoutExtension().toStdString();
-        tmp.volume = 64;
-    }
-    if (mono.empty() || rate <= 0) { error = "The sample is empty."; return false; }
 
-    // resample to the C-3 rate (anti-alias first when going down)
-    const double ratio = rate / kSampleRateAtC3;
-    if (std::abs (ratio - 1.0) > 1e-4)
+    juce::AudioFormatManager fm;
+    fm.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (file));
+    if (reader == nullptr) { error = "Unsupported audio file: " + file.getFileName(); return false; }
+    rate = reader->sampleRate;
+    const auto maxLen = (juce::int64) (rate * 30.0); // 30 seconds is plenty for a tracker sample
+    const int len = (int) std::min (reader->lengthInSamples, maxLen);
+    if (len <= 0) { error = "The sample is empty."; return false; }
+    const int chans = (int) std::max (1u, reader->numChannels);
+    juce::AudioBuffer<float> buf (chans, len);
+    reader->read (&buf, 0, len, 0, true, true);
+    left.assign (buf.getReadPointer (0), buf.getReadPointer (0) + len);
+    if (chans >= 2)
     {
+        right.assign (buf.getReadPointer (1), buf.getReadPointer (1) + len);
+        // a "stereo" file with identical channels is really mono
+        bool same = true;
+        for (int i = 0; i < len && same; ++i) same = std::abs (left[(size_t) i] - right[(size_t) i]) < 1.0e-5f;
+        if (same) right.clear();
+    }
+    meta.name = file.getFileNameWithoutExtension().toStdString();
+    meta.volume = 64;
+    return true;
+}
+
+namespace
+{
+    std::vector<float> resampleTo (std::vector<float> in, double ratio)
+    {
+        if (std::abs (ratio - 1.0) <= 1e-4) return in;
         if (ratio > 1.0)
         {
-            const double cutoff = kSampleRateAtC3 * 0.45;
             for (int pass = 0; pass < 2; ++pass)
             {
                 juce::IIRFilter f;
-                f.setCoefficients (juce::IIRCoefficients::makeLowPass (rate, cutoff, 0.7071));
-                f.processSamples (mono.data(), (int) mono.size());
+                f.setCoefficients (juce::IIRCoefficients::makeLowPass (ratio * kSampleRateAtC3, kSampleRateAtC3 * 0.45, 0.7071));
+                f.processSamples (in.data(), (int) in.size());
             }
         }
-        const int outLen = (int) std::floor ((double) mono.size() / ratio);
-        std::vector<float> res ((size_t) std::max (1, outLen));
-        mono.resize (mono.size() + 8, 0.0f);
+        const int outLen = std::max (1, (int) std::floor ((double) in.size() / ratio));
+        std::vector<float> res ((size_t) outLen);
+        in.resize (in.size() + 8, 0.0f);
         juce::LagrangeInterpolator interp;
-        interp.process (ratio, mono.data(), res.data(), (int) res.size());
-        mono.swap (res);
-        tmp.loopStart = (int) std::lround (tmp.loopStart / ratio);
-        tmp.loopLength = (int) std::lround (tmp.loopLength / ratio);
+        interp.process (ratio, in.data(), res.data(), outLen);
+        return res;
     }
 
+    std::vector<int16_t> toInt16 (const std::vector<float>& v)
+    {
+        std::vector<int16_t> o (v.size());
+        for (size_t i = 0; i < v.size(); ++i)
+            o[i] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (v[i] * 32767.0f));
+        return o;
+    }
+}
+
+bool importSample (const juce::File& file, Instrument& out, juce::String& error)
+{
+    std::vector<float> L, R;
+    double rate = 0;
+    Instrument meta;
+    if (! decodeAudioFile (file, L, R, rate, meta, error)) return false;
+    if (L.empty() || rate <= 0) { error = "The sample is empty."; return false; }
+
+    // resample so C-3 plays the sample at its original pitch
+    const double ratio = rate / kSampleRateAtC3;
+    L = resampleTo (std::move (L), ratio);
+    if (! R.empty()) { R = resampleTo (std::move (R), ratio); R.resize (L.size(), 0.0f); }
+
     out.clear();
-    out.name = juce::String (tmp.name).toUpperCase().substring (0, 22).toStdString();
-    out.volume = tmp.volume;
-    out.data.resize (mono.size());
-    for (size_t i = 0; i < mono.size(); ++i)
-        out.data[i] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (mono[i] * 32767.0f));
-    out.loopStart = tmp.loopStart; out.loopLength = tmp.loopLength;
+    out.name = juce::String (meta.name).toUpperCase().substring (0, 22).toStdString();
+    out.volume = meta.volume;
+    out.data = toInt16 (L);
+    if (! R.empty()) out.dataR = toInt16 (R);
+    out.loopStart = (int) std::lround (meta.loopStart / ratio);
+    out.loopLength = (int) std::lround (meta.loopLength / ratio);
     if (! out.isLooped()) { out.loopStart = 0; out.loopLength = 0; }
     return true;
 }

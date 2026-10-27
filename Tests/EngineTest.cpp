@@ -219,8 +219,42 @@ static void testMED()
     CHECK (t.instruments[0].loopStart == 4 && t.instruments[0].loopLength == 8);
 }
 
+static void testStereo()
+{
+    // left = square, right = silence: a stereo sample must stay stereo,
+    // even on track 1 (which the Amiga panning would send hard left)
+    Song s;
+    auto& in = s.instruments[0];
+    in.data.resize (64); in.dataR.assign (64, 0);
+    for (int i = 0; i < 64; ++i) in.data[(size_t) i] = (int16_t) (i < 32 ? 20000 : -20000);
+    in.loopStart = 0; in.loopLength = 64; in.volume = 64;
+    CHECK (in.isStereo());
+    s.numTracks = 4;
+    s.blocks[0].at (0, 1) = Cell { 37, 1, 0, 0 };   // track 2 = Amiga right side
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.options.model = PaulaOptions::Model::Clean;
+    p.playBlock (0);
+    std::vector<float> L (9600), R (9600);
+    p.render (L.data(), R.data(), 9600);
+    double eL = 0, eR = 0;
+    for (size_t i = 0; i < L.size(); ++i) { eL += L[i] * L[i]; eR += R[i] * R[i]; }
+    std::printf ("stereo: left energy %.2f right energy %.4f\n", eL, eR);
+    CHECK (eL > 10.0);
+    CHECK (eR < eL * 0.001);
+
+    // MOD export mixes stereo down and says so
+    std::vector<uint8_t> bytes;
+    auto w = saveMOD (s, bytes);
+    CHECK (w.ok);
+    bool warned = false;
+    for (auto& m : w.warnings) warned |= m.find ("Stereo") != std::string::npos;
+    CHECK (warned);
+}
+
 int main()
 {
+    testStereo();
     testMED();
     testRender();
     testPitch();

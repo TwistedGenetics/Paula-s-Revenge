@@ -123,7 +123,7 @@ private:
     void tickEffects (int ch);
     void advanceLine();
     double samplesPerTick() const;
-    float renderVoice (Voice& v, double inc);
+    void renderVoice (Voice& v, double inc, float& outL, float& outR);
     double vibratoDelta (uint8_t pos, uint8_t depth, uint8_t wave, int shift) const;
     void updateFilters();
 

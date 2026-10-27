@@ -375,20 +375,23 @@ void Player::advanceLine()
 }
 
 // ---------------------------------------------------------------------------
-float Player::renderVoice (Voice& v, double inc)
+void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
 {
-    if (! v.active || v.instr < 0 || song == nullptr) return 0.0f;
+    outL = outR = 0.0f;
+    if (! v.active || v.instr < 0 || song == nullptr) return;
     const auto& in = song->instruments[(size_t) v.instr];
     const auto& d = in.data;
-    if (d.empty()) { v.active = false; return 0.0f; }
+    if (d.empty()) { v.active = false; return; }
+    const bool stereo = in.isStereo();
+    const auto& dr = stereo ? in.dataR : in.data;
 
     const bool looped = in.isLooped();
     const double end = looped ? (double) (in.loopStart + in.loopLength) : (double) d.size();
     const bool eight = options.eightBit;
+    const int last = (int) d.size() - 1;
 
-    auto sampleAt = [&] (int i) -> float
+    auto conv = [eight] (int s) -> float
     {
-        int s = d[(size_t) std::clamp (i, 0, (int) d.size() - 1)];
         if (eight) s = (s >> 8) * 256;
         return (float) s / 32768.0f;
     };
@@ -400,38 +403,50 @@ float Player::renderVoice (Voice& v, double inc)
         return true;
     };
 
-    float out = 0.0f;
+    float L = 0.0f, R = 0.0f;
     if (options.zeroOrderHold)
     {
         // Integrate the stepped (sample-and-hold) waveform across this output
         // sample: keeps Paula's stepped character but tames host-rate aliasing.
-        double remaining = inc, acc = 0.0, p = v.pos;
+        double remaining = inc, accL = 0.0, accR = 0.0, p = v.pos;
         bool alive = true;
         int guard = 0;
         while (remaining > 1e-12 && guard++ < 4096)
         {
             const double fl = std::floor (p);
             const double step = std::min (fl + 1.0 - p, remaining);
-            acc += sampleAt ((int) fl) * step;
+            const size_t idx = (size_t) std::clamp ((int) fl, 0, last);
+            accL += conv (d[idx]) * step;
+            if (stereo) accR += conv (dr[idx]) * step;
             p += step; remaining -= step;
             if (! wrap (p)) { alive = false; break; }
         }
-        out = (float) (acc / inc);
+        L = (float) (accL / inc);
+        R = stereo ? (float) (accR / inc) : L;
         v.pos = p;
         if (! alive) v.active = false;
     }
     else
     {
-        const int i = (int) v.pos;
-        const float frac = (float) (v.pos - i);
+        const int i = std::clamp ((int) v.pos, 0, last);
+        const float frac = (float) (v.pos - std::floor (v.pos));
         int n = i + 1;
         if (n >= (int) end) n = looped ? in.loopStart : i;
-        const float a = sampleAt (i), b = sampleAt (n);
-        out = a + (b - a) * frac;
+        n = std::clamp (n, 0, last);
+        const float a = conv (d[(size_t) i]), b = conv (d[(size_t) n]);
+        L = a + (b - a) * frac;
+        if (stereo)
+        {
+            const float ar = conv (dr[(size_t) i]), br = conv (dr[(size_t) n]);
+            R = ar + (br - ar) * frac;
+        }
+        else R = L;
         v.pos += inc;
         if (! wrap (v.pos)) v.active = false;
     }
-    return out * (float) v.outVolume / 64.0f;
+    const float g = (float) v.outVolume / 64.0f;
+    outL = L * g;
+    outR = R * g;
 }
 
 void Player::render (float* left, float* right, int numSamples)
@@ -462,7 +477,8 @@ void Player::render (float* left, float* right, int numSamples)
             }
         }
 
-        float vals[kVoices] = {};
+        float valL[kVoices] = {}, valR[kVoices] = {};
+        bool  st[kVoices] = {};
         if (song != nullptr)
         {
             for (int ch = 0; ch < kVoices; ++ch)
@@ -470,43 +486,63 @@ void Player::render (float* left, float* right, int numSamples)
                 Voice& v = voices[ch];
                 if (! v.active) continue;
                 const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate;
-                const float s = renderVoice (v, inc);
+                float sl, sr;
+                renderVoice (v, inc, sl, sr);
                 if (ch < kMaxTracks)
                 {
                     if (mute[ch].load (std::memory_order_relaxed) || ch >= nt) continue;
-                    peaks[ch] = std::max (peaks[ch], std::abs (s));
+                    peaks[ch] = std::max ({ peaks[ch], std::abs (sl), std::abs (sr) });
                 }
-                vals[ch] = s;
+                valL[ch] = sl; valR[ch] = sr;
+                st[ch] = v.instr >= 0 && song->instruments[(size_t) v.instr].isStereo();
             }
         }
+
+        // Mono voices follow Amiga panning (or 8xx). Stereo samples keep their
+        // own stereo image, centred unless the track is panned with 8xx.
+        auto addVoice = [&] (int ch, float scale, float sidePos, float& L, float& R)
+        {
+            const Voice& v = voices[ch];
+            if (st[ch])
+            {
+                const float p = v.pan >= 0 ? overridePan (v) : 0.0f;
+                L += valL[ch] * scale * 0.7f * std::min (1.0f, 1.0f - p);
+                R += valR[ch] * scale * 0.7f * std::min (1.0f, 1.0f + p);
+            }
+            else addPanned (valL[ch] * scale, v.pan >= 0 ? overridePan (v) : sidePos, L, R);
+        };
 
         float L = 0, R = 0;
         if (nt > 4)
         {
             for (int p = 0; p < 4; ++p)
             {
-                const Voice& a = voices[p * 2];
-                const Voice& b = voices[p * 2 + 1];
-                if (a.pan >= 0 || b.pan >= 0)
+                const int a = p * 2, b = p * 2 + 1;
+                if (voices[a].pan < 0 && voices[b].pan < 0 && ! st[a] && ! st[b])
                 {
-                    addPanned (vals[p * 2] * 0.5f,     a.pan >= 0 ? overridePan (a) : sidePan (p), L, R);
-                    addPanned (vals[p * 2 + 1] * 0.5f, b.pan >= 0 ? overridePan (b) : sidePan (p), L, R);
+                    float s = (valL[a] + valL[b]) * 0.5f;
+                    if (options.crunch8ch && options.eightBit) s = quant8 (s);
+                    addPanned (s, sidePan (p), L, R);
                 }
                 else
                 {
-                    float s = (vals[p * 2] + vals[p * 2 + 1]) * 0.5f;
-                    if (options.crunch8ch && options.eightBit) s = quant8 (s);
-                    addPanned (s, sidePan (p), L, R);
+                    float pl = 0, pr = 0;
+                    addVoice (a, 0.5f, sidePan (p), pl, pr);
+                    addVoice (b, 0.5f, sidePan (p), pl, pr);
+                    if (options.crunch8ch && options.eightBit) { pl = quant8 (pl); pr = quant8 (pr); }
+                    L += pl; R += pr;
                 }
             }
         }
         else
         {
-            for (int t = 0; t < nt; ++t)
-                addPanned (vals[t], voices[t].pan >= 0 ? overridePan (voices[t]) : sidePan (t), L, R);
+            for (int t = 0; t < nt; ++t) addVoice (t, 1.0f, sidePan (t), L, R);
         }
         for (int j = kMaxTracks; j < kVoices; ++j)
-            addPanned (vals[j] * 0.7f, 0.0f, L, R);
+        {
+            if (st[j]) { L += valL[j] * 0.5f; R += valR[j] * 0.5f; }
+            else addPanned (valL[j] * 0.7f, 0.0f, L, R);
+        }
 
         // analogue output stage
         if (options.model != PaulaOptions::Model::Clean)

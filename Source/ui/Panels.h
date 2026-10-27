@@ -70,9 +70,10 @@ class WaveView : public juce::Component
 {
 public:
     explicit WaveView (PaulaProcessor& p) : proc (p) {}
-    std::function<void()> changed;
+    std::function<void()> changed, openEditor;
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
 private:
     PaulaProcessor& proc;
@@ -88,13 +89,14 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void loadSample();
+    std::function<void()> openBrowser, openSampleEditor;
 
 private:
     PaulaProcessor& proc;
     std::function<void()> changed;
     std::function<void (const juce::String&)> status;
     PixList list;
-    PixButton loadBtn { "LOAD" }, clearBtn { "CLEAR" }, nameBtn { "NAME" };
+    PixButton loadBtn { "LOAD" }, editBtn { "EDIT" }, clearBtn { "CLEAR" }, nameBtn { "NAME" };
     PixButton loopBtn { "LOOP", true };
     NumberBox vol { "VOL", 0, 64, 64 }, fine { "FINE", -8, 7, 0 }, trans { "TRNS", -24, 24, 0 };
     NumberBox loopStart { "LSTRT", 0, 1, 0 }, loopLen { "LLEN", 0, 1, 0 };

@@ -69,6 +69,9 @@ public:
         bool editMode = false;
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
+        bool darkSkin = true;
+        enum class View { Pattern, SampleEdit, Browser } view = View::Pattern;
+        bool showSpectrum = true;
         int  uiZoom = 0;        // -2..+3 text size adjust
         juce::String lastFolder;
     } editorState;
@@ -77,6 +80,22 @@ public:
     std::atomic<int> jamInstrument { 0 };
     bool popMidiNote (int& note);   // message thread
 
+    // ---- audition player for the sample browser and the sample editor ----
+    struct PreviewAudio
+    {
+        std::vector<float> left, right;   // right empty = mono
+        double rate = 44100.0;
+    };
+    // Starts playing `audio` from `start` to `end` (samples). Returns the
+    // previous preview so it is freed on the calling (message) thread.
+    std::unique_ptr<PreviewAudio> startPreview (std::unique_ptr<PreviewAudio> audio, int start = 0, int end = -1, bool loop = false);
+    std::unique_ptr<PreviewAudio> stopPreview();
+    std::atomic<int>  previewPos { -1 };    // current position, -1 when silent
+    std::atomic<float> previewGain { 0.8f };
+
+    // mono copy of the output for the spectrum display (message thread reads)
+    int readScope (float* dest, int maxSamples);
+
 private:
     double currentRate = 44100.0;
     bool wasHostPlaying = false;
@@ -84,6 +103,13 @@ private:
     int scratchSize = 0;
     juce::AbstractFifo midiFifo { 64 };
     int midiNotes[64] {};
+    std::unique_ptr<PreviewAudio> preview;
+    double prevPos = 0;
+    int prevStart = 0, prevEnd = 0;
+    bool prevLoop = false, prevPlaying = false;
+    void renderPreview (float* l, float* r, int n);
+    juce::AbstractFifo scopeFifo { 8192 };
+    float scopeBuf[8192] {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PaulaProcessor)
 };

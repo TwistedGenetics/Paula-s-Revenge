@@ -51,7 +51,8 @@ struct Block
 struct Instrument
 {
     std::string name;
-    std::vector<int16_t> data;   // mono, nominally 16574 Hz at C-3 (Amiga convention)
+    std::vector<int16_t> data;   // left (or mono), nominally 16574 Hz at C-3 (Amiga convention)
+    std::vector<int16_t> dataR;  // right channel; empty for mono samples
     int loopStart  = 0;          // in samples
     int loopLength = 0;          // in samples, < 4 = no loop
     int volume     = 64;         // 0..64
@@ -59,6 +60,7 @@ struct Instrument
     int transpose  = 0;          // semitones
 
     bool hasData() const { return ! data.empty(); }
+    bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }
     bool isLooped() const { return loopLength >= 4 && loopStart >= 0 && loopStart + loopLength <= (int) data.size(); }
     void clear() { *this = Instrument{}; }
 };

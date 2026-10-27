@@ -22,6 +22,17 @@ struct Theme
     // size of one font pixel for the UI, set by the editor on resize
     static float px;
 
+    // Colours for the pattern area and spectrum strip. Two variants:
+    // light (black text on white) and dark (cream text on deep blue-black).
+    struct Skin
+    {
+        bool dark = false;
+        juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
+        juce::Colour track[8];
+    };
+    static Skin skin;
+    static void setSkin (bool dark);
+
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title);
 };

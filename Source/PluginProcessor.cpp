@@ -73,6 +73,68 @@ bool PaulaProcessor::popMidiNote (int& note)
     return got != 0;
 }
 
+std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::startPreview (std::unique_ptr<PreviewAudio> audio, int start, int end, bool loop)
+{
+    if (audio == nullptr || audio->left.empty()) return stopPreview();
+    const int len = (int) audio->left.size();
+    if (! audio->right.empty()) audio->right.resize ((size_t) len, 0.0f);
+    start = juce::jlimit (0, len - 1, start);
+    end = (end < 0 || end > len) ? len : end;
+    if (end <= start) end = len;
+    {
+        const juce::SpinLock::ScopedLockType sl (lock);
+        std::swap (preview, audio);
+        prevPos = start; prevStart = start; prevEnd = end; prevLoop = loop; prevPlaying = true;
+    }
+    previewPos = start;
+    return audio;
+}
+
+std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::stopPreview()
+{
+    std::unique_ptr<PreviewAudio> old;
+    {
+        const juce::SpinLock::ScopedLockType sl (lock);
+        std::swap (preview, old);
+        prevPlaying = false;
+    }
+    previewPos = -1;
+    return old;
+}
+
+void PaulaProcessor::renderPreview (float* l, float* r, int n)
+{
+    if (! prevPlaying || preview == nullptr) return;
+    const auto& a = *preview;
+    const bool stereo = ! a.right.empty();
+    const double inc = a.rate / std::max (1.0, currentRate);
+    const float g = previewGain.load();
+    for (int i = 0; i < n; ++i)
+    {
+        if (prevPos >= prevEnd)
+        {
+            if (prevLoop) prevPos = prevStart + std::fmod (prevPos - prevStart, (double) std::max (1, prevEnd - prevStart));
+            else { prevPlaying = false; previewPos = -1; return; }
+        }
+        const int k = (int) prevPos;
+        const float f = (float) (prevPos - k);
+        const int k2 = std::min (k + 1, (int) a.left.size() - 1);
+        const float sl = a.left[(size_t) k] + (a.left[(size_t) k2] - a.left[(size_t) k]) * f;
+        const float sr = stereo ? a.right[(size_t) k] + (a.right[(size_t) k2] - a.right[(size_t) k]) * f : sl;
+        l[i] += sl * g;
+        r[i] += sr * g;
+        prevPos += inc;
+    }
+    previewPos = (int) prevPos;
+}
+
+int PaulaProcessor::readScope (float* dest, int maxSamples)
+{
+    int got = 0;
+    scopeFifo.read (std::min (maxSamples, scopeFifo.getNumReady())).forEach ([&] (int idx) { dest[got++] = scopeBuf[idx]; });
+    return got;
+}
+
 void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -139,6 +201,15 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         }
     }
     renderTo (n);
+    renderPreview (scratchL.get(), scratchR.get(), n);
+
+    {
+        const int space = std::min (n, scopeFifo.getFreeSpace());
+        const float* l = scratchL.get() + (n - space);
+        const float* r = scratchR.get() + (n - space);
+        int k = 0;
+        scopeFifo.write (space).forEach ([&] (int idx) { scopeBuf[idx] = 0.5f * (l[k] + r[k]); ++k; });
+    }
 
     if (buffer.getNumChannels() >= 2)
     {
@@ -182,6 +253,8 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("block", e.block, nullptr);
     st.setProperty ("seqPos", e.seqPos, nullptr);
     st.setProperty ("fourTrack", e.fourTrackView, nullptr);
+    st.setProperty ("dark", e.darkSkin, nullptr);
+    st.setProperty ("spectrum", e.showSpectrum, nullptr);
     st.setProperty ("zoom", e.uiZoom, nullptr);
     st.setProperty ("follow", e.follow, nullptr);
     st.setProperty ("folder", e.lastFolder, nullptr);
@@ -221,6 +294,8 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.block = st.getProperty ("block", 0);
     e.seqPos = st.getProperty ("seqPos", 0);
     e.fourTrackView = st.getProperty ("fourTrack", true);
+    e.darkSkin = st.getProperty ("dark", true);
+    e.showSpectrum = st.getProperty ("spectrum", true);
     e.uiZoom = st.getProperty ("zoom", 0);
     e.follow = st.getProperty ("follow", true);
     e.lastFolder = st.getProperty ("folder", juce::String());
