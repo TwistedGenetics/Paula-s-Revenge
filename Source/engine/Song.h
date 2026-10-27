@@ -48,6 +48,16 @@ struct Block
     void clear() { for (auto& r : rows) r.fill (Cell{}); }
 };
 
+// Times in seconds, sustain 0..1
+struct Envelope
+{
+    bool  on = false;
+    float attack = 0.005f, decay = 0.3f, sustain = 1.0f, release = 0.2f;
+    bool operator== (const Envelope& o) const { return on == o.on && attack == o.attack && decay == o.decay && sustain == o.sustain && release == o.release; }
+};
+
+enum class FilterType : uint8_t { Off = 0, LowPass, HighPass, BandPass };
+
 struct Instrument
 {
     std::string name;
@@ -58,6 +68,19 @@ struct Instrument
     int volume     = 64;         // 0..64
     int finetune   = 0;          // -8..7 (1/8 semitone steps)
     int transpose  = 0;          // semitones
+
+    // sound shaping (all neutral by default, so MOD/MED/old songs sound as before)
+    Envelope   volEnv;                      // when off, notes play at full level and OFF cuts
+    FilterType filter      = FilterType::Off;
+    float      cutoff      = 20000.0f;      // Hz
+    float      resonance   = 0.0f;          // 0..1
+    Envelope   filterEnv { true, 0.005f, 0.3f, 0.0f, 0.2f };
+    float      filterEnvAmount = 0.0f;      // octaves, -8..+8
+    float      keyTrack    = 0.0f;          // 0..1 (1 = cutoff follows the note fully)
+    bool       amigaPan    = true;          // follow the Amiga L/R track layout
+    int        pan         = 128;           // 0..255 when amigaPan is off
+
+    bool hasShaping() const { return volEnv.on || filter != FilterType::Off || ! amigaPan; }
 
     bool hasData() const { return ! data.empty(); }
     bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }
@@ -72,6 +95,7 @@ struct Song
     int tempo     = 125;               // BPM (32..255)
     int speed     = 6;                 // ticks per line (1..31)
     bool ledFilterAtStart = false;
+    int  trackPan[kMaxTracks] = { -1, -1, -1, -1, -1, -1, -1, -1 };  // -1 = automatic, else 0..255 (128 = centre)
     std::vector<Block> blocks;
     std::vector<int> sequence;         // block indices
     std::array<Instrument, kMaxInstruments> instruments;
@@ -82,6 +106,7 @@ struct Song
     {
         name = "UNTITLED";
         numTracks = 8; tempo = 125; speed = 6; ledFilterAtStart = false;
+        for (auto& p : trackPan) p = -1;
         blocks.assign (1, Block{});
         sequence.assign (1, 0);
         for (auto& i : instruments) i.clear();

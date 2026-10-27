@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.2.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +23,8 @@ endif()
 # Plain C++ tracker engine (no JUCE) - shared by the plugin and the tests
 add_library(prv_engine STATIC
     Source/engine/Player.cpp
-    Source/engine/ModuleIO.cpp)
+    Source/engine/ModuleIO.cpp
+    Source/engine/SongOps.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -61,14 +62,21 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/Panels.cpp
     Source/ui/Spectrum.cpp
     Source/ui/SampleEditor.cpp
-    Source/ui/SampleBrowser.cpp)
+    Source/ui/SampleBrowser.cpp
+    Source/ui/ParamsPage.cpp
+    Source/StandaloneApp.cpp)
+
+if(APPLE)
+    target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm)
+endif()
 
 target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
-    JUCE_REPORT_APP_USAGE=0)
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
 
 target_link_libraries(PaulasRevenge
     PRIVATE

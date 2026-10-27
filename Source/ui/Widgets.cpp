@@ -167,7 +167,7 @@ juce::Rectangle<float> PixSlider::trough() const
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
     r.removeFromLeft (px * PixelFont::kCellW * labelChars);
-    r.removeFromRight (px * PixelFont::kCellW * 4.5f);
+    r.removeFromRight (px * PixelFont::kCellW * valueChars);
     return r.reduced (px, std::max (px, r.getHeight() * 0.2f));
 }
 

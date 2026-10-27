@@ -89,6 +89,7 @@ public:
     std::atomic<bool>  uiLed { false };
     std::atomic<int>   songWraps { 0 };   // counts each time the song loops back (or stops on F00)
     std::atomic<float> uiLevel[kMaxTracks] {};
+    std::atomic<float> uiOutL { 0.0f }, uiOutR { 0.0f };   // output peaks of the last block
 
 private:
     struct Voice
@@ -113,6 +114,10 @@ private:
         Cell delayedCell;
         float level = 0;
         int  jamNote = -1;
+        // instrument shaping
+        struct EnvState { int stage = 0; float level = 0, relStep = 0; };   // stage 0 idle,1 A,2 D,3 S,4 R
+        EnvState ampEnv, fltEnv;
+        struct Svf { float ic1L = 0, ic2L = 0, ic1R = 0, ic2R = 0, a1 = 1, a2 = 0, a3 = 0, k = 2; int count = 0; } svf;
     };
 
     void resetVoices();
@@ -126,6 +131,11 @@ private:
     void renderVoice (Voice& v, double inc, float& outL, float& outR);
     double vibratoDelta (uint8_t pos, uint8_t depth, uint8_t wave, int shift) const;
     void updateFilters();
+    void startShaping (Voice& v);
+    void releaseVoice (Voice& v);
+    void shapeVoice (Voice& v, float& l, float& r);
+    // returns true and sets `pos` (-1..1) when the voice has a fixed pan
+    bool fixedPan (int ch, float& pos) const;
 
     const Song* song = nullptr;
     double sampleRate = 44100.0;

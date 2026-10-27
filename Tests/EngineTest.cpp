@@ -2,6 +2,7 @@
 // Build: c++ -std=c++20 -O1 -g -fsanitize=address,undefined -I Source Tests/EngineTest.cpp Source/engine/*.cpp
 #include "engine/Player.h"
 #include "engine/ModuleIO.h"
+#include "engine/SongOps.h"
 #include <cstdio>
 #include <random>
 #include <fstream>
@@ -252,8 +253,161 @@ static void testStereo()
     CHECK (warned);
 }
 
+// mono drum-like sample, looped noise
+static Instrument drum()
+{
+    Instrument in;
+    std::mt19937 rng (3);
+    in.data.resize (4000);
+    for (auto& v : in.data) v = (int16_t) ((int) (rng() % 40000) - 20000);
+    in.loopStart = 0; in.loopLength = 4000; in.volume = 64;
+    return in;
+}
+
+static void energies (Player& p, int n, double& eL, double& eR)
+{
+    std::vector<float> L ((size_t) n), R ((size_t) n);
+    p.render (L.data(), R.data(), n);
+    eL = eR = 0;
+    for (int i = 0; i < n; ++i) { eL += L[(size_t) i] * L[(size_t) i]; eR += R[(size_t) i] * R[(size_t) i]; }
+}
+
+static void testBalance()
+{
+    // a mono drum on every track at default settings: left and right close in level
+    for (int tracks : { 4, 8 })
+        for (int crunch = 0; crunch < 2; ++crunch)
+        {
+            Song s; s.numTracks = tracks;
+            s.instruments[0] = drum();
+            for (int t = 0; t < tracks; ++t) s.blocks[0].at (0, t) = Cell { 37, 1, 0, 0 };
+            s.sequence = { 0 };
+            Player p; p.setSampleRate (48000); p.setSong (&s);
+            p.options.crunch8ch = crunch;
+            p.playBlock (0);
+            double eL, eR; energies (p, 24000, eL, eR);
+            const double db = 10.0 * std::log10 (eL / eR);
+            std::printf ("balance %d tracks crunch %d: L/R %.2f dB\n", tracks, crunch, db);
+            CHECK (std::abs (db) < 1.0);
+        }
+    // a single drum on track 1: default SEP (20%) must stay in both ears
+    {
+        Song s; s.numTracks = 4; s.instruments[0] = drum();
+        s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 }; s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.playBlock (0);
+        double eL, eR; energies (p, 24000, eL, eR);
+        const double db = 10.0 * std::log10 (eL / eR);
+        std::printf ("track 1 alone at default SEP: L/R %.2f dB\n", db);
+        CHECK (db > 1.0 && db < 6.0);
+        // track pan centre overrides the Amiga side
+        s.trackPan[0] = 128;
+        p.playBlock (0); energies (p, 24000, eL, eR);
+        std::printf ("track 1 with track pan centre: L/R %.2f dB\n", 10.0 * std::log10 (eL / eR));
+        CHECK (std::abs (10.0 * std::log10 (eL / eR)) < 0.2);
+        // instrument pan hard right
+        s.trackPan[0] = -1; s.instruments[0].amigaPan = false; s.instruments[0].pan = 255;
+        p.playBlock (0); energies (p, 24000, eL, eR);
+        CHECK (eL < eR * 0.01);
+        // 8xx beats both
+        s.trackPan[0] = 0; s.blocks[0].at (0, 0).cmd = 8; s.blocks[0].at (0, 0).param = 128;
+        p.playBlock (0); energies (p, 24000, eL, eR);
+        CHECK (std::abs (10.0 * std::log10 (eL / eR)) < 0.2);
+    }
+}
+
+static void testEnvelopeAndFilter()
+{
+    Song s; s.numTracks = 4; s.instruments[0] = drum();
+    s.blocks[0].at (0, 1) = Cell { 37, 1, 0, 0 };
+    s.blocks[0].at (4, 1) = Cell { kNoteOff, 0, 0, 0 };
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+    // without an envelope, OFF cuts dead; at speed 6 / 125 bpm a line is 5760 samples
+    const int off = 4 * 5760;
+    std::vector<float> L (72000), R (72000);
+    p.playBlock (0);
+    p.render (L.data(), R.data(), 72000);
+    auto rms = [&] (int a, int b) { double e = 0; for (int i = a; i < b; ++i) e += R[(size_t) i] * R[(size_t) i]; return std::sqrt (e / (b - a)); };
+    const double cut = rms (off + 400, off + 2000);
+    // with a 0.5 s release the note keeps sounding after OFF, then dies away
+    s.instruments[0].volEnv = { true, 0.001f, 0.1f, 1.0f, 0.5f };
+    p.playBlock (0);
+    p.render (L.data(), R.data(), 72000);
+    const double held = rms (off + 400, off + 2000);
+    const double gone = rms (off + 25000, off + 27000);
+    std::printf ("envelope: after OFF no-env %.4f, release %.4f, end of release %.4f\n", cut, held, gone);
+    CHECK (cut < 1e-6 && held > 0.05 && gone < 1e-6);
+    // attack: starts quiet
+    s.instruments[0].volEnv = { true, 0.2f, 0.1f, 1.0f, 0.1f };
+    p.playBlock (0);
+    p.render (L.data(), R.data(), 48000);
+    CHECK (rms (0, 400) < rms (2400, 2800) * 0.3);
+
+    // low-pass at 300 Hz removes most of the noise's energy
+    s.instruments[0].volEnv.on = false;
+    s.blocks[0].at (4, 1) = Cell{};
+    p.playBlock (0); p.render (L.data(), R.data(), 9600);
+    const double open = rms (2000, 9600);
+    s.instruments[0].filter = FilterType::LowPass; s.instruments[0].cutoff = 300.0f;
+    p.playBlock (0); p.render (L.data(), R.data(), 9600);
+    const double closed = rms (2000, 9600);
+    // filter envelope opening it back up
+    s.instruments[0].filterEnv = { true, 0.001f, 5.0f, 1.0f, 0.1f };
+    s.instruments[0].filterEnvAmount = 6.0f;
+    p.playBlock (0); p.render (L.data(), R.data(), 9600);
+    const double envd = rms (2000, 9600);
+    std::printf ("filter: open %.4f, LP 300 Hz %.4f, with +6 oct env %.4f\n", open, closed, envd);
+    CHECK (closed < open * 0.4 && envd > closed * 1.5);
+    bool finite = true; for (float v : R) finite &= std::isfinite (v);
+    s.instruments[0].filter = FilterType::HighPass; s.instruments[0].resonance = 1.0f; s.instruments[0].cutoff = 19000.0f;
+    p.playBlock (0); p.render (L.data(), R.data(), 48000);
+    for (float v : R) finite &= std::isfinite (v) && std::abs (v) < 2.0f;
+    s.instruments[0].filter = FilterType::BandPass;
+    p.playBlock (0); p.render (L.data(), R.data(), 48000);
+    for (float v : R) finite &= std::isfinite (v) && std::abs (v) < 2.0f;
+    CHECK (finite);
+
+    // shaping can't go in a MOD: warned
+    std::vector<uint8_t> bytes;
+    auto w = saveMOD (s, bytes);
+    bool warned = false; for (auto& m : w.warnings) warned |= m.find ("Envelopes") != std::string::npos;
+    CHECK (warned);
+}
+
+static void testSongOps()
+{
+    Song s;
+    s.blocks.assign (4, Block{});
+    for (int b = 0; b < 4; ++b) s.blocks[(size_t) b].at (0, 0).note = (uint8_t) (10 + b);   // mark each block
+    s.sequence = { 0, 1, 2, 1, 3 };
+    auto noteAt = [&] (int pos) { return (int) s.blocks[(size_t) s.sequence[(size_t) pos]].at (0, 0).note; };
+    std::vector<int> before; for (int i = 0; i < 5; ++i) before.push_back (noteAt (i));
+
+    // clone in place at position 1 (block 1): new block 2, old 2,3 become 3,4
+    CHECK (cloneInPlace (s, 1) == 2);
+    CHECK (s.blocks.size() == 5);
+    CHECK ((s.sequence == std::vector<int> { 0, 2, 3, 1, 4 }));
+    for (int i = 0; i < 5; ++i) CHECK (noteAt (i) == before[(size_t) i]);   // sounds identical
+
+    // swap block numbers 0 and 1: music unchanged
+    CHECK (swapBlockNumbers (s, 0, 1));
+    for (int i = 0; i < 5; ++i) CHECK (noteAt (i) == before[(size_t) i]);
+    CHECK (s.sequence[0] == 1);
+
+    // move position 4 to the front
+    CHECK (moveSequenceEntry (s, 4, 0));
+    CHECK (noteAt (0) == before[4] && noteAt (1) == before[0]);
+
+    // block limit
+    Song full; full.blocks.assign (kMaxBlocks, Block{}); full.sequence = { 0 };
+    CHECK (cloneInPlace (full, 0) == -1);
+}
+
 int main()
 {
+    testBalance();
+    testEnvelopeAndFilter();
+    testSongOps();
     testStereo();
     testMED();
     testRender();

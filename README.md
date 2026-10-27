@@ -20,16 +20,54 @@ rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 
 | Area | What it does |
 |---|---|
-| Title bar | NEW, LOAD, SAVE (native `.prv`), SAVE MOD, RENDER WAV, text size `A-` / `A+` |
+| Title bar | NEW, LOAD, SAVE (native `.prv`), SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
 | Transport | Play song, play block, stop, edit mode, BPM, speed (ticks per line), octave, step |
-| Sequence | The song order. Click a position to jump to it; INS / DEL entries; set which block plays there |
-| Block | Pick, add, clone or delete blocks; set the number of lines (1–256) |
-| Instruments | 63 slots. LOAD opens the sample browser, EDIT opens the sample editor. Volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the little waveform (double-click it to open the editor). Double-click a name to rename. Alt-click to preview |
-| Pattern editor | 8 tracks. Click a track header to mute it, Alt/right-click to solo |
-| Paula strip | Output character (see below), stereo separation, volume |
+| Sequence | The song order, with a scrollbar. Click a position to jump to it. INS / DEL entries, set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag a row) move the selected position. CLONE IN PLACE gives this position its own copy of the block (see below) |
+| Block | Pick, add, clone or delete blocks; set the number of lines (1–256). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
+| Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. Volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the little waveform (double-click it to open the editor). Double-click a name to rename. Alt-click to preview |
+| Pattern editor | 8 tracks. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
+| Paula strip | Output character (see below), stereo separation, volume, and an L/R output meter |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, host sync |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
+
+## Panning and left/right balance
+
+Every track comes out of both speakers by default. How a track is panned, in order:
+
+1. **`8xx`** in the pattern (`800` hard left, `880` centre, `8FF` hard right). This is an absolute position now, and isn't scaled by SEP.
+2. **The track's pan** (the bar under each track name). **AUTO** means "no track pan".
+3. **The instrument's pan** (PARAMS page), when its AMIGA L/R button is off.
+4. Otherwise **Amiga style**: tracks 1 and 4 lean left, 2 and 3 lean right, by the **SEP** amount (20% by default, 0% = all centred). Stereo samples play centred with their own stereo image.
+
+The **L / R meter** on the right of the Paula strip shows the balance. The plugin and app only run in stereo, and the standalone app turns on both of your interface's first two outputs if an old setup had only one.
+
+## Instrument parameters (PARAMS)
+
+PARAMS in the instrument panel opens a page for the current instrument. Everything is off or neutral by default, so MODs and older songs sound exactly as before.
+
+* **Volume envelope**: VOL ENVELOPE on/off, ATK, DEC, SUS, REL (1 ms – 10 s), with a picture of the shape. With the envelope on, `OFF` in the pattern (or letting go of a key) starts the release instead of cutting the note.
+* **Filter**: OFF / LOW / HIGH / BAND pass, CUT (20 Hz – 20 kHz), RES, AMT (how far the filter envelope moves the cutoff, ±8 octaves), KEY (how much the cutoff follows the note).
+* **Filter envelope**: ATK, DEC, SUS, REL.
+* **Pan**: AMIGA L/R follows the track layout above; switch it off and use PAN to give the instrument its own position.
+* **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
+
+Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
+
+## Sequence tools
+
+* **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list.
+* **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into a new block 3, moves every later block up one number (the sequence follows, so nothing else changes), and points position 1 at the new block 3. Now you can change it without touching the other places block 2 is used.
+* **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
+* `Cmd+Z` / `Cmd+Shift+Z` in the pattern undo and redo all of these.
+
+## Saving and your samples
+
+Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
+
+## The standalone app window
+
+The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The menus have **Audio/MIDI Settings…** (`Cmd+,`), **Toggle Full Screen** (`Ctrl+Cmd+F`) and **Quit** (`Cmd+Q`). The app remembers its window size and position.
 
 ## Sample browser
 
@@ -102,7 +140,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | `5xy` | Slide to note + volume slide |
 | `6xy` | Vibrato + volume slide |
 | `7xy` | Tremolo |
-| `8xx` | Pan (00 left – FF right) |
+| `8xx` | Pan (00 left – 80 centre – FF right) |
 | `9xx` | Sample offset (xx × 256) |
 | `Axy` | Volume slide (x up / y down) |
 | `Bxx` | Jump to sequence position |
@@ -132,7 +170,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | 8-BIT | Samples are played at 8-bit resolution |
 | CRUNCH | In 8-track songs, track pairs are mixed together and squashed back to 8 bits, the way 8-channel Amiga trackers did it in software |
 | LED | The "LED" lowpass filter, on at the start of the song (commands `E00`/`E01` switch it while playing) |
-| SEP | Stereo separation. The Amiga sent tracks 1 and 4 hard left and 2 and 3 hard right; SEP sets how much of that you get. It starts at 20% (nearly centred); 0% puts every track in the middle, 100% is the full Amiga split. Double-click the slider to reset it |
+| SEP | How far tracks lean to the Amiga sides (tracks 1+4 left, 2+3 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
 
 Samples are resampled on load so `C-3` plays them at their original pitch (16.5 kHz, the Amiga convention). For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it.
 
@@ -145,7 +183,7 @@ Samples are resampled on load so `C-3` plays them at their original pitch (16.5 
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed).
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 3 adds instrument envelopes/filters/pans and track pans; older `.prv` files still load.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 

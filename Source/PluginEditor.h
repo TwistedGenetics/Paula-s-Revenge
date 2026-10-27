@@ -9,6 +9,7 @@
 #include "ui/Spectrum.h"
 #include "ui/SampleEditor.h"
 #include "ui/SampleBrowser.h"
+#include "ui/ParamsPage.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -23,6 +24,10 @@ public:
     void setView (PaulaProcessor::EditorState::View);
     prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
     prv::ui::SampleBrowser& getBrowser() { return browser; }
+    prv::ui::ParamsPage& getParams() { return params; }
+    prv::ui::PatternEditor& getPattern() { return pattern; }
+    prv::ui::SequencePanel& getSequence() { return sequence; }
+    bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
 
 private:
     void timerCallback() override;
@@ -35,6 +40,7 @@ private:
     void saveSong();
     void exportMod();
     void exportWav();
+    void exportSamples();
 
     PaulaProcessor& proc;
     using PixButton = prv::ui::PixButton;
@@ -43,7 +49,7 @@ private:
     using PixLabel  = prv::ui::PixLabel;
 
     // title bar
-    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" };
+    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" }, smpBtn { "EXPORT SAMPLES" };
     PixButton zoomOut { "A-" }, zoomIn { "A+" };
 
     // transport
@@ -76,6 +82,8 @@ private:
     prv::ui::Spectrum spectrum;
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
+    prv::ui::ParamsPage params;
+    prv::ui::OutputMeter outMeter;
     using View = PaulaProcessor::EditorState::View;
     View returnView = View::Pattern;
 

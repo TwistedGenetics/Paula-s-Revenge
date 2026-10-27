@@ -13,7 +13,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }, [this] (int b) { pattern.pushUndo (b); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -92,6 +92,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     pattern.onStateChanged = [this] { refreshAll(); };
 
+    instruments.openParams = [this] { setView (View::Params); };
+    params.onClose = [this] { setView (View::Pattern); };
+    params.onChanged = [this] { instruments.refresh(); };
+    addChildComponent (params);
+    sequence.pushStructUndo = [this] { pattern.pushStructureUndo(); };
+    blockPanel.pushStructUndo = [this] { pattern.pushStructureUndo(); };
+    pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
+    smpBtn.onClick = [this] { exportSamples(); };
     instruments.openBrowser = [this] { setView (View::Browser); };
     instruments.openSampleEditor = [this] { setView (View::SampleEdit); };
     sampleEditor.onChanged = [this] { instruments.refresh(); };
@@ -104,7 +112,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (browser);
 
     for (auto* c : std::initializer_list<juce::Component*> {
-            &newBtn, &loadBtn, &saveBtn, &modBtn, &wavBtn, &zoomOut, &zoomIn,
+            &newBtn, &loadBtn, &saveBtn, &modBtn, &wavBtn, &smpBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &cleanBtn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &hostPlayBtn, &hostTempoBtn, &nameBtn, &statusLabel,
@@ -117,7 +125,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     setStatus (kHelpText);
 
     setResizable (true, true);
-    setResizeLimits (960, 640, 4000, 2400);
+    setResizeLimits (960, 640, 8000, 5000);
     setSize (1440, 900);
     refreshAll();
     setView (st.view == View::Browser ? View::Pattern : st.view);
@@ -132,11 +140,14 @@ void PaulaEditor::setView (View v)
     auto& st = proc.editorState;
     if (v == View::Browser && st.view != View::Browser) returnView = st.view;
     if (st.view == View::SampleEdit && v != View::SampleEdit) sampleEditor.stop();
+    if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
     st.view = v;
     pattern.setVisible (v == View::Pattern);
     sampleEditor.setVisible (v == View::SampleEdit);
     browser.setVisible (v == View::Browser);
-    if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
+    params.setVisible (v == View::Params);
+    if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
+    else if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
     else if (v == View::Browser) browser.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
@@ -212,6 +223,8 @@ void PaulaEditor::timerCallback()
     if (spectrum.isVisible()) spectrum.tick();
     if (sampleEditor.isVisible()) sampleEditor.tick();
     if (browser.isVisible()) browser.tick();
+    if (params.isVisible()) params.tick();
+    outMeter.tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
     const int seqNow = proc.player.uiSeqPos.load();
@@ -296,6 +309,7 @@ void PaulaEditor::resized()
     auto title = r.removeFromTop ((int) (px * 14)).reduced (gap, (int) (px * 1.5f));
     zoomIn.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap);
     zoomOut.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap * 3);
+    smpBtn.setBounds (title.removeFromRight (charsW (14))); title.removeFromRight (gap);
     wavBtn.setBounds (title.removeFromRight (charsW (10))); title.removeFromRight (gap);
     modBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (gap);
     saveBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
@@ -347,6 +361,8 @@ void PaulaEditor::resized()
     eightBitBtn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
     crunchBtn.setBounds (paula.removeFromLeft (charsW (6))); paula.removeFromLeft (gap);
     ledBtn.setBounds (paula.removeFromLeft (charsW (4))); paula.removeFromLeft (gap * 3);
+    outMeter.setBounds (paula.removeFromRight (std::max (charsW (10), paula.getWidth() / 5)));
+    paula.removeFromRight (gap * 2);
     const int sliderW = (paula.getWidth() - gap * 2) / 2;
     sepSlider.setBounds (paula.removeFromLeft (sliderW)); paula.removeFromLeft (gap * 2);
     volSlider.setBounds (paula);
@@ -360,7 +376,7 @@ void PaulaEditor::resized()
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
-        const int seqH = std::max (rowH * 5, (int) (left.getHeight() * 0.24f));
+        const int seqH = std::max (rowH * 7, (int) (left.getHeight() * 0.30f));
         sequence.setBounds (left.removeFromTop (seqH));
         left.removeFromTop (gap);
         blockPanel.setBounds (left.removeFromTop ((int) (px * 14) + rowH * 3 + gap * 3));
@@ -376,6 +392,7 @@ void PaulaEditor::resized()
     pattern.setBounds (main);
     sampleEditor.setBounds (main);
     browser.setBounds (main);
+    params.setBounds (main);
 }
 
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
@@ -385,6 +402,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
     {
         case View::SampleEdit: return sampleEditor.keyPressed (k);
         case View::Browser:    return browser.keyPressed (k);
+        case View::Params:     return params.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }
@@ -511,5 +529,55 @@ void PaulaEditor::exportWav()
         const double rate = self.proc.getSampleRate() > 0 ? self.proc.getSampleRate() : 48000.0;
         if (prv::renderSongToWav (copy, opts, rate, file, err)) self.setStatus ("RENDERED " + file.getFileName());
         else self.setStatus ("ERROR: " + err);
+    });
+}
+
+bool PaulaEditor::exportSamplesTo (const juce::File& folder, int& written, juce::String& error)
+{
+    written = 0;
+    if (! folder.isDirectory() && ! folder.createDirectory()) { error = "Couldn't create " + folder.getFullPathName(); return false; }
+    std::vector<prv::Instrument> copies;
+    proc.withLock ([&] { copies.assign (proc.song.instruments.begin(), proc.song.instruments.end()); });
+    for (int i = 0; i < (int) copies.size(); ++i)
+    {
+        const auto& in = copies[(size_t) i];
+        if (! in.hasData()) continue;
+        const juce::String name = juce::String (i + 1).paddedLeft ('0', 2) + " "
+                                + juce::File::createLegalFileName (in.name.empty() ? juce::String ("SAMPLE") : juce::String (in.name)) + ".wav";
+        auto f = folder.getChildFile (name);
+        f.deleteFile();
+        std::unique_ptr<juce::FileOutputStream> os (f.createOutputStream());
+        if (os == nullptr) { error = "Couldn't write " + name; return false; }
+        const int chans = in.isStereo() ? 2 : 1;
+        std::unique_ptr<juce::AudioFormatWriter> w (juce::WavAudioFormat().createWriterFor (os.get(), prv::kSampleRateAtC3, (unsigned) chans, 16, {}, 0));
+        if (w == nullptr) { error = "Couldn't write " + name; return false; }
+        os.release();
+        juce::AudioBuffer<float> buf (chans, (int) in.data.size());
+        for (int k = 0; k < (int) in.data.size(); ++k)
+        {
+            buf.setSample (0, k, in.data[(size_t) k] / 32768.0f);
+            if (chans == 2) buf.setSample (1, k, in.dataR[(size_t) k] / 32768.0f);
+        }
+        w->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples());
+        ++written;
+    }
+    return true;
+}
+
+void PaulaEditor::exportSamples()
+{
+    auto& st = proc.editorState;
+    juce::File start = st.lastFolder.isNotEmpty() ? juce::File (st.lastFolder) : juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+    chooser = std::make_unique<juce::FileChooser> ("Choose a folder for the samples", start);
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe] (const juce::FileChooser& fc)
+    {
+        if (safe == nullptr) return;
+        const auto dir = fc.getResult();
+        if (dir == juce::File()) return;
+        int n = 0;
+        juce::String err;
+        if (safe->exportSamplesTo (dir, n, err)) safe->setStatus ("EXPORTED " + juce::String (n) + " SAMPLES TO " + dir.getFileName());
+        else safe->setStatus ("ERROR: " + err);
     });
 }

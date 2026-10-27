@@ -1,10 +1,23 @@
 // Paula's Revenge - side panels
 #include "Panels.h"
 #include "../SongFile.h"
+#include "../engine/SongOps.h"
 
 namespace prv::ui
 {
 // =========================================================================== PixList
+int PixList::maxScroll() const { return std::max (0, (getNumRows ? getNumRows() : 0) - visibleRows()); }
+
+juce::Rectangle<float> PixList::thumb() const
+{
+    const auto t = track();
+    const int n = getNumRows ? getNumRows() : 0;
+    if (n <= visibleRows()) return t;
+    const float h = std::max (barWidth(), t.getHeight() * visibleRows() / (float) n);
+    const float y = t.getY() + (t.getHeight() - h) * scroll / (float) std::max (1, maxScroll());
+    return { t.getX(), y, t.getWidth(), h };
+}
+
 void PixList::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
@@ -12,15 +25,16 @@ void PixList::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat();
     g.setColour (Theme::skin.bg);
     g.fillRect (r);
+    const float listW = r.getWidth() - barWidth();
 
     const int n = getNumRows ? getNumRows() : 0;
-    scroll = juce::jlimit (0, std::max (0, n - visibleRows()), scroll);
+    scroll = juce::jlimit (0, maxScroll(), scroll);
     juce::RectangleList<float> text, dim;
     for (int i = 0; i < visibleRows() + 1; ++i)
     {
         const int row = scroll + i;
         if (row >= n) break;
-        auto rr = juce::Rectangle<float> (0, i * rh, r.getWidth(), rh);
+        auto rr = juce::Rectangle<float> (0, i * rh, listW, rh);
         if (row == selected)
         {
             g.setColour (Theme::skin.band);
@@ -32,40 +46,120 @@ void PixList::paint (juce::Graphics& g)
         if (row == playing) PixelFont::addText (text, juce::String::charToString ((juce::juce_wchar) 1), px * 1.0f, ty, px);
         PixelFont::addText (isRowDim (row) ? dim : text, getRowText (row), px * 8.0f, ty, px);
     }
+    g.saveState();
+    g.reduceClipRegion (juce::Rectangle<float> (0, 0, listW, r.getHeight()).toNearestInt());
     g.setColour (Theme::skin.dim);
     g.fillRectList (dim);
     g.setColour (Theme::skin.text);
     g.fillRectList (text);
-    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
+    g.restoreState();
 
-    // scroll indicator
+    // drop marker while dragging a row
+    if (reordering && dropRow >= 0)
+    {
+        const float y = (dropRow - scroll + (dropRow > dragRow ? 1 : 0)) * rh;
+        g.setColour (Theme::skin.hot);
+        g.fillRect (0.0f, y - px * 0.75f, listW, px * 1.5f);
+    }
+
+    // scrollbar: arrow buttons + track + thumb
+    const float t = std::max (1.0f, px * 0.5f);
+    for (int dir : { -1, 1 })
+    {
+        auto a = dir < 0 ? upArrow() : downArrow();
+        const bool down = repeatDir == dir;
+        g.setColour (down ? Theme::pressed : Theme::panel);
+        g.fillRect (a);
+        Theme::bevel (g, a.reduced (1.0f), ! down, t);
+        PixelFont::drawCentred (g, juce::String::charToString ((juce::juce_wchar) (dir < 0 ? 3 : 4)), a, std::max (1.5f, px * 0.75f), Theme::ink);
+    }
+    g.setColour (Theme::skin.stripe);
+    g.fillRect (track());
     if (n > visibleRows())
     {
-        const float h = r.getHeight() * visibleRows() / (float) n;
-        const float y = (r.getHeight() - h) * scroll / (float) std::max (1, n - visibleRows());
-        g.setColour (Theme::skin.text);
-        g.fillRect (r.getRight() - px * 2, y, px * 1.5f, h);
+        auto th = thumb().reduced (1.0f, 0.0f);
+        g.setColour (Theme::panel);
+        g.fillRect (th);
+        Theme::bevel (g, th, true, t);
     }
+    Theme::bevel (g, r, false, t);
 }
 
 int PixList::rowAt (float y) const { return scroll + (int) std::floor (y / rowHeight()); }
 
+void PixList::scrollBy (int rows)
+{
+    scroll = juce::jlimit (0, maxScroll(), scroll + rows);
+    repaint();
+}
+
+void PixList::timerCallback()
+{
+    if (repeatDir == 0) { stopTimer(); return; }
+    scrollBy (repeatDir);
+    startTimer (60);
+}
+
 void PixList::mouseDown (const juce::MouseEvent& e)
 {
+    if (barArea().contains (e.position))
+    {
+        if (upArrow().contains (e.position))        { repeatDir = -1; scrollBy (-1); startTimer (350); }
+        else if (downArrow().contains (e.position)) { repeatDir = 1;  scrollBy (1);  startTimer (350); }
+        else if (thumb().contains (e.position))     thumbGrab = e.position.y - thumb().getY();
+        else scrollBy (e.position.y < thumb().getY() ? -visibleRows() : visibleRows());
+        repaint();
+        return;
+    }
     const int row = rowAt (e.position.y);
-    if (getNumRows && row >= 0 && row < getNumRows() && onClick) onClick (row, e);
+    dragRow = -1; reordering = false;
+    if (getNumRows && row >= 0 && row < getNumRows())
+    {
+        if (onClick) onClick (row, e);
+        if (onMove) dragRow = row;
+    }
+}
+
+void PixList::mouseDrag (const juce::MouseEvent& e)
+{
+    if (thumbGrab >= 0)
+    {
+        const auto t = track();
+        const float h = thumb().getHeight();
+        const float frac = (e.position.y - thumbGrab - t.getY()) / std::max (1.0f, t.getHeight() - h);
+        scroll = juce::jlimit (0, maxScroll(), juce::roundToInt (frac * maxScroll()));
+        repaint();
+        return;
+    }
+    if (dragRow < 0 || ! onMove) return;
+    if (! reordering && e.getDistanceFromDragStart() < 6) return;
+    reordering = true;
+    // drag past the ends to scroll
+    if (e.position.y < 0) scrollBy (-1);
+    if (e.position.y > getHeight()) scrollBy (1);
+    dropRow = juce::jlimit (0, getNumRows() - 1, rowAt (juce::jlimit (0.0f, (float) getHeight() - 1, e.position.y)));
+    repaint();
+}
+
+void PixList::mouseUp (const juce::MouseEvent&)
+{
+    if (reordering && dropRow >= 0 && dropRow != dragRow && onMove) onMove (dragRow, dropRow);
+    reordering = false; dragRow = dropRow = -1;
+    repeatDir = 0; thumbGrab = -1.0f;
+    stopTimer();
+    repaint();
 }
 
 void PixList::mouseDoubleClick (const juce::MouseEvent& e)
 {
+    if (barArea().contains (e.position)) return;
     const int row = rowAt (e.position.y);
     if (getNumRows && row >= 0 && row < getNumRows() && onDoubleClick) onDoubleClick (row);
 }
 
 void PixList::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
-    scroll += w.deltaY > 0 ? -1 : (w.deltaY < 0 ? 1 : 0);
-    repaint();
+    scrollBy (w.deltaY > 0 ? -1 : (w.deltaY < 0 ? 1 : 0));
 }
 
 void PixList::ensureVisible (int row)
@@ -91,11 +185,25 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         st.line = 0;
         changed();
     };
+    list.onMove = [this, &st] (int from, int to)
+    {
+        if (pushStructUndo) pushStructUndo();
+        bool moved = false;
+        proc.withLock ([&] { moved = moveSequenceEntry (proc.song, from, to); });
+        if (moved) { st.seqPos = to; changed(); }
+    };
     addAndMakeVisible (list);
+    upBtn.onClick = [this] { moveSelected (-1); };
+    downBtn.onClick = [this] { moveSelected (1); };
+    cloneInPlaceBtn.onClick = [this] { cloneInPlace(); };
+    addAndMakeVisible (upBtn);
+    addAndMakeVisible (downBtn);
+    addAndMakeVisible (cloneInPlaceBtn);
 
     insBtn.onClick = [this, &st]
     {
         if (proc.song.sequence.size() >= (size_t) kMaxSequence) return;
+        if (pushStructUndo) pushStructUndo();
         proc.withLock ([&] {
             const int b = proc.song.sequence[(size_t) st.seqPos];
             proc.song.sequence.insert (proc.song.sequence.begin() + st.seqPos + 1, b);
@@ -106,6 +214,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     delBtn.onClick = [this, &st]
     {
         if (proc.song.sequence.size() <= 1) return;
+        if (pushStructUndo) pushStructUndo();
         proc.withLock ([&] { proc.song.sequence.erase (proc.song.sequence.begin() + st.seqPos); });
         st.seqPos = std::min (st.seqPos, (int) proc.song.sequence.size() - 1);
         st.block = proc.song.safeBlock (proc.song.sequence[(size_t) st.seqPos]);
@@ -116,6 +225,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     blockBox.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
     blockBox.onChange = [this, &st] (int v)
     {
+        if (pushStructUndo) pushStructUndo();
         proc.withLock ([&] { proc.song.sequence[(size_t) st.seqPos] = proc.song.safeBlock (v); });
         st.block = proc.song.safeBlock (v);
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);
@@ -124,6 +234,40 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     addAndMakeVisible (insBtn);
     addAndMakeVisible (delBtn);
     addAndMakeVisible (blockBox);
+}
+
+void SequencePanel::moveSelected (int delta)
+{
+    auto& st = proc.editorState;
+    const int to = st.seqPos + delta;
+    if (to < 0 || to >= (int) proc.song.sequence.size()) return;
+    if (pushStructUndo) pushStructUndo();
+    proc.withLock ([&] { moveSequenceEntry (proc.song, st.seqPos, to); });
+    st.seqPos = to;
+    changed();
+}
+
+void SequencePanel::cloneInPlace()
+{
+    auto& st = proc.editorState;
+    if ((int) proc.song.blocks.size() >= kMaxBlocks) return;
+    if (pushStructUndo) pushStructUndo();
+    int nb = -1;
+    // build the new song structure off the audio thread, then swap it in
+    std::vector<Block> blocks = proc.song.blocks;
+    std::vector<int> seq = proc.song.sequence;
+    {
+        Song tmp;
+        tmp.blocks = std::move (blocks);
+        tmp.sequence = std::move (seq);
+        nb = prv::cloneInPlace (tmp, st.seqPos);
+        blocks = std::move (tmp.blocks);
+        seq = std::move (tmp.sequence);
+    }
+    if (nb < 0) return;
+    proc.withLock ([&] { std::swap (proc.song.blocks, blocks); std::swap (proc.song.sequence, seq); });
+    st.block = nb;
+    changed();
 }
 
 void SequencePanel::refresh()
@@ -146,13 +290,20 @@ void SequencePanel::resized()
     auto r = getLocalBounds().reduced ((int) (px * 2));
     r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
     const int rowH = (int) (px * 11);
+    const int gap = (int) px;
+    auto row2 = r.removeFromBottom (rowH);
+    r.removeFromBottom (gap);
     auto bottom = r.removeFromBottom (rowH);
     const int bw = (int) (px * 6 * 5);
     delBtn.setBounds (bottom.removeFromRight (bw));
-    bottom.removeFromRight ((int) px);
+    bottom.removeFromRight (gap);
     insBtn.setBounds (bottom.removeFromRight (bw));
-    bottom.removeFromRight ((int) px * 2);
+    bottom.removeFromRight (gap * 2);
     blockBox.setBounds (bottom);
+    const int aw = (int) (px * 6 * 3);
+    upBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap);
+    downBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap * 2);
+    cloneInPlaceBtn.setBounds (row2);
     r.removeFromBottom ((int) px * 2);
     list.setBounds (r);
 }
@@ -178,6 +329,7 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     };
     newBtn.onClick = [this, &st]
     {
+        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() >= (size_t) kMaxBlocks) return;
         proc.withLock ([&] { proc.song.blocks.push_back (Block{}); });
         st.block = (int) proc.song.blocks.size() - 1;
@@ -186,6 +338,7 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     };
     cloneBtn.onClick = [this, &st]
     {
+        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() >= (size_t) kMaxBlocks) return;
         proc.withLock ([&] { proc.song.blocks.push_back (proc.song.blocks[(size_t) proc.song.safeBlock (st.block)]); });
         st.block = (int) proc.song.blocks.size() - 1;
@@ -193,6 +346,7 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
     };
     delBtn.onClick = [this, &st]
     {
+        if (pushStructUndo) pushStructUndo();
         if (proc.song.blocks.size() <= 1) return;
         const int del = proc.song.safeBlock (st.block);
         proc.withLock ([&] {
@@ -205,7 +359,18 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c, std::functio
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);
         changed();
     };
-    for (auto* c2 : std::initializer_list<juce::Component*> { &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel })
+    auto swapWith = [this, &st] (int delta)
+    {
+        const int a = proc.song.safeBlock (st.block), b = a + delta;
+        if (b < 0 || b >= (int) proc.song.blocks.size()) return;
+        if (pushStructUndo) pushStructUndo();
+        proc.withLock ([&] { swapBlockNumbers (proc.song, a, b); });
+        st.block = b;
+        changed();
+    };
+    numDownBtn.onClick = [swapWith] { swapWith (-1); };
+    numUpBtn.onClick = [swapWith] { swapWith (1); };
+    for (auto* c2 : std::initializer_list<juce::Component*> { &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel, &numDownBtn, &numUpBtn })
         addAndMakeVisible (c2);
 }
 
@@ -235,12 +400,12 @@ void BlockPanel::resized()
     lines.setBounds (row2);
     r.removeFromTop ((int) px * 2);
     auto row3 = r.removeFromTop (rowH);
-    const int bw = (row3.getWidth() - (int) px * 2) / 3;
-    newBtn.setBounds (row3.removeFromLeft (bw));
-    row3.removeFromLeft ((int) px);
-    cloneBtn.setBounds (row3.removeFromLeft (bw));
-    row3.removeFromLeft ((int) px);
-    delBtn.setBounds (row3);
+    const int bw = (row3.getWidth() - (int) px * 4) / 5;
+    for (auto* b : { &newBtn, &cloneBtn, &delBtn, &numDownBtn, &numUpBtn })
+    {
+        b->setBounds (row3.removeFromLeft (bw));
+        row3.removeFromLeft ((int) px);
+    }
 }
 
 // =========================================================================== Wave view
@@ -347,6 +512,7 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
 
     loadBtn.onClick = [this] { if (openBrowser) openBrowser(); else loadSample(); };
     editBtn.onClick = [this] { if (openSampleEditor) openSampleEditor(); };
+    paramsBtn.onClick = [this] { if (openParams) openParams(); };
     clearBtn.onClick = [this]
     {
         Instrument empty;
@@ -395,7 +561,7 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     wave.changed = [this] { changed(); };
     wave.openEditor = [this] { if (openSampleEditor) openSampleEditor(); };
 
-    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &editBtn, &clearBtn, &nameBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
+    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &editBtn, &paramsBtn, &clearBtn, &nameBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
         addAndMakeVisible (comp);
 }
 
@@ -462,7 +628,7 @@ void InstrumentPanel::resized()
     const int gap = (int) (px * 2);
 
     // bottom up: wave, loop row, params, buttons
-    wave.setBounds (r.removeFromBottom ((int) (px * 22)));
+    wave.setBounds (r.removeFromBottom ((int) (px * 14)));
     r.removeFromBottom (gap);
     auto loopRow = r.removeFromBottom (rowH);
     loopStart.setBounds (loopRow.removeFromLeft (loopRow.getWidth() / 2 - (int) px));
@@ -480,14 +646,17 @@ void InstrumentPanel::resized()
     fine.setBounds (pRow1);
     r.removeFromBottom (gap);
     auto bRow = r.removeFromBottom (rowH);
-    const int bw = (bRow.getWidth() - (int) px * 3) / 4;
-    loadBtn.setBounds (bRow.removeFromLeft (bw));
-    bRow.removeFromLeft ((int) px);
-    editBtn.setBounds (bRow.removeFromLeft (bw));
-    bRow.removeFromLeft ((int) px);
-    clearBtn.setBounds (bRow.removeFromLeft (bw));
-    bRow.removeFromLeft ((int) px);
-    nameBtn.setBounds (bRow);
+    {
+        // widths follow the label lengths so every label stays full size
+        const std::pair<PixButton*, int> btns[] = { { &loadBtn, 4 }, { &editBtn, 4 }, { &paramsBtn, 6 }, { &clearBtn, 5 }, { &nameBtn, 4 } };
+        const int total = 4 + 4 + 6 + 5 + 4 + 5 * 2;
+        const int avail = bRow.getWidth() - (int) px * 4;
+        for (auto& [b, chars] : btns)
+        {
+            b->setBounds (bRow.removeFromLeft (avail * (chars + 2) / total));
+            bRow.removeFromLeft ((int) px);
+        }
+    }
     r.removeFromBottom (gap);
     list.setBounds (r);
 }

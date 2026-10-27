@@ -28,4 +28,16 @@ private:
     std::vector<float> incoming = std::vector<float> (8192, 0.0f);
     void analyse();
 };
+// Left/right output level meter: two bars with "L" and "R" so the balance is obvious
+class OutputMeter : public juce::Component
+{
+public:
+    explicit OutputMeter (PaulaProcessor& p) : proc (p) { setInterceptsMouseClicks (false, false); }
+    void tick();
+    void paint (juce::Graphics&) override;
+private:
+    PaulaProcessor& proc;
+    float l = 0, r = 0, holdL = 0, holdR = 0;
+    int holdCountL = 0, holdCountR = 0;
+};
 } // namespace prv::ui

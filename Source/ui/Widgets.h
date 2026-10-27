@@ -86,6 +86,7 @@ public:
     std::function<void (float)> onChange;
     std::function<juce::String (float)> format = [] (float v) { return juce::String (juce::roundToInt (v * 100)) + "%"; };
     int labelChars = 5;
+    float valueChars = 4.5f;
 
     void setValue (float v, bool notify = false);
     void paint (juce::Graphics&) override;

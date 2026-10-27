@@ -14,6 +14,8 @@ public:
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed (const juce::KeyPress&) override;
     bool keyStateChanged (bool isKeyDown) override;
@@ -39,12 +41,21 @@ public:
     std::function<void()> onStateChanged;
 
     void pushUndo (int blockIndex);
+    void pushStructureUndo();          // before any change to block numbers / the sequence
+    std::function<void (int)> onMoveSequence;   // Alt+Up/Down
 
 private:
     PaulaProcessor& proc;
     PaulaProcessor::EditorState& st;
 
-    struct UndoEntry { int block; prv::Block data; };
+    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; int seqPos = 0, block = 0; };
+    struct UndoEntry { int block = 0; prv::Block data; std::shared_ptr<Structure> structure; };
+    std::shared_ptr<Structure> snapshot() const;
+    void restore (UndoEntry& e, std::vector<UndoEntry>& opposite);
+    int panDragTrack = -1;
+    juce::Rectangle<float> headerRect (int slot) const;
+    juce::Rectangle<float> panRect (int slot) const;
+    void setPanFromX (int track, float x);
     std::vector<UndoEntry> undoStack, redoStack;
 
     std::vector<prv::Cell> trackClip;

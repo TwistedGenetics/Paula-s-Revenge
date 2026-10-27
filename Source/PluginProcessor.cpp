@@ -43,8 +43,8 @@ PaulaProcessor::PaulaProcessor()
 
 bool PaulaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo()
-        || layouts.getMainOutputChannelSet() == juce::AudioChannelSet::mono();
+    // stereo only: a mono layout would put everything on one side of some setups
+    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
 void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -242,7 +242,7 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("zoh", o.zeroOrderHold, nullptr);
     st.setProperty ("eightBit", o.eightBit, nullptr);
     st.setProperty ("crunch", o.crunch8ch, nullptr);
-    st.setProperty ("sep", o.stereoSep, nullptr);
+    st.setProperty ("sep3", o.stereoSep, nullptr);   // new key: the old 75% default isn't carried over
     st.setProperty ("master", o.master, nullptr);
     st.setProperty ("hostTransport", followHostTransport.load(), nullptr);
     st.setProperty ("hostTempo", followHostTempo.load(), nullptr);
@@ -282,7 +282,7 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
         o.zeroOrderHold = st.getProperty ("zoh", true);
         o.eightBit = st.getProperty ("eightBit", true);
         o.crunch8ch = st.getProperty ("crunch", true);
-        o.stereoSep = st.getProperty ("sep", 0.2f);
+        o.stereoSep = st.getProperty ("sep3", 0.2f);
         o.master = st.getProperty ("master", 1.0f);
     }
     followHostTransport = (bool) st.getProperty ("hostTransport", true);

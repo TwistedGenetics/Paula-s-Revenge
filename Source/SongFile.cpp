@@ -7,7 +7,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 2;   // v2: stereo samples
+    constexpr int kVersion = 3;   // v2: stereo samples, v3: instrument shaping + track pans
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -63,6 +63,27 @@ juce::MemoryBlock writeSong (const Song& song)
         for (auto s : in.data) raw.writeShortBigEndian (s);
         raw.writeByte (in.isStereo() ? 1 : 0);
         if (in.isStereo()) for (auto s : in.dataR) raw.writeShortBigEndian (s);
+    }
+
+    // v3 extras, appended so older sections keep their layout
+    for (int t = 0; t < kMaxTracks; ++t) raw.writeShortBigEndian ((short) song.trackPan[t]);
+    auto writeEnv = [&raw] (const Envelope& e)
+    {
+        raw.writeByte (e.on ? 1 : 0);
+        raw.writeFloatBigEndian (e.attack); raw.writeFloatBigEndian (e.decay);
+        raw.writeFloatBigEndian (e.sustain); raw.writeFloatBigEndian (e.release);
+    };
+    for (const auto& in : song.instruments)
+    {
+        writeEnv (in.volEnv);
+        raw.writeByte ((char) in.filter);
+        raw.writeFloatBigEndian (in.cutoff);
+        raw.writeFloatBigEndian (in.resonance);
+        writeEnv (in.filterEnv);
+        raw.writeFloatBigEndian (in.filterEnvAmount);
+        raw.writeFloatBigEndian (in.keyTrack);
+        raw.writeByte (in.amigaPan ? 1 : 0);
+        raw.writeShortBigEndian ((short) in.pan);
     }
 
     juce::MemoryOutputStream packed;
@@ -131,6 +152,32 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             for (auto& v : ins.dataR) v = in.readShortBigEndian();
         }
         if (! ins.isLooped()) { ins.loopStart = 0; ins.loopLength = 0; }
+    }
+    if (version >= 3 && ! in.isExhausted())
+    {
+        auto readF = [&in] { const float f = in.readFloatBigEndian(); return std::isfinite (f) ? f : 0.0f; };
+        for (int t = 0; t < kMaxTracks; ++t) s.trackPan[t] = juce::jlimit (-1, 255, (int) in.readShortBigEndian());
+        auto readEnv = [&in, &readF] (Envelope& e)
+        {
+            e.on = in.readByte() != 0;
+            e.attack  = juce::jlimit (0.0f, 30.0f, readF());
+            e.decay   = juce::jlimit (0.0f, 30.0f, readF());
+            e.sustain = juce::jlimit (0.0f, 1.0f,  readF());
+            e.release = juce::jlimit (0.0f, 30.0f, readF());
+        };
+        for (auto& ins : s.instruments)
+        {
+            if (in.isExhausted()) break;
+            readEnv (ins.volEnv);
+            ins.filter = (FilterType) juce::jlimit (0, 3, (int) (uint8_t) in.readByte());
+            ins.cutoff = juce::jlimit (20.0f, 20000.0f, readF());
+            ins.resonance = juce::jlimit (0.0f, 1.0f, readF());
+            readEnv (ins.filterEnv);
+            ins.filterEnvAmount = juce::jlimit (-8.0f, 8.0f, readF());
+            ins.keyTrack = juce::jlimit (0.0f, 1.0f, readF());
+            ins.amigaPan = in.readByte() != 0;
+            ins.pan = juce::jlimit (0, 255, (int) in.readShortBigEndian());
+        }
     }
     out = std::move (s);
     return true;

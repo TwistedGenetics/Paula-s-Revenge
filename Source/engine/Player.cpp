@@ -101,12 +101,13 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127)
     v.volume = v.outVolume = std::clamp (in.volume * velocity127 / 127, 0, 64);
     v.jamNote = note;
     v.active = true;
+    startShaping (v);
 }
 
 void Player::jamNoteOff (int note)
 {
     for (int i = kMaxTracks; i < kVoices; ++i)
-        if (voices[i].jamNote == note) { voices[i].active = false; voices[i].jamNote = -1; }
+        if (voices[i].jamNote == note) { releaseVoice (voices[i]); voices[i].jamNote = -1; }
 }
 
 void Player::jamAllOff()
@@ -189,6 +190,109 @@ void Player::triggerNote (Voice& v, const Cell& cell, int)
     if (v.vibWave < 4)  v.vibPos = 0;
     if (v.tremWave < 4) v.tremPos = 0;
     v.active = true;
+    startShaping (v);
+}
+
+// ---------------------------------------------------------------------------
+void Player::startShaping (Voice& v)
+{
+    v.ampEnv = {}; v.fltEnv = {};
+    v.ampEnv.stage = 1; v.fltEnv.stage = 1;
+    v.svf = {};
+}
+
+void Player::releaseVoice (Voice& v)
+{
+    if (! v.active || v.instr < 0 || song == nullptr) { v.active = false; return; }
+    const auto& in = song->instruments[(size_t) v.instr];
+    if (! in.volEnv.on) { v.active = false; return; }   // classic tracker: OFF cuts
+    const double sr = sampleRate;
+    auto rel = [sr] (Voice::EnvState& e, float seconds)
+    {
+        if (e.stage == 0) return;
+        e.stage = 4;
+        e.relStep = e.level / (float) std::max (1.0, (double) std::max (0.001f, seconds) * sr);
+    };
+    rel (v.ampEnv, in.volEnv.release);
+    rel (v.fltEnv, in.filterEnv.release);
+}
+
+namespace
+{
+    // advance one sample; returns false when a release has finished
+    bool stepEnv (int& stage, float& level, float relStep, const Envelope& e, double sr)
+    {
+        switch (stage)
+        {
+            case 1:
+                level += 1.0f / (float) std::max (1.0, (double) std::max (0.0005f, e.attack) * sr);
+                if (level >= 1.0f) { level = 1.0f; stage = 2; }
+                break;
+            case 2:
+                level -= (1.0f - e.sustain) / (float) std::max (1.0, (double) std::max (0.0005f, e.decay) * sr);
+                if (level <= e.sustain) { level = e.sustain; stage = 3; }
+                break;
+            case 3: level = e.sustain; break;
+            case 4:
+                level -= relStep;
+                if (level <= 0.0f) { level = 0.0f; stage = 0; return false; }
+                break;
+            default: break;
+        }
+        return true;
+    }
+}
+
+void Player::shapeVoice (Voice& v, float& l, float& r)
+{
+    const auto& in = song->instruments[(size_t) v.instr];
+    if (in.volEnv.on)
+    {
+        if (! stepEnv (v.ampEnv.stage, v.ampEnv.level, v.ampEnv.relStep, in.volEnv, sampleRate))
+            v.active = false;
+        l *= v.ampEnv.level; r *= v.ampEnv.level;
+    }
+    if (in.filter == FilterType::Off) return;
+
+    stepEnv (v.fltEnv.stage, v.fltEnv.level, v.fltEnv.relStep, in.filterEnv, sampleRate);
+    auto& f = v.svf;
+    if (f.count-- <= 0)
+    {
+        f.count = 15;
+        const double oct = in.filterEnvAmount * v.fltEnv.level + in.keyTrack * (v.note - 37) / 12.0;
+        const double fc = std::clamp ((double) in.cutoff * std::pow (2.0, oct), 20.0, sampleRate * 0.45);
+        const double g = std::tan (kPi * fc / sampleRate);
+        f.k = (float) (2.0 - 1.94 * std::clamp ((double) in.resonance, 0.0, 1.0));
+        f.a1 = (float) (1.0 / (1.0 + g * (g + f.k)));
+        f.a2 = (float) (g * f.a1);
+        f.a3 = (float) (g * f.a2);
+    }
+    auto run = [&f, type = in.filter] (float x, float& ic1, float& ic2)
+    {
+        const float v3 = x - ic2;
+        const float v1 = f.a1 * ic1 + f.a2 * v3;
+        const float v2 = ic2 + f.a2 * ic1 + f.a3 * v3;
+        ic1 = 2.0f * v1 - ic1;
+        ic2 = 2.0f * v2 - ic2;
+        switch (type)
+        {
+            case FilterType::HighPass: return x - f.k * v1 - v2;
+            case FilterType::BandPass: return v1;
+            default:                   return v2;
+        }
+    };
+    l = run (l, f.ic1L, f.ic2L);
+    r = run (r, f.ic1R, f.ic2R);
+}
+
+bool Player::fixedPan (int ch, float& pos) const
+{
+    const Voice& v = voices[ch];
+    auto toPos = [] (int p) { return std::clamp ((float) p / 127.5f - 1.0f, -1.0f, 1.0f); };
+    if (v.pan >= 0) { pos = toPos (v.pan); return true; }                                   // 8xx / E8x
+    if (ch < kMaxTracks && song->trackPan[ch] >= 0) { pos = toPos (song->trackPan[ch]); return true; }
+    if (v.instr >= 0 && ! song->instruments[(size_t) v.instr].amigaPan) { pos = toPos (song->instruments[(size_t) v.instr].pan); return true; }
+    return false;
 }
 
 void Player::processCell (int ch, const Cell& cell)
@@ -214,7 +318,7 @@ void Player::processCell (int ch, const Cell& cell)
         }
         if (cell.note == kNoteOff)
         {
-            v.active = false;
+            releaseVoice (v);
         }
         else if (cell.note > 0 && cell.note <= kNoteMax)
         {
@@ -300,7 +404,7 @@ void Player::tickEffects (int ch)
             v.volume = song->instruments[(size_t) v.instr].volume;
             v.finetune = song->instruments[(size_t) v.instr].finetune;
         }
-        if (c.note == kNoteOff) v.active = false;
+        if (c.note == kNoteOff) releaseVoice (v);
         else if (c.note > 0) triggerNote (v, c, ch);
     }
 
@@ -463,8 +567,6 @@ void Player::render (float* left, float* right, int numSamples)
         R += s * (1.0f + pos) * 0.5f;
     };
     auto sidePan = [&] (int hw) { return ((hw == 0 || hw == 3) ? -1.0f : 1.0f) * sep; };
-    auto overridePan = [&] (const Voice& v) { return ((float) v.pan / 127.5f - 1.0f) * sep; };
-
     for (int i = 0; i < numSamples; ++i)
     {
         if (mode != Mode::Stopped && song != nullptr)
@@ -488,6 +590,8 @@ void Player::render (float* left, float* right, int numSamples)
                 const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate;
                 float sl, sr;
                 renderVoice (v, inc, sl, sr);
+                if (v.active || sl != 0.0f || sr != 0.0f)
+                    if (v.instr >= 0) shapeVoice (v, sl, sr);
                 if (ch < kMaxTracks)
                 {
                     if (mute[ch].load (std::memory_order_relaxed) || ch >= nt) continue;
@@ -498,18 +602,23 @@ void Player::render (float* left, float* right, int numSamples)
             }
         }
 
-        // Mono voices follow Amiga panning (or 8xx). Stereo samples keep their
-        // own stereo image, centred unless the track is panned with 8xx.
+        // Pans: 8xx in the pattern, then the track's pan, then the instrument's
+        // pan; otherwise mono voices follow the Amiga L-R-R-L layout scaled by
+        // SEP and stereo samples play centred with their own stereo image.
+        float fixedPos[kVoices] = {};
+        bool  isFixed[kVoices] = {};
+        for (int ch = 0; ch < kVoices; ++ch)
+            if (voices[ch].active || valL[ch] != 0.0f) isFixed[ch] = song != nullptr && fixedPan (ch, fixedPos[ch]);
+
         auto addVoice = [&] (int ch, float scale, float sidePos, float& L, float& R)
         {
-            const Voice& v = voices[ch];
+            const float p = isFixed[ch] ? fixedPos[ch] : (st[ch] ? 0.0f : sidePos);
             if (st[ch])
             {
-                const float p = v.pan >= 0 ? overridePan (v) : 0.0f;
                 L += valL[ch] * scale * 0.7f * std::min (1.0f, 1.0f - p);
                 R += valR[ch] * scale * 0.7f * std::min (1.0f, 1.0f + p);
             }
-            else addPanned (valL[ch] * scale, v.pan >= 0 ? overridePan (v) : sidePos, L, R);
+            else addPanned (valL[ch] * scale, p, L, R);
         };
 
         float L = 0, R = 0;
@@ -518,7 +627,7 @@ void Player::render (float* left, float* right, int numSamples)
             for (int p = 0; p < 4; ++p)
             {
                 const int a = p * 2, b = p * 2 + 1;
-                if (voices[a].pan < 0 && voices[b].pan < 0 && ! st[a] && ! st[b])
+                if (! isFixed[a] && ! isFixed[b] && ! st[a] && ! st[b])
                 {
                     float s = (valL[a] + valL[b]) * 0.5f;
                     if (options.crunch8ch && options.eightBit) s = quant8 (s);
@@ -540,8 +649,9 @@ void Player::render (float* left, float* right, int numSamples)
         }
         for (int j = kMaxTracks; j < kVoices; ++j)
         {
-            if (st[j]) { L += valL[j] * 0.5f; R += valR[j] * 0.5f; }
-            else addPanned (valL[j] * 0.7f, 0.0f, L, R);
+            const float p = isFixed[j] ? fixedPos[j] : 0.0f;
+            if (st[j]) { L += valL[j] * 0.5f * std::min (1.0f, 1.0f - p); R += valR[j] * 0.5f * std::min (1.0f, 1.0f + p); }
+            else addPanned (valL[j] * 0.7f, p, L, R);
         }
 
         // analogue output stage
@@ -563,6 +673,10 @@ void Player::render (float* left, float* right, int numSamples)
 
     for (int t = 0; t < kMaxTracks; ++t)
         uiLevel[t].store (peaks[t], std::memory_order_relaxed);
+    float pkL = 0, pkR = 0;
+    for (int i = 0; i < numSamples; ++i) { pkL = std::max (pkL, std::abs (left[i])); pkR = std::max (pkR, std::abs (right[i])); }
+    uiOutL.store (pkL, std::memory_order_relaxed);
+    uiOutR.store (pkR, std::memory_order_relaxed);
     uiLed = ledOn;
     uiSpeed = speed; uiTempo = tempo;
 }

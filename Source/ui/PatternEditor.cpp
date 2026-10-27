@@ -39,7 +39,41 @@ float PatternEditor::fontPx() const
 }
 
 float PatternEditor::rowH() const     { return fontPx() * (PixelFont::kCellH + 3); }
-float PatternEditor::headerH() const  { return fontPx() * 14; }
+float PatternEditor::headerH() const  { return fontPx() * 24; }
+
+juce::Rectangle<float> PatternEditor::headerRect (int slot) const
+{
+    const float cw = fontPx() * PixelFont::kCellW;
+    return juce::Rectangle<float> (lineNumW() + slot * trackW() - cw * 0.5f, 0, trackW() - cw * 0.5f, headerH()).reduced (fontPx() * 0.5f, fontPx());
+}
+
+juce::Rectangle<float> PatternEditor::panRect (int slot) const
+{
+    // the trough sits to the right of a 4-character label
+    auto r = headerRect (slot);
+    auto row = r.withTrimmedTop (r.getHeight() * 0.5f).reduced (fontPx() * 1.5f, fontPx() * 3.0f);
+    return row.withTrimmedLeft (fontPx() * PixelFont::kCellW * 4.5f);
+}
+
+namespace
+{
+    juce::String panText (int p)
+    {
+        if (p < 0) return "AUTO";
+        if (std::abs (p - 128) <= 2) return "C";
+        const int pct = juce::roundToInt (std::abs (p - 128) / 127.0 * 100.0);
+        return juce::String (p < 128 ? "L" : "R") + juce::String (std::min (pct, 99));
+    }
+}
+
+void PatternEditor::setPanFromX (int t, float x)
+{
+    auto pr = panRect (t - firstTrack());
+    int v = juce::jlimit (0, 255, juce::roundToInt ((x - pr.getX()) / std::max (1.0f, pr.getWidth()) * 255.0f));
+    if (std::abs (v - 128) <= 6) v = 128;   // snap to centre
+    proc.withLock ([&] { proc.song.trackPan[t] = v; });
+    repaint();
+}
 float PatternEditor::trackW() const   { return fontPx() * PixelFont::kCellW * kTrackChars; }
 float PatternEditor::lineNumW() const { return fontPx() * (PixelFont::kCellW * kLineNumChars + 3); }
 int   PatternEditor::colChars (int column) const { return column == 0 ? 3 : 1; }
@@ -72,23 +106,39 @@ void PatternEditor::paint (juce::Graphics& g)
     const float lnw = lineNumW();
     const float cw = px * PixelFont::kCellW;
 
-    // ---- track headers: grey bevelled tabs with a coloured strip per track
+    // ---- track headers: name/mute on top, pan control below
     g.setColour (Theme::panel);
     g.fillRect (bounds.withHeight (hh));
     for (int s = 0; s < nVis; ++s)
     {
         const int t = first + s;
-        auto r = juce::Rectangle<float> (lnw + s * tw - cw * 0.5f, 0, tw - cw * 0.5f, hh).reduced (px * 0.5f, px);
+        auto r = headerRect (s);
         const bool muted = proc.player.mute[t].load();
         g.setColour (muted ? Theme::pressed : Theme::panel);
         g.fillRect (r);
         Theme::bevel (g, r, ! muted, line);
-        auto strip = r.removeFromBottom (px * 3).reduced (px, 0);
+        auto top = r.withHeight (r.getHeight() * 0.5f);
         g.setColour (muted ? Theme::faint : sk.track[t]);
-        g.fillRect (strip);
+        g.fillRect (top.removeFromBottom (px * 1.5f).reduced (px, 0));
         juce::String label = muted ? "MUTED" : "TRACK " + juce::String (t + 1);
-        if (PixelFont::textWidth (label, px) > r.getWidth() - px * 2) label = muted ? "M" + juce::String (t + 1) : "T" + juce::String (t + 1);
-        PixelFont::drawCentred (g, label, r, px, Theme::ink);
+        if (PixelFont::textWidth (label, px) > top.getWidth() - px * 2) label = muted ? "M" + juce::String (t + 1) : "T" + juce::String (t + 1);
+        PixelFont::drawCentred (g, label, top, px, Theme::ink);
+
+        // pan: a small trough with a marker; text above it
+        const int pan = proc.song.trackPan[t];
+        auto pr = panRect (s);
+        const juce::String pt = panText (pan);
+        auto txt = juce::Rectangle<float> (r.getX() + px * 1.5f, pr.getY(), pr.getX() - r.getX() - px * 2.0f, pr.getHeight());
+        PixelFont::drawLeft (g, pt, txt, px, pan < 0 ? Theme::faint : Theme::ink);
+        auto trough = pr.withSizeKeepingCentre (pr.getWidth(), std::max (4.0f, px * 3.0f));
+        g.setColour (Theme::paper);
+        g.fillRect (trough);
+        Theme::bevel (g, trough, false, 1.0f);
+        g.setColour (Theme::faint);
+        g.fillRect (trough.getCentreX() - 0.5f, trough.getY(), 1.0f, trough.getHeight());
+        const float mx = trough.getX() + trough.getWidth() * (pan < 0 ? 0.5f : pan / 255.0f);
+        g.setColour (pan < 0 ? Theme::faint : Theme::ink);
+        g.fillRect (mx - px * 0.75f, trough.getY() - px * 0.5f, px * 1.5f, trough.getHeight() + px);
     }
 
     // ---- rows
@@ -247,6 +297,7 @@ void PatternEditor::changed()
 void PatternEditor::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    panDragTrack = -1;
     const float px = fontPx();
     const float hh = headerH();
     const int nVis = visibleTracks();
@@ -255,6 +306,13 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     const int slot = (int) std::floor ((e.position.x - lineNumW() + px * PixelFont::kCellW * 0.5f) / trackW());
     if (e.position.y < hh)
     {
+        if (slot >= 0 && slot < nVis && e.position.y > headerRect (slot).getCentreY())
+        {
+            // pan row: drag to pan, double-click for automatic (Amiga) panning
+            panDragTrack = first + slot;
+            setPanFromX (panDragTrack, e.position.x);
+            return;
+        }
         if (slot >= 0 && slot < nVis)
         {
             auto& m = proc.player.mute[first + slot];
@@ -289,6 +347,24 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
         st.column = col;
     }
     changed();
+}
+
+void PatternEditor::mouseDrag (const juce::MouseEvent& e)
+{
+    if (panDragTrack >= 0) setPanFromX (panDragTrack, e.position.x);
+}
+
+void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (e.position.y >= headerH()) return;
+    const int slot = (int) std::floor ((e.position.x - lineNumW() + fontPx() * PixelFont::kCellW * 0.5f) / trackW());
+    if (slot >= 0 && slot < visibleTracks() && e.position.y > headerRect (slot).getCentreY())
+    {
+        const int t = firstTrack() + slot;
+        proc.withLock ([&] { proc.song.trackPan[t] = -1; });
+        panDragTrack = -1;
+        repaint();
+    }
 }
 
 void PatternEditor::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
@@ -342,9 +418,55 @@ void PatternEditor::advance()
 void PatternEditor::pushUndo (int blockIndex)
 {
     blockIndex = proc.song.safeBlock (blockIndex);
-    undoStack.push_back ({ blockIndex, proc.song.blocks[(size_t) blockIndex] });
+    UndoEntry e;
+    e.block = blockIndex;
+    e.data = proc.song.blocks[(size_t) blockIndex];
+    undoStack.push_back (std::move (e));
     if (undoStack.size() > 200) undoStack.erase (undoStack.begin());
     redoStack.clear();
+}
+
+std::shared_ptr<PatternEditor::Structure> PatternEditor::snapshot() const
+{
+    auto sn = std::make_shared<Structure>();
+    sn->blocks = proc.song.blocks;
+    sn->sequence = proc.song.sequence;
+    sn->seqPos = st.seqPos;
+    sn->block = st.block;
+    return sn;
+}
+
+void PatternEditor::pushStructureUndo()
+{
+    UndoEntry e;
+    e.structure = snapshot();
+    undoStack.push_back (std::move (e));
+    if (undoStack.size() > 200) undoStack.erase (undoStack.begin());
+    redoStack.clear();
+}
+
+void PatternEditor::restore (UndoEntry& e, std::vector<UndoEntry>& opposite)
+{
+    if (e.structure)
+    {
+        UndoEntry back; back.structure = snapshot();
+        opposite.push_back (std::move (back));
+        auto blocks = e.structure->blocks;
+        auto seq = e.structure->sequence;
+        proc.withLock ([&] { std::swap (proc.song.blocks, blocks); std::swap (proc.song.sequence, seq); });
+        st.seqPos = juce::jlimit (0, (int) proc.song.sequence.size() - 1, e.structure->seqPos);
+        st.block = proc.song.safeBlock (e.structure->block);
+    }
+    else
+    {
+        if (e.block >= (int) proc.song.blocks.size()) return;
+        UndoEntry back; back.block = e.block; back.data = proc.song.blocks[(size_t) e.block];
+        opposite.push_back (std::move (back));
+        proc.withLock ([&] { proc.song.blocks[(size_t) e.block] = e.data; });
+        st.block = e.block;
+    }
+    st.line = std::min (st.line, blockLines() - 1);
+    changed();
 }
 
 void PatternEditor::undo()
@@ -352,12 +474,7 @@ void PatternEditor::undo()
     if (undoStack.empty()) return;
     auto e = std::move (undoStack.back());
     undoStack.pop_back();
-    if (e.block >= (int) proc.song.blocks.size()) return;
-    redoStack.push_back ({ e.block, proc.song.blocks[(size_t) e.block] });
-    proc.withLock ([&] { proc.song.blocks[(size_t) e.block] = e.data; });
-    st.block = e.block;
-    st.line = std::min (st.line, blockLines() - 1);
-    changed();
+    restore (e, redoStack);
 }
 
 void PatternEditor::redo()
@@ -365,12 +482,7 @@ void PatternEditor::redo()
     if (redoStack.empty()) return;
     auto e = std::move (redoStack.back());
     redoStack.pop_back();
-    if (e.block >= (int) proc.song.blocks.size()) return;
-    undoStack.push_back ({ e.block, proc.song.blocks[(size_t) e.block] });
-    proc.withLock ([&] { proc.song.blocks[(size_t) e.block] = e.data; });
-    st.block = e.block;
-    st.line = std::min (st.line, blockLines() - 1);
-    changed();
+    restore (e, undoStack);
 }
 
 void PatternEditor::enterNote (int note)
@@ -542,6 +654,13 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     const int code = k.getKeyCode();
     const bool cmd = mods.isCommandDown();
     const bool shift = mods.isShiftDown();
+
+    // --- move the current song position (Alt+Up/Down)
+    if (mods.isAltDown() && ! cmd && (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey))
+    {
+        if (onMoveSequence) onMoveSequence (code == juce::KeyPress::upKey ? -1 : 1);
+        return true;
+    }
 
     // --- navigation
     if (code == juce::KeyPress::upKey && ! cmd)   { if (! (proc.player.isPlaying() && st.follow)) moveLine (shift ? -4 : -1); return true; }

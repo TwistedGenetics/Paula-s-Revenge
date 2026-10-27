@@ -468,6 +468,10 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
     bool anyStereo = false;
     for (int i = 0; i < 31; ++i) anyStereo |= song.instruments[(size_t) i].isStereo();
     if (anyStereo) res.warnings.push_back ("Stereo samples were mixed down to mono (MOD limit).");
+    bool anyShaping = false;
+    for (int i = 0; i < 31; ++i) anyShaping |= song.instruments[(size_t) i].hasShaping();
+    for (int t = 0; t < kMaxTracks; ++t) anyShaping |= song.trackPan[t] >= 0;
+    if (anyShaping) res.warnings.push_back ("Envelopes, filters and pans can't be stored in a MOD and were left out.");
     if (song.blocks.size() > 128) res.warnings.push_back ("MOD files hold 128 patterns at most - extra blocks were left out.");
     if (tooLong) res.warnings.push_back ("Blocks longer than 64 lines were cut to 64 (MOD limit).");
     if (instrTooHigh) res.warnings.push_back ("Instruments above 31 can't go in a MOD and were left out.");

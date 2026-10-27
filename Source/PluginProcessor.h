@@ -70,7 +70,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params } view = View::Pattern;
         bool showSpectrum = true;
         int  uiZoom = 0;        // -2..+3 text size adjust
         juce::String lastFolder;

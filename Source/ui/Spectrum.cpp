@@ -82,4 +82,40 @@ void Spectrum::paint (juce::Graphics& g)
     g.fillRect (inner.getX(), inner.getBottom(), inner.getWidth(), 1.0f);
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
 }
+
+void OutputMeter::tick()
+{
+    auto upd = [] (float in, float& v, float& hold, int& count)
+    {
+        v = std::max (in, v * 0.85f);
+        if (v >= hold) { hold = v; count = 20; } else if (--count < 0) hold = std::max (0.0f, hold - 0.02f);
+    };
+    upd (proc.player.uiOutL.load(), l, holdL, holdCountL);
+    upd (proc.player.uiOutR.load(), r, holdR, holdCountR);
+    repaint();
+}
+
+void OutputMeter::paint (juce::Graphics& g)
+{
+    const auto& sk = Theme::skin;
+    const float px = Theme::px;
+    auto area = getLocalBounds().toFloat();
+    const float labelW = px * PixelFont::kCellW * 1.5f;
+    auto toFrac = [] (float v) { return juce::jlimit (0.0f, 1.0f, (juce::Decibels::gainToDecibels (v, -60.0f) + 48.0f) / 48.0f); };
+    const float half = (area.getWidth() - px * 2) / 2.0f;
+    int i = 0;
+    for (auto [v, hold, name] : { std::tuple<float, float, const char*> { l, holdL, "L" }, { r, holdR, "R" } })
+    {
+        auto cell = juce::Rectangle<float> (area.getX() + (half + px * 2) * (float) i++, area.getY(), half, area.getHeight());
+        PixelFont::drawLeft (g, name, cell.withWidth (labelW), px, Theme::ink);
+        auto bar = cell.withTrimmedLeft (labelW).reduced (0, area.getHeight() * 0.22f);
+        g.setColour (sk.bg);
+        g.fillRect (bar);
+        g.setColour (toFrac (v) > 0.92f ? sk.hot : sk.track[3]);
+        g.fillRect (bar.withWidth (bar.getWidth() * toFrac (v)));
+        g.setColour (sk.text);
+        g.fillRect (bar.getX() + bar.getWidth() * toFrac (hold) - 1.0f, bar.getY(), 2.0f, bar.getHeight());
+        Theme::bevel (g, bar, false, 1.0f);
+    }
+}
 } // namespace prv::ui
