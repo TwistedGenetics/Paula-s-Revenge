@@ -16,6 +16,9 @@ struct IOResult
 };
 
 // Detects ProTracker-style .MOD or MED/OctaMED MMD0/MMD1 and loads it.
+// Turn MOD/MED-style instrument volumes into C commands (see ModuleIO.cpp)
+void bakeInstrumentVolumes (Song& song);
+
 IOResult loadModule (const std::vector<uint8_t>& bytes, Song& out);
 
 IOResult loadMOD (const std::vector<uint8_t>& bytes, Song& out);

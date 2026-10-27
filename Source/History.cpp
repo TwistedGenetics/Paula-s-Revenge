@@ -19,7 +19,7 @@ History::Entry History::capture (Kind kind, int index) const
             e.bytes = sizeof (prv::Cell) * prv::kMaxTracks * (size_t) prv::kMaxLines;
             break;
         case Kind::Structure:
-            e.structure = std::make_shared<Structure> (Structure { song.blocks, song.sequence });
+            e.structure = std::make_shared<Structure> (Structure { song.blocks, song.sequence, song.sections });
             e.bytes = sizeof (prv::Cell) * prv::kMaxTracks * (size_t) prv::kMaxLines * song.blocks.size();
             break;
         case Kind::Instrument:
@@ -109,6 +109,7 @@ void History::apply (Entry& e)
             proc.withLock ([&] {
                 std::swap (song.blocks, e.structure->blocks);
                 std::swap (song.sequence, e.structure->sequence);
+                std::swap (song.sections, e.structure->sections);
                 if (proc.player.isPlaying()) proc.player.stop();
             });
             st.seqPos = juce::jlimit (0, (int) song.sequence.size() - 1, e.seqPos);

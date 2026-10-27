@@ -54,7 +54,7 @@ private:
         bool led = false;
         int trackPan[prv::kMaxTracks] {};
     };
-    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; };
+    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; std::vector<prv::SongSection> sections; };
     struct Entry
     {
         Kind kind = Kind::Block;

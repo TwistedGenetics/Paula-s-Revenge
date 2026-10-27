@@ -84,6 +84,7 @@ public:
         // marked loop in the pattern (lines, inclusive); loopBlock < 0 = none
         bool loopOn = false;
         int  loopBlock = -1, loopFrom = 0, loopTo = 0;
+        bool sectionLoop = false;     // song play loops the selected position's section
     } editorState;
 
     // MIDI notes jam the current instrument; the editor records them when in edit mode

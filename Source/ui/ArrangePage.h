@@ -50,7 +50,8 @@ private:
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " MOVE" }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) + " MOVE" },
               copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, repeatBtn { "REPEAT" },
               insertBtn { "INSERT" }, setBtn { "SET" }, deleteBtn { "DELETE" },
-              undoBtn { "UNDO" }, redoBtn { "REDO" }, closeBtn { "CLOSE" };
+              undoBtn { "UNDO" }, redoBtn { "REDO" }, closeBtn { "CLOSE" },
+              sectionBtn { "SECTION" }, loopSectBtn { "LOOP SECTION", true };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
 
     juce::Rectangle<float> titleArea, listArea;
@@ -59,7 +60,10 @@ private:
     int rowAt (float y) const;
     void ensureVisible();
     void changed (const juce::String& status);
-    void edit (std::function<void (std::vector<int>&)> fn, const juce::String& status);
+    // fn changes the sequence; secFn (optional) moves the section dividers to match
+    void edit (std::function<void (std::vector<int>&)> fn, const juce::String& status,
+               std::function<void (std::vector<SongSection>&, int newLength)> secFn = {});
+    float tagX() const;   // where section labels start in a row
     void paintPreview (juce::Graphics&, juce::Rectangle<float>, int block);
 };
 } // namespace prv::ui

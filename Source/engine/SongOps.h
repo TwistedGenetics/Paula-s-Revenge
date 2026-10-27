@@ -12,10 +12,13 @@ bool moveSequenceEntry (Song& song, int from, int to);
 // sounds exactly the same; only the block numbers change.
 bool swapBlockNumbers (Song& song, int a, int b);
 
-// Make the block at sequence position `seqPos` unique: copy it into a new
-// block numbered (old + 1), renumber every later block up by one (sequence
-// updated so nothing else changes), and point this position at the copy.
-// Returns the new block number, or -1 if the song already has 256 blocks.
+// The lowest-numbered block that is empty and not used in the sequence, or a
+// new block number at the end. -1 if the song already has 256 blocks.
+int nextFreeBlock (const Song& song);
+
+// Give sequence position `seqPos` its own copy of its block, in the next free
+// block (see above). No other block numbers change. Returns the new block
+// number, or -1 if there's no room.
 int cloneInPlace (Song& song, int seqPos);
 
 // Double the block's length; the new second half is an exact copy of the
@@ -26,4 +29,16 @@ bool doubleBlockLength (Block& b);
 // whether the removed half was different from the first (so data was lost).
 // False if the block has fewer than 2 lines.
 bool halveBlockLength (Block& b, bool& secondHalfDiffered);
+
+// ---- song sections (labelled dividers in the sequence)
+// Index of the section starting exactly at `pos`, or -1
+int sectionAt (const std::vector<SongSection>& sections, int pos);
+// The positions [from, to] of the section containing seqPos (the part before
+// the first divider counts as a section too)
+void sectionRange (const Song& song, int seqPos, int& from, int& to);
+// Keep sections sorted, one per position, inside a sequence of `length`
+void tidySections (std::vector<SongSection>& sections, int length);
+// Positions were inserted at `at` / removed from `at`: move the dividers with the music
+void sectionsInserted (std::vector<SongSection>& sections, int at, int count, int newLength);
+void sectionsRemoved (std::vector<SongSection>& sections, int at, int count, int newLength);
 } // namespace prv

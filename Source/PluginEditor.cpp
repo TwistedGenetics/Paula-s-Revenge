@@ -217,6 +217,8 @@ void PaulaEditor::refreshAll()
     st.block = song.safeBlock (st.block);
     st.line = juce::jlimit (0, song.blocks[(size_t) st.block].lines - 1, st.line);
     st.track = juce::jlimit (0, song.numTracks - 1, st.track);
+    // block play: picking another block carries playback over to it, in time
+    proc.withLock ([&] { proc.player.switchBlock (st.block); });
 
     const auto& o = proc.player.options;
     a500Btn.setToggleState (o.model == prv::PaulaOptions::Model::A500, juce::dontSendNotification);
@@ -453,7 +455,7 @@ void PaulaEditor::resized()
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
-        const int seqH = std::max (rowH * 7, (int) (left.getHeight() * 0.30f));
+        const int seqH = std::max (rowH * 8, (int) (left.getHeight() * 0.38f));
         sequence.setBounds (left.removeFromTop (seqH));
         left.removeFromTop (gap);
         blockPanel.setBounds (left.removeFromTop ((int) (px * 14) + rowH * 3 + gap * 3));

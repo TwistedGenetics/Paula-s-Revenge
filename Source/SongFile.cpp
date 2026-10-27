@@ -1,14 +1,15 @@
 // Paula's Revenge - native song format, sample import and WAV rendering
 #include "SongFile.h"
 #include "engine/ModuleIO.h"
+#include "engine/SongOps.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 5;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
-                                  // v5: ping-pong loops + slices
+    constexpr int kVersion = 6;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+                                  // v5: ping-pong loops + slices, v6: song sections
 
     void writeStr (juce::OutputStream& o, const std::string& s)
     {
@@ -96,6 +97,13 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeDoubleBigEndian (in.natRate);
         raw.writeShortBigEndian ((short) std::min (in.numSlices(), 1024));
         for (int i = 0; i < std::min (in.numSlices(), 1024); ++i) raw.writeIntBigEndian (in.slices[(size_t) i]);
+    }
+    // v6: song sections
+    raw.writeShortBigEndian ((short) std::min<size_t> (song.sections.size(), 256));
+    for (size_t i = 0; i < std::min<size_t> (song.sections.size(), 256); ++i)
+    {
+        raw.writeShortBigEndian ((short) song.sections[i].pos);
+        writeStr (raw, song.sections[i].name);
     }
 
     juce::MemoryOutputStream packed;
@@ -218,6 +226,18 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             std::sort (ins.slices.begin(), ins.slices.end());
             ins.slices.erase (std::unique (ins.slices.begin(), ins.slices.end()), ins.slices.end());
         }
+    if (version >= 6 && ! in.isExhausted())
+    {
+        const int n = juce::jlimit (0, 256, (int) (uint16_t) in.readShortBigEndian());
+        for (int i = 0; i < n && ! in.isExhausted(); ++i)
+        {
+            SongSection sec;
+            sec.pos = (int) (uint16_t) in.readShortBigEndian();
+            sec.name = readStr (in);
+            s.sections.push_back (sec);
+        }
+        tidySections (s.sections, (int) s.sequence.size());
+    }
     out = std::move (s);
     return true;
 }

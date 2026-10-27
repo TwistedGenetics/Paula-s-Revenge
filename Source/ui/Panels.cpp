@@ -45,6 +45,22 @@ void PixList::paint (juce::Graphics& g)
         const float ty = std::round (rr.getY() + (rh - 7 * px) * 0.5f);
         if (row == playing) PixelFont::addText (text, juce::String::charToString ((juce::juce_wchar) 1), px * 1.0f, ty, px);
         PixelFont::addText (isRowDim (row) ? dim : text, getRowText (row), px * 8.0f, ty, px);
+        if (isRowLooped && isRowLooped (row))
+        {
+            g.setColour (Theme::skin.hot);
+            g.fillRect (px * 5.5f, rr.getY(), px * 1.5f, rh);
+        }
+        const juce::String tag = getRowTag ? getRowTag (row) : juce::String();
+        if (tag.isNotEmpty() || (row == hoverTagRow && tagZoneX >= 0))
+        {
+            g.setColour (Theme::skin.hot);
+            if (tag.isNotEmpty()) g.fillRect (rr.getX(), rr.getY(), listW, std::max (1.5f, px * 0.75f));   // the divider
+            juce::String t = tag.isNotEmpty() ? tag : juce::String ("+ SECTION");
+            const float zoneW = listW - std::max (0.0f, tagZoneX) - px * 2;
+            while (t.length() > 1 && PixelFont::textWidth (t, px) > zoneW) t = t.dropLastCharacters (1);
+            PixelFont::draw (g, t, listW - PixelFont::textWidth (t, px) - px * 2, ty, px,
+                             tag.isNotEmpty() ? Theme::skin.hot : Theme::skin.dim);
+        }
     }
     g.saveState();
     g.reduceClipRegion (juce::Rectangle<float> (0, 0, listW, r.getHeight()).toNearestInt());
@@ -113,6 +129,11 @@ void PixList::mouseDown (const juce::MouseEvent& e)
     }
     const int row = rowAt (e.position.y);
     dragRow = -1; reordering = false;
+    if (getNumRows && row >= 0 && row < getNumRows() && tagZoneX >= 0 && e.position.x >= tagZoneX && onTagClick)
+    {
+        onTagClick (row);
+        return;
+    }
     if (getNumRows && row >= 0 && row < getNumRows())
     {
         if (onClick) onClick (row, e);
@@ -150,6 +171,19 @@ void PixList::mouseUp (const juce::MouseEvent&)
     repaint();
 }
 
+void PixList::mouseMove (const juce::MouseEvent& e)
+{
+    const int row = rowAt (e.position.y);
+    const int n = getNumRows ? getNumRows() : 0;
+    const int h = (tagZoneX >= 0 && e.position.x >= tagZoneX && ! barArea().contains (e.position) && row >= 0 && row < n) ? row : -1;
+    if (h != hoverTagRow) { hoverTagRow = h; repaint(); }
+}
+
+void PixList::mouseExit (const juce::MouseEvent&)
+{
+    if (hoverTagRow >= 0) { hoverTagRow = -1; repaint(); }
+}
+
 void PixList::mouseDoubleClick (const juce::MouseEvent& e)
 {
     if (barArea().contains (e.position)) return;
@@ -178,13 +212,32 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     {
         return juce::String (r).paddedLeft ('0', 3) + "  BLOCK " + juce::String (proc.song.sequence[(size_t) r]).paddedLeft ('0', 3);
     };
-    list.onClick = [this, &st] (int r, const juce::MouseEvent&)
+    list.onClick = [this] (int r, const juce::MouseEvent&) { selectPosition (r); };
+    list.getRowTag = [this] (int r)
     {
-        st.seqPos = r;
-        st.block = proc.song.safeBlock (proc.song.sequence[(size_t) r]);
-        st.line = 0;
+        const int i = sectionAt (proc.song.sections, r);
+        return i < 0 ? juce::String() : juce::String (proc.song.sections[(size_t) i].name).toUpperCase();
+    };
+    list.isRowLooped = [this] (int r)
+    {
+        if (! proc.editorState.sectionLoop) return false;
+        return r >= proc.player.songLoopStart() && r <= proc.player.songLoopEnd();
+    };
+    list.onTagClick = [this] (int r)
+    {
+        juce::Component::SafePointer<SequencePanel> safe (this);
+        editSectionDialog (proc, r, [safe] (const juce::String& m) { if (safe == nullptr) return; safe->changed(); if (safe->onStatus) safe->onStatus (m); });
+    };
+    loopSectBtn.onClick = [this, &st]
+    {
+        st.sectionLoop = loopSectBtn.getToggleState();
+        syncSectionLoop (proc);
+        int a = 0, b = 0; sectionRange (proc.song, st.seqPos, a, b);
+        if (onStatus) onStatus (st.sectionLoop ? "SONG PLAY LOOPS POSITIONS " + juce::String (a).paddedLeft ('0', 3) + "-" + juce::String (b).paddedLeft ('0', 3)
+                                                 + " (CLICK ANOTHER SECTION TO GO THERE NEXT)" : juce::String ("SECTION LOOP OFF"));
         changed();
     };
+    addAndMakeVisible (loopSectBtn);
     list.onMove = [this, &st] (int from, int to)
     {
         if (pushStructUndo) pushStructUndo ("MOVE SEQUENCE ENTRY");
@@ -209,6 +262,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         proc.withLock ([&] {
             const int b = proc.song.sequence[(size_t) st.seqPos];
             proc.song.sequence.insert (proc.song.sequence.begin() + st.seqPos + 1, b);
+            sectionsInserted (proc.song.sections, st.seqPos + 1, 1, (int) proc.song.sequence.size());
         });
         st.seqPos++;
         changed();
@@ -217,7 +271,10 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     {
         if (proc.song.sequence.size() <= 1) return;
         if (pushStructUndo) pushStructUndo ("DELETE SEQUENCE ENTRY");
-        proc.withLock ([&] { proc.song.sequence.erase (proc.song.sequence.begin() + st.seqPos); });
+        proc.withLock ([&] {
+            proc.song.sequence.erase (proc.song.sequence.begin() + st.seqPos);
+            sectionsRemoved (proc.song.sections, st.seqPos, 1, (int) proc.song.sequence.size());
+        });
         st.seqPos = std::min (st.seqPos, (int) proc.song.sequence.size() - 1);
         st.block = proc.song.safeBlock (proc.song.sequence[(size_t) st.seqPos]);
         changed();
@@ -238,6 +295,17 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     addAndMakeVisible (blockBox);
 }
 
+void SequencePanel::selectPosition (int r)
+{
+    auto& st = proc.editorState;
+    if (r < 0 || r >= (int) proc.song.sequence.size()) return;
+    st.seqPos = r;
+    st.block = proc.song.safeBlock (proc.song.sequence[(size_t) r]);
+    // while a block plays, the new block carries on from the same line (see PaulaEditor::refreshAll)
+    if (! (proc.player.getMode() == Player::Mode::Block)) st.line = 0;
+    changed();
+}
+
 void SequencePanel::moveSelected (int delta)
 {
     auto& st = proc.editorState;
@@ -252,7 +320,7 @@ void SequencePanel::moveSelected (int delta)
 void SequencePanel::cloneInPlace()
 {
     auto& st = proc.editorState;
-    if ((int) proc.song.blocks.size() >= kMaxBlocks) { if (onStatus) onStatus ("CAN'T CLONE: THE SONG ALREADY HAS 256 BLOCKS"); return; }
+    if (nextFreeBlock (proc.song) < 0) { if (onStatus) onStatus ("CAN'T CLONE: NO FREE BLOCK (THE SONG HAS 256 BLOCKS)"); return; }
     if (pushStructUndo) pushStructUndo ("CLONE IN PLACE");
     int nb = -1;
     // build the new song structure off the audio thread, then swap it in
@@ -273,8 +341,7 @@ void SequencePanel::cloneInPlace()
     changed();
     if (onStatus)
         onStatus ("POSITION " + juce::String (st.seqPos).paddedLeft ('0', 3) + " NOW PLAYS ITS OWN COPY OF BLOCK "
-                  + juce::String (oldBlock).paddedLeft ('0', 3) + ": BLOCK " + juce::String (nb).paddedLeft ('0', 3)
-                  + (nb < (int) proc.song.blocks.size() - 1 ? " (LATER BLOCKS RENUMBERED)" : ""));
+                  + juce::String (oldBlock).paddedLeft ('0', 3) + ": BLOCK " + juce::String (nb).paddedLeft ('0', 3) + " (NEXT FREE BLOCK)");
 }
 
 void SequencePanel::refresh()
@@ -284,6 +351,8 @@ void SequencePanel::refresh()
     list.selected = st.seqPos;
     list.playing = proc.player.getMode() == Player::Mode::Song ? proc.player.uiSeqPos.load() : -1;
     list.ensureVisible (st.seqPos);
+    syncSectionLoop (proc);
+    loopSectBtn.setToggleState (st.sectionLoop, juce::dontSendNotification);
     blockBox.setRange (0, (int) proc.song.blocks.size() - 1);
     blockBox.setValue (proc.song.sequence[(size_t) st.seqPos]);
     list.repaint();
@@ -298,6 +367,8 @@ void SequencePanel::resized()
     r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
     const int rowH = (int) (px * 11);
     const int gap = (int) px;
+    loopSectBtn.setBounds (r.removeFromBottom (rowH));
+    r.removeFromBottom (gap);
     auto row2 = r.removeFromBottom (rowH);
     r.removeFromBottom (gap);
     auto bottom = r.removeFromBottom (rowH);
@@ -315,6 +386,54 @@ void SequencePanel::resized()
     cloneInPlaceBtn.setBounds (row2);
     r.removeFromBottom ((int) px * 2);
     list.setBounds (r);
+    // section labels go right of "000  BLOCK 000"
+    list.tagZoneX = px * 8.0f + PixelFont::textWidth ("000  BLOCK 000 ", px);
+}
+
+// =========================================================================== Sections
+void syncSectionLoop (PaulaProcessor& proc)
+{
+    auto& st = proc.editorState;
+    int a = -1, b = -1;
+    if (st.sectionLoop) sectionRange (proc.song, st.seqPos, a, b);
+    if (a != proc.player.songLoopStart() || b != proc.player.songLoopEnd())
+        proc.withLock ([&] { proc.player.setSongLoop (a, b); });
+}
+
+void editSectionDialog (PaulaProcessor& proc, int pos, std::function<void (const juce::String&)> done)
+{
+    const int idx = sectionAt (proc.song.sections, pos);
+    const juce::String current = idx >= 0 ? juce::String (proc.song.sections[(size_t) idx].name)
+                                          : "SECTION " + juce::String ((int) proc.song.sections.size() + 1);
+    auto* w = new juce::AlertWindow (idx >= 0 ? "Section" : "New section",
+                                     (idx >= 0 ? "Rename the section starting at position " : "Start a section at position ") + juce::String (pos).paddedLeft ('0', 3),
+                                     juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor ("name", current);
+    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    if (idx >= 0) w->addButton ("Remove", 2);
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    auto* p = &proc;
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([p, w, pos, done] (int r)
+    {
+        if (r == 0) return;
+        auto& song = p->song;
+        p->history.structure (r == 2 ? "REMOVE SECTION" : "SECTION");
+        auto secs = song.sections;
+        const int i = sectionAt (secs, pos);
+        juce::String msg;
+        if (r == 2) { if (i >= 0) secs.erase (secs.begin() + i); msg = "SECTION REMOVED"; }
+        else
+        {
+            auto name = w->getTextEditorContents ("name").toUpperCase().trim().substring (0, 16).toStdString();
+            if (name.empty()) name = "SECTION";
+            if (i >= 0) secs[(size_t) i].name = name; else secs.push_back ({ pos, name });
+            msg = "SECTION \"" + juce::String (name) + "\" STARTS AT POSITION " + juce::String (pos).paddedLeft ('0', 3);
+        }
+        tidySections (secs, (int) song.sequence.size());
+        p->withLock ([&] { std::swap (song.sections, secs); });
+        syncSectionLoop (*p);
+        if (done) done (msg);
+    }), true);
 }
 
 // =========================================================================== Block
@@ -654,14 +773,12 @@ void InstrumentPanel::resized()
     const int rowH = (int) (px * 11);
     const int gap = (int) (px * 2);
 
-    // bottom up: wave, loop row, params, buttons
+    // bottom up: wave, params, buttons. (Exact loop points are set in the sample
+    // editor now; the loop markers can still be dragged in the little waveform.)
     wave.setBounds (r.removeFromBottom ((int) (px * 14)));
     r.removeFromBottom (gap);
-    auto loopRow = r.removeFromBottom (rowH);
-    loopStart.setBounds (loopRow.removeFromLeft (loopRow.getWidth() / 2 - (int) px));
-    loopRow.removeFromLeft ((int) px * 2);
-    loopLen.setBounds (loopRow);
-    r.removeFromBottom (gap);
+    loopStart.setVisible (false);
+    loopLen.setVisible (false);
     auto pRow2 = r.removeFromBottom (rowH);
     trans.setBounds (pRow2.removeFromLeft (pRow2.getWidth() / 2 - (int) px));
     pRow2.removeFromLeft ((int) px * 2);

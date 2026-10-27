@@ -20,18 +20,27 @@ public:
     int selected = 0;
     int playing = -1;   // row marked with a play arrow
 
+    // optional: section dividers with a label on the right; clicks there go to onTagClick
+    std::function<juce::String (int)> getRowTag;     // non-empty = a divider above this row
+    std::function<bool (int)> isRowLooped;           // marked at the left edge
+    std::function<void (int)> onTagClick;
+    float tagZoneX = -1;                             // x where the label zone starts (-1 = none)
+
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
     void ensureVisible (int row);
     void scrollBy (int rows);
     float rowHeight() const { return Theme::px * 11; }
 
 private:
     int scroll = 0;
+    int hoverTagRow = -1;
     int repeatDir = 0;            // arrow button held: -1 up, +1 down
     int dragRow = -1, dropRow = -1;
     bool reordering = false;
@@ -64,13 +73,21 @@ private:
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) };
     PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
+    PixButton loopSectBtn { "LOOP SECTION", true };
 public:
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> openArrange;
     std::function<void (const juce::String&)> onStatus;
     void moveSelected (int delta);
     void cloneInPlace();
+    void selectPosition (int row);   // same as clicking it in the list
 };
+
+// Add / rename / remove the section divider at sequence position `pos` (asks in a small window).
+// `done` gets a status message when something changed.
+void editSectionDialog (PaulaProcessor&, int pos, std::function<void (const juce::String&)> done);
+// Point the player's section loop at the selected position's section (or turn it off)
+void syncSectionLoop (PaulaProcessor&);
 
 class BlockPanel : public juce::Component
 {

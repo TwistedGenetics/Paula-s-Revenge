@@ -132,9 +132,12 @@ static void testModRoundTrip()
             const Cell a = s.blocks[0].at (l, tr), b = t.blocks[0].at (l, tr);
             Cell expect = a;
             if (a.note == kNoteOff) { expect.note = 0; expect.cmd = 0xC; expect.param = 0; }
+            // loading bakes the square's volume (48) into C commands in column 2
+            if (a.instr == 1 && expect.cmd != 0xC) { expect.cmd2 = 0xC; expect.param2 = 48; }
             if (! (expect == b)) { same = false; std::printf ("  diff line %d track %d\n", l, tr); }
         }
     CHECK (same);
+    CHECK (t.instruments[0].volume == 64);
     CHECK (t.blocks[1].at (31, 0).cmd == 0xD || t.blocks[1].at (31, 2).cmd == 0xD);
 }
 
@@ -219,7 +222,7 @@ static void testMED()
     CHECK (c.note == 25 && c.instr == 1 && c.cmd == 0xC && c.param == 0x20);
     const Cell c2 = t.blocks[0].at (1, 1);
     CHECK (c2.instr == 33 && c2.note == kNoteOff);
-    CHECK (t.instruments[0].data.size() == 16 && t.instruments[0].volume == 40);
+    CHECK (t.instruments[0].data.size() == 16 && t.instruments[0].volume == 64);   // its 40 went onto the notes (that one has C20 already)
     CHECK (t.instruments[0].loopStart == 4 && t.instruments[0].loopLength == 8);
 }
 
@@ -386,11 +389,21 @@ static void testSongOps()
     auto noteAt = [&] (int pos) { return (int) s.blocks[(size_t) s.sequence[(size_t) pos]].at (0, 0).note; };
     std::vector<int> before; for (int i = 0; i < 5; ++i) before.push_back (noteAt (i));
 
-    // clone in place at position 1 (block 1): new block 2, old 2,3 become 3,4
-    CHECK (cloneInPlace (s, 1) == 2);
+    // clone in place at position 1 (block 1): no free block, so new block 4; nothing renumbered
+    CHECK (cloneInPlace (s, 1) == 4);
     CHECK (s.blocks.size() == 5);
-    CHECK ((s.sequence == std::vector<int> { 0, 2, 3, 1, 4 }));
+    CHECK ((s.sequence == std::vector<int> { 0, 4, 2, 1, 3 }));
     for (int i = 0; i < 5; ++i) CHECK (noteAt (i) == before[(size_t) i]);   // sounds identical
+    // an empty block not used in the song is the next free one
+    {
+        Song t;
+        t.blocks.assign (4, Block{});
+        t.blocks[0].at (0, 0).note = 10; t.blocks[2].at (5, 3).cmd = 0xC;   // block 1 and 3 empty
+        t.sequence = { 0, 2, 3 };                                            // 3 is used, 1 is free
+        CHECK (nextFreeBlock (t) == 1);
+        CHECK (cloneInPlace (t, 1) == 1 && t.blocks.size() == 4 && (t.sequence == std::vector<int> { 0, 1, 3 }));
+        CHECK (t.blocks[1].at (5, 3).cmd == 0xC);
+    }
 
     // swap block numbers 0 and 1: music unchanged
     CHECK (swapBlockNumbers (s, 0, 1));
@@ -403,6 +416,7 @@ static void testSongOps()
 
     // block limit
     Song full; full.blocks.assign (kMaxBlocks, Block{}); full.sequence = { 0 };
+    for (auto& b : full.blocks) b.at (0, 0).note = 1;   // nothing free
     CHECK (cloneInPlace (full, 0) == -1);
 }
 
@@ -818,6 +832,93 @@ static void testNoteTranspose()
     CHECK (describeCommand (cmdLetter ('I'), 0x8C).find ("+12") != std::string::npos);
 }
 
+static void testInstrumentLevel()
+{
+    // the instrument's VOL turns everything down, Cxx still sets each note's volume
+    std::vector<int16_t> dc (480, 16000);
+    auto level = [&] (int instrVol, int cParam)
+    {
+        Song s = oneShot (dc);
+        s.instruments[0].volume = instrVol;
+        s.blocks[0].at (0, 0) = { 37, 1, (uint8_t) (cParam >= 0 ? 0xC : 0), (uint8_t) std::max (0, cParam) };
+        auto v = renderTrack (s, 2000);
+        return rmsOf (v, 500, 2000);
+    };
+    const double full = level (64, -1), half = level (32, -1), c20 = level (64, 0x20), c20half = level (32, 0x20);
+    std::printf ("instrument level: full %.3f, VOL 32 %.3f, C20 %.3f, C20 at VOL 32 %.3f\n", full, half, c20, c20half);
+    CHECK (std::abs (half / full - 0.5) < 0.02);
+    CHECK (std::abs (c20 / full - 0.5) < 0.02);
+    CHECK (std::abs (c20half / full - 0.25) < 0.02);
+    // MOD export writes C commands as they sound (C20 at VOL 32 = C10 in ProTracker)
+    Song s = oneShot (dc);
+    s.instruments[0].volume = 32;
+    s.blocks[0].at (0, 0) = { 37, 1, 0xC, 0x20 };
+    std::vector<uint8_t> bytes;
+    CHECK (saveMOD (s, bytes).ok);
+    Song t;
+    CHECK (loadModule (bytes, t).ok);
+    std::printf ("exported C20 at VOL 32 -> C%02X\n", t.blocks[0].at (0, 0).param);
+    CHECK (t.blocks[0].at (0, 0).cmd == 0xC && t.blocks[0].at (0, 0).param == 0x10);
+}
+
+static void testBlockSwitchAndSections()
+{
+    // block play: switching block keeps the line and doesn't restart
+    Song s = oneShot (square (100, 4800));
+    s.blocks.assign (2, Block{});
+    s.blocks[1].lines = 32;
+    s.sequence = { 0, 1 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    std::vector<float> L (5760), R (5760);   // one line
+    p.playBlock (0);
+    for (int k = 0; k < 10; ++k) p.render (L.data(), R.data(), 5760);
+    const int before = p.uiLine.load();
+    CHECK (p.switchBlock (1));
+    CHECK (p.uiBlock.load() == 1 && p.uiLine.load() == before);
+    p.render (L.data(), R.data(), 5760);
+    std::printf ("switch block at line %d -> block %d line %d\n", before, p.uiBlock.load(), p.uiLine.load());
+    CHECK (p.uiBlock.load() == 1 && p.uiLine.load() == before + 1);
+    CHECK (! p.switchBlock (1));                  // already there
+    // a line past the end of a shorter block wraps
+    p.playBlock (0, 40); CHECK (p.switchBlock (1) && p.uiLine.load() == 8);
+    p.playSong (0); CHECK (! p.switchBlock (0));  // only in block play
+
+    // sections
+    Song t;
+    t.blocks.assign (1, Block{}); t.blocks[0].lines = 4;
+    t.sequence = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    t.sections = { { 2, "DROP" }, { 5, "BREAK" } };
+    int a = 0, b = 0;
+    sectionRange (t, 3, a, b); CHECK (a == 2 && b == 4);
+    sectionRange (t, 0, a, b); CHECK (a == 0 && b == 1);
+    sectionRange (t, 7, a, b); CHECK (a == 5 && b == 7);
+    CHECK (sectionAt (t.sections, 5) == 1 && sectionAt (t.sections, 4) == -1);
+    auto x = t.sections;
+    sectionsInserted (x, 3, 2, 10); CHECK (x[0].pos == 2 && x[1].pos == 7);
+    x = t.sections; sectionsInserted (x, 2, 1, 9); CHECK (x[0].pos == 3);   // inserted before the divider
+    x = t.sections; sectionsRemoved (x, 1, 2, 6); CHECK (x.size() == 2 && x[0].pos == 1 && x[1].pos == 3);
+    x = t.sections; sectionsRemoved (x, 2, 3, 5); CHECK (x.size() == 1 && x[0].pos == 2 && x[0].name == "BREAK");
+    x = { { 9, "GONE" }, { 1, "B" }, { 1, "C" } }; tidySections (x, 8); CHECK (x.size() == 1 && x[0].name == "C");
+
+    // section loop: song play goes round positions 2..4
+    {
+        Player q; q.setSampleRate (48000); q.setSong (&t);
+        q.setSongLoop (2, 4);
+        q.playSong (0);
+        std::vector<int> seen;
+        for (int k = 0; k < 4 * 14; ++k) { q.render (L.data(), R.data(), 5760); if (seen.empty() || seen.back() != q.uiSeqPos.load()) seen.push_back (q.uiSeqPos.load()); }
+        std::printf ("section loop 2-4 from 0:");
+        for (int v : seen) std::printf (" %d", v);
+        std::printf ("\n");
+        CHECK ((std::vector<int> (seen.begin(), seen.begin() + 8) == std::vector<int> { 0, 2, 3, 4, 2, 3, 4, 2 }));   // outside the loop: goes there after this block
+        // switching the loop to another section while inside one: goes there at the end of the block
+        q.setSongLoop (5, 7);
+        int at = q.uiSeqPos.load(), next = -1;
+        for (int k = 0; k < 8 && next < 0; ++k) { q.render (L.data(), R.data(), 5760); if (q.uiSeqPos.load() != at) next = q.uiSeqPos.load(); }
+        CHECK (next == 5);
+    }
+}
+
 static void testAkaiModels()
 {
     PaulaOptions o;
@@ -877,6 +978,8 @@ int main()
     testSlices();
     testNoteTranspose();
     testAkaiModels();
+    testInstrumentLevel();
+    testBlockSwitchAndSections();
     testExtendedCommands();
     testTimeStretch();
     testBalance();

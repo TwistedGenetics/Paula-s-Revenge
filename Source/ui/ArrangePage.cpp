@@ -1,5 +1,7 @@
 // Paula's Revenge - full-size song arrangement page
 #include "ArrangePage.h"
+#include "Panels.h"
+#include "../engine/SongOps.h"
 
 namespace prv::ui
 {
@@ -19,10 +21,21 @@ ArrangePage::ArrangePage (PaulaProcessor& p) : proc (p)
     undoBtn.onClick   = [this] { proc.history.undo(); opened(); };
     redoBtn.onClick   = [this] { proc.history.redo(); opened(); };
     closeBtn.onClick  = [this] { if (onClose) onClose(); };
+    sectionBtn.onClick = [this]
+    {
+        juce::Component::SafePointer<ArrangePage> safe (this);
+        editSectionDialog (proc, selStart(), [safe] (const juce::String& m) { if (safe != nullptr) safe->changed (m); });
+    };
+    loopSectBtn.onClick = [this]
+    {
+        proc.editorState.sectionLoop = loopSectBtn.getToggleState();
+        syncSectionLoop (proc);
+        changed (proc.editorState.sectionLoop ? "LOOPING THE SELECTED POSITION'S SECTION" : "SECTION LOOP OFF");
+    };
     blockBox.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
     blockBox.labelChars = 6;
     for (auto* c : std::initializer_list<juce::Component*> { &upBtn, &downBtn, &copyBtn, &cutBtn, &pasteBtn, &repeatBtn,
-                                                             &insertBtn, &blockBox, &setBtn, &deleteBtn, &undoBtn, &redoBtn, &closeBtn })
+                                                             &insertBtn, &blockBox, &setBtn, &deleteBtn, &undoBtn, &redoBtn, &closeBtn, &sectionBtn, &loopSectBtn })
         addAndMakeVisible (c);
 }
 
@@ -51,6 +64,8 @@ void ArrangePage::changed (const juce::String& status)
     anchor = juce::jlimit (0, n - 1, anchor);
     st.seqPos = cursor;
     st.block = proc.song.safeBlock (proc.song.sequence[(size_t) cursor]);
+    syncSectionLoop (proc);
+    loopSectBtn.setToggleState (st.sectionLoop, juce::dontSendNotification);
     blockBox.setRange (0, (int) proc.song.blocks.size() - 1);
     blockBox.setValue (proc.song.sequence[(size_t) cursor]);
     ensureVisible();
@@ -59,14 +74,18 @@ void ArrangePage::changed (const juce::String& status)
     if (onStatus && status.isNotEmpty()) onStatus (status);
 }
 
-void ArrangePage::edit (std::function<void (std::vector<int>&)> fn, const juce::String& status)
+void ArrangePage::edit (std::function<void (std::vector<int>&)> fn, const juce::String& status,
+                        std::function<void (std::vector<SongSection>&, int)> secFn)
 {
     proc.history.structure ("ARRANGE: " + status);
     std::vector<int> seq = proc.song.sequence;
     fn (seq);
     if (seq.empty()) seq.push_back (0);
     if (seq.size() > (size_t) kMaxSequence) seq.resize ((size_t) kMaxSequence);
-    proc.withLock ([&] { std::swap (proc.song.sequence, seq); });
+    auto secs = proc.song.sections;
+    if (secFn) secFn (secs, (int) seq.size());
+    tidySections (secs, (int) seq.size());
+    proc.withLock ([&] { std::swap (proc.song.sequence, seq); std::swap (proc.song.sections, secs); });
     changed (status);
 }
 
@@ -119,7 +138,8 @@ void ArrangePage::cutSelection()
     copySelection();
     if ((int) clip.size() >= (int) proc.song.sequence.size()) { if (onStatus) onStatus ("A SONG NEEDS AT LEAST ONE POSITION"); return; }
     const int a = selStart(), b = selEnd();
-    edit ([&] (std::vector<int>& s) { s.erase (s.begin() + a, s.begin() + b + 1); }, "CUT " + juce::String (b - a + 1) + " POSITIONS");
+    edit ([&] (std::vector<int>& s) { s.erase (s.begin() + a, s.begin() + b + 1); }, "CUT " + juce::String (b - a + 1) + " POSITIONS",
+          [a, b] (std::vector<SongSection>& x, int n) { sectionsRemoved (x, a, b - a + 1, n); });
     anchor = cursor = std::min (a, (int) proc.song.sequence.size() - 1);
     changed ({});
 }
@@ -128,8 +148,10 @@ void ArrangePage::paste()
 {
     if (clip.empty()) { if (onStatus) onStatus ("NOTHING TO PASTE"); return; }
     const int at = selEnd() + 1;
+    const int count = (int) clip.size();
     edit ([&] (std::vector<int>& s) { s.insert (s.begin() + std::min (at, (int) s.size()), clip.begin(), clip.end()); },
-          "PASTED " + juce::String ((int) clip.size()) + " POSITIONS");
+          "PASTED " + juce::String (count) + " POSITIONS",
+          [at, count] (std::vector<SongSection>& x, int n) { sectionsInserted (x, at, count, n); });
     anchor = at; cursor = at + (int) clip.size() - 1;
     changed ({});
 }
@@ -141,7 +163,8 @@ void ArrangePage::repeatSelection()
     {
         std::vector<int> part (s.begin() + a, s.begin() + b + 1);
         s.insert (s.begin() + b + 1, part.begin(), part.end());
-    }, "REPEATED " + juce::String (len) + " POSITIONS");
+    }, "REPEATED " + juce::String (len) + " POSITIONS",
+    [b, len] (std::vector<SongSection>& x, int n) { sectionsInserted (x, b + 1, len, n); });
     anchor = b + 1; cursor = b + len;
     changed ({});
 }
@@ -150,7 +173,8 @@ void ArrangePage::deleteSelection()
 {
     const int a = selStart(), b = selEnd();
     if (b - a + 1 >= (int) proc.song.sequence.size()) { if (onStatus) onStatus ("A SONG NEEDS AT LEAST ONE POSITION"); return; }
-    edit ([&] (std::vector<int>& s) { s.erase (s.begin() + a, s.begin() + b + 1); }, "DELETED " + juce::String (b - a + 1) + " POSITIONS");
+    edit ([&] (std::vector<int>& s) { s.erase (s.begin() + a, s.begin() + b + 1); }, "DELETED " + juce::String (b - a + 1) + " POSITIONS",
+          [a, b] (std::vector<SongSection>& x, int n) { sectionsRemoved (x, a, b - a + 1, n); });
     anchor = cursor = std::min (a, (int) proc.song.sequence.size() - 1);
     changed ({});
 }
@@ -159,7 +183,8 @@ void ArrangePage::insertBlock (int blk)
 {
     blk = proc.song.safeBlock (blk);
     const int at = cursor + 1;
-    edit ([&] (std::vector<int>& s) { s.insert (s.begin() + std::min (at, (int) s.size()), blk); }, "INSERTED BLOCK " + juce::String (blk).paddedLeft ('0', 3));
+    edit ([&] (std::vector<int>& s) { s.insert (s.begin() + std::min (at, (int) s.size()), blk); }, "INSERTED BLOCK " + juce::String (blk).paddedLeft ('0', 3),
+          [at] (std::vector<SongSection>& x, int n) { sectionsInserted (x, at, 1, n); });
     anchor = cursor = at;
     changed ({});
 }
@@ -197,8 +222,21 @@ void ArrangePage::resized()
         setBtn.setBounds (row2.removeFromLeft (w)); row2.removeFromLeft (gap);
         deleteBtn.setBounds (row2);
     }
-    layoutRow (row3, { &undoBtn, &redoBtn, &closeBtn });
+    {
+        // LOOP SECTION needs the most room
+        const float unit = (row3.getWidth() - gap * 4) / 6.6f;
+        sectionBtn.setBounds (row3.removeFromLeft ((int) (unit * 1.3f))); row3.removeFromLeft (gap);
+        loopSectBtn.setBounds (row3.removeFromLeft ((int) (unit * 2.2f))); row3.removeFromLeft (gap);
+        undoBtn.setBounds (row3.removeFromLeft ((int) unit)); row3.removeFromLeft (gap);
+        redoBtn.setBounds (row3.removeFromLeft ((int) unit)); row3.removeFromLeft (gap);
+        closeBtn.setBounds (row3);
+    }
     listArea = r.toFloat();
+}
+
+float ArrangePage::tagX() const
+{
+    return listArea.getRight() - (PixelFont::textWidth ("WWWWWWWWWWWW", Theme::px) + Theme::px * 4);
 }
 
 int ArrangePage::rowAt (float y) const { return scroll + (int) std::floor ((y - listArea.getY()) / rowH()); }
@@ -263,7 +301,24 @@ void ArrangePage::paint (juce::Graphics& g)
         PixelFont::draw (g, juce::String (row).paddedLeft ('0', 3) + "   BLOCK " + juce::String (blk).paddedLeft ('0', 3),
                          rr.getX() + px * 9, ty, px, sk.text);
         const float textW = px * PixelFont::kCellW * 19 + px * 12;
-        paintPreview (g, rr.withTrimmedLeft (textW).reduced (px * 2, px * 2), blk);
+        // section: divider line above the row and its name at the right
+        const int si = sectionAt (proc.song.sections, row);
+        const juce::String tag = si >= 0 ? juce::String (proc.song.sections[(size_t) si].name).toUpperCase() : juce::String();
+        const float tagW = PixelFont::textWidth ("WWWWWWWWWWWW", px) + px * 4;   // room for 12 characters
+        paintPreview (g, rr.withTrimmedLeft (textW).withTrimmedRight (tagW).reduced (px * 2, px * 2), blk);
+        if (proc.editorState.sectionLoop && row >= proc.player.songLoopStart() && row <= proc.player.songLoopEnd())
+        {
+            g.setColour (sk.hot);
+            g.fillRect (rr.getX() + px * 6.5f, rr.getY(), px * 1.5f, rh);
+        }
+        if (si >= 0)
+        {
+            g.setColour (sk.hot);
+            g.fillRect (rr.getX(), rr.getY(), rr.getWidth(), std::max (1.5f, px));
+            juce::String t = tag;
+            while (t.length() > 1 && PixelFont::textWidth (t, px) > tagW - px * 2) t = t.dropLastCharacters (1);
+            PixelFont::draw (g, t, rr.getRight() - PixelFont::textWidth (t, px) - px * 2, ty, px, sk.hot);
+        }
     }
     // drop marker while dragging
     if (dragging && dropAt >= 0)
@@ -290,6 +345,13 @@ void ArrangePage::mouseDown (const juce::MouseEvent& e)
     const int row = rowAt (e.position.y);
     const int n = (int) proc.song.sequence.size();
     if (row < 0 || row >= n) return;
+    if (e.position.x >= tagX())
+    {
+        // the label zone at the right: add / rename / remove a section here
+        juce::Component::SafePointer<ArrangePage> safe (this);
+        editSectionDialog (proc, row, [safe] (const juce::String& m) { if (safe != nullptr) safe->changed (m); });
+        return;
+    }
     if (e.mods.isShiftDown()) { cursor = row; changed ({}); return; }
     if (row >= selStart() && row <= selEnd() && selStart() != selEnd()) { dragFrom = row; return; }   // drag a range
     anchor = cursor = row;

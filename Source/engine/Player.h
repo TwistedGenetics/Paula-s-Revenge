@@ -75,6 +75,9 @@ public:
 
     void playSong (int seqPos = 0, int line = 0);
     void playBlock (int block, int line = 0);
+    // While playing a block: move to block `b` at the same line and tick (no restart). False if not in block play.
+    bool switchBlock (int b);
+    int  playingBlock() const { return block; }
     void stop();
     Mode getMode() const { return mode; }
 
@@ -82,6 +85,11 @@ public:
     // Bxx/Dxx inside the loop are ignored so it keeps going round.
     void setLineLoop (int blockIndex, int from, int to);
     int  loopBlock() const { return lpBlock; }
+    // Loop song positions from..to while playing the song; from < 0 = off. When the
+    // play position is outside the range, it goes there at the end of the current block.
+    void setSongLoop (int from, int to) { songLoopFrom = from; songLoopTo = std::max (from, to); }
+    int  songLoopStart() const { return songLoopFrom; }
+    int  songLoopEnd() const { return songLoopTo; }
     int  loopFrom() const { return lpFrom; }
     int  loopTo() const { return lpTo; }
     bool isPlaying() const { return mode != Mode::Stopped; }
@@ -193,6 +201,8 @@ private:
     bool ledOn = false;
 
     int  lpBlock = -1, lpFrom = 0, lpTo = 0;   // line loop
+    int  songLoopFrom = -1, songLoopTo = -1;   // section loop
+    int  nextSongPos (int prev, int wanted);   // applies the section loop
     bool inLineLoop() const { return lpBlock >= 0 && block == lpBlock && line >= lpFrom && line <= lpTo; }
     int  breakLine = -1;   // pending Dxx
     int  jumpPos   = -1;   // pending Bxx

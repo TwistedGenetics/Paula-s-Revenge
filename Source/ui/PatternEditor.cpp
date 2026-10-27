@@ -250,6 +250,31 @@ void PatternEditor::paint (juce::Graphics& g)
         }
     }
 
+    // ---- mouse selection
+    if (hasSelection())
+    {
+        const int gpt = groupsPerTrack();
+        static const int groupCol[3] = { 0, 3, 6 };
+        static const int groupChars[3] = { 6, 3, 3 };
+        g.setColour (sk.hot.withAlpha (0.28f));
+        for (int r = 0; r < visRows; ++r)
+        {
+            const int l = st.line + (r - centre);
+            if (l < sel.l0 || l > sel.l1) continue;
+            const float y = y0 + r * rh;
+            for (int c = sel.c0; c <= sel.c1; ++c)
+            {
+                const int slot = c / gpt - first, grp = c % gpt;
+                if (slot < 0 || slot >= nVis) continue;
+                // join neighbouring groups so the selection reads as one block
+                const float xa = colX (slot, groupCol[grp]) - px * 0.75f;
+                const float xb = (c < sel.c1 && (c + 1) / gpt == c / gpt) ? colX (slot, groupCol[grp + 1]) - px * 0.75f
+                                                                           : xa + groupChars[grp] * cw + px;
+                g.fillRect (juce::Rectangle<float> (xa, y, xb - xa, rh));
+            }
+        }
+    }
+
     // ---- per-track VU bars: a segmented column at the right edge of each track
     const float segH = std::max (2.0f, px * 3);
     const float vuTop = hh + px * 2, vuBottom = bounds.getBottom() - px * 2;
@@ -400,29 +425,52 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     }
 
     const int l = juce::jlimit (0, blockLines() - 1, lineAtY (e.position.y));
-    if (e.mods.isShiftDown())
-    {
-        // shift+click: loop from the cursor line to here
-        setLoopRange (st.line, l);
-        return;
-    }
     if (e.position.x < lineNumW() - px * PixelFont::kCellW * 0.75f)
     {
-        loopDragFrom = l;   // dragging over the line numbers marks a loop (the view stays put)
+        // line numbers: drag marks a loop; shift+click loops from the cursor line to here
+        if (e.mods.isShiftDown()) { setLoopRange (st.line, l); return; }
+        loopDragFrom = l;   // (the view stays put)
         return;
     }
-    if (! (proc.player.isPlaying() && st.follow)) st.line = l;
-
-    if (slot >= 0 && slot < nVis)
+    int line = 0, track = 0, column = 0;
+    if (! cellAt (e.position, line, track, column)) return;
+    if (e.mods.isShiftDown())
     {
-        st.track = first + slot;
-        const float rel = e.position.x - colX (slot, 0);
-        const int ch = (int) std::floor (rel / (px * PixelFont::kCellW));
-        int col = 0;
-        for (int c = numColumns() - 1; c >= 0; --c) if (ch >= kColOffset[c]) { col = c; break; }
-        st.column = col;
+        // shift+click: select from the cursor to here
+        selectRange (st.line, line, st.track, groupOfColumn (st.column), track, groupOfColumn (column));
+        return;
     }
-    changed();
+    // a click moves the cursor; a drag selects (decided on mouse up / first drag)
+    downInGrid = true; selDragging = false;
+    downLine = line; downTrack = track; downColumn = column;
+}
+
+bool PatternEditor::cellAt (juce::Point<float> p, int& line, int& track, int& column) const
+{
+    const float px = fontPx();
+    const int slot = (int) std::floor ((p.x - lineNumW() + px * PixelFont::kCellW * 0.5f) / trackW());
+    if (slot < 0 || slot >= visibleTracks() || p.y < headerH()) return false;
+    line = juce::jlimit (0, blockLines() - 1, lineAtY (p.y));
+    track = firstTrack() + slot;
+    const float rel = p.x - colX (slot, 0);
+    const int ch = (int) std::floor (rel / (px * PixelFont::kCellW));
+    column = 0;
+    for (int c = numColumns() - 1; c >= 0; --c) if (ch >= kColOffset[c]) { column = c; break; }
+    return true;
+}
+
+void PatternEditor::mouseUp (const juce::MouseEvent&)
+{
+    if (downInGrid && ! selDragging)
+    {
+        // plain click: move the cursor there and drop any selection
+        clearSelection();
+        if (! (proc.player.isPlaying() && st.follow)) st.line = downLine;
+        st.track = downTrack;
+        st.column = downColumn;
+        changed();
+    }
+    downInGrid = selDragging = false;
 }
 
 void PatternEditor::mouseDrag (const juce::MouseEvent& e)
@@ -433,6 +481,114 @@ void PatternEditor::mouseDrag (const juce::MouseEvent& e)
         const int l = juce::jlimit (0, blockLines() - 1, lineAtY (e.position.y));
         setLoopRange (loopDragFrom, l);
     }
+    if (downInGrid && (selDragging || e.getDistanceFromDragStart() > 3))
+    {
+        selDragging = true;
+        // past the top or bottom: scroll
+        const float top = headerH(), bottom = (float) getHeight() - helpHeight();
+        if (e.position.y < top + rowH() * 0.5f && st.line > 0 && ! (proc.player.isPlaying() && st.follow)) --st.line;
+        if (e.position.y > bottom - rowH() * 0.5f && st.line < blockLines() - 1 && ! (proc.player.isPlaying() && st.follow)) ++st.line;
+        auto p = e.position;
+        p.x = juce::jlimit (lineNumW(), lineNumW() + trackW() * visibleTracks() - 1.0f, p.x);
+        p.y = juce::jlimit (top + 1.0f, bottom - 1.0f, p.y);
+        int line = 0, track = 0, column = 0;
+        if (cellAt (p, line, track, column))
+            selectRange (downLine, line, downTrack, groupOfColumn (downColumn), track, groupOfColumn (column));
+    }
+}
+
+// ---------------------------------------------------------------- selection
+bool PatternEditor::hasSelection() const { return sel.block >= 0 && sel.block == proc.song.safeBlock (st.block); }
+
+void PatternEditor::selectRange (int line0, int line1, int track0, int group0, int track1, int group1)
+{
+    const int gpt = groupsPerTrack();
+    const int lines = blockLines();
+    sel.block = proc.song.safeBlock (st.block);
+    sel.l0 = juce::jlimit (0, lines - 1, std::min (line0, line1));
+    sel.l1 = juce::jlimit (0, lines - 1, std::max (line0, line1));
+    const int a = track0 * gpt + std::min (group0, gpt - 1), b = track1 * gpt + std::min (group1, gpt - 1);
+    sel.c0 = std::max (0, std::min (a, b));
+    sel.c1 = std::min (proc.song.numTracks * gpt - 1, std::max (a, b));
+    repaint();
+}
+
+void PatternEditor::clearSelection() { if (sel.block >= 0) { sel.block = -1; repaint(); } }
+
+void PatternEditor::selectAll()
+{
+    selectRange (0, blockLines() - 1, 0, 0, proc.song.numTracks - 1, groupsPerTrack() - 1);
+}
+
+template <typename Fn> void PatternEditor::forEachSelected (Fn&& fn) const
+{
+    const int gpt = groupsPerTrack();
+    for (int l = sel.l0; l <= sel.l1; ++l)
+        for (int c = sel.c0; c <= sel.c1; ++c)
+            fn (l, c / gpt, c % gpt);
+}
+
+namespace
+{
+    void clearGroup (Cell& c, int g)
+    {
+        if (g == 0) { c.note = 0; c.instr = 0; }
+        else if (g == 1) { c.cmd = 0; c.param = 0; }
+        else { c.cmd2 = 0; c.param2 = 0; }
+    }
+    void copyGroup (Cell& to, const Cell& from, int g)
+    {
+        if (g == 0) { to.note = from.note; to.instr = from.instr; }
+        else if (g == 1) { to.cmd = from.cmd; to.param = from.param; }
+        else { to.cmd2 = from.cmd2; to.param2 = from.param2; }
+    }
+}
+
+void PatternEditor::copySelection (bool cut)
+{
+    if (! hasSelection()) return;
+    const auto& b = proc.song.blocks[(size_t) sel.block];
+    const int gpt = groupsPerTrack();
+    selClip.cells.clear();
+    selClip.lines = sel.l1 - sel.l0 + 1;
+    const int t0 = sel.c0 / gpt;
+    forEachSelected ([&] (int l, int t, int g) { selClip.cells.push_back ({ l - sel.l0, t - t0, g, b.at (l, t) }); });
+    lastCopy = LastCopy::Selection;
+    if (onStatus) onStatus ((cut ? "CUT " : "COPIED ") + juce::String (selClip.lines) + " LINES - CMD+V PASTES AT THE CURSOR");
+    if (cut) deleteSelection();
+}
+
+void PatternEditor::deleteSelection()
+{
+    if (! hasSelection()) return;
+    pushUndo (sel.block, "DELETE SELECTION");
+    proc.withLock ([&] {
+        auto& b = proc.song.blocks[(size_t) sel.block];
+        forEachSelected ([&] (int l, int t, int g) { clearGroup (b.at (l, t), g); });
+    });
+    changed();
+}
+
+void PatternEditor::pasteSelection()
+{
+    if (selClip.cells.empty()) return;
+    const int blk = proc.song.safeBlock (st.block);
+    pushUndo (blk, "PASTE SELECTION");
+    const int lines = blockLines();
+    proc.withLock ([&] {
+        auto& b = proc.song.blocks[(size_t) blk];
+        for (const auto& c : selClip.cells)
+        {
+            const int l = st.line + c.line, t = st.track + c.track;
+            if (l < lines && t < proc.song.numTracks) copyGroup (b.at (l, t), c.cell, c.group);
+        }
+    });
+    // the pasted area becomes the selection
+    int maxT = 0, minG = 2, maxG = 0;
+    for (const auto& c : selClip.cells) maxT = std::max (maxT, c.track);
+    for (const auto& c : selClip.cells) { if (c.track == 0) minG = std::min (minG, c.group); if (c.track == maxT) maxG = std::max (maxG, c.group); }
+    selectRange (st.line, st.line + selClip.lines - 1, st.track, minG, st.track + maxT, maxG);
+    changed();
 }
 
 void PatternEditor::askBlockNumber()
@@ -824,9 +980,11 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         const auto tc = k.getTextCharacter();
         if (code == '[' || tc == '[') { setLoopRange (st.line, st.loopBlock == proc.song.safeBlock (st.block) ? std::max (st.line, st.loopTo) : st.line); return true; }
         if (code == ']' || tc == ']') { setLoopRange (st.loopBlock == proc.song.safeBlock (st.block) ? std::min (st.line, st.loopFrom) : st.line, st.line); return true; }
-        if (ch == 'c') { if (shift) copyBlock (false); else copyTrack (false); return true; }
-        if (ch == 'x') { if (shift) copyBlock (true);  else copyTrack (true);  return true; }
-        if (ch == 'v') { if (shift) pasteBlock(); else pasteTrack(); return true; }
+        // with a mouse selection, copy/cut work on it; paste puts back whatever was copied last
+        if (ch == 'c') { if (hasSelection() && ! shift) copySelection (false); else if (shift) { copyBlock (false); lastCopy = LastCopy::Block; } else { copyTrack (false); lastCopy = LastCopy::Track; } return true; }
+        if (ch == 'x') { if (hasSelection() && ! shift) copySelection (true);  else if (shift) { copyBlock (true); lastCopy = LastCopy::Block; } else { copyTrack (true); lastCopy = LastCopy::Track; } return true; }
+        if (ch == 'v') { if (shift) pasteBlock(); else if (lastCopy == LastCopy::Selection) pasteSelection(); else pasteTrack(); return true; }
+        if (ch == 'a') { selectAll(); return true; }
         if (code == juce::KeyPress::upKey)   { transposeTrack (shift ? 12 : 1); return true; }
         if (code == juce::KeyPress::downKey) { transposeTrack (shift ? -12 : -1); return true; }
         return false; // let the host have other shortcuts
@@ -834,6 +992,11 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
 
     // --- line edits
     // the Mac "delete" key is backspace: plain = clear field, shift = remove line, alt = insert line
+    if (hasSelection() && (code == juce::KeyPress::deleteKey || (code == juce::KeyPress::backspaceKey && ! shift && ! mods.isAltDown())))
+    {
+        deleteSelection();
+        return true;
+    }
     if (code == juce::KeyPress::deleteKey) { clearField(); return true; }
     if (code == juce::KeyPress::backspaceKey)
     {

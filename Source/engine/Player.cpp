@@ -115,6 +115,7 @@ void Player::playSong (int pos, int startLine)
     breakLine = jumpPos = loopJumpLine = -1; rowDelayCount = 0; firstTickOfRow = true;
     rng = 0x9E3779B9u;
     mode = Mode::Song;
+    uiSeqPos = seqPos; uiBlock = block; uiLine = line;
 }
 
 void Player::playBlock (int b, int startLine)
@@ -130,6 +131,22 @@ void Player::playBlock (int b, int startLine)
     breakLine = jumpPos = loopJumpLine = -1; rowDelayCount = 0; firstTickOfRow = true;
     rng = 0x9E3779B9u;
     mode = Mode::Block;
+    uiBlock = block; uiLine = line;
+}
+
+bool Player::switchBlock (int b)
+{
+    if (mode != Mode::Block || song == nullptr || song->blocks.empty()) return false;
+    b = song->safeBlock (b);
+    if (b == block) return false;
+    // carry on from the same line and tick, so the groove doesn't stop
+    block = b;
+    const int lines = song->blocks[(size_t) block].lines;
+    if (line >= lines) line %= lines;
+    breakLine = jumpPos = loopJumpLine = -1;
+    for (auto& v : voices) v.earlyDone = false;
+    uiBlock = block; uiLine = line;
+    return true;
 }
 
 void Player::stop()
@@ -153,7 +170,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
     v.finetune = in.finetune;
     v.note = std::clamp (note + in.transpose, 1, (int) kNoteMax);
     v.period = v.outPeriod = periodFor (v.note, v.finetune);
-    v.volume = v.outVolume = std::clamp (in.volume * velocity127 / 127, 0, 64);
+    v.volume = v.outVolume = std::clamp (64 * velocity127 / 127, 0, 64);   // the instrument's VOL is applied as a level
     v.jamNote = note;
     const int len = (int) in.data.size();
     if (start < 0 && in.sliceKeys && in.numSlices() > 0)
@@ -283,7 +300,7 @@ void Player::setInstrument (Voice& v, int instrNumber)
     if (instrNumber <= 0 || instrNumber > kMaxInstruments) return;
     const auto& in = song->instruments[(size_t) instrNumber - 1];
     v.instr = instrNumber - 1;
-    v.volume = in.volume;
+    v.volume = 64;   // note volume (Cxx etc.); the instrument's VOL scales it at the output
     v.finetune = in.finetune;
 }
 
@@ -687,6 +704,17 @@ void Player::setLineLoop (int b, int from, int to)
     lpBlock = b;
 }
 
+int Player::nextSongPos (int prev, int wanted)
+{
+    const int seqLen = (int) song->sequence.size();
+    if (songLoopFrom < 0 || songLoopFrom >= seqLen) return wanted;
+    const int to = std::min (songLoopTo, seqLen - 1);
+    const bool wasInside = prev >= songLoopFrom && prev <= to;
+    const bool staysInside = wanted >= songLoopFrom && wanted <= to;
+    if (wasInside && staysInside) return wanted;
+    return songLoopFrom;   // end of the loop, or outside it: go (back) to its start
+}
+
 void Player::advanceLine()
 {
     if (rowDelay > 0) { rowDelayCount = rowDelay; rowDelay = 0; }
@@ -715,7 +743,8 @@ void Player::advanceLine()
             const int prev = seqPos;
             seqPos = jumpPos >= 0 ? jumpPos : seqPos + 1;
             if (seqPos >= seqLen || seqPos < 0) seqPos = 0;
-            if (seqPos <= prev) ++songWraps;
+            if (seqPos <= prev && songLoopFrom < 0) ++songWraps;
+            seqPos = nextSongPos (prev, seqPos);
             block = song->safeBlock (song->sequence[(size_t) seqPos]);
         }
         line = breakLine >= 0 ? std::clamp (breakLine, 0, song->blocks[(size_t) block].lines - 1) : 0;
@@ -725,7 +754,9 @@ void Player::advanceLine()
         line = 0;
         if (mode == Mode::Song)
         {
-            if (++seqPos >= seqLen) { seqPos = 0; ++songWraps; }
+            const int prev = seqPos;
+            if (++seqPos >= seqLen) { seqPos = 0; if (songLoopFrom < 0) ++songWraps; }
+            seqPos = nextSongPos (prev, seqPos);
             block = song->safeBlock (song->sequence[(size_t) seqPos]);
         }
     }
@@ -846,7 +877,8 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
             if (! wrap (v.pos)) v.active = false;
         }
     }
-    const float g = (float) v.outVolume / 64.0f;
+    // note volume (Cxx, slides, tremolo) times the instrument's level
+    const float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f;
     outL = L * g;
     outR = R * g;
 }

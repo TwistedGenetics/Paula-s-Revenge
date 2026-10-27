@@ -22,9 +22,9 @@ rescan in Ableton. Builds are universal (Apple Silicon + Intel).
 |---|---|
 | Title bar | NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
-| Sequence | The song order, with a scrollbar. Click a position to jump to it. INS / DEL entries, set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag a row) move the selected position. CLONE IN PLACE gives this position its own copy of the block (see below) |
+| Sequence | The song order, with a scrollbar. Click a position to jump to it. INS / DEL entries, set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag a row) move the selected position. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. Volume, finetune, transpose, loop on/off, loop start/length. Drag the loop markers in the little waveform (double-click it to open the editor). Double-click a name to rename. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, host sync |
@@ -63,9 +63,23 @@ Envelopes and filters run per note on top of the Paula sound. They're saved in `
 * INSERT adds the BLOCK number after the cursor; SET makes the selected positions play that block.
 * `Cmd+Z` / `Cmd+Shift+Z` undo and redo; double-click a position or press Enter to go back to the pattern.
 
+**Instrument VOL** is a level for the whole instrument, on top of each note's own volume. `Cxx` still sets a note's volume, so you can write hats with `C20` on every other one for the groove and then pull all the hats down with VOL without touching the pattern. (MOD and MED files load with their instrument volumes written onto the notes as `Cxx` in the second effect column, so they sound exactly as before; SAVE MOD writes each `Cxx` at the level it actually plays at.)
+
+## Selecting notes and effects with the mouse
+
+Drag across the pattern to select notes and effects: the selection snaps to whole fields (note + instrument, FX1, FX2) and can span tracks. Shift-click selects from the cursor to the click; `Cmd+A` selects the whole block.
+
+* `Cmd+C` / `Cmd+X` copy / cut the selection, `Cmd+V` pastes it at the cursor (each part goes back into the same kind of field, so effects land in effect columns), `Delete` clears it. The pasted part stays selected.
+* Without a selection, `Cmd+C/X/V` still copy a whole track (add `Shift` for the whole block).
+* A plain click moves the cursor and drops the selection. It's all undoable.
+
+## Playing a block
+
+While a block plays (▶ BLOCK, `Space`), picking another block — in the sequence, the BLOCK box, or the BLK corner — carries playback straight over to it **on the same line**, without stopping, so you can audition blocks against each other in time. (A shorter block wraps the line round.)
+
 ## Looping part of a block
 
-Drag down the **line numbers** to mark some lines (or Shift-click a line to mark from the cursor to there; `Cmd+[` / `Cmd+]` set the start / end at the cursor). The marked lines turn red and playback goes round them: `Space` starts at the first marked line, and song playback also loops there once it reaches that block. `Bxx`/`Dxx` jumps inside the loop are ignored so it keeps going. **LOOP** on the transport row turns it off and on again; marking new lines turns it on.
+Drag down the **line numbers** to mark some lines (or Shift-click a line number to mark from the cursor to there; `Cmd+[` / `Cmd+]` set the start / end at the cursor). The marked lines turn red and playback goes round them: `Space` starts at the first marked line, and song playback also loops there once it reaches that block. `Bxx`/`Dxx` jumps inside the loop are ignored so it keeps going. **LOOP** on the transport row turns it off and on again; marking new lines turns it on.
 
 ## Undo and redo
 
@@ -73,10 +87,20 @@ One history covers everything: notes and effects, block lengths, the sequence an
 
 ## Sequence tools
 
-* **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list.
-* **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into a new block 3, moves every later block up one number (the sequence follows, so nothing else changes), and points position 1 at the new block 3. The song order keeps the same length; only one new block number exists. Now you can change it without touching the other places block 2 is used. The status line says exactly what happened.
+* **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list. (Section dividers stay where they are when you move positions.)
+* **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into the **next free block** and points position 1 at it. The next free block is the lowest-numbered block that's empty and not used anywhere in the song, or else a new block at the end. No other block numbers change and the song order keeps its length. Now you can change the copy without touching the other places block 2 is used. The status line says which block it used.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
 * UNDO / REDO (`Cmd+Z` / `Cmd+Shift+Z`) undo and redo all of these.
+
+## Song sections
+
+Mark the parts of a song (intro, drop, break…) with dividers in the sequence:
+
+* **Click at the right of a row** in the sequence list (`+ SECTION` appears when you point there) to start a section at that position and name it. A line appears above the row with the name on the right. Click the name again to rename it or **Remove** it.
+* A section runs from its divider to the next one (positions before the first divider count as one too).
+* **LOOP SECTION** makes song play loop the section of the selected position. Pick a position in another section and playback goes there when the current block finishes, so you can jam between parts. The looped section is marked down the left edge.
+* The **arrange page** shows the same dividers and names, has SECTION (add / rename / remove at the selection) and LOOP SECTION buttons, and clicking the name area at the right of a row works there too. Inserting, deleting, cutting and pasting positions moves the dividers with the music.
+* Sections are saved in the song (`.prv`) and are undoable.
 
 ## Saving and your samples
 
@@ -177,10 +201,11 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `PgUp` / `PgDn`, `Home` / `End` | Jump |
 | `[` `]` | Octave down / up |
 | `-` `=` | Previous / next instrument |
-| `Delete` (⌫) | Clear the field under the cursor |
+| `Delete` (⌫) | Clear the selection, or the field under the cursor |
 | `Shift+Delete` | Remove the line (pulls the track up) |
 | `Alt+Delete` | Insert a blank line (pushes the track down) |
-| `Cmd+C / X / V` | Copy / cut / paste track · add `Shift` for the whole block |
+| `Cmd+C / X / V` | Copy / cut / paste the mouse selection, or the track · add `Shift` for the whole block |
+| `Cmd+A` | Select the whole block |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
@@ -281,7 +306,7 @@ Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For t
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 5 adds ping-pong loops and slices (v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 6 adds song sections (v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

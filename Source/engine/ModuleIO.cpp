@@ -43,11 +43,39 @@ namespace
 }
 
 // ===========================================================================
+void bakeInstrumentVolumes (Song& song)
+{
+    // In MOD/MED an instrument's volume is where each new note starts, and Cxx
+    // replaces it. Here the instrument volume is a level on top of the note
+    // volume, so write the start volume onto the notes (free 2nd column) and
+    // set the instrument to full level: the module sounds the same.
+    bool blocked[kMaxInstruments] {};
+    for (const auto& b : song.blocks)
+        for (int l = 0; l < b.lines; ++l)
+            for (int t = 0; t < kMaxTracks; ++t)
+            {
+                const Cell& c = b.at (l, t);
+                if (c.instr > 0 && c.instr <= kMaxInstruments && c.cmd != 0xC && ! c.fx2Empty()) blocked[c.instr - 1] = true;
+            }
+    for (auto& b : song.blocks)
+        for (int l = 0; l < b.lines; ++l)
+            for (int t = 0; t < kMaxTracks; ++t)
+            {
+                Cell& c = b.at (l, t);
+                if (c.instr == 0 || c.instr > kMaxInstruments || blocked[c.instr - 1]) continue;
+                const int v = song.instruments[(size_t) c.instr - 1].volume;
+                if (v >= 64 || c.cmd == 0xC) continue;
+                c.cmd2 = 0xC; c.param2 = (uint8_t) std::clamp (v, 0, 64);
+            }
+    for (int i = 0; i < kMaxInstruments; ++i)
+        if (! blocked[i]) song.instruments[(size_t) i].volume = 64;
+}
+
 IOResult loadModule (const std::vector<uint8_t>& bytes, Song& out)
 {
-    if (bytes.size() >= 4 && bytes[0] == 'M' && bytes[1] == 'M' && bytes[2] == 'D')
-        return loadMED (bytes, out);
-    return loadMOD (bytes, out);
+    auto res = (bytes.size() >= 4 && bytes[0] == 'M' && bytes[1] == 'M' && bytes[2] == 'D') ? loadMED (bytes, out) : loadMOD (bytes, out);
+    if (res.ok) bakeInstrumentVolumes (out);
+    return res;
 }
 
 // ===========================================================================
@@ -468,10 +496,12 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
             for (int t = 0; t < channels; ++t) if (b.at (lines - 1, t).cmd == 0 && b.at (lines - 1, t).param == 0) { breakTrack = t; break; }
             if (breakTrack < 0) breakTrack = channels - 1;
         }
+        int lastInstr[kMaxTracks] {};   // for scaling Cxx by the instrument's level
         for (int row = 0; row < 64; ++row)
             for (int ch = 0; ch < channels; ++ch)
             {
                 Cell c = row < lines ? b.at (row, ch) : Cell{};
+                if (c.instr > 0 && c.instr <= kMaxInstruments) lastInstr[ch] = c.instr;
                 // only one ProTracker command fits: keep column 1 if it's 0-F, else column 2
                 if (c.cmd > 15 || (c.fx1Empty() && ! c.fx2Empty()))
                 {
@@ -481,6 +511,9 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
                 }
                 if (! c.fx2Empty()) fxDropped = true;
                 if (row == lines - 1 && ch == breakTrack) { c.cmd = 0xD; c.param = 0; }
+                // Cxx is a note volume here, scaled by the instrument's level; in a MOD it's absolute
+                if (c.cmd == 0xC && lastInstr[ch] > 0)
+                    c.param = (uint8_t) std::lround (std::min ((int) c.param, 64) * std::clamp (song.instruments[(size_t) lastInstr[ch] - 1].volume, 0, 64) / 64.0);
                 int period = 0;
                 if (c.note == kNoteOff) { if (c.cmd == 0 && c.param == 0) { c.cmd = 0xC; c.param = 0; } }
                 else if (c.note > 0) period = std::clamp (periodForInt (c.note, 0), 1, 4095);

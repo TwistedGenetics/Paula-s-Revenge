@@ -131,6 +131,13 @@ struct Instrument
     void clear() { *this = Instrument{}; }
 };
 
+// A labelled divider in the song order: the section starts at sequence position `pos`
+struct SongSection
+{
+    int pos = 0;
+    std::string name;
+};
+
 struct Song
 {
     std::string name = "UNTITLED";
@@ -141,6 +148,7 @@ struct Song
     int  trackPan[kMaxTracks] = { -1, -1, -1, -1, -1, -1, -1, -1 };  // -1 = automatic, else 0..255 (128 = centre)
     std::vector<Block> blocks;
     std::vector<int> sequence;         // block indices
+    std::vector<SongSection> sections; // sorted by pos, at most one per position
     std::array<Instrument, kMaxInstruments> instruments;
 
     Song() { reset(); }
@@ -152,6 +160,7 @@ struct Song
         for (auto& p : trackPan) p = -1;
         blocks.assign (1, Block{});
         sequence.assign (1, 0);
+        sections.clear();
         for (auto& i : instruments) i.clear();
     }
 

@@ -15,6 +15,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed (const juce::KeyPress&) override;
@@ -40,6 +41,16 @@ public:
     void doubleBlock();
     void halveBlock();
 
+    // mouse selection of notes / effects (also used by tests). Columns count in
+    // groups across the tracks: note+instrument, FX1, FX2 (when shown).
+    bool hasSelection() const;
+    void selectRange (int line0, int line1, int track0, int group0, int track1, int group1);
+    void clearSelection();
+    void copySelection (bool cut);
+    void pasteSelection();     // at the cursor line / track
+    void deleteSelection();
+    void selectAll();
+
     // marked loop (lines of the current block)
     void setLoopRange (int from, int to);   // also turns the loop on
     void setLoopOn (bool on);
@@ -59,6 +70,16 @@ private:
 
     int panDragTrack = -1;
     int loopDragFrom = -1;              // dragging over the line numbers
+    struct Selection { int block = -1, l0 = 0, l1 = 0, c0 = 0, c1 = 0; } sel;   // c = track * groups + group
+    struct ClipCell { int line, track, group; Cell cell; };
+    struct SelClip { std::vector<ClipCell> cells; int lines = 0; } selClip;
+    enum class LastCopy { None, Track, Block, Selection } lastCopy = LastCopy::None;
+    bool downInGrid = false, selDragging = false;
+    int downLine = 0, downTrack = 0, downColumn = 0;
+    int groupsPerTrack() const { return st.showFx2 ? 3 : 2; }
+    static int groupOfColumn (int column) { return column <= 2 ? 0 : column <= 5 ? 1 : 2; }
+    bool cellAt (juce::Point<float>, int& line, int& track, int& column) const;
+    template <typename Fn> void forEachSelected (Fn&& fn) const;   // fn (line, track, group)
     juce::Rectangle<float> cornerRect() const;
     void askBlockNumber();
     int lineAtY (float y) const;
