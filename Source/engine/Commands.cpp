@@ -36,6 +36,7 @@ std::string commandName (int c)
     {
         case 'G': return "GLIDE";          case 'H': return "HIGH-PASS";      case 'K': return "CHANCE";
         case 'I': return "NOTE TRANSPOSE";
+        case 'J': return "AUTO B";         case 'V': return "AUTO A";         case 'Y': return "KNOB GLIDE";
         case 'L': return "LOW-PASS";       case 'M': return "MICRO-MOVE";     case 'N': return "NOTE LENGTH";
         case 'O': return "OVERDRIVE";      case 'P': return "POSITION";       case 'Q': return "RESONANCE";
         case 'R': return "ROLL";           case 'S': return "SLICE";          case 'T': return "MICRO-TUNE";
@@ -95,6 +96,9 @@ std::string describeCommand (int c, uint8_t p)
             if (p == 0 || p == 0x80) return head + "NO TRANSPOSE (I8C = +12, I74 = -12)";
             return head + fmt ("TRANSPOSE THIS NOTE %+d SEMITONES", std::clamp ((int) p - 128, -48, 48));
         case 'K': return head + fmt ("PLAY THIS STEP %d%% OF THE TIME", pct (p));
+        case 'V': return head + fmt ("SET THE TRACK'S AUTO A KNOB TO %d%%", pct (p));
+        case 'J': return head + fmt ("SET THE TRACK'S AUTO B KNOB TO %d%%", pct (p));
+        case 'Y': return head + (p ? fmt ("THE NEXT KNOB CHANGE GLIDES OVER %d TICKS", (int) p) : "KNOB CHANGES JUMP");
         case 'L': return head + fmt ("LOW-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
         case 'M':
             if (p == 0 || p == 0x80) return head + "NO TIMING SHIFT";
@@ -155,6 +159,7 @@ const std::vector<CommandInfo>& commandList()
         { cmdLetter ('G'), 0x06, false, "G", "GLIDE",        "GLIDES TO THE NOTE OVER XX TICKS" },
         { cmdLetter ('H'), 0x40, false, "H", "HIGH-PASS",    "HIGH-PASS FILTER, CUTOFF 00-FF" },
         { cmdLetter ('I'), 0x8C, false, "I", "TRANSPOSE",    "THIS NOTE ONLY: 80 NONE, 8C +12, 74 -12" },
+        { cmdLetter ('J'), 0x80, false, "J", "AUTO B",       "SETS THE TRACK'S AUTO B KNOB (LEARN IT IN THE MIXER)" },
         { cmdLetter ('K'), 0x80, false, "K", "CHANCE",       "PLAYS THIS STEP XX/FF OF THE TIME" },
         { cmdLetter ('L'), 0x80, false, "L", "LOW-PASS",     "LOW-PASS FILTER, CUTOFF 00-FF" },
         { cmdLetter ('M'), 0x20, false, "M", "MICRO-MOVE",   "PLAYS LATE (01-7F) OR EARLY (81-FF)" },
@@ -166,8 +171,10 @@ const std::vector<CommandInfo>& commandList()
         { cmdLetter ('S'), 0x00, false, "S", "SLICE",        "PLAYS SLICE XX+1 OF THE SAMPLE" },
         { cmdLetter ('T'), 0x90, false, "T", "MICRO-TUNE",   "DETUNES IN CENTS, 80 = IN TUNE" },
         { cmdLetter ('U'), 0x01, false, "U", "REVERSE",      "U01 PLAYS BACKWARDS, U00 FORWARDS" },
+        { cmdLetter ('V'), 0x80, false, "V", "AUTO A",       "SETS THE TRACK'S AUTO A KNOB (LEARN IT IN THE MIXER)" },
         { cmdLetter ('W'), 0x80, false, "W", "BAND-PASS",    "BAND-PASS FILTER, CENTRE 00-FF" },
         { cmdLetter ('X'), 0x02, false, "X", "RANDOMISE",    "RANDOM X: 0 NOTE, 1 VOLUME, 2 PAN, 3 START; Y AMOUNT" },
+        { cmdLetter ('Y'), 0x08, false, "Y", "KNOB GLIDE",   "THE NEXT V / J / KNOB CHANGE GLIDES OVER XX TICKS" },
         { cmdLetter ('Z'), 0x04, false, "Z", "BIT CRUSH",    "CRUSHES THIS NOTE TO XX BITS (01-0F)" },
     };
     return list;

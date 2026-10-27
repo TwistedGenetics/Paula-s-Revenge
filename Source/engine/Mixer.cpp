@@ -18,6 +18,7 @@ namespace
 
 MixerEngine::MixerEngine()
 {
+    clearAutomation();
     for (int r = 0; r < kReturns; ++r) { sendL[r].assign (kMaxBlock, 0.0f); sendR[r].assign (kMaxBlock, 0.0f); }
 }
 
@@ -61,6 +62,7 @@ void MixerEngine::apply (std::vector<Pending>& changes, std::vector<std::unique_
         fx[p.slot] = std::move (p.fx);
         fxType[p.slot] = p.type;
         fxKey[p.slot] = p.key;
+        for (auto& a : autoParam[p.slot]) a = -1.0f;
     }
     changes.clear();
 }
@@ -71,6 +73,19 @@ void MixerEngine::syncEffects (const MixerSettings& m, std::vector<std::unique_p
     apply (changes, old);
 }
 
+void MixerEngine::clearAutomation()
+{
+    for (auto& s : autoParam) for (auto& a : s) a = -1.0f;
+}
+
+void MixerEngine::setAutomation (int slot, int param, float v)
+{
+    if (slot < 0 || slot >= kTotalSlots || param < 0) return;
+    v = std::clamp (v, 0.0f, 1.0f);
+    if (fxType[slot] == FxType::Plugin) { if (fx[slot]) fx[slot]->setParameter (param, v); }
+    else if (param < kFxParams) autoParam[slot][param] = v;
+}
+
 void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R, int n, double bpm)
 {
     for (int k = 0; k < kInserts; ++k)
@@ -78,7 +93,16 @@ void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R
         const FxSlot& s = slots[k];
         // (an effect that hasn't been created yet for a new type is skipped)
         if (s.active() && fx[first + k] && fxType[first + k] == s.type && (s.type != FxType::Plugin || fxKey[first + k] == s.pluginKey))
-            fx[first + k]->process (L, R, n, s.p, bpm);
+        {
+            const float* a = autoParam[first + k];
+            if (s.type != FxType::Plugin && (a[0] >= 0 || a[1] >= 0 || a[2] >= 0 || a[3] >= 0 || a[4] >= 0 || a[5] >= 0))
+            {
+                float p[kFxParams];
+                for (int i = 0; i < kFxParams; ++i) p[i] = a[i] >= 0 ? a[i] : s.p[i];
+                fx[first + k]->process (L, R, n, p, bpm);
+            }
+            else fx[first + k]->process (L, R, n, s.p, bpm);
+        }
     }
 }
 

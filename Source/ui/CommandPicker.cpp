@@ -8,7 +8,7 @@ CommandPicker::CommandPicker()
     setWantsKeyboardFocus (true);
     const auto& cmds = commandList();
     list.getNumRows = [&cmds] { return (int) cmds.size(); };
-    list.getRowText = [&cmds] (int r) { return rowText (cmds[(size_t) r]); };
+    list.getRowText = [this] (int r) { return rowTextFor (r); };
     list.onClick = [this] (int r, const juce::MouseEvent&) { pick (r); };
     list.onHover = [this] (int r) { if (r >= 0 && r != list.selected) { list.selected = r; list.repaint(); repaint (infoArea.toNearestInt()); } };
     addAndMakeVisible (list);
@@ -16,10 +16,15 @@ CommandPicker::CommandPicker()
     addAndMakeVisible (cancelBtn);
 }
 
-juce::String CommandPicker::rowText (const CommandInfo& c)
+juce::String CommandPicker::rowTextFor (int row) const
 {
     // "C   SET VOLUME         THE NOTE'S VOLUME, 00-40 (40 = FULL)"
-    return juce::String (c.code).paddedRight (' ', 4) + juce::String (c.name).paddedRight (' ', 18) + juce::String (c.overview);
+    const auto& c = commandList()[(size_t) row];
+    juce::String name = nameFor ? nameFor (c) : juce::String();
+    juce::String over = overviewFor ? overviewFor (c) : juce::String();
+    if (name.isEmpty()) name = c.name;
+    if (over.isEmpty()) over = c.overview;
+    return juce::String (c.code).paddedRight (' ', 4) + name.paddedRight (' ', 18) + over;
 }
 
 void CommandPicker::open (int currentCmd, uint8_t currentParam)
@@ -54,7 +59,7 @@ void CommandPicker::paint (juce::Graphics& g)
     if (list.selected >= 0 && list.selected < (int) cmds.size())
     {
         const auto& c = cmds[(size_t) list.selected];
-        juce::String t = juce::String (describeCommand (c.cmd, c.param));
+        juce::String t = describe ? describe (c.cmd, c.param) : juce::String (describeCommand (c.cmd, c.param));
         const int fit = (int) ((infoArea.getWidth() - px * 2) / (px * PixelFont::kCellW));
         if (t.length() > fit) t = t.substring (0, std::max (0, fit - 2)) + "..";
         PixelFont::drawLeft (g, "E.G. " + t, infoArea, px, Theme::ink);

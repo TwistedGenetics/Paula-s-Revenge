@@ -8,7 +8,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 8;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 9;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
@@ -36,6 +36,25 @@ namespace
             writeLong (o, s.pluginName.data(), s.pluginName.size());
             writeLong (o, s.pluginState.data(), s.pluginState.size());
         }
+    }
+
+    void writeTarget (juce::OutputStream& o, const AutoTarget& t)
+    {
+        o.writeIntBigEndian (t.target);
+        o.writeIntBigEndian (t.param);
+        writeLong (o, t.name.data(), t.name.size());
+    }
+
+    bool readTarget (juce::InputStream& in, AutoTarget& t)
+    {
+        t.target = in.readIntBigEndian();
+        t.param = in.readIntBigEndian();
+        std::vector<uint8_t> nm;
+        if (! readLong (in, nm, 1 << 12)) return false;
+        t.name.assign (nm.begin(), nm.end());
+        if (t.target < -1 || t.target >= kAutoInstrumentBase + kMaxInstruments || (t.target >= kTotalSlots && t.target < kAutoInstrumentBase) || t.param < -1)
+            t = AutoTarget {};
+        return true;
     }
 
     void readSlot (juce::InputStream& in, FxSlot& s, int version)
@@ -181,6 +200,19 @@ juce::MemoryBlock writeSong (const Song& song)
         }
         raw.writeFloatBigEndian (m.master.volumeDb);
         for (const auto& sl : m.master.inserts) writeSlot (raw, sl);
+    }
+    // v9: automation knobs and plug-in instruments
+    for (const auto& t : song.mixer.trackAuto) for (const auto& k : t) writeTarget (raw, k);
+    for (const auto& in : song.instruments)
+    {
+        raw.writeByte (in.plugin ? 1 : 0);
+        if (! in.plugin) continue;
+        writeLong (raw, in.pluginKey.data(), in.pluginKey.size());
+        writeLong (raw, in.pluginName.data(), in.pluginName.size());
+        writeLong (raw, in.pluginState.data(), in.pluginState.size());
+        raw.writeIntBigEndian (in.pluginOutput);
+        raw.writeIntBigEndian (in.bendRange);
+        for (const auto& k : in.knobs) writeTarget (raw, k);
     }
 
     juce::MemoryOutputStream packed;
@@ -341,6 +373,25 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         m.master.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
         for (auto& sl : m.master.inserts) readSlot (in, sl, version);
     }
+    if (version >= 9 && ! in.isExhausted())
+    {
+        bool ok = true;
+        for (auto& t : s.mixer.trackAuto) for (auto& k : t) ok = ok && readTarget (in, k);
+        for (auto& ins : s.instruments)
+        {
+            if (! ok) break;
+            ins.plugin = in.readByte() != 0;
+            if (! ins.plugin) continue;
+            std::vector<uint8_t> key, name;
+            ok = readLong (in, key, 1 << 16) && readLong (in, name, 1 << 12) && readLong (in, ins.pluginState, 64 << 20);
+            ins.pluginKey.assign (key.begin(), key.end());
+            ins.pluginName.assign (name.begin(), name.end());
+            ins.pluginOutput = juce::jlimit (-1, kMaxTracks - 1, in.readIntBigEndian());
+            ins.bendRange = juce::jlimit (1, 48, in.readIntBigEndian());
+            for (auto& k : ins.knobs) ok = ok && readTarget (in, k);
+        }
+        if (! ok) { error = "The automation / plug-in instrument part of this song is damaged."; return false; }
+    }
     out = std::move (s);
     return true;
 }
@@ -474,12 +525,15 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error,
 
 bool renderSongToWav (const Song& song, const PaulaOptions& options, double sampleRate,
                       const juce::File& file, juce::String& error,
-                      std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory)
+                      std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory,
+                      std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory)
 {
     Player p;
     p.options = options;
     p.setSampleRate (sampleRate);
     p.mixer().pluginFactory = std::move (pluginFactory);
+    p.synths().factory = std::move (synthFactory);
+    p.synths().syncNow (song, sampleRate);
     p.setSong (&song);
     p.mixer().syncEffectsNow (song.mixer);   // the song's mixer is part of the render
     p.playSong();

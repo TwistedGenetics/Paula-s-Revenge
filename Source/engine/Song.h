@@ -85,6 +85,9 @@ struct Envelope
 
 enum class FilterType : uint8_t { Off = 0, LowPass, HighPass, BandPass };
 
+// Tracker note -> MIDI note (C-3 = 60)
+inline int midiNoteFor (int note) { return std::clamp (note + 23, 0, 127); }
+
 struct Instrument
 {
     std::string name;
@@ -125,6 +128,15 @@ struct Instrument
     }
 
     bool hasShaping() const { return volEnv.on || filter != FilterType::Off || ! amigaPan; }
+
+    // a VST3 / AU instrument instead of a sample
+    bool plugin = false;
+    std::string pluginKey, pluginName;
+    std::vector<uint8_t> pluginState;
+    int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
+    int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
+    AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
+    bool isPlugin() const { return plugin; }
 
     bool hasData() const { return ! data.empty(); }
     bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }

@@ -62,6 +62,11 @@ public:
     void reloadMixerSlot (int slot);
     // what RENDER WAV uses to make plug-ins
     std::function<std::unique_ptr<prv::Effect> (int, const prv::FxSlot&, double)> pluginFactory();
+    std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, double)> synthFactory();
+    // plug-in instruments
+    prv::PluginSynthImpl* synthAt (int instrument) const;
+    bool pluginLoadedInstrument (int instrument) const { return synthAt (instrument) != nullptr; }
+    void reloadInstrumentPlugin (int instrument);
 
     // Replace the whole song (loading). Stops playback.
     void replaceSong (prv::Song&& newSong);
@@ -82,7 +87,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth } view = View::Pattern;
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust

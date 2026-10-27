@@ -26,7 +26,7 @@ namespace
                       C_M = cmdLetter ('M'), C_N = cmdLetter ('N'), C_O = cmdLetter ('O'), C_P = cmdLetter ('P'),
                       C_Q = cmdLetter ('Q'), C_R = cmdLetter ('R'), C_S = cmdLetter ('S'), C_T = cmdLetter ('T'),
                       C_U = cmdLetter ('U'), C_W = cmdLetter ('W'), C_X = cmdLetter ('X'), C_Z = cmdLetter ('Z'),
-                      C_I = cmdLetter ('I');
+                      C_I = cmdLetter ('I'), C_V = cmdLetter ('V'), C_J = cmdLetter ('J'), C_Y = cmdLetter ('Y');
 
     float cutoffFromParam (uint8_t p) { return (float) (20.0 * std::pow (1000.0, p / 255.0)); }
 
@@ -58,6 +58,130 @@ Player::Player()
 {
     resetVoices();
     for (auto& j : uiJamPos) j = -1;
+    for (auto& t : synthTrack) t = 99;
+}
+
+// ---------------------------------------------------------------------------
+// plug-in instruments
+bool Player::isSynthVoice (const Voice& v) const
+{
+    return song != nullptr && v.instr >= 0 && v.instr < kMaxInstruments && song->instruments[(size_t) v.instr].isPlugin();
+}
+
+int Player::synthOutputTrack (int i) const
+{
+    if (song == nullptr || i < 0 || i >= kMaxInstruments) return 0;
+    const int nt = std::clamp (song->numTracks, 1, kMaxTracks);
+    const int o = song->instruments[(size_t) i].pluginOutput;
+    if (o >= 0) return std::min (o, nt - 1);
+    return synthTrack[i] < nt ? synthTrack[i] : 0;   // AUTO: the lowest track that has played it
+}
+
+void Player::synthRelease (Voice& v)
+{
+    if (v.synthNote < 0) return;
+    if (auto* s = rack.at (v.synthInstr)) s->noteOff (v.synthNote, chunkPos);
+    v.synthNote = -1;
+}
+
+void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
+{
+    const auto& in = song->instruments[(size_t) v.instr];
+    synthRelease (v);   // one note at a time on a track, as with samples
+    uint8_t p = 0;
+    int note = (int) cell.note + in.transpose;
+    if (cell.has (C_I, p) && p != 0) note += std::clamp ((int) p - 128, -48, 48);
+    v.note = std::clamp (note, 1, (int) kNoteMax);
+    v.period = v.outPeriod = v.targetPeriod = periodFor (v.note, v.finetune);
+    v.glideTicks = 0; v.gateTicks = -1; v.rollEvery = 0; v.pitchMul = 1.0;
+    if (v.vibWave < 4)  v.vibPos = 0;
+    if (v.tremWave < 4) v.tremPos = 0;
+    // Cxx on the note's own line sets the velocity (C40 = 127)
+    int vol = v.volume;
+    if (cell.cmd == 0xC) vol = std::min ((int) cell.param, 64);
+    else if (cell.cmd2 == 0xC) vol = std::min ((int) cell.param2, 64);
+    v.synthVel = std::clamp ((int) std::lround (vol * 127.0 / 64.0), 1, 127);
+    v.active = false;   // (no sample to play)
+    auto* s = rack.at (v.instr);
+    if (s == nullptr || (ch < kMaxTracks && mute[ch].load (std::memory_order_relaxed))) return;
+    if (v.lastBend != 8192) { s->pitchBend (8192, chunkPos); v.lastBend = 8192; }
+    v.synthNote = midiNoteFor (v.note);
+    v.synthInstr = v.instr;
+    s->noteOn (v.synthNote, v.synthVel, chunkPos);
+    if (ch < kMaxTracks) synthTrack[v.instr] = std::min (synthTrack[v.instr], ch);
+    synthBend (v);
+}
+
+void Player::synthRetrigger (Voice& v, int velocityChange)
+{
+    if (v.synthNote < 0) return;
+    auto* s = rack.at (v.synthInstr);
+    if (s == nullptr) return;
+    v.synthVel = std::clamp (v.synthVel + velocityChange, 1, 127);
+    s->noteOff (v.synthNote, chunkPos);
+    s->noteOn (v.synthNote, v.synthVel, chunkPos);
+}
+
+void Player::synthBend (Voice& v)
+{
+    // slides, vibrato, arpeggio and finetune reach a plug-in as pitch bend
+    if (v.synthNote < 0) return;
+    auto* s = rack.at (v.synthInstr);
+    if (s == nullptr) return;
+    const int range = std::max (1, song->instruments[(size_t) v.synthInstr].bendRange);
+    const double semis = 12.0 * std::log2 (periodFor (v.synthNote - 23, 0) / std::max (kMinPeriod, v.outPeriod)) + 1200.0 * std::log2 (v.pitchMul) / 100.0;
+    const int bend = std::clamp ((int) std::lround (8192.0 + semis / range * 8191.0), 0, 16383);
+    if (bend != v.lastBend) { s->pitchBend (bend, chunkPos); v.lastBend = bend; }
+}
+
+void Player::synthAllOff()
+{
+    for (auto& v : voices) synthRelease (v);
+    for (auto& j : jamSynth) if (j.note >= 0) { if (auto* s = rack.at (j.instr)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
+    for (int i = 0; i < kMaxInstruments; ++i) if (auto* s = rack.at (i)) s->allNotesOff (chunkPos);
+}
+
+// ---------------------------------------------------------------------------
+// automation knobs
+void Player::applyLane (int kind, int a, int b, float v)
+{
+    if (song == nullptr) return;
+    if (kind == 0)
+    {
+        const auto& t = song->mixer.trackAuto[a][b];
+        if (! t.valid()) return;
+        if (t.target < kAutoInstrumentBase) mixerEngine.setAutomation (t.target, t.param, v);
+        else if (auto* s = rack.at (t.target - kAutoInstrumentBase)) s->setParameter (t.param, v);
+    }
+    else
+    {
+        const auto& t = song->instruments[(size_t) a].knobs[b];
+        if (t.param >= 0) if (auto* s = rack.at (a)) s->setParameter (t.param, v);
+    }
+}
+
+void Player::setLane (Lane& l, float value, int glide, int kind, int a, int b)
+{
+    knobSetThisRow = true;
+    if (glide > 0 && l.cur >= 0.0f)
+    {
+        l.target = value; l.ticks = glide; l.step = (value - l.cur) / (float) glide;
+        return;
+    }
+    l.cur = l.target = value; l.ticks = 0;
+    applyLane (kind, a, b, value);
+}
+
+void Player::advanceAutomation()
+{
+    auto run = [this] (Lane& l, int kind, int a, int b)
+    {
+        if (l.ticks <= 0) return;
+        l.cur = --l.ticks == 0 ? l.target : l.cur + l.step;
+        applyLane (kind, a, b, l.cur);
+    };
+    for (int t = 0; t < kMaxTracks; ++t) for (int k = 0; k < kTrackKnobs; ++k) run (trackLanes[t][k], 0, t, k);
+    for (int i = 0; i < kMaxInstruments; ++i) for (int k = 0; k < kInstrumentKnobs; ++k) run (instLanes[i][k], 1, i, k);
 }
 
 void Player::setSampleRate (double sr)
@@ -65,6 +189,7 @@ void Player::setSampleRate (double sr)
     sampleRate = sr > 0 ? sr : 44100.0;
     updateFilters();
     mixerEngine.prepare (sampleRate);
+    rack.prepare (sampleRate, MixerEngine::kMaxBlock);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
     for (auto& b : akL) b.reset();
     for (auto& b : akR) b.reset();
@@ -105,6 +230,9 @@ void Player::resetVoices()
 void Player::playSong (int pos, int startLine)
 {
     if (song == nullptr || song->sequence.empty()) return;
+    synthAllOff();
+    for (auto& t : synthTrack) t = 99;
+    for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
     seqPos = std::clamp (pos, 0, (int) song->sequence.size() - 1);
     block  = song->safeBlock (song->sequence[(size_t) seqPos]);
@@ -122,6 +250,9 @@ void Player::playSong (int pos, int startLine)
 void Player::playBlock (int b, int startLine)
 {
     if (song == nullptr || song->blocks.empty()) return;
+    synthAllOff();
+    for (auto& t : synthTrack) t = 99;
+    for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
     block = song->safeBlock (b);
     line  = std::clamp (startLine, 0, song->blocks[(size_t) block].lines - 1);
@@ -152,6 +283,7 @@ bool Player::switchBlock (int b)
 
 void Player::stop()
 {
+    synthAllOff();
     mode = Mode::Stopped;
     for (int i = 0; i < kMaxTracks; ++i) { voices[i].active = false; voices[i].microDelay = -1; }
 }
@@ -161,6 +293,20 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
 {
     if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
     const auto& in = song->instruments[(size_t) instrIndex];
+    if (in.isPlugin())
+    {
+        // a plug-in instrument plays the note itself
+        auto* s = rack.at (instrIndex);
+        if (s == nullptr) return;
+        for (auto& j : jamSynth)
+            if (j.note < 0)
+            {
+                j.note = note; j.instr = instrIndex; j.midi = midiNoteFor (note + in.transpose);
+                s->noteOn (j.midi, std::clamp (velocity127, 1, 127), chunkPos);
+                return;
+            }
+        return;
+    }
     if (! in.hasData()) return;
 
     const int slot = jamNext;
@@ -211,12 +357,15 @@ void Player::jamNoteFrom (int note, int instrIndex, int pos)
 
 void Player::jamNoteOff (int note)
 {
+    for (auto& j : jamSynth)
+        if (j.note == note) { if (auto* s = rack.at (j.instr)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
     for (int i = kMaxTracks; i < kVoices; ++i)
         if (voices[i].jamNote == note) { releaseVoice (voices[i]); voices[i].jamNote = -1; }
 }
 
 void Player::jamAllOff()
 {
+    for (auto& j : jamSynth) if (j.note >= 0) { if (auto* s = rack.at (j.instr)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
     for (int i = kMaxTracks; i < kVoices; ++i) { voices[i].active = false; voices[i].jamNote = -1; }
 }
 
@@ -245,6 +394,7 @@ void Player::doTick()
 
     if (tick == 0 && firstTickOfRow) processRow();
     else for (int ch = 0; ch < kMaxTracks; ++ch) tickEffects (ch);
+    advanceAutomation();
 
     if (mode == Mode::Stopped) return;
 
@@ -305,9 +455,10 @@ void Player::setInstrument (Voice& v, int instrNumber)
     v.finetune = in.finetune;
 }
 
-void Player::triggerNote (Voice& v, const Cell& cell, int)
+void Player::triggerNote (Voice& v, const Cell& cell, int ch)
 {
     if (v.instr < 0) { v.active = false; return; }
+    if (isSynthVoice (v)) { synthTrigger (v, cell, ch); return; }
     const auto& in = song->instruments[(size_t) v.instr];
     if (! in.hasData()) { v.active = false; return; }
     const double len = (double) in.data.size();
@@ -403,6 +554,7 @@ void Player::startShaping (Voice& v)
 
 void Player::releaseVoice (Voice& v)
 {
+    synthRelease (v);
     if (! v.active || v.instr < 0 || song == nullptr) { v.active = false; return; }
     const auto& in = song->instruments[(size_t) v.instr];
     if (! in.volEnv.on) { v.active = false; return; }   // classic tracker: OFF cuts
@@ -492,6 +644,11 @@ bool Player::fixedPan (int ch, float& pos) const
 void Player::processCell (int ch, const Cell& cell)
 {
     Voice& v = voices[ch];
+    // Yxx: the next knob change on this track glides over xx ticks (this line or a later one)
+    uint8_t yp = 0;
+    const bool hasY = cell.has (C_Y, yp);
+    rowGlide = hasY ? yp : pendingGlide[ch];
+    knobSetThisRow = false;
     v.cmd = cell.cmd; v.param = cell.param;
     v.cmd2 = cell.cmd2; v.param2 = cell.param2;
     v.delayTick = -1;
@@ -527,7 +684,7 @@ void Player::processCell (int ch, const Cell& cell)
             uint8_t g = 0;
             const bool porta = (cell.cmd == 0x3 || cell.cmd == 0x5 || cell.cmd2 == 0x3 || cell.cmd2 == 0x5);
             const bool glide = cell.has (C_G, g);
-            if ((porta || glide) && v.active && v.instr >= 0)
+            if ((porta || glide) && (v.active || v.synthNote >= 0) && v.instr >= 0)
             {
                 const auto& in = song->instruments[(size_t) v.instr];
                 v.targetPeriod = periodFor (std::clamp ((int) cell.note + in.transpose, 1, (int) kNoteMax), v.finetune);
@@ -547,12 +704,30 @@ void Player::processCell (int ch, const Cell& cell)
     applyRowCommand (v, cell.cmd2, cell.param2, cell);
     v.outPeriod = v.period;
     v.outVolume = v.volume;
+    synthBend (v);
+    if (knobSetThisRow) pendingGlide[ch] = 0;
+    else if (hasY) pendingGlide[ch] = yp;
 }
 
 void Player::applyRowCommand (Voice& v, uint8_t cmd, uint8_t param, const Cell& cell)
 {
     const int x = param >> 4, y = param & 15;
     if (cmd == 0 && param == 0) return;
+    const int ch = (int) (&v - voices);
+    // automation: the track's knobs, and a plug-in instrument's own knobs / mod wheel
+    if (ch >= 0 && ch < kMaxTracks && (cmd == C_V || cmd == C_J))
+    {
+        const int k = cmd == C_V ? 0 : 1;
+        setLane (trackLanes[ch][k], param / 255.0f, rowGlide, 0, ch, k);
+        return;
+    }
+    if (isSynthVoice (v) && (cmd == C_L || cmd == C_Q || cmd == C_H || cmd == C_W || cmd == C_O))
+    {
+        if (cmd == C_O) { if (auto* s = rack.at (v.instr)) s->controller (1, param >> 1, chunkPos); return; }
+        const int k = cmd == C_L ? 0 : cmd == C_Q ? 1 : cmd == C_H ? 2 : 3;
+        if (ch >= 0 && ch < kMaxTracks) setLane (instLanes[v.instr][k], param / 255.0f, rowGlide, 1, v.instr, k);
+        return;
+    }
     switch (cmd)
     {
         case 0x3: if (param) v.portaSpeed = param; break;
@@ -649,8 +824,9 @@ void Player::tickCommand (Voice& v, uint8_t cmd, uint8_t param, double& vib, int
         case 0x7: trem = (int) vibratoDelta (v.tremPos, v.tremDepth, v.tremWave, 6); v.tremPos = (uint8_t) ((v.tremPos + v.tremSpeed) & 63); break;
         case 0xA: volSlide(); break;
         case 0xE:
+            if (x == 0x9 && y > 0 && tick % y == 0 && v.synthNote >= 0) synthRetrigger (v, 0);
             if (x == 0x9 && y > 0 && tick % y == 0 && v.instr >= 0 && song->instruments[(size_t) v.instr].hasData()) { v.pos = v.regionStart > 0 ? v.regionStart : 0; v.active = true; }
-            if (x == 0xC && tick == y) v.volume = 0;
+            if (x == 0xC && tick == y) { v.volume = 0; synthRelease (v); }
             break;
         default: break;
     }
@@ -682,6 +858,8 @@ void Player::tickEffects (int ch)
     // N: release after N ticks
     if (v.gateTicks > 0 && --v.gateTicks == 0) { releaseVoice (v); v.gateTicks = -1; }
     // R: roll / retrigger
+    if (v.rollEvery > 0 && tick > 0 && tick % v.rollEvery == 0 && v.synthNote >= 0)
+        synthRetrigger (v, v.rollVolStep * 2);
     if (v.rollEvery > 0 && tick > 0 && tick % v.rollEvery == 0 && v.instr >= 0 && song->instruments[(size_t) v.instr].hasData())
     {
         const double len = (double) song->instruments[(size_t) v.instr].data.size();
@@ -694,6 +872,7 @@ void Player::tickEffects (int ch)
     v.outPeriod = std::clamp (v.period + vib, kMinPeriod, kMaxPeriod);
     if (arpSemis) v.outPeriod = std::max (kMinPeriod, v.period * std::pow (2.0, -arpSemis / 12.0));
     v.outVolume = std::clamp (v.volume + trem, 0, 64);
+    synthBend (v);
 }
 
 void Player::setLineLoop (int b, int from, int to)
@@ -922,7 +1101,8 @@ void Player::renderChunk (float* left, float* right, int numSamples)
 {
     if (options.model != lastModel) updateFilters();
     // with a mixer in use each track goes to its own buffer first
-    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat());
+    // (plug-in instruments always go through the mixer: they play into a track's strip)
+    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any());
 
     float peaks[kMaxTracks] = {};
     const int nt = song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0;
@@ -936,6 +1116,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     auto sidePan = [&] (int hw) { return ((hw == 0 || hw == 3) ? -1.0f : 1.0f) * sep; };
     for (int i = 0; i < numSamples; ++i)
     {
+        chunkPos = i;
         if (mode != Mode::Stopped && song != nullptr)
         {
             tickRemain -= 1.0;
@@ -1061,6 +1242,28 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         left[i] = L; right[i] = R;
     }
 
+    chunkPos = 0;
+    if (mixActive && rack.any())
+    {
+        // plug-in instruments: each into its track's strip, at the instrument's VOL
+        for (int ins = 0; ins < kMaxInstruments; ++ins)
+        {
+            auto* s = rack.at (ins);
+            if (s == nullptr) continue;
+            s->render (synthL, synthR, numSamples);
+            const int t = synthOutputTrack (ins);
+            if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
+            const float g = (float) std::clamp (song->instruments[(size_t) ins].volume, 0, 64) / 64.0f;
+            float pk = 0;
+            for (int i = 0; i < numSamples; ++i)
+            {
+                const float l = synthL[i] * g, r = synthR[i] * g;
+                trkL[t][i] += l; trkR[t][i] += r;
+                pk = std::max ({ pk, std::abs (l), std::abs (r) });
+            }
+            peaks[t] = std::max (peaks[t], pk);
+        }
+    }
     if (mixActive)
     {
         float* tl[kMaxTracks]; float* tr[kMaxTracks];

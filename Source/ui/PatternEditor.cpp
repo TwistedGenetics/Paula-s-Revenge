@@ -371,7 +371,7 @@ void PatternEditor::paint (juce::Graphics& g)
         const uint8_t cm = second ? c.cmd2 : c.cmd, pa = second ? c.param2 : c.param;
         juce::String help = (cm == 0 && pa == 0)
             ? juce::String ("FX ") + (second ? "2" : "1") + ": TYPE 0-F (CLASSIC) OR G-Z (EXTRA), THEN TWO HEX DIGITS"
-            : juce::String (describeCommand (cm, pa));
+            : contextDescribe (st.line, st.track, cm, pa);
         float hp = Theme::px;
         while (hp > 1.5f && PixelFont::textWidth (help, hp) > hr.getWidth() - Theme::px * 4) hp -= 0.25f;
         PixelFont::drawLeft (g, help, hr.reduced (Theme::px * 2, 0), hp, Theme::ink);
@@ -453,8 +453,91 @@ void PatternEditor::openCommandMenu (int line, int track, int group)
     changed();
     const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
     placePicker();
+    const int L = pickLine, T = pickTrack;
+    picker->nameFor = [this, L, T] (const CommandInfo& ci) { return contextName (L, T, ci.cmd); };
+    picker->overviewFor = [this, L, T] (const CommandInfo& ci) { return contextOverview (L, T, ci.cmd); };
+    picker->describe = [this, L, T] (uint8_t cm, uint8_t pa) { return contextDescribe (L, T, cm, pa); };
     picker->open (group == 2 ? c.cmd2 : c.cmd, group == 2 ? c.param2 : c.param);
     if (onStatus) onStatus ("PICK A COMMAND (CLICK, OR ARROWS + ENTER; TYPE ITS LETTER TO JUMP) - ESC CANCELS");
+}
+
+// ---------------------------------------------------------------- command context
+int PatternEditor::instrumentAt (int line, int track) const
+{
+    const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
+    for (int l = std::min (line, b.lines - 1); l >= 0; --l)
+        if (b.at (l, track).instr > 0) return b.at (l, track).instr - 1;
+    return -1;
+}
+
+namespace
+{
+    const uint8_t kKnobCmds[kInstrumentKnobs] = { cmdLetter ('L'), cmdLetter ('Q'), cmdLetter ('H'), cmdLetter ('W') };
+    int knobForCmd (uint8_t c) { for (int k = 0; k < kInstrumentKnobs; ++k) if (kKnobCmds[k] == c) return k; return -1; }
+    bool sampleOnly (uint8_t c)
+    {
+        return c == 0x9 || c == cmdLetter ('P') || c == cmdLetter ('S') || c == cmdLetter ('U') || c == cmdLetter ('Z');
+    }
+}
+
+juce::String PatternEditor::contextName (int line, int track, uint8_t cmd) const
+{
+    const int ins = instrumentAt (line, track);
+    const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
+    if (plug && knobForCmd (cmd) >= 0) return "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd));
+    if (plug && cmd == cmdLetter ('O')) return "MOD WHEEL";
+    return {};
+}
+
+juce::String PatternEditor::contextOverview (int line, int track, uint8_t cmd) const
+{
+    const int ins = instrumentAt (line, track);
+    const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
+    if (cmd == cmdLetter ('V') || cmd == cmdLetter ('J'))
+    {
+        const auto& t = proc.song.mixer.trackAuto[juce::jlimit (0, kMaxTracks - 1, track)][cmd == cmdLetter ('V') ? 0 : 1];
+        return t.valid() ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT IN THE MIXER (EFFECT PAGE)");
+    }
+    if (plug)
+    {
+        const int k = knobForCmd (cmd);
+        if (k >= 0)
+        {
+            const auto& t = proc.song.instruments[(size_t) ins].knobs[k];
+            return t.param >= 0 ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT ON THE INSTRUMENT'S PAGE (PARAMS)");
+        }
+        if (cmd == cmdLetter ('O')) return "SENDS THE MOD WHEEL (CC1), 00-FF";
+        if (sampleOnly (cmd)) return "NOT USED BY PLUG-IN INSTRUMENTS";
+    }
+    return {};
+}
+
+juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, uint8_t param) const
+{
+    const juce::String head = juce::String::charToString ((juce::juce_wchar) commandChar (cmd)) + juce::String::toHexString ((int) param).toUpperCase().paddedLeft ('0', 2) + ": ";
+    const int pct = juce::roundToInt (param / 255.0 * 100.0);
+    const int ins = instrumentAt (line, track);
+    const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
+    if (cmd == cmdLetter ('V') || cmd == cmdLetter ('J'))
+    {
+        const bool a = cmd == cmdLetter ('V');
+        const auto& t = proc.song.mixer.trackAuto[juce::jlimit (0, kMaxTracks - 1, track)][a ? 0 : 1];
+        if (! t.valid()) return head + "AUTO " + (a ? "A" : "B") + " ISN'T SET - LEARN IT ON AN EFFECT PAGE IN THE MIXER";
+        return head + juce::String (t.name) + " " + juce::String (pct) + "%";
+    }
+    if (plug)
+    {
+        const int k = knobForCmd (cmd);
+        if (k >= 0)
+        {
+            const auto& t = proc.song.instruments[(size_t) ins].knobs[k];
+            if (t.param < 0) return head + "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd)) + " ISN'T SET - LEARN IT ON THE INSTRUMENT'S PAGE";
+            return head + juce::String (t.name) + " " + juce::String (pct) + "%";
+        }
+        if (cmd == cmdLetter ('O')) return head + "MOD WHEEL " + juce::String (param >> 1);
+        if (sampleOnly (cmd)) return head + "NOT USED BY PLUG-IN INSTRUMENTS";
+    }
+    return juce::String (describeCommand (cmd, param));
 }
 
 void PatternEditor::placePicker()
@@ -500,7 +583,7 @@ void PatternEditor::applyPickedCommand (const CommandInfo& info)
     st.line = pickLine; st.track = pickTrack;
     st.column = (pickGroup == 2 ? 7 : 4) + (info.extended ? 1 : 0);
     changed();
-    if (onStatus) onStatus (juce::String (describeCommand (info.cmd, param)) + "  -  TYPE HEX TO CHANGE THE VALUE");
+    if (onStatus) onStatus (contextDescribe (pickLine, pickTrack, info.cmd, param) + "  -  TYPE HEX TO CHANGE THE VALUE");
 }
 
 void PatternEditor::changed()

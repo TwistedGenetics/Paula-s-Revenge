@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "Learn.h"
 #include "Panels.h"
 
 namespace prv::ui
@@ -136,6 +137,17 @@ private:
     std::unique_ptr<PixButton> paramToggle[kFxParams];
     juce::Rectangle<float> fxInfoArea;
 
+    // automation: LEARN on the effect page, the track's knobs on the channel page
+    PixButton learnABtn { "LEARN AUTO A (V)", true }, learnBBtn { "LEARN AUTO B (J)", true };
+    NumberBox learnTrackBox { "TRACK", 1, 8, 1 };
+    PixButton chClearA { "CLEAR" }, chClearB { "CLEAR" };
+    juce::Rectangle<float> learnInfoArea, chAutoBox, chAutoA, chAutoB;
+    ParamLearner learner;
+    void armLearn (int knob);
+    void finishLearn (int param);
+    std::vector<float> slotParamValues (int slot);
+    juce::String slotParamName (int slot, int param);
+
     // plug-ins (VST3 / AU)
     PixButton pluginBtn { "PLUG-IN...", true }, rescanBtn { "RESCAN" }, editPluginBtn { "OPEN PLUG-IN WINDOW" }, listCloseBtn { "BACK TO THE EFFECT" };
     PixList pluginList;
@@ -152,6 +164,8 @@ public:
     void pickPlugin (int row) { choosePlugin (row); }
     int  pluginChoiceCount() const { return (int) pluginChoices.size(); }
     void openPluginList() { showPluginList (true); }
+    void learn (int track, int knob) { learnTrackBox.setValue (track + 1); armLearn (knob); }
+    bool isLearning() const { return learner.armed; }
 private:
 
     juce::Rectangle<float> titleArea;

@@ -94,11 +94,27 @@ struct MasterStrip
     FxSlot inserts[kInserts];
 };
 
+// What an automation knob moves: a parameter of a mixer slot's effect, or of a
+// plug-in instrument. `param` is the effect's parameter number (built-in effects:
+// 0..5; plug-ins: the plug-in's own numbering); the name is kept for display.
+constexpr int kAutoInstrumentBase = 1000;   // target = kAutoInstrumentBase + instrument index
+struct AutoTarget
+{
+    int target = -1;          // mixer slot 0..kTotalSlots-1, or kAutoInstrumentBase + instrument
+    int param = -1;
+    std::string name;         // e.g. "VALHALLA ROOM: MIX"
+    bool valid() const { return target >= 0 && param >= 0; }
+    bool operator== (const AutoTarget& o) const { return target == o.target && param == o.param && name == o.name; }
+};
+constexpr int kTrackKnobs = 2;        // V = A, J = B
+constexpr int kInstrumentKnobs = 4;   // L, Q, H, W on a plug-in instrument's notes
+
 struct MixerSettings
 {
     ChannelStrip ch[kMixTracks];
     ReturnStrip  ret[kReturns];
     MasterStrip  master;
+    AutoTarget   trackAuto[kMixTracks][kTrackKnobs];   // each track's AUTO A (V) and AUTO B (J)
 
     MixerSettings()
     {

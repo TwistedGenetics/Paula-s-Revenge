@@ -15,6 +15,8 @@ public:
     virtual void prepare (double sampleRate) = 0;   // may allocate
     virtual void reset() = 0;
     virtual void process (float* left, float* right, int numSamples, const float* params, double bpm) = 0;
+    // automation of a plug-in's own parameter (built-in effects are automated through their slot values)
+    virtual void setParameter (int /*index*/, float /*value01*/) {}
 };
 
 std::unique_ptr<Effect> makeEffect (FxType);

@@ -14,7 +14,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), arrange (p), mixer (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), arrange (p), mixer (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -103,7 +103,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onStateChanged = [this] { refreshAll(); };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
 
-    instruments.openParams = [this] { setView (View::Params); };
+    // PARAMS: a plug-in instrument has its own page
+    instruments.openParams = [this] { setView (proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin() ? View::Synth : View::Params); };
     sequence.openArrange = [this] { setView (View::Arrange); };
     sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
     sequence.returnFocus = [this]
@@ -113,6 +114,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::SampleEdit: sampleEditor.grabKeyboardFocus(); break;
             case View::Browser:    browser.grabKeyboardFocus(); break;
             case View::Params:     params.grabKeyboardFocus(); break;
+            case View::Synth:      synthPage.grabKeyboardFocus(); break;
             case View::Arrange:    arrange.grabKeyboardFocus(); break;
             case View::Mixer:      mixer.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
@@ -130,6 +132,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     mixerBtn.onClick = [this] { setView (proc.editorState.view == View::Mixer ? View::Pattern : View::Mixer); };
     fx2Btn.onClick = [this, &st] { st.showFx2 = fx2Btn.getToggleState(); if (! st.showFx2) st.column = std::min (st.column, 5); refreshAll(); };
     params.onClose = [this] { setView (View::Pattern); };
+    params.onUsePlugin = [this] { setView (View::Synth); synthPage.opened (true); };
+    synthPage.onClose = [this] { setView (View::Pattern); };
+    synthPage.onChanged = [this] { refreshAll(); };
+    synthPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    addChildComponent (synthPage);
     params.onChanged = [this] { instruments.refresh(); };
     addChildComponent (params);
     sequence.pushStructUndo = [this] (const juce::String& w) { pattern.pushStructureUndo (w); };
@@ -139,7 +146,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
     smpBtn.onClick = [this] { exportSamples(); };
     instruments.openBrowser = [this] { setView (View::Browser); };
-    instruments.openSampleEditor = [this] { setView (View::SampleEdit); };
+    instruments.openSampleEditor = [this]
+    {
+        // EDIT on a plug-in instrument opens the plug-in's own window
+        if (proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin()) synthPage.openWindow();
+        else setView (View::SampleEdit);
+    };
     sampleEditor.onChanged = [this] { instruments.refresh(); };
     sampleEditor.onClose = [this] { setView (View::Pattern); };
     sampleEditor.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -183,6 +195,7 @@ void PaulaEditor::historyRestored (const juce::String& what)
     sampleEditor.repaint();
     pattern.syncLoop();
     if (params.isVisible()) params.refresh();
+    if (synthPage.isVisible()) synthPage.refresh();
     if (arrange.isVisible()) arrange.opened();
     if (mixer.isVisible()) mixer.refresh();
     setStatus (what);
@@ -196,6 +209,7 @@ void PaulaEditor::setView (View v)
     if (v == View::Browser && st.view != View::Browser) returnView = st.view;
     if (st.view == View::SampleEdit && v != View::SampleEdit) sampleEditor.stop();
     if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
+    if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     const bool layoutChange = (st.view == View::Mixer) != (v == View::Mixer);
     st.view = v;
     if (layoutChange) resized();
@@ -203,10 +217,12 @@ void PaulaEditor::setView (View v)
     sampleEditor.setVisible (v == View::SampleEdit);
     browser.setVisible (v == View::Browser);
     params.setVisible (v == View::Params);
+    synthPage.setVisible (v == View::Synth);
     arrange.setVisible (v == View::Arrange);
     mixer.setVisible (v == View::Mixer);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
+    else if (v == View::Synth) synthPage.opened (false);
     else if (v == View::Arrange) arrange.opened();
     else if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
     else if (v == View::Browser) browser.opened();
@@ -302,6 +318,9 @@ void PaulaEditor::timerCallback()
     if (sampleEditor.isVisible()) sampleEditor.tick();
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
+    if (synthPage.isVisible()) synthPage.tick();
+    // the PARAMS page follows the instrument: a plug-in instrument shows its own page
+    if (proc.editorState.view == View::Params && proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin()) setView (View::Synth);
     if (arrange.isVisible()) arrange.tick();
     if (mixer.isVisible()) mixer.tick();
     outMeter.tick();
@@ -490,6 +509,7 @@ void PaulaEditor::resized()
     sampleEditor.setBounds (main);
     browser.setBounds (main);
     params.setBounds (main);
+    synthPage.setBounds (main);
     arrange.setBounds (main);
 }
 
@@ -512,6 +532,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::SampleEdit: return sampleEditor.keyPressed (k);
         case View::Browser:    return browser.keyPressed (k);
         case View::Params:     return params.keyPressed (k);
+        case View::Synth:      return synthPage.keyPressed (k);
         case View::Arrange:    return arrange.keyPressed (k);
         case View::Mixer:      return mixer.keyPressed (k);
         default:               return pattern.keyPressed (k);
@@ -665,7 +686,7 @@ void PaulaEditor::exportWav()
         self.proc.withLock ([&] { copy = self.proc.song; opts = self.proc.player.options; });
         juce::String err;
         const double rate = self.proc.getSampleRate() > 0 ? self.proc.getSampleRate() : 48000.0;
-        if (prv::renderSongToWav (copy, opts, rate, file, err, self.proc.pluginFactory())) self.setStatus ("RENDERED " + file.getFileName());
+        if (prv::renderSongToWav (copy, opts, rate, file, err, self.proc.pluginFactory(), self.proc.synthFactory())) self.setStatus ("RENDERED " + file.getFileName());
         else self.setStatus ("ERROR: " + err);
     });
 }

@@ -14,6 +14,11 @@ public:
     CommandPicker();
     std::function<void (const CommandInfo&)> onPick;
     std::function<void()> onCancel;
+    // context for the cell the list was opened on: a name and an overview to use instead of
+    // the usual ones (empty = usual), and the example line for a command + value
+    std::function<juce::String (const CommandInfo&)> nameFor, overviewFor;
+    std::function<juce::String (uint8_t cmd, uint8_t param)> describe;
+    juce::String rowTextFor (int row) const;
 
     // shows the list, the current command highlighted
     void open (int currentCmd, uint8_t currentParam);
@@ -29,6 +34,6 @@ private:
     PixList list;
     PixButton cancelBtn { "CANCEL (ESC)" };
     juce::Rectangle<float> titleArea, infoArea;
-    static juce::String rowText (const CommandInfo&);
+
 };
 } // namespace prv::ui

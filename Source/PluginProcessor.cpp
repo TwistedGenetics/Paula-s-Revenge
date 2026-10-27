@@ -41,6 +41,23 @@ PaulaProcessor::PaulaProcessor()
     player.setSong (&song);
     player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
+    player.synths().factory = [this] (int i, const prv::Instrument& in, double sr) { return pluginHost.createSynth (i, in, sr); };
+}
+
+std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, double)> PaulaProcessor::synthFactory()
+{
+    return [this] (int i, const prv::Instrument& in, double sr) { return pluginHost.createSynth (i, in, sr); };
+}
+
+prv::PluginSynthImpl* PaulaProcessor::synthAt (int i) const
+{
+    return dynamic_cast<prv::PluginSynthImpl*> (const_cast<PaulaProcessor*> (this)->player.synths().at (i));
+}
+
+void PaulaProcessor::reloadInstrumentPlugin (int i)
+{
+    withLock ([&] { player.synths().invalidate (i); });
+    updateMixerEffects();
 }
 
 std::function<std::unique_ptr<prv::Effect> (int, const prv::FxSlot&, double)> PaulaProcessor::pluginFactory()
@@ -64,6 +81,15 @@ void PaulaProcessor::capturePluginStates()
         {
             auto st = p->state();
             withLock ([&] { song.mixer.slot (i).pluginState = std::move (st); });
+        }
+    }
+    for (int i = 0; i < prv::kMaxInstruments; ++i)
+    {
+        if (! song.instruments[(size_t) i].isPlugin()) continue;
+        if (auto* s = synthAt (i))
+        {
+            auto st = s->state();
+            withLock ([&] { song.instruments[(size_t) i].pluginState = std::move (st); });
         }
     }
 }
@@ -93,17 +119,21 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void PaulaProcessor::updateMixerEffects()
 {
     std::vector<std::unique_ptr<prv::Effect>> old;
+    std::vector<std::unique_ptr<prv::PluginSynth>> oldSynths;
     auto changes = player.mixer().plan (song.mixer);   // (loads plug-ins: outside the lock)
-    if (changes.empty()) return;
-    withLock ([&] { player.mixer().apply (changes, old); });
+    auto synthChanges = player.synths().plan (song, currentRate);
+    if (changes.empty() && synthChanges.empty()) return;
+    withLock ([&] { player.mixer().apply (changes, old); player.synths().apply (synthChanges, oldSynths); });
     // `old` is freed here, outside the audio lock
 }
 
 void PaulaProcessor::replaceSong (prv::Song&& newSong)
 {
     std::vector<std::unique_ptr<prv::Effect>> oldEffects;   // declared first: freed after the lock is released
+    std::vector<std::unique_ptr<prv::PluginSynth>> oldSynths;
     // make the new song's effects (and load its plug-ins) before taking the lock
     auto changes = player.mixer().plan (newSong.mixer, true);
+    auto synthChanges = player.synths().plan (newSong, currentRate, true);
     const juce::SpinLock::ScopedLockType sl (lock);
     player.stop();
     player.jamAllOff();
@@ -114,7 +144,9 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     editorState.loopBlock = -1;
     history.clear();
     player.mixer().reset();
+    player.mixer().clearAutomation();
     player.mixer().apply (changes, oldEffects);
+    player.synths().apply (synthChanges, oldSynths);
 }
 
 bool PaulaProcessor::popMidiNote (int& note)

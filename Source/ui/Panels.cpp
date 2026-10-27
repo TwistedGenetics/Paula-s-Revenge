@@ -691,9 +691,12 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     {
         const auto& in = proc.song.instruments[(size_t) r];
         const juce::String hex = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+        if (in.isPlugin())   // a plug-in instrument: a note mark, and "!" when it isn't loaded
+            return hex + " " + juce::String::charToString ((juce::juce_wchar) 6) + (proc.pluginLoadedInstrument (r) ? "" : "!")
+                 + (in.name.empty() ? juce::String (in.pluginName) : juce::String (in.name));
         return hex + " " + (in.name.empty() ? (in.hasData() ? juce::String ("(NO NAME)") : juce::String ("-")) : juce::String (in.name));
     };
-    list.isRowDim = [this] (int r) { return ! proc.song.instruments[(size_t) r].hasData(); };
+    list.isRowDim = [this] (int r) { const auto& in = proc.song.instruments[(size_t) r]; return ! in.hasData() && ! in.isPlugin(); };
     list.onClick = [this, &st] (int r, const juce::MouseEvent& e)
     {
         st.instrument = r;

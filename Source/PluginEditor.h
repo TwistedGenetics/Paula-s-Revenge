@@ -10,6 +10,7 @@
 #include "ui/SampleEditor.h"
 #include "ui/SampleBrowser.h"
 #include "ui/ParamsPage.h"
+#include "ui/SynthPage.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 
@@ -29,6 +30,7 @@ public:
     prv::ui::ParamsPage& getParams() { return params; }
     prv::ui::ArrangePage& getArrange() { return arrange; }
     prv::ui::MixerPage& getMixer() { return mixer; }
+    prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
@@ -94,6 +96,7 @@ private:
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;
+    prv::ui::SynthPage synthPage;
     prv::ui::ArrangePage arrange;
     prv::ui::MixerPage mixer;
     prv::ui::OutputMeter outMeter;

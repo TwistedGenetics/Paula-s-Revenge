@@ -123,6 +123,7 @@ void History::apply (Entry& e)
         case Kind::Instrument:
             proc.withLock ([&] { proc.player.jamAllOff(); std::swap (song.instruments[(size_t) e.index], *e.inst); });
             st.instrument = e.index;
+            proc.updateMixerEffects();   // (a plug-in instrument may have come or gone)
             break;
         case Kind::Mixer:
             proc.withLock ([&] { std::swap (song.mixer, *e.mix); });

@@ -13,7 +13,7 @@ public:
     explicit ParamsPage (PaulaProcessor&);
     ~ParamsPage() override;
 
-    std::function<void()> onClose, onChanged;
+    std::function<void()> onClose, onChanged, onUsePlugin;
 
     void refresh();     // load the current instrument's values into the controls
     void tick();
@@ -43,7 +43,8 @@ private:
     PixButton amigaBtn { "AMIGA L/R", true };
     PixSlider pan { "PAN" };
 
-    PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, resetBtn { "RESET ALL" }, closeBtn { "CLOSE" };
+    PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, resetBtn { "RESET ALL" }, closeBtn { "CLOSE" },
+              pluginBtn { "USE A VST3 / AU INSTRUMENT INSTEAD OF A SAMPLE..." };
 
     juce::Rectangle<float> titleArea, envBox, filterBox, fenvBox, panBox, envGraph, fenvGraph;
     std::map<int, int> heldKeys;

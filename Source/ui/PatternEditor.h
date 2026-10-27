@@ -118,6 +118,13 @@ private:
     std::unique_ptr<CommandPicker> picker;
     int pickLine = 0, pickTrack = 0, pickGroup = 1;
     void placePicker();
+public:
+    // what a command does on this cell: knob names for V / J, a plug-in instrument's knobs
+    juce::String contextDescribe (int line, int track, uint8_t cmd, uint8_t param) const;
+    int instrumentAt (int line, int track) const;   // the instrument playing there (-1 = none), looking up the track
+private:
+    juce::String contextName (int line, int track, uint8_t cmd) const;
+    juce::String contextOverview (int line, int track, uint8_t cmd) const;
     void applyPickedCommand (const CommandInfo&);
 
     std::map<int, int> heldKeys;   // key code -> jam note

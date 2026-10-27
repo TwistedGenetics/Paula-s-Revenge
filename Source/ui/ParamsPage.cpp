@@ -92,9 +92,10 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
         refresh();
     };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
+    pluginBtn.onClick = [this] { if (onUsePlugin) onUsePlugin(); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk,
-                                                             &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn })
+                                                             &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn })
         addAndMakeVisible (c);
     refresh();
 }
@@ -164,6 +165,8 @@ void ParamsPage::resized()
         resetBtn.setBounds (bottom.removeFromLeft (w)); bottom.removeFromLeft (gap);
         closeBtn.setBounds (bottom);
     }
+    r.removeFromBottom (gap);
+    pluginBtn.setBounds (r.removeFromBottom (rowH));
     r.removeFromBottom (gap * 2);
 
     auto panRow = r.removeFromBottom (rowH + (int) (px * 14));

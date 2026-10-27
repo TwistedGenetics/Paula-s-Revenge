@@ -1,6 +1,6 @@
 # PAULA'S REVENGE
 
-An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses). Big pixel text, keyboard-driven.
+An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses), VST3 / AU instruments and effect automation from the pattern. Big pixel text, keyboard-driven.
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
@@ -315,6 +315,9 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 | `Wxx` | Band-pass filter, cutoff xx |
 | `Xxy` | Randomise: x `0` note ±y semitones, `1` volume ±y×4, `2` pan ±y×16, `3` start up to y/16 |
 | `Zxx` | Bit crush to xx bits (`01–0F`) |
+| `Vxx` | AUTO A: sets the track's first automation knob (see Automation) |
+| `Jxx` | AUTO B: sets the track's second automation knob |
+| `Yxx` | Knob glide: the next knob change on this track slides there over xx ticks |
 
 Every track has a **second effect column** so a note can carry two effects; **FX2** on the bottom row shows or hides it (it starts hidden so the pattern text stays big). SAVE MOD keeps only one 0–F command per note and tells you when something was dropped.
 
@@ -352,15 +355,39 @@ Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For t
 
 Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
 
-* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the effect plug-ins on your Mac in the background (instruments are left out); **RESCAN** looks again after you install more. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
+* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your Mac in the background (only effects are listed here; instruments are chosen from PARAMS); **RESCAN** looks again after you install more. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
 * Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
 * The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
 * The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.
 * Changes made inside a plug-in's own window aren't separate undo steps. Plug-in latency is shown but not compensated.
 
+## Automation (V, J and Y)
+
+Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any control of an insert effect and the pattern can move it:
+
+* Open an insert's effect page in the mixer. Pick the track in the **TRACK** box, press **LEARN AUTO A (V)** (or B), then move the control you want — on a built-in effect drag its slider, on a plug-in move the knob in its own window. The first control that moves is learned, and the status line says what it is. Press LEARN again to cancel.
+* The knob can control an effect on any track, a send bus or the master, not just its own track.
+* In the pattern, `V00`–`VFF` sets AUTO A (`00` = the control's lowest, `FF` = its highest) and `Jxx` sets AUTO B. The value holds until the next one.
+* Put `Yxx` on a line before (or on the same line as) a `V` or `J` and the change glides over xx ticks instead of jumping.
+* The channel page shows what each knob controls under **AUTOMATION KNOBS**, with CLEAR buttons, and the strip's EQ button reads `EQ  AB` when a knob is set. Right-click the effect column, or put the cursor on a `V` or `J`, and the list and the help strip name the learned control.
+* Knobs are saved in the song and are undo steps. Built-in effects go back to their slider settings when automation stops.
+
+## Plug-in instruments (VST3 / AU)
+
+Any instrument slot can play one of your instrument plug-ins instead of a sample:
+
+* Pick the instrument, press **PARAMS** and then **USE A VST3 / AU INSTRUMENT INSTEAD OF A SAMPLE...**, and double-click a plug-in in the list (RESCAN looks again after you install more). The instrument list shows a note sign in front of the name.
+* **EDIT** (or OPEN PLUG-IN WINDOW) opens the plug-in's own window. **CHANGE PLUG-IN...** swaps it, **BACK TO A SAMPLE** turns the slot back into a normal sample instrument.
+* **OUTPUT** picks the mixer strip it plays into. AUTO means the first (lowest) track that plays it, so its EQ, inserts and sends apply.
+* Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
+* Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
+* Four knobs of the plug-in's own can be learned on its page (**LEARN** next to `L`, `Q`, `H` and `W`). On that instrument's notes, `Lxx`, `Qxx`, `Hxx` and `Wxx` then set those knobs instead of the filters, and `Yxx` makes them glide. `Oxx` sends the mod wheel (MIDI CC 1). The track's AUTO A / B can be learned here too.
+* The computer keyboard and a MIDI keyboard play it live, on the pattern, the mixer and its own page.
+* Its settings are saved in the song, changes made on its page are undo steps, and RENDER WAV includes it. If a song uses a plug-in this computer doesn't have, the instrument shows `!NAME`, plays nothing and keeps its settings for when the plug-in is back.
+
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 8 adds plug-in effects (v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 9 adds plug-in instruments and automation knobs (v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

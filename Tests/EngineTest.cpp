@@ -8,6 +8,8 @@
 #include "engine/Slicer.h"
 #include "engine/Mixer.h"
 #include "engine/Effects.h"
+#include "engine/PluginSynth.h"
+#include "engine/Commands.h"
 #include "AkaizerGolden.h"
 #include <cstdio>
 #include <set>
@@ -720,6 +722,175 @@ static void testPluginSlots()
     std::printf ("plug-in slots: load, swap, reload, missing pass-through ok\n");
 }
 
+// ---------------------------------------------------------------- v0.10: automation + plug-in instruments
+namespace
+{
+    struct Ev { char type; int a, b, offset; long long when; };   // n = note on, f = off, a = all off, b = bend, c = cc, p = param
+    struct FakeSynth : PluginSynth
+    {
+        std::vector<Ev>* log; long long* clock; float level = 0.25f;
+        FakeSynth (std::vector<Ev>* l, long long* c) : log (l), clock (c) {}
+        void prepare (double, int) override {}
+        void noteOn (int n, int v, int o) override { log->push_back ({ 'n', n, v, o, *clock + o }); }
+        void noteOff (int n, int o) override { log->push_back ({ 'f', n, 0, o, *clock + o }); }
+        void allNotesOff (int o) override { log->push_back ({ 'a', 0, 0, o, *clock + o }); }
+        void pitchBend (int v, int o) override { log->push_back ({ 'b', v, 0, o, *clock + o }); }
+        void controller (int c, int v, int o) override { log->push_back ({ 'c', c, v, o, *clock + o }); }
+        void setParameter (int i, float v) override { log->push_back ({ 'p', i, (int) std::lround (v * 1000), 0, *clock }); }
+        void render (float* l, float* r, int n) override { std::fill (l, l + n, level); std::fill (r, r + n, level); }
+    };
+    struct ParamFx : Effect
+    {
+        std::vector<std::pair<int, float>>* log;
+        explicit ParamFx (std::vector<std::pair<int, float>>* l) : log (l) {}
+        void prepare (double) override {}
+        void reset() override {}
+        void process (float*, float*, int, const float*, double) override {}
+        void setParameter (int i, float v) override { log->push_back ({ i, v }); }
+    };
+}
+
+static void testAutomation()
+{
+    // ---- V / J / Y on a plug-in effect in track 1's first insert
+    {
+        Song song;
+        song.numTracks = 4;
+        song.tempo = 125; song.speed = 6;
+        auto& sl = song.mixer.ch[0].inserts[0];
+        sl.type = FxType::Plugin; sl.pluginKey = "fx"; sl.pluginName = "FX";
+        song.mixer.trackAuto[0][0] = { trackSlot (0, 0), 3, "FX: MIX" };
+        song.mixer.trackAuto[0][1] = { trackSlot (0, 0), 7, "FX: SIZE" };
+        auto& b = song.blocks[0];
+        b.at (0, 0) = { 0, 0, cmdLetter ('V'), 0x80 };
+        b.at (1, 0) = { 0, 0, cmdLetter ('Y'), 0x06, cmdLetter ('J'), 0xFF };   // glides over 6 ticks
+        b.at (3, 0) = { 0, 0, cmdLetter ('V'), 0x00 };                          // jumps (the Y was used up)
+        std::vector<std::pair<int, float>> log;
+        Player p; p.setSampleRate (48000); p.setSong (&song);
+        p.mixer().pluginFactory = [&log] (int, const FxSlot&, double) { return std::make_unique<ParamFx> (&log); };
+        p.mixer().syncEffectsNow (song.mixer);
+        p.playBlock (0);
+        std::vector<float> L (48000), R (48000);
+        p.render (L.data(), R.data(), (int) (48000 * 0.12 * 4));   // 4 lines
+        std::vector<float> mix, size;
+        for (auto& e : log) (e.first == 3 ? mix : size).push_back (e.second);
+        std::printf ("automation: MIX values %zu (first %.3f, last %.3f), SIZE values %zu (first %.3f, last %.3f)\n",
+                     mix.size(), mix.empty() ? -1.f : mix.front(), mix.empty() ? -1.f : mix.back(), size.size(), size.empty() ? -1.f : size.front(), size.empty() ? -1.f : size.back());
+        CHECK (mix.size() == 2 && std::abs (mix[0] - 128 / 255.0f) < 1e-4f && mix[1] == 0.0f);
+        // J without a value before it: no glide start point, so it jumps to FF
+        CHECK (! size.empty() && size.back() == 1.0f);
+        // a second J with a glide moves in steps
+        song.blocks[0].at (5, 0) = { 0, 0, cmdLetter ('Y'), 0x06, cmdLetter ('J'), 0x00 };
+        log.clear();
+        p.playBlock (0);
+        p.render (L.data(), R.data(), (int) (48000 * 0.12 * 7));
+        size.clear();
+        for (auto& e : log) if (e.first == 7) size.push_back (e.second);
+        std::printf ("glide: %zu SIZE values:", size.size()); for (float v : size) std::printf (" %.2f", v); std::printf ("\n");
+        CHECK (size.size() >= 7 && size.back() == 0.0f);
+        bool down = true; for (size_t i = 2; i < size.size(); ++i) down = down && size[i] <= size[i - 1] + 1e-6f;
+        CHECK (down);
+    }
+    // ---- a built-in effect is automated through its slot value
+    {
+        MixerEngine mx; mx.prepare (48000);
+        MixerSettings m;
+        initFxSlot (m.ch[0].inserts[0], FxType::Drive);
+        m.ch[0].inserts[0].p[4] = 1.0f;   // mix
+        m.ch[0].inserts[0].p[0] = 0.0f;   // no drive
+        mx.syncEffectsNow (m);
+        std::vector<float> a (256), b2 (256), o1 (256), o2 (256);
+        for (int i = 0; i < 256; ++i) a[(size_t) i] = 0.3f * (float) std::sin (i * 0.1);
+        auto run = [&] (std::vector<float>& out)
+        {
+            std::vector<float> l = a, r = a; float* tl[1] = { l.data() }; float* tr[1] = { r.data() };
+            std::vector<float> outR (256);
+            mx.process (m, tl, tr, 1, nullptr, nullptr, out.data(), outR.data(), 256, 120);
+        };
+        run (o1);
+        mx.setAutomation (trackSlot (0, 0), 0, 1.0f);   // DRIVE all the way up
+        run (o2);
+        double d = 0; for (int i = 0; i < 256; ++i) d += std::abs (o1[(size_t) i] - o2[(size_t) i]);
+        CHECK (d > 1.0);
+        CHECK (m.ch[0].inserts[0].p[0] == 0.0f);   // the song's own value is untouched
+    }
+}
+
+static void testPluginInstruments()
+{
+    Song song;
+    song.numTracks = 4;
+    auto& in = song.instruments[0];
+    in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH"; in.bendRange = 2;
+    in.knobs[0] = { kAutoInstrumentBase, 11, "SYNTH: CUTOFF" };
+    in.pluginOutput = 2;   // into track 3's strip
+    auto& b = song.blocks[0];
+    b.at (0, 1) = { 37, 1, 0xC, 0x20 };                      // C-3, velocity from C20
+    b.at (2, 1) = { kNoteOff, 0, 0, 0 };
+    b.at (4, 1) = { 39, 1, 0xE, 0xD2 };                      // delayed 2 ticks
+    b.at (5, 1) = { 0, 0, 0x1, 0x01 };                       // slide up: pitch bend
+    b.at (6, 1) = { 0, 0, cmdLetter ('L'), 0x80, cmdLetter ('O'), 0x40 };   // knob 1, mod wheel
+    b.at (7, 1) = { 41, 1, 0xE, 0x92 };                      // retrigger every 2 ticks
+    b.at (8, 1) = { 43, 1, cmdLetter ('S'), 0x03 };          // sample-only command: ignored
+    std::vector<Ev> log; long long clock = 0;
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
+    p.synths().syncNow (song, 48000);
+    CHECK (p.synths().any());
+    p.playBlock (0);
+    const int tickLen = (int) std::lround (48000 * 2.5 / 125);
+    std::vector<float> L (512), R (512);
+    float trackPeak3 = 0;
+    for (int done = 0; done < tickLen * 6 * 10; done += 512)
+    {
+        p.render (L.data(), R.data(), 512);
+        clock += 512;
+        trackPeak3 = std::max (trackPeak3, p.uiLevel[2].load());
+    }
+    p.stop();
+    auto first = [&] (char t, int a) { for (auto& e : log) if (e.type == t && (a < 0 || e.a == a)) return &e; return (Ev*) nullptr; };
+    auto count = [&] (char t, int a) { int n = 0; for (auto& e : log) if (e.type == t && (a < 0 || e.a == a)) ++n; return n; };
+    const Ev* on60 = first ('n', 60);
+    std::printf ("synth: %zu events; C-3 on vel %d; off 60 at %lld (line 2 = %d); D-3 on at %lld (line 4 + 2 ticks = %d)\n",
+                 log.size(), on60 ? on60->b : -1, first ('f', 60) ? first ('f', 60)->when : -1, tickLen * 12,
+                 first ('n', 62) ? first ('n', 62)->when : -1, tickLen * 26);
+    CHECK (on60 && on60->b == 64 && on60->when < 4);
+    CHECK (first ('f', 60) && std::abs ((int) (first ('f', 60)->when - tickLen * 12)) <= 2);
+    CHECK (first ('n', 62) && std::abs ((int) (first ('n', 62)->when - tickLen * 26)) <= 2);
+    CHECK (count ('b', -1) >= 4);                                   // the slide bends
+    bool up = false; for (auto& e : log) if (e.type == 'b' && e.a > 8192) up = true;
+    CHECK (up);
+    const Ev* knob = first ('p', 11);
+    CHECK (knob && knob->b == 502);                                 // L80 = 128/255
+    const Ev* cc = first ('c', 1);
+    CHECK (cc && cc->b == 32);                                      // O40 -> mod wheel 32
+    CHECK (count ('n', 64) >= 3);                                   // E92 retriggers E-3
+    CHECK (count ('n', 66) == 1);                                   // the S03 note still plays
+    CHECK (count ('a', -1) >= 1);                                   // stop: all notes off
+    std::printf ("synth into track 3: level %.3f, track 2 %.3f\n", trackPeak3, p.uiLevel[1].load());
+    CHECK (trackPeak3 > 0.2f);
+    // AUTO output: the lowest track that played it
+    song.instruments[0].pluginOutput = -1;
+    CHECK (p.synthOutputTrack (0) == 1);
+    // live notes
+    log.clear();
+    p.jamNoteOn (37, 0, 100);
+    p.jamNoteOff (37);
+    CHECK (log.size() == 2 && log[0].type == 'n' && log[0].a == 60 && log[0].b == 100 && log[1].type == 'f');
+    // a missing synth: notes are silent, nothing breaks
+    p.synths().factory = nullptr;
+    p.synths().invalidate (0);
+    p.synths().syncNow (song, 48000);
+    CHECK (! p.synths().any());
+    p.playBlock (0);
+    p.render (L.data(), R.data(), 512);
+    // command list knows V, J, Y
+    int found = 0;
+    for (auto& c : commandList()) if (c.cmd == cmdLetter ('V') || c.cmd == cmdLetter ('J') || c.cmd == cmdLetter ('Y')) ++found;
+    CHECK (found == 3);
+    CHECK (commandName (cmdLetter ('V')) == "AUTO A");
+}
+
 // ---------------------------------------------------------------- v0.9: AKAIZER
 // the same integer-only signal as Tests/tools/akaizer_ref.js makes
 static std::vector<int16_t> akaizerTestInput (int words, uint32_t seed, bool loud)
@@ -1319,6 +1490,8 @@ int main()
     testTimeStretch();
     testAkaizer();
     testPluginSlots();
+    testAutomation();
+    testPluginInstruments();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();

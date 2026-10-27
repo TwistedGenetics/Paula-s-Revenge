@@ -34,6 +34,10 @@ public:
 
     // makes the effect for a plug-in slot (null = not available: the slot passes audio through)
     std::function<std::unique_ptr<Effect> (int slot, const FxSlot&, double sampleRate)> pluginFactory;
+    // automation (audio thread): a slot's parameter to value 0..1. Built-in effects take it
+    // in place of the slot's own value until the slot changes; plug-ins get it directly.
+    void setAutomation (int slot, int param, float value01);
+    void clearAutomation();
     Effect* effectAt (int slot) const { return slot >= 0 && slot < kTotalSlots ? fx[slot].get() : nullptr; }
     double sampleRate() const { return sr; }
     void reset();
@@ -54,6 +58,7 @@ private:
     std::unique_ptr<Effect> fx[kTotalSlots];
     FxType fxType[kTotalSlots] {};
     std::string fxKey[kTotalSlots];   // the plug-in in a plug-in slot
+    float autoParam[kTotalSlots][kFxParams];   // automated built-in values (< 0 = not automated)
     std::vector<float> sendL[kReturns], sendR[kReturns];
     void runInserts (const FxSlot* slots, int firstSlot, float* L, float* R, int n, double bpm);
 };

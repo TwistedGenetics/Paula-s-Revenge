@@ -19,7 +19,7 @@ PluginEffect::PluginEffect (PluginHost& h, std::unique_ptr<juce::AudioPluginInst
 
 PluginEffect::~PluginEffect()
 {
-    host.closeEditor (*this);   // the window goes before the plug-in
+    host.closeEditor (*plugin);   // the window goes before the plug-in
     plugin->releaseResources();
 }
 
@@ -57,6 +57,71 @@ void PluginEffect::process (float* left, float* right, int numSamples, const flo
         else if (outs == 1) { std::copy_n (view.getReadPointer (0), n, left + done); std::copy_n (view.getReadPointer (0), n, right + done); }
         done += n;
     }
+}
+
+void PluginEffect::setParameter (int index, float v)
+{
+    const auto& ps = plugin->getParameters();
+    if (index >= 0 && index < ps.size()) ps[index]->setValue (v);
+}
+
+// =========================================================================== PluginSynthImpl
+PluginSynthImpl::PluginSynthImpl (PluginHost& h, std::unique_ptr<juce::AudioPluginInstance> p, HostPlayHead* ph)
+    : host (h), plugin (std::move (p)), playHead (ph)
+{
+    plugin->enableAllBuses();
+    if (auto* bus = plugin->getBus (false, 0))
+        if (bus->getCurrentLayout() != juce::AudioChannelSet::stereo())
+            bus->setCurrentLayout (juce::AudioChannelSet::stereo());
+    plugin->setPlayHead (playHead);
+    midi.ensureSize (8192);
+}
+
+PluginSynthImpl::~PluginSynthImpl()
+{
+    host.closeEditor (*plugin);
+    plugin->releaseResources();
+}
+
+void PluginSynthImpl::prepare (double sampleRate, int maxBlock)
+{
+    blockSize = maxBlock;
+    plugin->setRateAndBufferSizeDetails (sampleRate, blockSize);
+    plugin->prepareToPlay (sampleRate, blockSize);
+    const int ch = std::max ({ 2, plugin->getTotalNumInputChannels(), plugin->getTotalNumOutputChannels() });
+    buffer.setSize (ch, blockSize, false, true, false);
+}
+
+void PluginSynthImpl::noteOn (int note, int vel, int o)    { midi.addEvent (juce::MidiMessage::noteOn (1, note, (juce::uint8) vel), o); }
+void PluginSynthImpl::noteOff (int note, int o)            { midi.addEvent (juce::MidiMessage::noteOff (1, note), o); }
+void PluginSynthImpl::allNotesOff (int o)                  { midi.addEvent (juce::MidiMessage::allNotesOff (1), o); midi.addEvent (juce::MidiMessage::pitchWheel (1, 8192), o); }
+void PluginSynthImpl::pitchBend (int v, int o)             { midi.addEvent (juce::MidiMessage::pitchWheel (1, v), o); }
+void PluginSynthImpl::controller (int cc, int v, int o)    { midi.addEvent (juce::MidiMessage::controllerEvent (1, cc, v), o); }
+
+void PluginSynthImpl::setParameter (int index, float v)
+{
+    const auto& ps = plugin->getParameters();
+    if (index >= 0 && index < ps.size()) ps[index]->setValue (v);
+}
+
+void PluginSynthImpl::render (float* left, float* right, int n)
+{
+    n = std::min (n, buffer.getNumSamples());
+    buffer.clear();
+    juce::AudioBuffer<float> view (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), n);
+    plugin->processBlock (view, midi);
+    midi.clear();
+    const int outs = plugin->getTotalNumOutputChannels();
+    std::copy_n (view.getReadPointer (0), n, left);
+    std::copy_n (view.getReadPointer (outs >= 2 ? 1 : 0), n, right);
+}
+
+std::vector<uint8_t> PluginSynthImpl::state()
+{
+    juce::MemoryBlock mb;
+    plugin->getStateInformation (mb);
+    const auto* p = static_cast<const uint8_t*> (mb.getData());
+    return std::vector<uint8_t> (p, p + mb.getSize());
 }
 
 std::vector<uint8_t> PluginEffect::state()
@@ -238,6 +303,49 @@ std::vector<juce::PluginDescription> PluginHost::effects() const
     return out;
 }
 
+std::vector<juce::PluginDescription> PluginHost::instruments() const
+{
+    std::vector<juce::PluginDescription> out;
+    for (const auto& d : known.getTypes())
+        if (d.isInstrument) out.push_back (d);
+    std::sort (out.begin(), out.end(), [] (const auto& a, const auto& b)
+    {
+        const int c = a.name.compareIgnoreCase (b.name);
+        return c != 0 ? c < 0 : a.pluginFormatName < b.pluginFormatName;
+    });
+    return out;
+}
+
+std::unique_ptr<PluginSynth> PluginHost::createSynth (int, const Instrument& in, double sampleRate)
+{
+    const auto& key = in.pluginKey;
+    juce::PluginDescription desc;
+    if (! findDescription (key, desc)) { errors[key] = "NOT INSTALLED ON THIS COMPUTER"; return nullptr; }
+    juce::String err;
+    auto inst = formats.createPluginInstance (desc, sampleRate, maxBlock, err);
+    if (inst == nullptr) { errors[key] = err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD"); return nullptr; }
+    errors.erase (key);
+    auto synth = std::make_unique<PluginSynthImpl> (*this, std::move (inst), &playHead);
+    synth->prepare (sampleRate, maxBlock);
+    if (! in.pluginState.empty())
+        synth->instance().setStateInformation (in.pluginState.data(), (int) in.pluginState.size());
+    return synth;
+}
+
+juce::String PluginHost::parameterName (juce::AudioPluginInstance& p, int index)
+{
+    const auto& ps = p.getParameters();
+    if (index < 0 || index >= ps.size()) return {};
+    return ps[index]->getName (40).toUpperCase();
+}
+
+std::vector<float> PluginHost::parameterValues (juce::AudioPluginInstance& p)
+{
+    std::vector<float> v;
+    for (auto* prm : p.getParameters()) v.push_back (prm->getValue());
+    return v;
+}
+
 bool PluginHost::findDescription (const std::string& key, juce::PluginDescription& out) const
 {
     if (auto d = known.getTypeForIdentifierString (juce::String (key)))
@@ -309,7 +417,7 @@ std::unique_ptr<Effect> PluginHost::create (int slotIndex, const FxSlot& slot, d
 // =========================================================================== editor windows
 struct PluginHost::Window : public juce::DocumentWindow
 {
-    Window (PluginHost& h, PluginEffect& e, const juce::String& title, juce::AudioProcessorEditor* ed)
+    Window (PluginHost& h, juce::AudioPluginInstance& e, const juce::String& title, juce::AudioProcessorEditor* ed)
         : juce::DocumentWindow (title, juce::Colours::black, juce::DocumentWindow::closeButton | juce::DocumentWindow::minimiseButton), host (h), fx (e)
     {
         setUsingNativeTitleBar (true);
@@ -320,20 +428,21 @@ struct PluginHost::Window : public juce::DocumentWindow
     }
     void closeButtonPressed() override { juce::MessageManager::callAsync ([h = &host, f = &fx] { h->closeEditor (*f); }); }
     PluginHost& host;
-    PluginEffect& fx;
+    juce::AudioPluginInstance& fx;
 };
 
-void PluginHost::openEditor (PluginEffect& fx, const juce::String& title)
+void PluginHost::openEditor (juce::AudioPluginInstance& fx, const juce::String& title)
 {
+    if (! showWindows) return;
     auto it = windows.find (&fx);
     if (it != windows.end()) { it->second->toFront (true); return; }
-    auto& inst = fx.instance();
+    auto& inst = fx;
     juce::AudioProcessorEditor* ed = inst.hasEditor() ? inst.createEditorIfNeeded() : nullptr;
     if (ed == nullptr) ed = new juce::GenericAudioProcessorEditor (inst);
     windows[&fx] = std::make_unique<Window> (*this, fx, title, ed);
 }
 
-void PluginHost::closeEditor (PluginEffect& fx)
+void PluginHost::closeEditor (juce::AudioPluginInstance& fx)
 {
     auto it = windows.find (&fx);
     if (it == windows.end()) return;
@@ -342,7 +451,7 @@ void PluginHost::closeEditor (PluginEffect& fx)
     w->clearContentComponent();   // deletes the editor while the plug-in is still alive
 }
 
-bool PluginHost::isEditorOpen (PluginEffect& fx) const { return windows.count (&fx) > 0; }
+bool PluginHost::isEditorOpen (juce::AudioPluginInstance& fx) const { return windows.count (&fx) > 0; }
 
 void PluginHost::closeAllEditors()
 {

@@ -378,6 +378,9 @@ public:
         {
             const auto& c = m.ch[index];
             eqBtn.setToggleState (c.eq.anyOn(), juce::dontSendNotification);
+            // markers for the track's automation knobs
+            const bool ka = m.trackAuto[index][0].valid(), kb = m.trackAuto[index][1].valid();
+            eqBtn.setButtonText (juce::String ("EQ") + (ka || kb ? "  " : "") + (ka ? "A" : "") + (kb ? "B" : ""));
             for (int s = 0; s < kSends; ++s)
             {
                 send[s].label = juce::String::charToString ((juce::juce_wchar) ('A' + s)) + (c.sendPre[s] ? "P" : "");
@@ -623,6 +626,16 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     };
     addChildComponent (chFader);
 
+    // ---- automation
+    learnTrackBox.labelChars = 6; learnTrackBox.valueChars = 1;
+    learnTrackBox.onChange = [this] (int) { learner.cancel(); refresh(); };
+    learnABtn.onClick = [this] { armLearn (0); };
+    learnBBtn.onClick = [this] { armLearn (1); };
+    chClearA.onClick = [this] { edit ("TRACK " + juce::String (chTrack + 1) + " AUTO A CLEARED", false, [this] (MixerSettings& m) { m.trackAuto[chTrack][0] = AutoTarget {}; }); };
+    chClearB.onClick = [this] { edit ("TRACK " + juce::String (chTrack + 1) + " AUTO B CLEARED", false, [this] (MixerSettings& m) { m.trackAuto[chTrack][1] = AutoTarget {}; }); };
+    for (auto* c : std::initializer_list<juce::Component*> { &learnABtn, &learnBBtn, &learnTrackBox, &chClearA, &chClearB })
+        addChildComponent (c);
+
     // ---- effect page
     // plug-ins
     pluginBtn.setClickingTogglesState (false);
@@ -632,7 +645,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     editPluginBtn.onClick = [this]
     {
         if (auto* pe = proc.pluginAt (fxSlot))
-            proc.pluginHost.openEditor (*pe, slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1) + ": "
+            proc.pluginHost.openEditor (pe->instance(), slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1) + ": "
                                                + juce::String (proc.song.mixer.slot (fxSlot).pluginName));
         else if (onStatus) onStatus ("THIS PLUG-IN ISN'T LOADED - PICK ANOTHER WITH PLUG-IN...");
     };
@@ -806,6 +819,8 @@ void MixerPage::openEffect (int slot)
 {
     fxSlot = juce::jlimit (0, kTotalSlots - 1, slot);
     browsingPlugins = false;
+    // LEARN is for the slot's own track, or the pattern's current track for returns / the master
+    learnTrackBox.setValue ((fxSlot < kTrackSlots ? fxSlot / kInserts : proc.editorState.track) + 1);
     // skip the inserts of tracks the song doesn't have
     if (fxSlot < kTrackSlots && fxSlot / kInserts >= proc.song.numTracks)
         fxSlot = slot > fxSlot ? kTrackSlots : trackSlot (proc.song.numTracks - 1, kInserts - 1);
@@ -838,8 +853,11 @@ void MixerPage::updateVisibility()
     for (auto& s : chSend) s.setVisible (ch);
     for (auto& b : chPre) b.setVisible (ch);
     chFader.setVisible (ch);
+    chClearA.setVisible (ch); chClearB.setVisible (ch);
+    learner.cancel();
     for (auto& b : typeBtn) b.setVisible (fx);
-    for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
+    for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList,
+                                                             &learnTrackBox, &learnABtn, &learnBBtn })
         c->setVisible (false);   // (the effect page shows the ones it needs)
     bypassBtn.setVisible (fx);
     defaultsBtn.setVisible (fx);
@@ -900,6 +918,10 @@ void MixerPage::refreshEffect()
     const bool fx = currentPage == Page::Effect;
     pluginBtn.setToggleState (isPlugin || browsingPlugins, juce::dontSendNotification);
     pluginBtn.setVisible (fx);
+    const bool learnable = fx && ! browsingPlugins && s.type != FxType::None;
+    learnTrackBox.setVisible (learnable); learnABtn.setVisible (learnable); learnBBtn.setVisible (learnable);
+    learnABtn.setToggleState (learner.armed && learner.what == 0, juce::dontSendNotification);
+    learnBBtn.setToggleState (learner.armed && learner.what == 1, juce::dontSendNotification);
     pluginList.setVisible (fx && browsingPlugins);
     rescanBtn.setVisible (fx && browsingPlugins);
     listCloseBtn.setVisible (fx && browsingPlugins);
@@ -988,8 +1010,62 @@ void MixerPage::choosePlugin (int row)
     }
 }
 
+// ---------------------------------------------------------------- automation LEARN
+std::vector<float> MixerPage::slotParamValues (int slot)
+{
+    const auto& s = proc.song.mixer.slot (slot);
+    if (s.type == FxType::Plugin)
+    {
+        if (auto* pe = proc.pluginAt (slot)) return prv::PluginHost::parameterValues (pe->instance());
+        return {};
+    }
+    return std::vector<float> (s.p, s.p + kFxParams);
+}
+
+juce::String MixerPage::slotParamName (int slot, int param)
+{
+    const auto& s = proc.song.mixer.slot (slot);
+    if (s.type == FxType::Plugin)
+    {
+        auto* pe = proc.pluginAt (slot);
+        return juce::String (s.pluginName) + ": " + (pe ? prv::PluginHost::parameterName (pe->instance(), param) : "#" + juce::String (param));
+    }
+    const auto& ps = fxParams (s.type);
+    return slotOwner (slot) + " " + juce::String (fxName (s.type)) + ": " + (param < (int) ps.size() ? juce::String (ps[(size_t) param].name) : juce::String (param));
+}
+
+void MixerPage::armLearn (int knob)
+{
+    if (learner.armed && learner.what == knob) { learner.cancel(); refresh(); if (onStatus) onStatus ("LEARN CANCELLED"); return; }
+    const auto& s = proc.song.mixer.slot (fxSlot);
+    if (s.type == FxType::None) { if (onStatus) onStatus ("PICK AN EFFECT FIRST"); refresh(); return; }
+    if (s.type == FxType::Plugin && ! proc.pluginLoaded (fxSlot)) { if (onStatus) onStatus ("THE PLUG-IN ISN'T LOADED"); refresh(); return; }
+    const int slot = fxSlot;
+    learner.arm (knob, [this, slot] { return slotParamValues (slot); });
+    if (s.type == FxType::Plugin) editPluginBtn.onClick();   // its window, to move a control in
+    if (onStatus) onStatus ("NOW MOVE A CONTROL " + juce::String (s.type == FxType::Plugin ? "IN THE PLUG-IN'S WINDOW" : "ON THIS PAGE") + " FOR TRACK "
+                            + juce::String (learnTrackBox.getValue()) + (knob == 0 ? " AUTO A (V)" : " AUTO B (J)") + " - CLICK LEARN AGAIN TO CANCEL");
+    refresh();
+}
+
+void MixerPage::finishLearn (int param)
+{
+    const int knob = learner.what, tr = learnTrackBox.getValue() - 1;
+    const juce::String name = slotParamName (fxSlot, param);
+    const AutoTarget t { fxSlot, param, name.toStdString() };
+    learner.cancel();
+    edit ("TRACK " + juce::String (tr + 1) + (knob == 0 ? " AUTO A = " : " AUTO B = ") + name, false,
+          [tr, knob, t] (MixerSettings& m) { m.trackAuto[tr][knob] = t; });
+    if (onStatus) onStatus ("TRACK " + juce::String (tr + 1) + (knob == 0 ? " AUTO A (VXX) NOW MOVES " : " AUTO B (JXX) NOW MOVES ") + name);
+}
+
 void MixerPage::tick()
 {
+    if (learner.armed && currentPage == Page::Effect)
+    {
+        const int moved = learner.poll();
+        if (moved >= 0) finishLearn (moved);
+    }
     if (currentPage == Page::Effect && browsingPlugins)
     {
         const auto st = proc.pluginHost.scanStatus();
@@ -1139,6 +1215,18 @@ void MixerPage::paint (juce::Graphics& g)
         Theme::panelBox (g, bandBox, "EQ");
         Theme::panelBox (g, chInsertsBox, "INSERTS");
         Theme::panelBox (g, chSendsBox, "SENDS AND FADER");
+        Theme::panelBox (g, chAutoBox, "AUTOMATION KNOBS");
+        {
+            auto fitT = [px] (juce::String t, float w) {
+                const int n0 = std::max (4, (int) (w / (px * PixelFont::kCellW)));
+                if (t.length() > n0 && t.contains (": ") && t.indexOf (": ") != t.lastIndexOf (": "))   // "A (V): PLUG: PARAM" -> "A (V): PARAM"
+                    t = t.upToFirstOccurrenceOf (": ", true, false) + t.fromLastOccurrenceOf (": ", false, false);
+                const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+            const auto& a = proc.song.mixer.trackAuto[chTrack][0];
+            const auto& b = proc.song.mixer.trackAuto[chTrack][1];
+            PixelFont::drawLeft (g, fitT ("A (V): " + (a.valid() ? juce::String (a.name) : juce::String ("NOT SET")), chAutoA.getWidth() - px * 2), chAutoA.withTrimmedLeft (px), px, a.valid() ? Theme::ink : Theme::faint);
+            PixelFont::drawLeft (g, fitT ("B (J): " + (b.valid() ? juce::String (b.name) : juce::String ("NOT SET")), chAutoB.getWidth() - px * 2), chAutoB.withTrimmedLeft (px), px, b.valid() ? Theme::ink : Theme::faint);
+        }
         paintEqGraph (g, eqGraph);
         return;
     }
@@ -1151,6 +1239,16 @@ void MixerPage::paint (juce::Graphics& g)
     juce::String info = browsingPlugins ? juce::String ("DOUBLE-CLICK A PLUG-IN TO LOAD IT") : effectInfo (s.type);
     PixelFont::drawCentred (g, fit (info, fxInfoArea.getWidth() - px * 4), fxInfoArea, px, sk.text);
 
+    if (! browsingPlugins && s.type != FxType::None)
+    {
+        auto fitL = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+        const int tr = learnTrackBox.getValue() - 1;
+        const auto& a = proc.song.mixer.trackAuto[tr][0];
+        const auto& b = proc.song.mixer.trackAuto[tr][1];
+        const juce::String t = learner.armed ? juce::String ("MOVE A CONTROL...")
+                             : "A: " + (a.valid() ? juce::String (a.name) : juce::String ("-")) + "  B: " + (b.valid() ? juce::String (b.name) : juce::String ("-"));
+        PixelFont::drawLeft (g, fitL (t, learnInfoArea.getWidth()), learnInfoArea, px, Theme::ink);
+    }
     if (browsingPlugins)
     {
         const auto st = proc.pluginHost.scanStatus();
@@ -1314,6 +1412,16 @@ void MixerPage::layoutChannel (juce::Rectangle<int> r)
         }
         chFader.setBounds (in.removeFromTop (rowH));
     }
+    right.removeFromTop (gap * 2);
+    chAutoBox = right.removeFromTop (titleH + (rowH + gap) * 2 + gap * 2).toFloat();
+    {
+        auto in = chAutoBox.toNearestInt().reduced (gap);
+        in.removeFromTop (titleH);
+        auto ra = in.removeFromTop (rowH); in.removeFromTop (gap);
+        chClearA.setBounds (ra.removeFromRight (charsW (5))); chAutoA = ra.toFloat();
+        auto rb = in.removeFromTop (rowH);
+        chClearB.setBounds (rb.removeFromRight (charsW (5))); chAutoB = rb.toFloat();
+    }
 
     // left: graph on top, then one row per band
     const int bandsH = titleH + (rowH + gap) * (kEqBands + 1) + gap * 2;
@@ -1355,7 +1463,17 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
     bypassBtn.setBounds (row2.removeFromLeft (charsW (8))); row2.removeFromLeft (gap);
     defaultsBtn.setBounds (row2.removeFromLeft (charsW (8))); row2.removeFromLeft (gap * 3);
     fxInfoArea = row2.toFloat();
-    r.removeFromTop (gap * 3);
+    r.removeFromTop (gap * 2);
+    if (! browsingPlugins && proc.song.mixer.slot (fxSlot).type != FxType::None)
+    {
+        auto row3 = r.removeFromTop (rowH);
+        learnTrackBox.setBounds (row3.removeFromLeft (learnTrackBox.preferredWidth (px))); row3.removeFromLeft (gap * 2);
+        learnABtn.setBounds (row3.removeFromLeft (charsW (16))); row3.removeFromLeft (gap);
+        learnBBtn.setBounds (row3.removeFromLeft (charsW (16))); row3.removeFromLeft (gap * 2);
+        learnInfoArea = row3.toFloat();
+        r.removeFromTop (gap * 2);
+    }
+    r.removeFromTop (gap);
 
     if (browsingPlugins)
     {

@@ -3,6 +3,7 @@
 
 #include "Song.h"
 #include "Mixer.h"
+#include "PluginSynth.h"
 #include <atomic>
 
 namespace prv
@@ -116,6 +117,10 @@ public:
 
     // the mixer (EQ, inserts, sends) used when the song's mixer isn't flat
     MixerEngine& mixer() { return mixerEngine; }
+    // the song's plug-in instruments
+    SynthRack& synths() { return rack; }
+    // which track's mixer strip a plug-in instrument plays into right now
+    int synthOutputTrack (int instrument) const;
     bool forceMixPath = false;    // tests: use the mixer path even when flat
 
     // Read by the UI
@@ -167,7 +172,33 @@ private:
         int    fltType = -1; float fltCutoff = 20000.0f, fltRes = -1.0f;   // H/L/W/Q overrides
         float  drive = 0.0f; int crushBits = 0;    // Oxx / Zxx
         Cell   microCell; long long microDelay = -1; bool earlyDone = false;  // Mxx
+        // a plug-in instrument's note on this track
+        int    synthNote = -1, synthInstr = -1, synthVel = 100, lastBend = 8192;
     };
+
+    // automation: a value moving (or gliding) towards its target, one per knob
+    struct Lane { float cur = -1.0f, target = 0.0f, step = 0.0f; int ticks = 0; };
+    Lane trackLanes[kMaxTracks][kTrackKnobs];
+    Lane instLanes[kMaxInstruments][kInstrumentKnobs];
+    int  pendingGlide[kMaxTracks] {};          // Yxx: ticks for the next knob change on the track
+    int  rowGlide = 0; bool knobSetThisRow = false;
+    void setLane (Lane&, float value, int glide, int kind, int a, int b);
+    void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob
+    void advanceAutomation();
+
+    // plug-in instruments
+    SynthRack rack;
+    int  chunkPos = 0;                          // sample offset of events inside the current chunk
+    int  synthTrack[kMaxInstruments] {};        // AUTO output: the lowest track that's played it
+    struct JamSynth { int note = -1, instr = -1, midi = -1; };
+    JamSynth jamSynth[16];
+    float synthL[MixerEngine::kMaxBlock] {}, synthR[MixerEngine::kMaxBlock] {};
+    bool isSynthVoice (const Voice& v) const;
+    void synthTrigger (Voice& v, const Cell& cell, int ch);
+    void synthRelease (Voice& v);
+    void synthRetrigger (Voice& v, int velocityChange);
+    void synthBend (Voice& v);
+    void synthAllOff();
 
     void resetVoices();
     void doTick();
