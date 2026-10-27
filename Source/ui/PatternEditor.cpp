@@ -433,6 +433,76 @@ void PatternEditor::tick()
     lastDrawnLine = st.line; lastDrawnBlock = st.block;
 }
 
+void PatternEditor::openCommandMenu (int line, int track, int group)
+{
+    if (picker == nullptr)
+    {
+        picker = std::make_unique<CommandPicker>();
+        picker->onPick = [this] (const CommandInfo& c) { applyPickedCommand (c); };
+        picker->onCancel = [this] { closeCommandMenu(); };
+        // over the whole window, so the descriptions have room
+        if (auto* top = getParentComponent()) top->addChildComponent (*picker);
+        else addChildComponent (*picker);
+    }
+    if (group == 2 && ! st.showFx2) group = 1;
+    pickLine = juce::jlimit (0, blockLines() - 1, line);
+    pickTrack = juce::jlimit (0, proc.song.numTracks - 1, track);
+    pickGroup = group;
+    // the cursor goes to that effect cell
+    st.line = pickLine; st.track = pickTrack; st.column = group == 2 ? 6 : 3;
+    changed();
+    const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
+    placePicker();
+    picker->open (group == 2 ? c.cmd2 : c.cmd, group == 2 ? c.param2 : c.param);
+    if (onStatus) onStatus ("PICK A COMMAND (CLICK, OR ARROWS + ENTER; TYPE ITS LETTER TO JUMP) - ESC CANCELS");
+}
+
+void PatternEditor::placePicker()
+{
+    // across the window, from the top of the pattern down
+    const float px = Theme::px;
+    auto* parent = picker->getParentComponent();
+    juce::Rectangle<int> r = parent == this ? getLocalBounds() : parent->getLocalBounds().withTop (getY()).withBottom (getBottom());
+    r = r.reduced ((int) (px * 3));
+    const int want = (int) (px * PixelFont::kCellW * 78 + px * 16);
+    r = r.withSizeKeepingCentre (std::min (r.getWidth(), want), r.getHeight());
+    picker->setBounds (r);
+}
+
+void PatternEditor::closeCommandMenu()
+{
+    if (picker != nullptr) picker->setVisible (false);
+    grabKeyboardFocus();
+    repaint();
+}
+
+void PatternEditor::applyPickedCommand (const CommandInfo& info)
+{
+    const int blk = proc.song.safeBlock (st.block);
+    const auto& cur = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
+    const uint8_t oldCmd = pickGroup == 2 ? cur.cmd2 : cur.cmd, oldParam = pickGroup == 2 ? cur.param2 : cur.param;
+    // keep the value already there when it's the same command, else start from a useful one
+    uint8_t param = info.param;
+    if (oldCmd == info.cmd && ! (oldCmd == 0 && oldParam == 0))
+    {
+        if (! info.extended) param = oldParam;
+        else if ((oldParam >> 4) == (info.param >> 4)) param = oldParam;
+    }
+    pushUndo (blk, "COMMAND " + juce::String (info.code) + " " + juce::String (info.name));
+    proc.withLock ([&]
+    {
+        auto& c = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
+        if (pickGroup == 2) { c.cmd2 = info.cmd; c.param2 = param; }
+        else { c.cmd = info.cmd; c.param = param; }
+    });
+    closeCommandMenu();
+    // the cursor sits on the value, ready to type over it (on the low digit for Exy)
+    st.line = pickLine; st.track = pickTrack;
+    st.column = (pickGroup == 2 ? 7 : 4) + (info.extended ? 1 : 0);
+    changed();
+    if (onStatus) onStatus (juce::String (describeCommand (info.cmd, param)) + "  -  TYPE HEX TO CHANGE THE VALUE");
+}
+
 void PatternEditor::changed()
 {
     repaint();
@@ -491,6 +561,12 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     }
     int line = 0, track = 0, column = 0;
     if (! cellAt (e.position, line, track, column)) return;
+    if (e.mods.isPopupMenu())
+    {
+        // right-click: pick an effect command from a list (FX2 when clicked there)
+        openCommandMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
+        return;
+    }
     if (e.mods.isShiftDown())
     {
         // shift+click: select from the cursor to here

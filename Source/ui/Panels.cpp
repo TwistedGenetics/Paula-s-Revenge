@@ -192,6 +192,7 @@ void PixList::mouseMove (const juce::MouseEvent& e)
     const int n = getNumRows ? getNumRows() : 0;
     const int h = (tagZoneX >= 0 && e.position.x >= tagZoneX && ! barArea().contains (e.position) && row >= 0 && row < n) ? row : -1;
     if (h != hoverTagRow) { hoverTagRow = h; repaint(); }
+    if (onHover) onHover (row >= 0 && row < n && ! barArea().contains (e.position) ? row : -1);
 }
 
 void PixList::mouseExit (const juce::MouseEvent&)

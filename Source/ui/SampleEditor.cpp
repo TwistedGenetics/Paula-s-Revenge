@@ -615,8 +615,10 @@ juce::Rectangle<float> SampleEditor::loopHandle (int which) const
 {
     const auto& in = inst();
     const float px = Theme::px;
-    const int pos = which == 1 ? in.loopStart : in.loopStart + in.loopLength;
-    const float w = px * 8, h = px * 9;
+    // with no loop the handles wait at the start and end of the sample
+    const bool looped = in.isLooped();
+    const int pos = which == 1 ? (looped ? in.loopStart : 0) : (looped ? in.loopStart + in.loopLength : length());
+    const float w = px * 10, h = px * 11;
     const float x = sampleToX (pos);
     return juce::Rectangle<float> (which == 1 ? x : x - w, waveArea.getY(), w, h);
 }
@@ -767,6 +769,21 @@ void SampleEditor::paint (juce::Graphics& g)
             }
         }
         // loop markers with grab handles at the top
+        if (! in.isLooped() && in.hasData() && ! drawMode)
+        {
+            // no loop yet: the S and E handles sit at the ends, ready to drag in
+            for (int which : { 1, 2 })
+            {
+                auto hnd = loopHandle (which);
+                g.setColour (Theme::panel);
+                g.fillRect (hnd);
+                Theme::bevel (g, hnd, true, std::max (1.0f, px * 0.5f));
+                PixelFont::drawCentred (g, which == 1 ? "S" : "E", hnd, px, Theme::ink);
+            }
+            const juce::String lt = "DRAG S OR E TO LOOP";
+            if (waveArea.getWidth() > PixelFont::textWidth (lt, px) + px * 30)
+                PixelFont::draw (g, lt, loopHandle (1).getRight() + px * 3, waveArea.getY() + px * 2.0f, px, sk.text);
+        }
         if (in.isLooped())
         {
             for (int which : { 1, 2 })
@@ -780,8 +797,8 @@ void SampleEditor::paint (juce::Graphics& g)
                 PixelFont::drawCentred (g, which == 1 ? "S" : "E", hnd, px, sk.bg);
             }
             const juce::String lt = in.pingPong ? "PING-PONG LOOP" : "LOOP";
-            if (sampleToX (in.loopStart + in.loopLength) - sampleToX (in.loopStart) > PixelFont::textWidth (lt, px) + px * 20)
-                PixelFont::draw (g, lt, sampleToX (in.loopStart) + px * 10, waveArea.getY() + px * 1.5f, px, sk.hot);
+            if (sampleToX (in.loopStart + in.loopLength) - sampleToX (in.loopStart) > PixelFont::textWidth (lt, px) + px * 24)
+                PixelFont::draw (g, lt, sampleToX (in.loopStart) + px * 12, waveArea.getY() + px * 2.0f, px, sk.hot);
         }
         // cursor + playhead
         g.setColour (sk.text);
@@ -915,17 +932,20 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
 
     // loop handles (top) and slice tabs (bottom)
     dragLoopMarker = 0; dragSlice = -1;
-    if (inst().isLooped() && ! drawMode)
+    if (inst().hasData() && length() >= 8 && ! drawMode)
         for (int which : { 2, 1 })
             if (loopHandle (which).expanded (Theme::px).contains (e.position))
             {
                 dragLoopMarker = which;
                 proc.history.instrument (proc.editorState.instrument, "LOOP POINTS");
-                // hear the loop while it's moved
-                const auto& in = inst();
-                const int from = std::max (in.loopStart, in.loopStart + in.loopLength - (int) (in.rate * 0.4));
-                proc.withLock ([&] { proc.player.jamNoteFrom (37, proc.editorState.instrument, which == 1 ? in.loopStart : from); });
-                auditioningLoop = true;
+                if (inst().isLooped())
+                {
+                    // hear the loop while it's moved
+                    const auto& in = inst();
+                    const int from = std::max (in.loopStart, in.loopStart + in.loopLength - (int) (in.rate * 0.4));
+                    proc.withLock ([&] { proc.player.jamNoteFrom (37, proc.editorState.instrument, which == 1 ? in.loopStart : from); });
+                    auditioningLoop = true;
+                }
                 return;
             }
     if (! drawMode)
@@ -998,6 +1018,17 @@ void SampleEditor::mouseDrag (const juce::MouseEvent& e)
     {
         const int s = juce::jlimit (0, length(), (int) std::lround (xToSample (juce::jlimit (waveArea.getX(), waveArea.getRight(), e.position.x))));
         const int which = dragLoopMarker;
+        if (! inst().isLooped())
+        {
+            if (e.getDistanceFromDragStart() < 3) return;
+            // dragging a handle in from the end turns the loop on (the whole sample to start with)
+            proc.withLock ([&] {
+                auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+                in.loopStart = 0; in.loopLength = (int) in.data.size();
+            });
+            proc.withLock ([&] { proc.player.jamNoteFrom (37, proc.editorState.instrument, 0); });
+            auditioningLoop = true;
+        }
         proc.withLock ([&] {
             auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
             int a = in.loopStart, b = in.loopStart + in.loopLength;
@@ -1048,6 +1079,7 @@ void SampleEditor::mouseUp (const juce::MouseEvent& e)
         dragLoopMarker = 0;
         if (auditioningLoop) { proc.withLock ([&] { proc.player.jamNoteOff (37); }); auditioningLoop = false; }
         const auto& in = inst();
+        if (! in.isLooped()) { proc.history.dropLast(); repaint(); return; }   // a click on a waiting handle: nothing changed
         proc.history.relabelLast ("LOOP " + juce::String (in.loopStart) + "-" + juce::String (in.loopStart + in.loopLength));
         if (onStatus) onStatus ("LOOP " + juce::String (in.loopStart) + " - " + juce::String (in.loopStart + in.loopLength)
                                 + (in.pingPong ? " (PING-PONG)" : ""));
@@ -1077,7 +1109,7 @@ void SampleEditor::mouseMove (const juce::MouseEvent& e)
     const float edge = std::max (6.0f, Theme::px * 2.5f);
     bool nearEdge = hasSel() && waveArea.contains (e.position) && ! drawMode
                        && (std::abs (e.position.x - sampleToX (selA)) <= edge || std::abs (e.position.x - sampleToX (selB)) <= edge);
-    if (inst().isLooped()) for (int w : { 1, 2 }) nearEdge = nearEdge || loopHandle (w).expanded (Theme::px).contains (e.position);
+    if (inst().hasData() && ! drawMode) for (int w : { 1, 2 }) nearEdge = nearEdge || loopHandle (w).expanded (Theme::px).contains (e.position);
     for (int i = 1; i < inst().numSlices(); ++i) nearEdge = nearEdge || sliceHandle (i).expanded (Theme::px * 0.5f).contains (e.position);
     setMouseCursor (nearEdge ? juce::MouseCursor::LeftRightResizeCursor
                              : (drawMode && waveArea.contains (e.position) ? juce::MouseCursor::CrosshairCursor : juce::MouseCursor::NormalCursor));

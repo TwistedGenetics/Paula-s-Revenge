@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "CommandPicker.h"
 
 namespace prv::ui
 {
@@ -24,7 +25,14 @@ public:
 
     // called ~30x a second by the main editor
     void tick();
-    void resized() override { updateView (false); }
+    void resized() override { updateView (false); if (picker != nullptr && picker->isVisible()) placePicker(); }
+    void visibilityChanged() override { if (! isVisible() && picker != nullptr) picker->setVisible (false); }
+
+    // right-click an effect cell: a list of the commands to pick from (also used by tests)
+    void openCommandMenu (int line, int track, int group);   // group 1 = FX1, 2 = FX2
+    bool isCommandMenuOpen() const { return picker != nullptr && picker->isVisible(); }
+    CommandPicker* commandMenu() { return picker.get(); }
+    void closeCommandMenu();
 
     // the view: the line shown at the top (fractional while following playback)
     float getViewTop() const { return viewTop; }
@@ -107,6 +115,10 @@ private:
     juce::ModifierKeys lastDragMods;
     void applyDrag (juce::Point<float>);
     WheelSteps wheel;
+    std::unique_ptr<CommandPicker> picker;
+    int pickLine = 0, pickTrack = 0, pickGroup = 1;
+    void placePicker();
+    void applyPickedCommand (const CommandInfo&);
 
     std::map<int, int> heldKeys;   // key code -> jam note
     float vu[prv::kMaxTracks] {};

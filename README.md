@@ -212,6 +212,8 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 * Keys: `Space` play/stop, `Cmd+X/C/V`, `Cmd+A`, `Delete`, `Cmd+Z` / `Cmd+Shift+Z`, `←` `→` scroll, `↑` `↓` zoom, `Esc` close.
 * UNDO/REDO share the one history with every other page.
 
+
+**Loop handles**: the **S** and **E** handles at the top of the waveform set the loop start and end. With no loop they wait at the two ends of the sample ("DRAG S OR E TO LOOP"); drag either one in and the loop switches on. While you drag a handle the loop plays so you can hear the join. Exact numbers go in START / END below; LOOP switches it off again.
 ## Slicing
 
 **SLICE** in the sample editor opens the slicer:
@@ -257,6 +259,8 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
 ## Effect commands
+
+**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for a list of every command with what it does. Click one (or use the arrows and Enter; typing a command's letter jumps to it, and `E` again steps through the E commands) and it goes into that cell with a useful starting value — or the value already there, if it was the same command — and the cursor lands on the value so you can type over it. `Esc` closes the list. It's one undo step.
 
 Same numbering as ProTracker, so MOD files load straight in.
 

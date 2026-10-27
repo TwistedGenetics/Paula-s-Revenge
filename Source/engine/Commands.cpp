@@ -119,4 +119,57 @@ std::string describeCommand (int c, uint8_t p)
         default:  return head + "UNUSED";
     }
 }
+
+const std::vector<CommandInfo>& commandList()
+{
+    static const std::vector<CommandInfo> list {
+        { 0x0, 0x37, false, "0",  "ARPEGGIO",          "CHORD: NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
+        { 0x1, 0x08, false, "1",  "SLIDE UP",          "BENDS THE PITCH UP, XX PER TICK" },
+        { 0x2, 0x08, false, "2",  "SLIDE DOWN",        "BENDS THE PITCH DOWN, XX PER TICK" },
+        { 0x3, 0x10, false, "3",  "SLIDE TO NOTE",     "GLIDES FROM THE LAST NOTE TO THIS ONE AT SPEED XX" },
+        { 0x4, 0x44, false, "4",  "VIBRATO",           "WOBBLES THE PITCH: SPEED X, DEPTH Y" },
+        { 0x5, 0x04, false, "5",  "SLIDE + VOL SLIDE", "KEEPS SLIDING TO THE NOTE, VOLUME X UP OR Y DOWN" },
+        { 0x6, 0x04, false, "6",  "VIBRATO + VOL",     "KEEPS THE VIBRATO, VOLUME X UP OR Y DOWN" },
+        { 0x7, 0x44, false, "7",  "TREMOLO",           "WOBBLES THE VOLUME: SPEED X, DEPTH Y" },
+        { 0x8, 0x80, false, "8",  "PAN",               "00 HARD LEFT, 80 CENTRE, FF HARD RIGHT" },
+        { 0x9, 0x10, false, "9",  "SAMPLE OFFSET",     "STARTS THE SAMPLE XX x 256 SAMPLES IN" },
+        { 0xA, 0x04, false, "A",  "VOLUME SLIDE",      "FADES: X UP OR Y DOWN EACH TICK" },
+        { 0xB, 0x00, false, "B",  "JUMP TO POSITION",  "CARRIES ON FROM SONG POSITION XX" },
+        { 0xC, 0x40, false, "C",  "SET VOLUME",        "THE NOTE'S VOLUME, 00-40 (40 = FULL)" },
+        { 0xD, 0x00, false, "D",  "NEXT BLOCK",        "ENDS THIS BLOCK; THE NEXT STARTS AT LINE XX" },
+        { 0xE, 0x00, true,  "E0", "LED FILTER",        "E00 LED FILTER ON, E01 OFF" },
+        { 0xE, 0x11, true,  "E1", "FINE SLIDE UP",     "NUDGES THE PITCH UP ONCE BY Y" },
+        { 0xE, 0x21, true,  "E2", "FINE SLIDE DOWN",   "NUDGES THE PITCH DOWN ONCE BY Y" },
+        { 0xE, 0x40, true,  "E4", "VIBRATO WAVE",      "0 SINE, 1 RAMP, 2 SQUARE" },
+        { 0xE, 0x50, true,  "E5", "FINETUNE",          "TUNES THIS NOTE, 8-F FLAT, 1-7 SHARP" },
+        { 0xE, 0x60, true,  "E6", "PATTERN LOOP",      "E60 MARKS THE START, E6Y REPEATS Y TIMES" },
+        { 0xE, 0x70, true,  "E7", "TREMOLO WAVE",      "0 SINE, 1 RAMP, 2 SQUARE" },
+        { 0xE, 0x88, true,  "E8", "COARSE PAN",        "PAN IN 16 STEPS, 0 LEFT - F RIGHT" },
+        { 0xE, 0x93, true,  "E9", "RETRIGGER",         "PLAYS THE NOTE AGAIN EVERY Y TICKS" },
+        { 0xE, 0xA1, true,  "EA", "FINE VOLUME UP",    "RAISES THE VOLUME ONCE BY Y" },
+        { 0xE, 0xB1, true,  "EB", "FINE VOLUME DOWN",  "LOWERS THE VOLUME ONCE BY Y" },
+        { 0xE, 0xC3, true,  "EC", "NOTE CUT",          "SILENCES THE NOTE AT TICK Y" },
+        { 0xE, 0xD3, true,  "ED", "NOTE DELAY",        "STARTS THE NOTE Y TICKS LATE" },
+        { 0xE, 0xE1, true,  "EE", "LINE DELAY",        "HOLDS THE WHOLE LINE FOR Y MORE LINES" },
+        { 0xF, 0x06, false, "F",  "SPEED / TEMPO",     "01-1F TICKS PER LINE, 20-FF BPM, 00 STOPS" },
+        { cmdLetter ('G'), 0x06, false, "G", "GLIDE",        "GLIDES TO THE NOTE OVER XX TICKS" },
+        { cmdLetter ('H'), 0x40, false, "H", "HIGH-PASS",    "HIGH-PASS FILTER, CUTOFF 00-FF" },
+        { cmdLetter ('I'), 0x8C, false, "I", "TRANSPOSE",    "THIS NOTE ONLY: 80 NONE, 8C +12, 74 -12" },
+        { cmdLetter ('K'), 0x80, false, "K", "CHANCE",       "PLAYS THIS STEP XX/FF OF THE TIME" },
+        { cmdLetter ('L'), 0x80, false, "L", "LOW-PASS",     "LOW-PASS FILTER, CUTOFF 00-FF" },
+        { cmdLetter ('M'), 0x20, false, "M", "MICRO-MOVE",   "PLAYS LATE (01-7F) OR EARLY (81-FF)" },
+        { cmdLetter ('N'), 0x03, false, "N", "NOTE LENGTH",  "RELEASES THE NOTE AFTER XX TICKS" },
+        { cmdLetter ('O'), 0x80, false, "O", "OVERDRIVE",    "DISTORTS THIS NOTE, 00-FF" },
+        { cmdLetter ('P'), 0x40, false, "P", "POSITION",     "STARTS PART-WAY IN: 40 = A QUARTER, 80 = HALF" },
+        { cmdLetter ('Q'), 0x80, false, "Q", "RESONANCE",    "FILTER RESONANCE FOR H, L AND W" },
+        { cmdLetter ('R'), 0x30, false, "R", "ROLL",         "REPEATS EVERY X TICKS, Y FADES (1-7 DOWN, 9-F UP)" },
+        { cmdLetter ('S'), 0x00, false, "S", "SLICE",        "PLAYS SLICE XX+1 OF THE SAMPLE" },
+        { cmdLetter ('T'), 0x90, false, "T", "MICRO-TUNE",   "DETUNES IN CENTS, 80 = IN TUNE" },
+        { cmdLetter ('U'), 0x01, false, "U", "REVERSE",      "U01 PLAYS BACKWARDS, U00 FORWARDS" },
+        { cmdLetter ('W'), 0x80, false, "W", "BAND-PASS",    "BAND-PASS FILTER, CENTRE 00-FF" },
+        { cmdLetter ('X'), 0x02, false, "X", "RANDOMISE",    "RANDOM X: 0 NOTE, 1 VOLUME, 2 PAN, 3 START; Y AMOUNT" },
+        { cmdLetter ('Z'), 0x04, false, "Z", "BIT CRUSH",    "CRUSHES THIS NOTE TO XX BITS (01-0F)" },
+    };
+    return list;
+}
 } // namespace prv

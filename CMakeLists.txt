@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.9.2 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.9.3 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -74,6 +74,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/ArrangePage.cpp
     Source/ui/MixerPage.cpp
     Source/ui/SeqEditor.cpp
+    Source/ui/CommandPicker.cpp
     Source/PluginHost.cpp
     Source/StandaloneApp.cpp)
 

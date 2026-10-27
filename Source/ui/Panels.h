@@ -23,6 +23,7 @@ public:
     std::function<bool (int)> isRowInRange;
     std::function<bool (int)> dragMoves;
     std::function<void (int row)> onDragSelect;
+    std::function<void (int row)> onHover;           // the row under the mouse (-1 = none)
     int selected = 0;
     int playing = -1;   // row marked with a play arrow
 
