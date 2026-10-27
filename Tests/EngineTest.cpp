@@ -8,6 +8,7 @@
 #include "engine/Slicer.h"
 #include "engine/Mixer.h"
 #include "engine/Effects.h"
+#include "AkaizerGolden.h"
 #include <cstdio>
 #include <set>
 #include <functional>
@@ -647,6 +648,191 @@ static void testTimeStretch()
     }
 }
 
+// ---------------------------------------------------------------- v0.9: plug-in slots
+namespace
+{
+    struct GainFx : Effect
+    {
+        float g; int* alive;
+        GainFx (float gain, int* a) : g (gain), alive (a) { ++*alive; }
+        ~GainFx() override { --*alive; }
+        void prepare (double) override {}
+        void reset() override {}
+        void process (float* l, float* r, int n, const float*, double) override { for (int i = 0; i < n; ++i) { l[i] *= g; r[i] *= g; } }
+    };
+}
+
+static void testPluginSlots()
+{
+    MixerEngine mx;
+    mx.prepare (48000);
+    int alive = 0, made = 0;
+    mx.pluginFactory = [&] (int, const FxSlot& s, double) -> std::unique_ptr<Effect>
+    {
+        if (s.pluginKey == "missing") return nullptr;
+        ++made;
+        return std::make_unique<GainFx> (s.pluginKey == "half" ? 0.5f : 2.0f, &alive);
+    };
+    MixerSettings m;
+    auto& sl = m.ch[0].inserts[0];
+    sl.type = FxType::Plugin; sl.pluginKey = "half"; sl.pluginName = "HALF";
+    CHECK (! m.isFlat());
+    mx.syncEffectsNow (m);
+    CHECK (made == 1 && alive == 1);
+    // one track, 0.25 in: the plug-in halves it
+    std::vector<float> L (64, 0.25f), R (64, 0.25f), oL (64), oR (64);
+    float* tl[1] = { L.data() }; float* tr[1] = { R.data() };
+    mx.process (m, tl, tr, 1, nullptr, nullptr, oL.data(), oR.data(), 64, 120);
+    CHECK (std::abs (oL[10] - 0.125f) < 1e-6f);
+    // same plug-in again: not reloaded; a different one: replaced
+    auto changes = mx.plan (m);
+    CHECK (changes.empty());
+    sl.pluginKey = "double";
+    std::vector<std::unique_ptr<Effect>> old;
+    changes = mx.plan (m);
+    CHECK (changes.size() == 1);
+    mx.apply (changes, old);
+    CHECK (old.size() == 1);
+    old.clear();
+    CHECK (alive == 1);
+    std::fill (L.begin(), L.end(), 0.25f); std::fill (R.begin(), R.end(), 0.25f);
+    mx.process (m, tl, tr, 1, nullptr, nullptr, oL.data(), oR.data(), 64, 120);
+    CHECK (std::abs (oL[10] - 0.5f) < 1e-6f);
+    // reloadAll / invalidate make a fresh one
+    mx.invalidate (0);
+    changes = mx.plan (m); CHECK (changes.size() == 1); mx.apply (changes, old); old.clear();
+    changes = mx.plan (m, true); CHECK (changes.size() == 3);   /* + the two returns' effects */ mx.apply (changes, old); old.clear();
+    CHECK (alive == 1);
+    // a missing plug-in: the slot passes audio through, and isn't retried every time
+    sl.pluginKey = "missing";
+    mx.syncEffectsNow (m);
+    CHECK (alive == 0 && mx.effectAt (0) == nullptr);
+    CHECK (mx.plan (m).empty());
+    std::fill (L.begin(), L.end(), 0.25f); std::fill (R.begin(), R.end(), 0.25f);
+    mx.process (m, tl, tr, 1, nullptr, nullptr, oL.data(), oR.data(), 64, 120);
+    CHECK (std::abs (oL[10] - 0.25f) < 1e-6f);
+    // slots compare their plug-in and its state
+    FxSlot a, b; a.type = b.type = FxType::Plugin; a.pluginKey = b.pluginKey = "x";
+    CHECK (a == b);
+    b.pluginState = { 1, 2, 3 };
+    CHECK (! (a == b));
+    CHECK (fxName (FxType::Plugin) == "PLUG-IN");
+    std::printf ("plug-in slots: load, swap, reload, missing pass-through ok\n");
+}
+
+// ---------------------------------------------------------------- v0.9: AKAIZER
+// the same integer-only signal as Tests/tools/akaizer_ref.js makes
+static std::vector<int16_t> akaizerTestInput (int words, uint32_t seed, bool loud)
+{
+    std::vector<int16_t> v ((size_t) words);
+    uint32_t s = seed;
+    for (int i = 0; i < words; ++i)
+    {
+        s = s * 1664525u + 1013904223u;
+        int x = ((i * 37) % 2000 - 1000) * 20 + (int) ((s >> 16) & 0x3fff) - 8192;
+        if (loud && (i % 3000) < 1500) x = x * 3 / 2;
+        v[(size_t) i] = (int16_t) std::clamp (x, -32768, 32767);
+    }
+    return v;
+}
+
+static uint32_t fnv16 (const std::vector<int16_t>& a)
+{
+    uint32_t h = 0x811c9dc5u;
+    for (int16_t x : a)
+    {
+        const uint32_t u = (uint16_t) x;
+        h = (h ^ (u & 0xff)) * 16777619u;
+        h = (h ^ (u >> 8)) * 16777619u;
+    }
+    return h;
+}
+
+static void testAkaizer()
+{
+    // rounding: half to even, as VB6
+    CHECK (akaizerRound (2.5) == 2 && akaizerRound (3.5) == 4 && akaizerRound (-2.5) == -2 && akaizerRound (2.6) == 3 && akaizerRound (-0.4) == 0);
+    CHECK (akaizerLinkedFreq (800) == 51 && akaizerLinkedFreq (1000) == 41);
+    // bit-exact against the reference routine (golden values from the JS original)
+    int exact = 0;
+    for (const auto& g : kAkaizerGolden)
+    {
+        const auto in = akaizerTestInput (g.frames * g.channels, g.seed, g.loud != 0);
+        const int f = g.freq > 0 ? g.freq : akaizerLinkedFreq (g.cycle);
+        const auto out = akaizerStretch (in, g.channels, g.rate, g.percent, g.cycle, f);
+        const bool ok = (int) out.size() == g.outLength && fnv16 (out) == g.hash && out[out.size() / 2] == g.middle;
+        if (! ok) std::printf ("akaizer case %d ch %d %.1f%% cycle %d: length %d (want %d) hash %08x (want %08x)\n",
+                               exact, g.channels, g.percent, g.cycle, (int) out.size(), g.outLength, fnv16 (out), g.hash);
+        CHECK (ok);
+        ++exact;
+        int peak = 0; for (auto x : out) peak = std::max (peak, std::abs ((int) x));
+        CHECK (peak <= 32768);
+    }
+    std::printf ("akaizer: %d golden cases checked\n", exact);
+
+    // through the editor's interface: lengths, pitch-then-stretch, stereo both ways
+    const int sr = 44100;
+    std::vector<float> sine ((size_t) sr);
+    for (int i = 0; i < sr; ++i) sine[(size_t) i] = 0.5f * (float) std::sin (2.0 * kPi * 441.0 * i / sr);
+    StretchSettings st; st.mode = StretchSettings::Mode::Akaizer; st.sampleRate = sr; st.cycleLength = 800;
+    for (double t : { 0.5, 1.0, 2.13, 4.0 })
+    {
+        st.timeFactor = t;
+        auto out = cyclicStretch ({ sine }, st)[0];
+        CHECK (std::abs ((int) out.size() - (int) std::lround (sr * t)) <= 2);
+        float pk = 0; for (float v : out) pk = std::max (pk, std::abs (v));
+        CHECK (pk <= 1.0f && pk > 0.3f);
+    }
+    // the same as calling the routine directly at 100% / no pitch
+    {
+        st.timeFactor = 2.13;
+        auto out = cyclicStretch ({ sine }, st)[0];
+        std::vector<int16_t> in ((size_t) sr);
+        for (int i = 0; i < sr; ++i) in[(size_t) i] = (int16_t) std::lround (sine[(size_t) i] * 32768.0f);
+        auto ref = akaizerStretch (in, 1, sr, 213.0, 800, 51);
+        bool same = ref.size() == out.size();
+        for (size_t i = 0; same && i < ref.size(); ++i) same = std::lround (out[i] * 32768.0f) == ref[i];
+        CHECK (same);
+    }
+    // +12 semitones: pitched up an octave, length still as asked
+    {
+        st.timeFactor = 1.0; st.semitones = 12;
+        auto out = cyclicStretch ({ sine }, st)[0];
+        const double hz = crossingsHz (out, 2000, (int) out.size() - 2000, sr);
+        std::printf ("akaizer +12 st: %.1f Hz (expect 882), length %d\n", hz, (int) out.size());
+        CHECK (std::abs (hz - 882.0) < 882.0 * 0.08);
+        CHECK (std::abs ((int) out.size() - sr) <= 2);
+        st.semitones = 0;
+    }
+    // stereo: the quirk (interleaved) and separate channels both give two equal-length channels
+    {
+        std::vector<float> other (sine.size());
+        for (size_t i = 0; i < other.size(); ++i) other[i] = -sine[i];
+        st.timeFactor = 1.5; st.cycleLength = 333;
+        st.stereoQuirk = true;
+        auto q = cyclicStretch ({ sine, other }, st);
+        st.stereoQuirk = false;
+        auto sep = cyclicStretch ({ sine, other }, st);
+        CHECK (q.size() == 2 && q[0].size() == q[1].size() && sep[0].size() == sep[1].size());
+        // separate: the right is exactly the inverted left
+        bool inv = true;
+        for (size_t i = 0; inv && i < sep[0].size(); ++i) inv = std::abs (sep[0][i] + sep[1][i]) < 2.0f / 32768.0f;
+        CHECK (inv);
+        // the quirk swaps sides on odd hops, so it isn't
+        double diff = 0;
+        for (size_t i = 0; i < q[0].size(); ++i) diff += std::abs (q[0][i] + q[1][i]);
+        std::printf ("akaizer stereo quirk: L/R mixing %.1f\n", diff);
+        CHECK (diff > 1.0);
+    }
+    // manual frequency changes the grain spacing
+    {
+        st.cycleLength = 800; st.timeFactor = 2.0; st.stereoQuirk = true;
+        st.cycleFreq = 0;  auto a = cyclicStretch ({ sine }, st)[0];
+        st.cycleFreq = 120; auto b = cyclicStretch ({ sine }, st)[0];
+        CHECK (a.size() == b.size() && a != b);
+    }
+}
+
 // ---------------------------------------------------------------- v0.6 tests
 static double rmsOf (const std::vector<float>& v, int a, int b)
 {
@@ -1131,6 +1317,8 @@ int main()
     testMixer();
     testExtendedCommands();
     testTimeStretch();
+    testAkaizer();
+    testPluginSlots();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();

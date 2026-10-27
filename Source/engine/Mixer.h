@@ -4,7 +4,9 @@
 #include "MixerTypes.h"
 #include "Effects.h"
 #include <atomic>
+#include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace prv
@@ -22,6 +24,18 @@ public:
     // freed outside the audio lock.
     void syncEffects (const MixerSettings&, std::vector<std::unique_ptr<Effect>>& old);
     void syncEffectsNow (const MixerSettings& m) { std::vector<std::unique_ptr<Effect>> old; syncEffects (m, old); }
+
+    // The same in two steps, so slow work (loading plug-ins) happens outside the audio lock:
+    // plan() makes and prepares the new effects; apply() (under the lock) swaps them in.
+    struct Pending { int slot; FxType type; std::string key; std::unique_ptr<Effect> fx; };
+    std::vector<Pending> plan (const MixerSettings&, bool reloadAll = false) const;
+    void apply (std::vector<Pending>&, std::vector<std::unique_ptr<Effect>>& old);
+    void invalidate (int slot) { if (slot >= 0 && slot < kTotalSlots) fxKey[slot] = "\x01"; }   // force a reload
+
+    // makes the effect for a plug-in slot (null = not available: the slot passes audio through)
+    std::function<std::unique_ptr<Effect> (int slot, const FxSlot&, double sampleRate)> pluginFactory;
+    Effect* effectAt (int slot) const { return slot >= 0 && slot < kTotalSlots ? fx[slot].get() : nullptr; }
+    double sampleRate() const { return sr; }
     void reset();
 
     // Per-track stereo buffers (n <= kMaxBlock) are processed in place and mixed,
@@ -39,6 +53,7 @@ private:
     ChannelEqProcessor eq[kMixTracks];
     std::unique_ptr<Effect> fx[kTotalSlots];
     FxType fxType[kTotalSlots] {};
+    std::string fxKey[kTotalSlots];   // the plug-in in a plug-in slot
     std::vector<float> sendL[kReturns], sendR[kReturns];
     void runInserts (const FxSlot* slots, int firstSlot, float* L, float* R, int n, double bpm);
 };

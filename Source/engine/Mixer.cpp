@@ -34,17 +34,41 @@ void MixerEngine::reset()
     for (auto& f : fx) if (f) f->reset();
 }
 
-void MixerEngine::syncEffects (const MixerSettings& m, std::vector<std::unique_ptr<Effect>>& old)
+std::vector<MixerEngine::Pending> MixerEngine::plan (const MixerSettings& m, bool reloadAll) const
 {
+    std::vector<Pending> out;
     for (int i = 0; i < kTotalSlots; ++i)
     {
-        const FxType want = m.slot (i).type;
-        if (want == fxType[i] && (want == FxType::None) == (fx[i] == nullptr)) continue;
-        if (fx[i]) old.push_back (std::move (fx[i]));
-        fx[i] = makeEffect (want);
-        if (fx[i]) fx[i]->prepare (sr);
-        fxType[i] = want;
+        const auto& s = m.slot (i);
+        const FxType want = s.type;
+        const std::string key = want == FxType::Plugin ? s.pluginKey : std::string();
+        const bool have = fx[i] != nullptr || (want == FxType::Plugin && fxType[i] == FxType::Plugin);
+        if (want == fxType[i] && key == fxKey[i] && (want == FxType::None || have) && ! (reloadAll && want != FxType::None)) continue;
+        Pending p { i, want, key, nullptr };
+        if (want == FxType::Plugin) { if (pluginFactory) p.fx = pluginFactory (i, s, sr); }
+        else p.fx = makeEffect (want);
+        if (p.fx && want != FxType::Plugin) p.fx->prepare (sr);   // (the factory prepares plug-ins)
+        out.push_back (std::move (p));
     }
+    return out;
+}
+
+void MixerEngine::apply (std::vector<Pending>& changes, std::vector<std::unique_ptr<Effect>>& old)
+{
+    for (auto& p : changes)
+    {
+        if (fx[p.slot]) old.push_back (std::move (fx[p.slot]));
+        fx[p.slot] = std::move (p.fx);
+        fxType[p.slot] = p.type;
+        fxKey[p.slot] = p.key;
+    }
+    changes.clear();
+}
+
+void MixerEngine::syncEffects (const MixerSettings& m, std::vector<std::unique_ptr<Effect>>& old)
+{
+    auto changes = plan (m);
+    apply (changes, old);
 }
 
 void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R, int n, double bpm)
@@ -53,7 +77,7 @@ void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R
     {
         const FxSlot& s = slots[k];
         // (an effect that hasn't been created yet for a new type is skipped)
-        if (s.active() && fx[first + k] && fxType[first + k] == s.type)
+        if (s.active() && fx[first + k] && fxType[first + k] == s.type && (s.type != FxType::Plugin || fxKey[first + k] == s.pluginKey))
             fx[first + k]->process (L, R, n, s.p, bpm);
     }
 }

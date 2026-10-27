@@ -27,6 +27,8 @@ bool decodeAudioFile (const juce::File& file, std::vector<float>& left, std::vec
                       double& rate, Instrument& meta, juce::String& error);
 
 // Render the whole song once through to a 24-bit stereo WAV file.
+// `pluginFactory` makes plug-in slots' effects (none = plug-in slots pass audio through).
 bool renderSongToWav (const Song& song, const PaulaOptions& options, double sampleRate,
-                      const juce::File& file, juce::String& error);
+                      const juce::File& file, juce::String& error,
+                      std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory = nullptr);
 } // namespace prv

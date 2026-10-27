@@ -35,6 +35,11 @@ void PixList::paint (juce::Graphics& g)
         const int row = scroll + i;
         if (row >= n) break;
         auto rr = juce::Rectangle<float> (0, i * rh, listW, rh);
+        if (isRowInRange && isRowInRange (row) && row != selected)
+        {
+            g.setColour (Theme::skin.hot.withAlpha (0.30f));
+            g.fillRect (rr);
+        }
         if (row == selected)
         {
             g.setColour (Theme::skin.band);
@@ -71,7 +76,7 @@ void PixList::paint (juce::Graphics& g)
     g.restoreState();
 
     // drop marker while dragging a row
-    if (reordering && dropRow >= 0)
+    if (reordering && ! rangeDragging && dropRow >= 0)
     {
         const float y = (dropRow - scroll + (dropRow > dragRow ? 1 : 0)) * rh;
         g.setColour (Theme::skin.hot);
@@ -128,7 +133,7 @@ void PixList::mouseDown (const juce::MouseEvent& e)
         return;
     }
     const int row = rowAt (e.position.y);
-    dragRow = -1; reordering = false;
+    dragRow = -1; reordering = false; rangeDragging = false;
     if (getNumRows && row >= 0 && row < getNumRows() && tagZoneX >= 0 && e.position.x >= tagZoneX && onTagClick)
     {
         onTagClick (row);
@@ -136,8 +141,11 @@ void PixList::mouseDown (const juce::MouseEvent& e)
     }
     if (getNumRows && row >= 0 && row < getNumRows())
     {
+        // decided before the click changes the selection
+        const bool moves = ! dragMoves || dragMoves (row);
         if (onClick) onClick (row, e);
-        if (onMove) dragRow = row;
+        if (onMove && moves) dragRow = row;
+        else if (onDragSelect && ! e.mods.isShiftDown()) { dragRow = row; rangeDragging = true; }
     }
 }
 
@@ -152,7 +160,7 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
         repaint();
         return;
     }
-    if (dragRow < 0 || ! onMove) return;
+    if (dragRow < 0 || (! onMove && ! rangeDragging)) return;
     if (! reordering && e.getDistanceFromDragStart() < 6) return;
     reordering = true;
     // held past the ends: scroll at a steady pace
@@ -160,6 +168,7 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
     auto place = [this]
     {
         dropRow = juce::jlimit (0, getNumRows() - 1, rowAt (juce::jlimit (0.0f, (float) getHeight() - 1, lastDragY)));
+        if (rangeDragging && onDragSelect) onDragSelect (dropRow);
         repaint();
     };
     edgeScroll.onStep = [this, place] (int dir) { scrollBy (dir); place(); };
@@ -169,9 +178,9 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
 
 void PixList::mouseUp (const juce::MouseEvent&)
 {
-    if (reordering && dropRow >= 0 && dropRow != dragRow && onMove) onMove (dragRow, dropRow);
+    if (reordering && ! rangeDragging && dropRow >= 0 && dropRow != dragRow && onMove) onMove (dragRow, dropRow);
     edgeScroll.stop();
-    reordering = false; dragRow = dropRow = -1;
+    reordering = rangeDragging = false; dragRow = dropRow = -1;
     repeatDir = 0; thumbGrab = -1.0f;
     stopTimer();
     repaint();
@@ -219,7 +228,27 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     {
         return juce::String (r).paddedLeft ('0', 3) + "  BLOCK " + juce::String (proc.song.sequence[(size_t) r]).paddedLeft ('0', 3);
     };
-    list.onClick = [this] (int r, const juce::MouseEvent&) { selectPosition (r); };
+    ops.onDone = [this] (const juce::String& m) { this->changed(); if (onStatus && m.isNotEmpty()) onStatus (m); };
+    setWantsKeyboardFocus (true);
+    list.onClick = [this] (int r, const juce::MouseEvent& e)
+    {
+        grabKeyboardFocus();   // so CUT/COPY/PASTE/DUP keys work here; other keys go on to the pattern
+        if (e.mods.isShiftDown()) { ops.select (ops.anchor(), r); this->changed(); return; }
+        if (ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd()) return;   // (a drag moves the highlight)
+        selectPosition (r);
+    };
+    list.isRowInRange = [this] (int r) { return ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd(); };
+    list.dragMoves = [this] (int r) { return r >= ops.selStart() && r <= ops.selEnd(); };
+    list.onDragSelect = [this] (int r)
+    {
+        const int a = ops.anchor();
+        if (r != proc.editorState.seqPos) { ops.select (a, r); this->changed(); }
+    };
+    cutBtn.onClick   = [this] { ops.cut(); };
+    copyBtn.onClick  = [this] { ops.copy(); };
+    pasteBtn.onClick = [this] { ops.paste(); };
+    dupBtn.onClick   = [this] { ops.duplicate(); };
+    for (auto* b : { &cutBtn, &copyBtn, &pasteBtn, &dupBtn }) addAndMakeVisible (b);
     list.getRowTag = [this] (int r)
     {
         const int i = sectionAt (proc.song.sections, r);
@@ -245,12 +274,10 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         changed();
     };
     addAndMakeVisible (loopSectBtn);
-    list.onMove = [this, &st] (int from, int to)
+    list.onMove = [this] (int from, int to)
     {
-        if (pushStructUndo) pushStructUndo ("MOVE SEQUENCE ENTRY");
-        bool moved = false;
-        proc.withLock ([&] { moved = moveSequenceEntry (proc.song, from, to); });
-        if (moved) { st.seqPos = to; changed(); }
+        // moves the highlighted range (or the one position) to where it was dropped
+        ops.moveTo (to > from ? to + 1 : to);
     };
     addAndMakeVisible (list);
     upBtn.onClick = [this] { moveSelected (-1); };
@@ -274,18 +301,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         st.seqPos++;
         changed();
     };
-    delBtn.onClick = [this, &st]
-    {
-        if (proc.song.sequence.size() <= 1) return;
-        if (pushStructUndo) pushStructUndo ("DELETE SEQUENCE ENTRY");
-        proc.withLock ([&] {
-            proc.song.sequence.erase (proc.song.sequence.begin() + st.seqPos);
-            sectionsRemoved (proc.song.sections, st.seqPos, 1, (int) proc.song.sequence.size());
-        });
-        st.seqPos = std::min (st.seqPos, (int) proc.song.sequence.size() - 1);
-        st.block = proc.song.safeBlock (proc.song.sequence[(size_t) st.seqPos]);
-        changed();
-    };
+    delBtn.onClick = [this] { ops.remove(); };   // the highlighted positions (or the one selected)
     blockBox.valueChars = 3;
     blockBox.labelChars = 6;
     blockBox.format = [] (int v) { return juce::String (v).paddedLeft ('0', 3); };
@@ -297,7 +313,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);
         changed();
     };
-    addAndMakeVisible (insBtn);
+    insBtn.setVisible (false);   // (DUP does what INS did: repeats the position after itself)
     addAndMakeVisible (delBtn);
     addAndMakeVisible (blockBox);
 }
@@ -306,8 +322,7 @@ void SequencePanel::selectPosition (int r)
 {
     auto& st = proc.editorState;
     if (r < 0 || r >= (int) proc.song.sequence.size()) return;
-    st.seqPos = r;
-    st.block = proc.song.safeBlock (proc.song.sequence[(size_t) r]);
+    ops.select (r, r);
     // while a block plays, the new block carries on from the same line (see PaulaEditor::refreshAll)
     if (! (proc.player.getMode() == Player::Mode::Block)) st.line = 0;
     changed();
@@ -315,13 +330,26 @@ void SequencePanel::selectPosition (int r)
 
 void SequencePanel::moveSelected (int delta)
 {
-    auto& st = proc.editorState;
-    const int to = st.seqPos + delta;
-    if (to < 0 || to >= (int) proc.song.sequence.size()) return;
-    if (pushStructUndo) pushStructUndo ("MOVE SEQUENCE ENTRY");
-    proc.withLock ([&] { moveSequenceEntry (proc.song, st.seqPos, to); });
-    st.seqPos = to;
-    changed();
+    ops.moveBy (delta);   // the highlighted range, or the one position
+}
+
+bool SequencePanel::keyPressed (const juce::KeyPress& k)
+{
+    const auto m = k.getModifiers();
+    const int code = k.getKeyCode();
+    if (m.isCommandDown() && ! m.isShiftDown())
+    {
+        const auto ch = juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code);
+        if (ch == 'x') { ops.cut(); return true; }
+        if (ch == 'c') { ops.copy(); return true; }
+        if (ch == 'v') { ops.paste(); return true; }
+        if (ch == 'd') { ops.duplicate(); return true; }
+        if (ch == 'a') { ops.select (0, (int) proc.song.sequence.size() - 1); changed(); return true; }
+    }
+    if (! m.isAnyModifierKeyDown() && (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey)) { ops.remove(); return true; }
+    // anything else (notes, space, undo ...) goes on to the pattern, which gets the keyboard back
+    if (returnFocus) returnFocus();
+    return false;
 }
 
 void SequencePanel::cloneInPlace()
@@ -369,29 +397,45 @@ void SequencePanel::paint (juce::Graphics& g) { Theme::panelBox (g, getLocalBoun
 
 void SequencePanel::resized()
 {
+    // three rows of buttons under the list:
+    //   BLOCK [-] 000 [+]   DUP   DEL
+    //   [UP] [DOWN]  CUT  COPY  PASTE  ARRANGE
+    //   CLONE IN PLACE      LOOP SECTION
     const float px = Theme::px;
     auto r = getLocalBounds().reduced ((int) (px * 2));
     r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
     const int rowH = (int) (px * 11);
     const int gap = (int) px;
-    loopSectBtn.setBounds (r.removeFromBottom (rowH));
-    r.removeFromBottom (gap);
-    auto row2 = r.removeFromBottom (rowH);
-    r.removeFromBottom (gap);
-    auto bottom = r.removeFromBottom (rowH);
-    const int bw = (int) (px * 6 * 5);
-    delBtn.setBounds (bottom.removeFromRight (bw));
-    bottom.removeFromRight (gap);
-    insBtn.setBounds (bottom.removeFromRight (bw));
-    bottom.removeFromRight (gap * 2);
-    blockBox.setBounds (bottom);
+    auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+
+    auto row3 = r.removeFromBottom (rowH); r.removeFromBottom (gap);
+    auto row2 = r.removeFromBottom (rowH); r.removeFromBottom (gap);
+    auto row1 = r.removeFromBottom (rowH); r.removeFromBottom ((int) px * 2);
+
+    delBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap);
+    dupBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap * 2);
+    blockBox.setBounds (row1);
+
     const int aw = (int) (px * 6 * 3);
     upBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap);
     downBtn.setBounds (row2.removeFromLeft (aw)); row2.removeFromLeft (gap * 2);
-    arrangeBtn.setBounds (row2.removeFromRight ((int) (px * 6 * 7 + px * 4)));
-    row2.removeFromRight (gap);
-    cloneInPlaceBtn.setBounds (row2);
-    r.removeFromBottom ((int) px * 2);
+    {
+        // widths follow the labels; whatever is left over is shared out
+        std::vector<PixButton*> bs { &cutBtn, &copyBtn, &pasteBtn, &arrangeBtn };
+        int need = gap * 3;
+        for (auto* b : bs) need += charsW (b->getButtonText().length());
+        const int extra = std::max (0, row2.getWidth() - need) / (int) bs.size();
+        for (auto* b : bs)
+        {
+            b->setBounds (b == bs.back() ? row2 : row2.removeFromLeft (charsW (b->getButtonText().length()) + extra));
+            row2.removeFromLeft (gap);
+        }
+    }
+
+    const int half = (row3.getWidth() - gap) * 14 / 26;
+    cloneInPlaceBtn.setBounds (row3.removeFromLeft (half)); row3.removeFromLeft (gap);
+    loopSectBtn.setBounds (row3);
+
     list.setBounds (r);
     // section labels go right of "000  BLOCK 000"
     list.tagZoneX = px * 8.0f + PixelFont::textWidth ("000  BLOCK 000 ", px);

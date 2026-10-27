@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "SeqEditor.h"
 
 namespace prv::ui
 {
@@ -17,6 +18,11 @@ public:
     std::function<void (int, const juce::MouseEvent&)> onClick;
     std::function<void (int)> onDoubleClick;
     std::function<void (int from, int to)> onMove;   // set to allow drag-to-reorder
+    // optional range highlighting: rows drawn as highlighted; whether a drag from a row
+    // moves it (else the drag highlights a range, reported row by row)
+    std::function<bool (int)> isRowInRange;
+    std::function<bool (int)> dragMoves;
+    std::function<void (int row)> onDragSelect;
     int selected = 0;
     int playing = -1;   // row marked with a play arrow
 
@@ -46,7 +52,7 @@ private:
     int hoverTagRow = -1;
     int repeatDir = 0;            // arrow button held: -1 up, +1 down
     int dragRow = -1, dropRow = -1;
-    bool reordering = false;
+    bool reordering = false, rangeDragging = false;
     float thumbGrab = -1.0f;      // y offset inside the thumb while dragging it
     int rowAt (float y) const;
     int visibleRows() const { return std::max (1, (int) (getHeight() / rowHeight())); }
@@ -67,6 +73,9 @@ public:
     void refresh();
     void paint (juce::Graphics&) override;
     void resized() override;
+    bool keyPressed (const juce::KeyPress&) override;
+    SeqEditor& editor() { return ops; }
+    std::function<void()> returnFocus;   // hand the keyboard back (to the pattern)
 
 private:
     PaulaProcessor& proc;
@@ -77,6 +86,8 @@ private:
     PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
     PixButton loopSectBtn { "LOOP SECTION", true };
+    PixButton cutBtn { "CUT" }, copyBtn { "COPY" }, pasteBtn { "PASTE" }, dupBtn { "DUP" };
+    SeqEditor ops { proc };
 public:
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> openArrange;

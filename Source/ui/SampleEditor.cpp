@@ -141,11 +141,30 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     stClassic.setToggleState (true, juce::dontSendNotification);
     auto pickMode = [this] (PixButton* b)
     {
-        for (auto* m : { &stClassic, &stRevised, &stHard }) m->setToggleState (m == b, juce::dontSendNotification);
+        for (auto* m : { &stClassic, &stRevised, &stHard, &stAkaizer }) m->setToggleState (m == b, juce::dontSendNotification);
+        syncAkaizerControls();
         repaint();
     };
-    for (auto* m : { &stClassic, &stRevised, &stHard }) m->onClick = [pickMode, m] { pickMode (m); };
-    for (auto* nb : { &stTime, &stCycle, &stLines, &stSemi, &stCents }) { nb->labelChars = 6; nb->valueChars = 4; nb->onChange = [this] (int) { repaint(); }; }
+    for (auto* m : { &stClassic, &stRevised, &stHard, &stAkaizer }) m->onClick = [pickMode, m] { pickMode (m); };
+    for (auto* nb : { &stTime, &stCycle, &stLines, &stSemi, &stCents }) { nb->labelChars = 6; nb->valueChars = 4; nb->onChange = [this] (int) { syncAkaizerControls(); repaint(); }; }
+    // AKAIZER: grain frequency linked to the cycle (41000 / cycle) or set by hand; stereo as the original
+    stFreqLink.setToggleState (true, juce::dontSendNotification);
+    stQuirk.setToggleState (true, juce::dontSendNotification);
+    stFreqLink.onClick = [this] { syncAkaizerControls(); repaint(); };
+    stQuirk.onClick = [this] { repaint(); };
+    stFreq.labelChars = 5; stFreq.valueChars = 4;
+    stFreq.onChange = [this] (int) { repaint(); };
+    // tempo helper: a loop at one BPM made to fit another
+    stBpmFrom.labelChars = 8; stBpmFrom.valueChars = 3;
+    stBpmTo.labelChars = 7; stBpmTo.valueChars = 3;
+    stBpmSet.onClick = [this]
+    {
+        const int pct = juce::jlimit (25, 2000, juce::roundToInt (100.0 * stBpmFrom.getValue() / std::max (1, stBpmTo.getValue())));
+        stTime.setValue (pct);
+        if (onStatus) onStatus ("TIME SET TO " + juce::String (pct) + "% (" + juce::String (stBpmFrom.getValue()) + " TO " + juce::String (stBpmTo.getValue()) + " BPM)");
+        repaint();
+    };
+    syncAkaizerControls();
     stFit.onClick = [this]
     {
         // fit the selection (or whole sample) to N lines at the song's speed and BPM
@@ -487,13 +506,25 @@ std::vector<juce::Component*> SampleEditor::slicerControls()
 
 std::vector<juce::Component*> SampleEditor::stretchControls()
 {
-    return { &stClassic, &stRevised, &stHard, &stCycle, &stTime, &stLines, &stFit, &stSemi, &stCents, &stPreview, &stApply, &stCancel };
+    return { &stClassic, &stRevised, &stHard, &stAkaizer, &stCycle, &stTime, &stLines, &stFit, &stSemi, &stCents,
+             &stFreqLink, &stFreq, &stQuirk, &stBpmFrom, &stBpmTo, &stBpmSet, &stPreview, &stApply, &stCancel };
+}
+
+void SampleEditor::syncAkaizerControls()
+{
+    const bool ak = stAkaizer.getToggleState();
+    const bool linked = stFreqLink.getToggleState();
+    if (linked) stFreq.setValue (akaizerLinkedFreq (stCycle.getValue()));
+    stFreqLink.setEnabled (ak);
+    stFreq.setEnabled (ak && ! linked);
+    stQuirk.setEnabled (ak && inst().isStereo());
 }
 
 void SampleEditor::showStretch (bool show)
 {
     if (show && slicerOpen) showSlicer (false);
     stretchOpen = show;
+    if (show) syncAkaizerControls();
     for (auto* c : mainControls()) c->setVisible (! show);
     for (auto* c : stretchControls()) c->setVisible (show);
     resized();
@@ -548,9 +579,19 @@ void SampleEditor::resized()
 
     // stretch panel uses the same space as the button rows
     stretchInfoArea = rows[0].toFloat();
-    layoutRow (rows[1], { &stClassic, &stRevised, &stHard });
+    layoutRow (rows[1], { &stClassic, &stRevised, &stHard, &stAkaizer });
     layoutRow (rows[2], { &stTime, &stLines, &stFit });
     layoutRow (rows[3], { &stCycle, &stSemi, &stCents });
+    layoutRow (rows[4], { &stFreqLink, &stFreq, &stQuirk });
+    {
+        // the tempo helper: the boxes need room for their labels
+        auto row = rows[5];
+        const int w = row.getWidth() - gap * 2;
+        stBpmFrom.setBounds (row.removeFromLeft (w * 40 / 100)); row.removeFromLeft (gap);
+        stBpmTo.setBounds (row.removeFromLeft (w * 34 / 100)); row.removeFromLeft (gap);
+        stBpmSet.setBounds (row);
+    }
+    stretchInfo2Area = rows[6].toFloat();
     layoutRow (rows[7], { &stPreview, &stApply, &stCancel });
 
     // slicer panel uses the same space too (help text on rows 0, 1 and 5)
@@ -810,6 +851,18 @@ void SampleEditor::paint (juce::Graphics& g)
         float tp = px;
         while (tp > 1.5f && PixelFont::textWidth (t, tp) > stretchInfoArea.getWidth()) tp -= 0.5f;
         PixelFont::drawLeft (g, t, stretchInfoArea, tp, Theme::ink);
+        // second line: what the chosen mode does with these settings
+        const auto s = stretchSettings();
+        juce::String t2;
+        if (s.mode == StretchSettings::Mode::Akaizer)
+        {
+            const int freq = s.cycleFreq > 0 ? s.cycleFreq : akaizerLinkedFreq (s.cycleLength);
+            t2 = "GRAIN " + juce::String (s.cycleLength * 2) + " SMP  HOP " + juce::String (inst().rate / std::max (1, freq), 1) + "  " + juce::String (freq) + "/S";
+        }
+        else t2 = "CYCLE = " + juce::String (cycleSamples (s)) + " SMP AT THIS RATE";
+        float tp2 = px;
+        while (tp2 > 1.5f && PixelFont::textWidth (t2, tp2) > stretchInfo2Area.getWidth()) tp2 -= 0.5f;
+        PixelFont::drawLeft (g, t2, stretchInfo2Area, tp2, Theme::ink);
     }
 
     if (hasKeyboardFocus (true))
@@ -1230,7 +1283,10 @@ StretchSettings SampleEditor::stretchSettings() const
 {
     StretchSettings st;
     st.mode = stRevised.getToggleState() ? StretchSettings::Mode::Revised
-            : stHard.getToggleState() ? StretchSettings::Mode::Hard : StretchSettings::Mode::Classic;
+            : stHard.getToggleState() ? StretchSettings::Mode::Hard
+            : stAkaizer.getToggleState() ? StretchSettings::Mode::Akaizer : StretchSettings::Mode::Classic;
+    st.cycleFreq = stFreqLink.getToggleState() ? 0 : stFreq.getValue();
+    st.stereoQuirk = stQuirk.getToggleState();
     st.sampleRate = inst().rate;   // CYCLE is in 44.1 kHz samples, like Akaizer
     st.timeFactor = stTime.getValue() / 100.0;
     st.semitones = stSemi.getValue();
@@ -1280,7 +1336,8 @@ void SampleEditor::applyStretch (const StretchSettings& st)
     auto toI = [] (const std::vector<float>& v)
     {
         std::vector<int16_t> o (v.size());
-        for (size_t i = 0; i < v.size(); ++i) o[i] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (v[i] * 32767.0f));
+        // (x 32768: exactly the inverse of reading the sample, so AKAIZER stays bit-exact)
+        for (size_t i = 0; i < v.size(); ++i) o[i] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (v[i] * 32768.0f));
         return o;
     };
     auto splice = [&] (std::vector<int16_t>& d, const std::vector<float>& mid)
@@ -1305,7 +1362,8 @@ void SampleEditor::applyStretch (const StretchSettings& st)
     if (hasSel()) { selB = selA + newLen; }
     else { viewStart = 0; viewLen = newLen; }
     stop();
-    commit (std::move (e), juce::String ("STRETCHED ") + (st.mode == StretchSettings::Mode::Classic ? "(CLASSIC) " : st.mode == StretchSettings::Mode::Revised ? "(REVISED) " : "(HARD) ")
+    commit (std::move (e), juce::String ("STRETCHED ") + (st.mode == StretchSettings::Mode::Classic ? "(CLASSIC) " : st.mode == StretchSettings::Mode::Revised ? "(REVISED) "
+                                                          : st.mode == StretchSettings::Mode::Akaizer ? "(AKAIZER) " : "(HARD) ")
                          + juce::String (juce::roundToInt (st.timeFactor * 100)) + "%"
                          + (st.semitones != 0 || st.cents != 0 ? " " + juce::String (st.semitones + st.cents / 100.0, 2) + " ST" : juce::String()));
 }

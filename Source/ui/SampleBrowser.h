@@ -34,6 +34,13 @@ public:
     void playFrom (int sample);               // also used by tests
     void playNote (int note);                 // tracker note number, C-3 = original pitch
     int  loadedLength() const { return auditionLength; }
+    const juce::File& currentDirectory() const { return dir; }
+
+    // favourite folders FAV 1-4 (remembered on this computer); also used by tests
+    static constexpr int kFavourites = 4;
+    juce::File favourite (int i) const;
+    void setFavourite (int i, const juce::File& folder);   // an empty File clears it
+    void favouriteClicked (int i, juce::ModifierKeys);     // click = go (or set if empty), Shift = set, Alt = clear
 
 private:
     PaulaProcessor& proc;
@@ -45,6 +52,9 @@ private:
     PixList list;
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " UP" }, homeBtn { "HOME" }, musicBtn { "MUSIC" }, desktopBtn { "DESKTOP" },
               downloadsBtn { "DOWNLOADS" }, docsBtn { "DOCUMENTS" }, volumesBtn { "DRIVES" }, finderBtn { "FINDER..." };
+    PixButton favBtn[kFavourites] { PixButton ("FAV 1"), PixButton ("FAV 2"), PixButton ("FAV 3"), PixButton ("FAV 4") };
+    void updateFavButtons();
+    void chooseFavourite (int i);
     PixButton playBtn { "PLAY" }, stopBtn { "STOP" }, autoBtn { "AUTO PLAY", true },
               loadBtn { "LOAD INTO 01" }, cancelBtn { "CLOSE" };
     PixSlider volSlider { "VOL" };

@@ -5,6 +5,7 @@
 #include "engine/Song.h"
 #include "engine/Player.h"
 #include "History.h"
+#include "PluginHost.h"
 
 class PaulaProcessor : public juce::AudioProcessor
 {
@@ -38,6 +39,7 @@ public:
     // --- shared state. Lock `lock` for any change to song or player. ------
     juce::SpinLock lock;
     prv::Song song;
+    prv::PluginHost pluginHost;   // (before the player: plug-ins in the mixer go first)
     prv::Player player;
 
     template <typename Fn> void withLock (Fn&& fn)
@@ -52,6 +54,14 @@ public:
     // Make the mixer's effect objects match song.mixer (message thread; call after
     // changing an effect type, loading, undo).
     void updateMixerEffects();
+    // Copy each loaded plug-in's own settings into the song (before saving, rendering, undo steps)
+    void capturePluginStates();
+    bool pluginLoaded (int slot) const;              // a plug-in slot whose plug-in is running
+    prv::PluginEffect* pluginAt (int slot) const;
+    // force a plug-in slot to load again (DEFAULTS, or after a background load)
+    void reloadMixerSlot (int slot);
+    // what RENDER WAV uses to make plug-ins
+    std::function<std::unique_ptr<prv::Effect> (int, const prv::FxSlot&, double)> pluginFactory();
 
     // Replace the whole song (loading). Stops playback.
     void replaceSong (prv::Song&& newSong);
@@ -83,6 +93,9 @@ public:
         bool loopOn = false;
         int  loopBlock = -1, loopFrom = 0, loopTo = 0;
         bool sectionLoop = false;     // song play loops the selected position's section
+        // highlighted song positions: seqAnchor .. seqPos (equal = just the one); shared clipboard
+        int  seqAnchor = -1, seqSelCursor = -1;   // the range holds while seqPos == seqSelCursor
+        std::vector<int> seqClip;
     } editorState;
 
     // MIDI notes jam the current instrument; the editor records them when in edit mode

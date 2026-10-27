@@ -130,14 +130,17 @@ private:
     template <typename Fn> void editInPlace (const juce::String& what, bool merge, Fn&& fn);
 
     // time-stretch panel (replaces the button rows while open)
-    PixButton stClassic { "CLASSIC", true }, stRevised { "REVISED", true }, stHard { "HARD", true }, stFit { "FIT TO LINES" },
+    PixButton stClassic { "CLASSIC", true }, stRevised { "REVISED", true }, stHard { "HARD", true }, stAkaizer { "AKAIZER", true }, stFit { "FIT TO LINES" },
+              stFreqLink { "FREQ LINKED", true }, stQuirk { "STEREO QUIRK", true }, stBpmSet { "SET TIME" },
               stPreview { "PREVIEW" }, stApply { "APPLY" }, stCancel { "CANCEL" };
     NumberBox stTime { "TIME %", 25, 2000, 100 }, stCycle { "CYCLE", 20, 2000, 1000 }, stLines { "LINES", 1, 256, 16 },
-              stSemi { "SEMI", -36, 36, 0 }, stCents { "CENTS", -99, 99, 0 };
+              stSemi { "SEMI", -36, 36, 0 }, stCents { "CENTS", -99, 99, 0 },
+              stFreq { "FREQ", 20, 2050, 51 }, stBpmFrom { "LOOP BPM", 20, 400, 136 }, stBpmTo { "TO BPM", 20, 400, 170 };
+    void syncAkaizerControls();
     StretchSettings stretchSettings() const;
     std::vector<juce::Component*> mainControls();
     std::vector<juce::Component*> stretchControls();
-    juce::Rectangle<float> stretchInfoArea;
+    juce::Rectangle<float> stretchInfoArea, stretchInfo2Area;
 
     juce::Rectangle<float> headerArea, waveArea, overviewArea;
 

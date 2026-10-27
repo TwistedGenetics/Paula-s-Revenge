@@ -362,7 +362,15 @@ public:
         for (int k = 0; k < kInserts; ++k)
         {
             const auto& s = m.slot (slotIndex (k));
-            slotBtn[k].setButtonText (juce::String (fxShortName (s.type)));
+            juce::String t = fxShortName (s.type);
+            if (s.type == FxType::Plugin)
+            {
+                // the plug-in's name, cut to fit; "!" when it isn't loaded
+                t = (page.processor().pluginLoaded (slotIndex (k)) ? juce::String() : juce::String ("!")) + juce::String (s.pluginName);
+                const int fit = std::max (3, (int) ((slotBtn[k].getWidth() - Theme::px * 4) / (Theme::px * PixelFont::kCellW)));
+                if (t.length() > fit) t = t.substring (0, fit);
+            }
+            slotBtn[k].setButtonText (t);
             slotBtn[k].setAlpha (s.type != FxType::None && s.bypass ? 0.45f : 1.0f);
             slotBtn[k].setToggleState (s.active(), juce::dontSendNotification);
         }
@@ -616,7 +624,31 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     addChildComponent (chFader);
 
     // ---- effect page
-    for (int t = 0; t < (int) FxType::Count; ++t)
+    // plug-ins
+    pluginBtn.setClickingTogglesState (false);
+    pluginBtn.onClick = [this] { showPluginList (true); };
+    rescanBtn.onClick = [this] { proc.pluginHost.startScan(); refreshPluginList(); };
+    listCloseBtn.onClick = [this] { showPluginList (false); };
+    editPluginBtn.onClick = [this]
+    {
+        if (auto* pe = proc.pluginAt (fxSlot))
+            proc.pluginHost.openEditor (*pe, slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1) + ": "
+                                               + juce::String (proc.song.mixer.slot (fxSlot).pluginName));
+        else if (onStatus) onStatus ("THIS PLUG-IN ISN'T LOADED - PICK ANOTHER WITH PLUG-IN...");
+    };
+    pluginList.getNumRows = [this] { return (int) pluginChoices.size(); };
+    pluginList.getRowText = [this] (int r)
+    {
+        const auto& d = pluginChoices[(size_t) r];
+        return d.name.toUpperCase() + "  (" + d.manufacturerName.toUpperCase() + ", " + (d.pluginFormatName == "AudioUnit" ? juce::String ("AU") : d.pluginFormatName.toUpperCase()) + ")";
+    };
+    pluginList.onClick = [this] (int r, const juce::MouseEvent&) { pluginList.selected = r; pluginList.repaint(); };
+    pluginList.onDoubleClick = [this] (int r) { choosePlugin (r); };
+    proc.pluginHost.onScanFinished = [this] { refreshPluginList(); if (onStatus) onStatus (proc.pluginHost.scanStatus()); };
+    for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
+        addChildComponent (c);
+
+    for (int t = 0; t < kBuiltinFxTypes; ++t)
     {
         typeBtn[t].setClickingTogglesState (false);
         typeBtn[t].onClick = [this, t] { setSlotType (fxSlot, (FxType) t); };
@@ -626,6 +658,15 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     defaultsBtn.onClick = [this]
     {
         const FxType type = proc.song.mixer.slot (fxSlot).type;
+        if (type == FxType::Plugin)
+        {
+            // the plug-in starts again from its own defaults
+            edit (slotOwner (fxSlot) + " " + juce::String (proc.song.mixer.slot (fxSlot).pluginName) + " DEFAULTS", false,
+                  [this] (MixerSettings& m) { m.slot (fxSlot).pluginState.clear(); });
+            proc.reloadMixerSlot (fxSlot);
+            refresh();
+            return;
+        }
         edit (slotOwner (fxSlot) + " " + juce::String (fxName (type)) + " DEFAULTS", false,
               [this, type] (MixerSettings& m) { const bool b = m.slot (fxSlot).bypass; initFxSlot (m.slot (fxSlot), type); m.slot (fxSlot).bypass = b; });
     };
@@ -672,10 +713,14 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     showStrips();
 }
 
-MixerPage::~MixerPage() = default;
+MixerPage::~MixerPage()
+{
+    proc.pluginHost.onScanFinished = nullptr;   // (the processor outlives this window)
+}
 
 template <typename Fn> void MixerPage::edit (const juce::String& label, bool merge, Fn&& fn, bool effectsChanged)
 {
+    proc.capturePluginStates();   // so undo brings plug-ins back as they were
     proc.history.mixer (label, merge);
     proc.withLock ([&] { fn (proc.song.mixer); });
     if (effectsChanged) proc.updateMixerEffects();
@@ -726,9 +771,12 @@ void MixerPage::toggleBypass (int slot)
 void MixerPage::setSlotType (int slot, FxType t)
 {
     const auto& s = proc.song.mixer.slot (slot);
-    if (s.type == t) { refresh(); return; }
+    browsingPlugins = false;
+    if (s.type == t) { resized(); refresh(); return; }
     edit (slotOwner (slot) + " INSERT " + juce::String (slot % kInserts + 1) + " " + juce::String (fxName (t)), false,
           [slot, t] (MixerSettings& m) { initFxSlot (m.slot (slot), t); }, true);
+    resized();
+    refresh();
 }
 
 // ---------------------------------------------------------------------------
@@ -757,6 +805,7 @@ void MixerPage::openChannel (int track)
 void MixerPage::openEffect (int slot)
 {
     fxSlot = juce::jlimit (0, kTotalSlots - 1, slot);
+    browsingPlugins = false;
     // skip the inserts of tracks the song doesn't have
     if (fxSlot < kTrackSlots && fxSlot / kInserts >= proc.song.numTracks)
         fxSlot = slot > fxSlot ? kTrackSlots : trackSlot (proc.song.numTracks - 1, kInserts - 1);
@@ -790,6 +839,8 @@ void MixerPage::updateVisibility()
     for (auto& b : chPre) b.setVisible (ch);
     chFader.setVisible (ch);
     for (auto& b : typeBtn) b.setVisible (fx);
+    for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
+        c->setVisible (false);   // (the effect page shows the ones it needs)
     bypassBtn.setVisible (fx);
     defaultsBtn.setVisible (fx);
     for (int i = 0; i < kFxParams; ++i) { param[i]->setVisible (false); paramToggle[i]->setVisible (false); }
@@ -827,7 +878,8 @@ void MixerPage::refreshChannel()
     for (int k = 0; k < kInserts; ++k)
     {
         const auto& s = c.inserts[k];
-        chInsert[k].setButtonText (juce::String (k + 1) + ": " + (s.type == FxType::None ? juce::String ("EMPTY") : juce::String (fxName (s.type)))
+        chInsert[k].setButtonText (juce::String (k + 1) + ": " + (s.type == FxType::None ? juce::String ("EMPTY")
+                                   : s.type == FxType::Plugin ? juce::String (s.pluginName) : juce::String (fxName (s.type)))
                                    + (s.type != FxType::None && s.bypass ? " (OFF)" : ""));
         chInsert[k].setToggleState (s.active(), juce::dontSendNotification);
     }
@@ -843,7 +895,16 @@ void MixerPage::refreshChannel()
 void MixerPage::refreshEffect()
 {
     const auto& s = proc.song.mixer.slot (fxSlot);
-    for (int t = 0; t < (int) FxType::Count; ++t) typeBtn[t].setToggleState ((int) s.type == t, juce::dontSendNotification);
+    for (int t = 0; t < kBuiltinFxTypes; ++t) typeBtn[t].setToggleState ((int) s.type == t && ! browsingPlugins, juce::dontSendNotification);
+    const bool isPlugin = s.type == FxType::Plugin;
+    const bool fx = currentPage == Page::Effect;
+    pluginBtn.setToggleState (isPlugin || browsingPlugins, juce::dontSendNotification);
+    pluginBtn.setVisible (fx);
+    pluginList.setVisible (fx && browsingPlugins);
+    rescanBtn.setVisible (fx && browsingPlugins);
+    listCloseBtn.setVisible (fx && browsingPlugins);
+    editPluginBtn.setVisible (fx && isPlugin && ! browsingPlugins);
+    editPluginBtn.setEnabled (proc.pluginLoaded (fxSlot));
     bypassBtn.setToggleState (s.bypass, juce::dontSendNotification);
     bypassBtn.setEnabled (s.type != FxType::None);
     defaultsBtn.setEnabled (s.type != FxType::None);
@@ -851,7 +912,7 @@ void MixerPage::refreshEffect()
     bool layoutChanged = false;
     for (int i = 0; i < kFxParams; ++i)
     {
-        const bool has = i < (int) ps.size() && currentPage == Page::Effect;
+        const bool has = i < (int) ps.size() && currentPage == Page::Effect && ! browsingPlugins;
         const bool tog = has && ps[(size_t) i].toggle;
         if (param[i]->isVisible() != (has && ! tog) || paramToggle[i]->isVisible() != tog) layoutChanged = true;
         param[i]->setVisible (has && ! tog);
@@ -876,8 +937,65 @@ void MixerPage::refreshEffect()
     repaint();
 }
 
+// ---------------------------------------------------------------- plug-ins
+void MixerPage::showPluginList (bool show)
+{
+    browsingPlugins = show;
+    if (show)
+    {
+        refreshPluginList();
+        // first time: look for plug-ins
+        if (pluginChoices.empty() && ! proc.pluginHost.isScanning()) proc.pluginHost.startScan();
+    }
+    resized();
+    refreshEffect();
+}
+
+void MixerPage::refreshPluginList()
+{
+    pluginChoices = proc.pluginHost.effects();
+    const auto& s = proc.song.mixer.slot (fxSlot);
+    pluginList.selected = 0;
+    for (int i = 0; i < (int) pluginChoices.size(); ++i)
+        if (prv::PluginHost::keyFor (pluginChoices[(size_t) i]) == s.pluginKey) pluginList.selected = i;
+    pluginList.ensureVisible (pluginList.selected);
+    pluginList.repaint();
+    repaint();
+}
+
+void MixerPage::choosePlugin (int row)
+{
+    if (row < 0 || row >= (int) pluginChoices.size()) return;
+    const auto d = pluginChoices[(size_t) row];
+    const std::string key = prv::PluginHost::keyFor (d);
+    const std::string name = d.name.toUpperCase().toStdString();
+    browsingPlugins = false;
+    edit (slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1) + " " + juce::String (name), false,
+          [this, key, name] (MixerSettings& m)
+          {
+              auto& sl = m.slot (fxSlot);
+              sl = FxSlot {};
+              sl.type = FxType::Plugin;
+              sl.pluginKey = key;
+              sl.pluginName = name;
+          }, true);
+    resized();
+    refreshEffect();
+    if (onStatus)
+    {
+        if (proc.pluginLoaded (fxSlot)) onStatus (juce::String (name) + " LOADED - OPEN PLUG-IN WINDOW TO EDIT IT");
+        else onStatus (juce::String (name) + ": " + proc.pluginHost.lastError (key));
+    }
+}
+
 void MixerPage::tick()
 {
+    if (currentPage == Page::Effect && browsingPlugins)
+    {
+        const auto st = proc.pluginHost.scanStatus();
+        if (st != lastScanStatus) { lastScanStatus = st; repaint (listStatusArea.toNearestInt()); }
+        if (proc.pluginHost.isScanning() && (int) proc.pluginHost.effects().size() != (int) pluginChoices.size()) refreshPluginList();
+    }
     if (currentPage == Page::Strips)
     {
         for (auto& s : strips) if (s->isVisible()) s->tick();
@@ -934,6 +1052,7 @@ juce::String MixerPage::effectInfo (FxType t)
         case FxType::Delay:      return "STEREO DELAY - SYNC LOCKS TIME TO THE SONG TEMPO";
         case FxType::Reverb:     return "REVERB - ON A SEND, KEEP MIX AT 100%";
         case FxType::Chorus:     return "STEREO CHORUS";
+        case FxType::Plugin:     return "VST3 / AU PLUG-IN - ITS OWN WINDOW HAS THE CONTROLS";
         default:                 return "EMPTY SLOT - PICK AN EFFECT ABOVE";
     }
 }
@@ -963,7 +1082,45 @@ void MixerPage::paint (juce::Graphics& g)
     g.setColour (sk.bg);
     g.fillRect (fxInfoArea);
     Theme::bevel (g, fxInfoArea, false, std::max (1.0f, px * 0.5f));
-    PixelFont::drawCentred (g, effectInfo (s.type), fxInfoArea, px, sk.text);
+    auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+    juce::String info = browsingPlugins ? juce::String ("DOUBLE-CLICK A PLUG-IN TO LOAD IT") : effectInfo (s.type);
+    PixelFont::drawCentred (g, fit (info, fxInfoArea.getWidth() - px * 4), fxInfoArea, px, sk.text);
+
+    if (browsingPlugins)
+    {
+        const auto st = proc.pluginHost.scanStatus();
+        const juce::String t = proc.pluginHost.isScanning() || st.isNotEmpty() ? st
+                             : juce::String ((int) pluginChoices.size()) + " EFFECT PLUG-INS (RESCAN AFTER INSTALLING MORE)";
+        PixelFont::drawLeft (g, fit (t, listStatusArea.getWidth()), listStatusArea, px, Theme::ink);
+    }
+    else if (s.type == FxType::Plugin)
+    {
+        // which plug-in, and whether it's running
+        auto r = pluginInfoArea;
+        const float lh = px * 11;
+        juce::PluginDescription d;
+        const bool known = proc.pluginHost.findDescription (s.pluginKey, d);
+        auto* pe = proc.pluginAt (fxSlot);
+        juce::StringArray lines;
+        lines.add (juce::String (s.pluginName));
+        if (known) lines.add ("BY " + d.manufacturerName.toUpperCase() + "  -  " + (d.pluginFormatName == "AudioUnit" ? juce::String ("AU") : d.pluginFormatName.toUpperCase()));
+        if (pe != nullptr)
+        {
+            const int lat = pe->instance().getLatencySamples();
+            lines.add (lat > 0 ? "LATENCY " + juce::String (lat) + " SAMPLES (NOT COMPENSATED)" : juce::String ("NO LATENCY"));
+        }
+        else
+        {
+            const auto err = proc.pluginHost.lastError (s.pluginKey);
+            lines.add ("MISSING: " + (err.isNotEmpty() ? err : juce::String ("NOT LOADED")));
+            lines.add ("AUDIO PASSES THROUGH; ITS SETTINGS ARE KEPT IN THE SONG");
+        }
+        for (auto& l : lines)
+        {
+            auto row = r.removeFromTop (lh);
+            PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, (&l == &lines.getReference (0)) ? Theme::ink : Theme::ink);
+        }
+    }
 }
 
 void MixerPage::paintEqGraph (juce::Graphics& g, juce::Rectangle<float> r)
@@ -1124,9 +1281,10 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
 
     auto types = r.removeFromTop (rowH);
-    const int n = (int) FxType::Count;
-    const int tw = std::min (charsW (8), (types.getWidth() - gap * (n - 1)) / n);
+    const int n = kBuiltinFxTypes;
+    const int tw = std::min (charsW (8), (types.getWidth() - charsW (10) - gap * n) / n);
     for (int t = 0; t < n; ++t) { typeBtn[t].setBounds (types.removeFromLeft (tw)); types.removeFromLeft (gap); }
+    pluginBtn.setBounds (types.removeFromLeft (charsW (10)));
     r.removeFromTop (gap * 2);
     auto row2 = r.removeFromTop (rowH);
     bypassBtn.setBounds (row2.removeFromLeft (charsW (8))); row2.removeFromLeft (gap);
@@ -1134,7 +1292,24 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
     fxInfoArea = row2.toFloat();
     r.removeFromTop (gap * 3);
 
+    if (browsingPlugins)
+    {
+        auto bottom = r.removeFromBottom (rowH);
+        rescanBtn.setBounds (bottom.removeFromLeft (charsW (6))); bottom.removeFromLeft (gap);
+        listCloseBtn.setBounds (bottom.removeFromRight (charsW (18))); bottom.removeFromRight (gap);
+        listStatusArea = bottom.toFloat().withTrimmedLeft ((float) gap);
+        r.removeFromBottom (gap);
+        pluginList.setBounds (r);
+        return;
+    }
     const auto& s = proc.song.mixer.slot (fxSlot);
+    if (s.type == FxType::Plugin)
+    {
+        editPluginBtn.setBounds (r.removeFromTop (bigH).withWidth (charsW (20)));
+        r.removeFromTop (gap * 3);
+        pluginInfoArea = r.removeFromTop ((int) (px * 11) * 4).toFloat();
+        return;
+    }
     const auto& ps = fxParams (s.type);
     auto area = r.withWidth (std::min (r.getWidth(), charsW (72)));
     for (int i = 0; i < kFxParams; ++i)

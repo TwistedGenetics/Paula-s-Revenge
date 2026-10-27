@@ -39,6 +39,39 @@ PaulaProcessor::PaulaProcessor()
 {
     addStarterInstruments (song);
     player.setSong (&song);
+    player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
+    pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
+}
+
+std::function<std::unique_ptr<prv::Effect> (int, const prv::FxSlot&, double)> PaulaProcessor::pluginFactory()
+{
+    return [this] (int, const prv::FxSlot& s, double sr) { return pluginHost.create (-1, s, sr); };
+}
+
+prv::PluginEffect* PaulaProcessor::pluginAt (int slot) const
+{
+    return dynamic_cast<prv::PluginEffect*> (const_cast<PaulaProcessor*> (this)->player.mixer().effectAt (slot));
+}
+
+bool PaulaProcessor::pluginLoaded (int slot) const { return pluginAt (slot) != nullptr; }
+
+void PaulaProcessor::capturePluginStates()
+{
+    for (int i = 0; i < prv::kTotalSlots; ++i)
+    {
+        if (song.mixer.slot (i).type != prv::FxType::Plugin) continue;
+        if (auto* p = pluginAt (i))
+        {
+            auto st = p->state();
+            withLock ([&] { song.mixer.slot (i).pluginState = std::move (st); });
+        }
+    }
+}
+
+void PaulaProcessor::reloadMixerSlot (int slot)
+{
+    withLock ([&] { player.mixer().invalidate (slot); });
+    updateMixerEffects();
 }
 
 bool PaulaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -60,13 +93,17 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void PaulaProcessor::updateMixerEffects()
 {
     std::vector<std::unique_ptr<prv::Effect>> old;
-    withLock ([&] { player.mixer().syncEffects (song.mixer, old); });
+    auto changes = player.mixer().plan (song.mixer);   // (loads plug-ins: outside the lock)
+    if (changes.empty()) return;
+    withLock ([&] { player.mixer().apply (changes, old); });
     // `old` is freed here, outside the audio lock
 }
 
 void PaulaProcessor::replaceSong (prv::Song&& newSong)
 {
     std::vector<std::unique_ptr<prv::Effect>> oldEffects;   // declared first: freed after the lock is released
+    // make the new song's effects (and load its plug-ins) before taking the lock
+    auto changes = player.mixer().plan (newSong.mixer, true);
     const juce::SpinLock::ScopedLockType sl (lock);
     player.stop();
     player.jamAllOff();
@@ -77,7 +114,7 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     editorState.loopBlock = -1;
     history.clear();
     player.mixer().reset();
-    player.mixer().syncEffects (song.mixer, oldEffects);   // (allocates under the lock; only on load)
+    player.mixer().apply (changes, oldEffects);
 }
 
 bool PaulaProcessor::popMidiNote (int& note)
@@ -188,6 +225,16 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
 
     const juce::SpinLock::ScopedLockType sl (lock);
 
+    // tell hosted plug-ins where the song is
+    {
+        auto& ph = pluginHost.playHead;
+        const bool playing = player.isPlaying();
+        if (playing && ! ph.playing.load()) ph.samples = 0;
+        ph.playing = playing;
+        ph.sampleRate = currentRate;
+        if (playing) ph.samples = ph.samples.load() + n;
+    }
+
     // render in slices between MIDI events so notes land sample-accurately
     int done = 0;
     auto renderTo = [&] (int end)
@@ -256,6 +303,7 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::ValueTree st ("PaulasRevenge");
     juce::MemoryBlock songData;
+    if (juce::MessageManager::existsAndIsCurrentThread()) capturePluginStates();
     {
         const juce::SpinLock::ScopedLockType sl (lock);
         songData = prv::writeSong (song);

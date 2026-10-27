@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.8.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.9.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -73,6 +73,8 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/ParamsPage.cpp
     Source/ui/ArrangePage.cpp
     Source/ui/MixerPage.cpp
+    Source/ui/SeqEditor.cpp
+    Source/PluginHost.cpp
     Source/StandaloneApp.cpp)
 
 if(APPLE)
@@ -85,7 +87,9 @@ target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_REPORT_APP_USAGE=0
-    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1)
+    JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1
+    JUCE_PLUGINHOST_VST3=1
+    JUCE_PLUGINHOST_AU=1)
 
 target_link_libraries(PaulasRevenge
     PRIVATE

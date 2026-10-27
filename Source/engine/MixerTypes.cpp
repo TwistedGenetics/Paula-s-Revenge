@@ -62,6 +62,7 @@ std::string fxName (FxType t)
         case FxType::Delay:      return "DELAY";
         case FxType::Reverb:     return "REVERB";
         case FxType::Chorus:     return "CHORUS";
+        case FxType::Plugin:     return "PLUG-IN";
         default:                 return "EMPTY";
     }
 }
@@ -76,6 +77,7 @@ std::string fxShortName (FxType t)
         case FxType::Delay:      return "DLY";
         case FxType::Reverb:     return "VERB";
         case FxType::Chorus:     return "CHOR";
+        case FxType::Plugin:     return "PLUG";
         default:                 return "---";
     }
 }

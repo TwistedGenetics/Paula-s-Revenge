@@ -8,22 +8,54 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 7;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 8;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer
+
+    void writeLong (juce::OutputStream& o, const void* data, size_t size)
+    {
+        o.writeIntBigEndian ((int) size);
+        if (size > 0) o.write (data, size);
+    }
+
+    bool readLong (juce::InputStream& in, std::vector<uint8_t>& out, int maxSize)
+    {
+        const int n = in.readIntBigEndian();
+        if (n < 0 || n > maxSize || n > in.getNumBytesRemaining()) return false;
+        out.resize ((size_t) n);
+        return n == 0 || in.read (out.data(), n) == n;
+    }
 
     void writeSlot (juce::OutputStream& o, const FxSlot& s)
     {
         o.writeByte ((char) s.type);
         o.writeByte (s.bypass ? 1 : 0);
         for (float v : s.p) o.writeFloatBigEndian (v);
+        if (s.type == FxType::Plugin)   // v8: which plug-in, and its own settings
+        {
+            writeLong (o, s.pluginKey.data(), s.pluginKey.size());
+            writeLong (o, s.pluginName.data(), s.pluginName.size());
+            writeLong (o, s.pluginState.data(), s.pluginState.size());
+        }
     }
 
-    void readSlot (juce::InputStream& in, FxSlot& s)
+    void readSlot (juce::InputStream& in, FxSlot& s, int version)
     {
         const int t = (uint8_t) in.readByte();
         s.type = t < (int) FxType::Count ? (FxType) t : FxType::None;
+        if (version < 8 && s.type == FxType::Plugin) s.type = FxType::None;
         s.bypass = in.readByte() != 0;
         for (float& v : s.p) { const float f = in.readFloatBigEndian(); v = std::isfinite (f) ? juce::jlimit (0.0f, 1.0f, f) : 0.0f; }
+        if (s.type == FxType::Plugin)
+        {
+            std::vector<uint8_t> key, name;
+            if (! readLong (in, key, 1 << 16) || ! readLong (in, name, 1 << 12) || ! readLong (in, s.pluginState, 64 << 20))
+            {
+                s = FxSlot {};   // damaged: leave the slot empty
+                return;
+            }
+            s.pluginKey.assign (key.begin(), key.end());
+            s.pluginName.assign (name.begin(), name.end());
+        }
     }
 
     float readFloat (juce::InputStream& in, float lo, float hi, float def)
@@ -296,7 +328,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
                 b.q = readFloat (in, 0.1f, 10.0f, 0.7f);
             }
-            for (auto& sl : c.inserts) readSlot (in, sl);
+            for (auto& sl : c.inserts) readSlot (in, sl, version);
             for (int k = 0; k < kSends; ++k) { c.send[k] = readFloat (in, 0.0f, 1.0f, 0.0f); c.sendPre[k] = in.readByte() != 0; }
         }
         for (auto& r : m.ret)
@@ -304,10 +336,10 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             r.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
             r.pan = juce::jlimit (0, 255, (int) in.readShortBigEndian());
             r.mute = in.readByte() != 0;
-            for (auto& sl : r.inserts) readSlot (in, sl);
+            for (auto& sl : r.inserts) readSlot (in, sl, version);
         }
         m.master.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
-        for (auto& sl : m.master.inserts) readSlot (in, sl);
+        for (auto& sl : m.master.inserts) readSlot (in, sl, version);
     }
     out = std::move (s);
     return true;
@@ -441,11 +473,13 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error,
 }
 
 bool renderSongToWav (const Song& song, const PaulaOptions& options, double sampleRate,
-                      const juce::File& file, juce::String& error)
+                      const juce::File& file, juce::String& error,
+                      std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory)
 {
     Player p;
     p.options = options;
     p.setSampleRate (sampleRate);
+    p.mixer().pluginFactory = std::move (pluginFactory);
     p.setSong (&song);
     p.mixer().syncEffectsNow (song.mixer);   // the song's mixer is part of the render
     p.playSong();

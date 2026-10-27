@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "SeqEditor.h"
 
 namespace prv::ui
 {
@@ -37,21 +38,23 @@ public:
     void deleteSelection();
     void insertBlock (int block);
     void setBlock (int block);
-    int selStart() const { return std::min (anchor, cursor); }
-    int selEnd() const { return std::max (anchor, cursor); }
+    int selStart() const { return ops.selStart(); }
+    int selEnd() const { return ops.selEnd(); }
 
 private:
     PaulaProcessor& proc;
-    int cursor = 0, anchor = 0, scroll = 0;
+    SeqEditor ops { proc };
+    int scroll = 0;
+    bool selecting = false;           // dragging out a highlight (not moving one)
+    int cursorPos() const { return proc.editorState.seqPos; }
     int dragFrom = -1, dropAt = -1;
     bool dragging = false;
     WheelSteps wheel;
     EdgeScroller edgeScroll;
     float lastDragY = 0;
-    std::vector<int> clip;
 
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) + " MOVE" }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) + " MOVE" },
-              copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, repeatBtn { "REPEAT" },
+              copyBtn { "COPY" }, cutBtn { "CUT" }, pasteBtn { "PASTE" }, repeatBtn { "DUPLICATE" },
               insertBtn { "INSERT" }, setBtn { "SET" }, deleteBtn { "DELETE" },
               undoBtn { "UNDO" }, redoBtn { "REDO" }, closeBtn { "CLOSE" },
               sectionBtn { "SECTION" }, loopSectBtn { "LOOP SECTION", true };
@@ -64,8 +67,6 @@ private:
     void ensureVisible();
     void changed (const juce::String& status);
     // fn changes the sequence; secFn (optional) moves the section dividers to match
-    void edit (std::function<void (std::vector<int>&)> fn, const juce::String& status,
-               std::function<void (std::vector<SongSection>&, int newLength)> secFn = {});
     float tagX() const;   // where section labels start in a row
     void paintPreview (juce::Graphics&, juce::Rectangle<float>, int block);
 };

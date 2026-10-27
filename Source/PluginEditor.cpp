@@ -106,6 +106,18 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     instruments.openParams = [this] { setView (View::Params); };
     sequence.openArrange = [this] { setView (View::Arrange); };
     sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    sequence.returnFocus = [this]
+    {
+        switch (proc.editorState.view)
+        {
+            case View::SampleEdit: sampleEditor.grabKeyboardFocus(); break;
+            case View::Browser:    browser.grabKeyboardFocus(); break;
+            case View::Params:     params.grabKeyboardFocus(); break;
+            case View::Arrange:    arrange.grabKeyboardFocus(); break;
+            case View::Mixer:      mixer.grabKeyboardFocus(); break;
+            case View::Pattern:    pattern.grabKeyboardFocus(); break;
+        }
+    };
     arrange.onClose = [this] { setView (View::Pattern); };
     arrange.onChanged = [this] { sequence.refresh(); blockPanel.refresh(); };
     arrange.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -271,6 +283,7 @@ void PaulaEditor::refreshAll()
     blockPanel.refresh();
     instruments.refresh();
     pattern.repaint();
+    if (arrange.isVisible()) arrange.repaint();
     repaint (getLocalBounds().removeFromTop ((int) (prv::ui::Theme::px * 14)));
 }
 
@@ -459,7 +472,7 @@ void PaulaEditor::resized()
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
-        const int seqH = std::max (rowH * 8, (int) (left.getHeight() * 0.38f));
+        const int seqH = std::max (rowH * 8, (int) (left.getHeight() * 0.40f));
         sequence.setBounds (left.removeFromTop (seqH));
         left.removeFromTop (gap);
         blockPanel.setBounds (left.removeFromTop ((int) (px * 14) + rowH * 3 + gap * 3));
@@ -556,6 +569,7 @@ void PaulaEditor::loadSong()
 bool PaulaEditor::writeSongTo (const juce::File& file)
 {
     juce::MemoryBlock data;
+    proc.capturePluginStates();
     proc.withLock ([&] { data = prv::writeSong (proc.song); });
     if (! file.replaceWithData (data.getData(), data.getSize()))
     {
@@ -646,10 +660,11 @@ void PaulaEditor::exportWav()
         auto& self = *safe;
         prv::Song copy;
         prv::PaulaOptions opts;
+        self.proc.capturePluginStates();   // plug-ins render with their current settings
         self.proc.withLock ([&] { copy = self.proc.song; opts = self.proc.player.options; });
         juce::String err;
         const double rate = self.proc.getSampleRate() > 0 ? self.proc.getSampleRate() : 48000.0;
-        if (prv::renderSongToWav (copy, opts, rate, file, err)) self.setStatus ("RENDERED " + file.getFileName());
+        if (prv::renderSongToWav (copy, opts, rate, file, err, self.proc.pluginFactory())) self.setStatus ("RENDERED " + file.getFileName());
         else self.setStatus ("ERROR: " + err);
     });
 }

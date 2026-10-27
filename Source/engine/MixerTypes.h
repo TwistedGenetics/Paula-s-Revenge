@@ -24,20 +24,25 @@ inline int trackSlot (int track, int k)  { return track * kInserts + k; }
 inline int returnSlot (int ret, int k)   { return kTrackSlots + ret * kInserts + k; }
 inline int masterSlot (int k)            { return kTrackSlots + kReturnSlots + k; }
 
-enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Count };
+enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin, Count };
+constexpr int kBuiltinFxTypes = (int) FxType::Plugin;   // EMPTY + the six built-in effects
 
-// An insert slot: the effect and its parameters (all 0..1; each effect maps them)
+// An insert slot: the effect and its parameters (all 0..1; each effect maps them).
+// A plug-in slot (VST3 / AU) keeps which plug-in it is and the plug-in's own saved state.
 struct FxSlot
 {
     FxType type = FxType::None;
     bool   bypass = false;
     float  p[kFxParams] {};
+    std::string pluginKey;              // identifies the plug-in on this computer (format + file + id)
+    std::string pluginName;             // shown in the mixer, and when the plug-in is missing
+    std::vector<uint8_t> pluginState;   // the plug-in's own settings
     bool active() const { return type != FxType::None && ! bypass; }
     bool operator== (const FxSlot& o) const
     {
         if (type != o.type || bypass != o.bypass) return false;
         for (int i = 0; i < kFxParams; ++i) if (p[i] != o.p[i]) return false;
-        return true;
+        return pluginKey == o.pluginKey && pluginName == o.pluginName && pluginState == o.pluginState;
     }
 };
 

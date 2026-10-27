@@ -1,6 +1,6 @@
 # PAULA'S REVENGE
 
-An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects and two send buses). Big pixel text, keyboard-driven.
+An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses). Big pixel text, keyboard-driven.
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
@@ -23,7 +23,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 |---|---|
 | Title bar | NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
-| Sequence | The song order, with a scrollbar. Click a position to jump to it. INS / DEL entries, set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag a row) move the selected position. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
+| Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
@@ -89,8 +89,8 @@ Envelopes and filters run per note on top of the Paula sound. They're saved in `
 
 **ARRANGE** in the sequence panel opens the song order full size, each position with a picture of its block's notes:
 
-* Click a position, Shift-click to select a range, then drag it to a new place (a red line shows where it will land).
-* ▲ MOVE / ▼ MOVE (or `Alt+↑/↓`), COPY, CUT, PASTE, REPEAT (`Cmd+D`, duplicates the selection after itself), DELETE.
+* Drag over positions to highlight them (or click one and Shift-click another); drag the highlight to move it (a red line shows where it will land).
+* ▲ MOVE / ▼ MOVE (or `Alt+↑/↓`), COPY, CUT, PASTE, DUPLICATE (`Cmd+D`), DELETE — the same highlight and clipboard as the sequence panel.
 * INSERT adds the BLOCK number after the cursor; SET makes the selected positions play that block.
 * `Cmd+Z` / `Cmd+Shift+Z` undo and redo; double-click a position or press Enter to go back to the pattern.
 
@@ -118,7 +118,10 @@ One history covers everything: notes and effects, block lengths, the sequence an
 
 ## Sequence tools
 
-* **Move positions**: select one and press ▲ / ▼, use `Alt+↑` / `Alt+↓` in the pattern, or drag it in the list. (Section dividers stay where they are when you move positions.)
+* **Highlight positions**: drag over them in the list (it scrolls by itself past the ends), or Shift-click to stretch the highlight. `Cmd+A` highlights the whole song. The arrange page shows the same highlight.
+* **CUT** (`Cmd+X`), **COPY** (`Cmd+C`), **PASTE** (`Cmd+V`, goes in after the highlight), **DUP** (`Cmd+D`, a copy straight after the highlight, which then gets highlighted) and **DEL** (`Delete`) work on the highlighted positions, or on the one selected. DUP on one position does what INS used to. The sequence panel and the arrange page share one clipboard: copy in one, paste in the other. Section dividers move with the music.
+* The keys work after clicking in the list; any other key (notes, Space, undo) goes straight on to the pattern.
+* **Move positions**: drag the highlight (or the selected position) to a new place, press ▲ / ▼, or use `Alt+↑` / `Alt+↓` in the pattern. (Section dividers stay where they are when you move positions.)
 * **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into the **next free block** and points position 1 at it. The next free block is the lowest-numbered block that's empty and not used anywhere in the song, or else a new block at the end. No other block numbers change and the song order keeps its length. Now you can change the copy without touching the other places block 2 is used. The status line says which block it used.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
 * UNDO / REDO (`Cmd+Z` / `Cmd+Shift+Z`) undo and redo all of these.
@@ -165,6 +168,8 @@ LOAD in the instrument panel opens a browser in place of the pattern. Every samp
 
 Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FINDER… opens the normal Mac file dialog.
 
+**Favourite folders**: the row under DOWNLOADS / DOCUMENTS / DRIVES / FINDER… has four buttons for your own folders. Click an empty one (SET FAV 1–4) to pick a folder; after that it shows the folder's name and one click goes there. `Shift`-click changes it, `Alt`-click clears it. They're remembered on this computer, whatever song is loaded. If a favourite's drive isn't plugged in, the status line says so.
+
 ## Sample rates
 
 Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Samples load at their own rate (a 44.1 kHz WAV plays at 44100 on C-3, so it sounds as recorded). Rates are set in the sample editor:
@@ -181,6 +186,12 @@ The rate is shown on the instrument's waveform, saved in songs, used for EXPORT 
 * **CLASSIC**: the Akai sound, matched sample-for-sample to recordings of the real thing. The output is built from fixed-length cycles. Each cycle starts reading the source at the point the output has reached (so slices repeat when stretching and get skipped when squashing), and it fades in over two-thirds of the cycle while the previous slice carries on and fades out. The long, linear blend gives the smooth, phasey, metallic buzz of 90s jungle stretches.
 * **REVISED**: cleaner. Each join is lined up by waveform shape (within 5% of a cycle) and crossfaded over 30% of a cycle.
 * **HARD**: no lining up and no blend, so every join can click. Rougher than real hardware.
+* **AKAIZER**: the method of Ben Burchett's Akaizer v1.2 (2006), rebuilt line for line and checked sample-for-sample against that routine. The sample is cut into grains of 2 × CYCLE samples, each shaped with a half-sine window, laid down at the grain rate and added up, clipping to 16 bits a grain at a time — the overlaps give it its own granular, slightly chorused sound.
+  * **CYCLE** here is in the sample's own samples, as in the original (try 800).
+  * **FREQ LINKED** (on): grains per second = 41000 ÷ CYCLE, the original's own constant. Turn it off to set **FREQ** (20–2050) by hand.
+  * **STEREO QUIRK** (on, stereo samples): processes left and right interleaved like the original, so odd grain spacings swap the sides between grains. Off: each side separately with the same grains.
+  * **SEMI / CENTS** first repitch the sample, then the grains stretch it to the length you asked for — the jungle trick of pitching a break up and stretching it back, in one go.
+* **LOOP BPM → TO BPM** and **SET TIME**: sets TIME % to turn a loop at one tempo into another (136 → 170 = 80%).
 * **TIME %** (25–2000%), **SEMI** and **CENTS** (pitch, independent of time), **CYCLE** (20–2000, default 1000; in 44.1 kHz samples like Akaizer, converted for the sample's own rate). A shorter cycle gives a faster, more metallic buzz; a longer one gives more robotic, echoey repeats.
 * **FIT TO LINES** sets TIME % so the selection lasts that many lines at the song's speed and BPM.
 * **PREVIEW** to hear it, **APPLY** to keep it (undoable).
@@ -333,9 +344,19 @@ Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For t
 
 **RENDER WAV** writes the song once through as a 24-bit stereo WAV, mixer and all.
 
+## Plug-in effects (VST3 / AU)
+
+Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
+
+* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the effect plug-ins on your Mac in the background (instruments are left out); **RESCAN** looks again after you install more. A plug-in that crashes while being looked at is skipped next time.
+* Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
+* The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
+* The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.
+* Changes made inside a plug-in's own window aren't separate undo steps. Plug-in latency is shown but not compensated.
+
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 7 adds the mixer (v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 8 adds plug-in effects (v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

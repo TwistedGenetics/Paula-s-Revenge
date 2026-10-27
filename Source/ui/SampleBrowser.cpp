@@ -61,6 +61,13 @@ SampleBrowser::SampleBrowser (PaulaProcessor& p) : proc (p)
         });
     };
 
+    for (int i = 0; i < kFavourites; ++i)
+    {
+        favBtn[i].onClick = [this, i] { favouriteClicked (i, juce::ModifierKeys::currentModifiers); };
+        addAndMakeVisible (favBtn[i]);
+    }
+    updateFavButtons();
+
     playBtn.onClick   = [this] { if (selected < (int) entries.size() && ! entries[(size_t) selected].isDir) { if (auditionFile == entries[(size_t) selected].file && proc.hasPreview()) playFrom (0); else audition (entries[(size_t) selected].file, true); } };
     stopBtn.onClick   = [this] { stopAudition(); };
     loadBtn.onClick   = [this] { loadSelected(); };
@@ -257,6 +264,73 @@ void SampleBrowser::tick()
 }
 
 // ------------------------------------------------------------------ layout & paint
+// ---------------------------------------------------------------- favourites
+namespace { juce::String favKey (int i) { return "favouriteFolder" + juce::String (i + 1); } }
+
+juce::File SampleBrowser::favourite (int i) const
+{
+    const auto path = prv::prefs().getValue (favKey (i));
+    return path.isEmpty() ? juce::File() : juce::File (path);
+}
+
+void SampleBrowser::setFavourite (int i, const juce::File& folder)
+{
+    if (i < 0 || i >= kFavourites) return;
+    if (folder == juce::File()) prv::prefs().removeValue (favKey (i));
+    else prv::prefs().setValue (favKey (i), folder.getFullPathName());
+    prv::prefs().saveIfNeeded();
+    updateFavButtons();
+}
+
+void SampleBrowser::updateFavButtons()
+{
+    const float px = Theme::px;
+    for (int i = 0; i < kFavourites; ++i)
+    {
+        const auto f = favourite (i);
+        // the folder's name, shortened to fit at full size (never smaller text)
+        juce::String t = f == juce::File() ? "SET FAV " + juce::String (i + 1) : f.getFileName().toUpperCase();
+        if (t.isEmpty()) t = f.getFullPathName().toUpperCase();
+        const int fit = std::max (3, (int) ((favBtn[i].getWidth() - px * 4) / (px * PixelFont::kCellW)));
+        if (t.length() > fit) t = t.substring (0, fit - 2) + "..";
+        favBtn[i].setButtonText (t);
+    }
+}
+
+void SampleBrowser::chooseFavourite (int i)
+{
+    chooser = std::make_unique<juce::FileChooser> ("Choose favourite folder " + juce::String (i + 1), dir.isDirectory() ? dir : juce::File());
+    juce::Component::SafePointer<SampleBrowser> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe, i] (const juce::FileChooser& fc)
+    {
+        if (safe == nullptr) return;
+        const auto f = fc.getResult();
+        if (! f.isDirectory()) return;
+        safe->setFavourite (i, f);
+        safe->setDirectory (f);
+        if (safe->onStatus) safe->onStatus ("FAV " + juce::String (i + 1) + " = " + f.getFullPathName().toUpperCase());
+    });
+}
+
+void SampleBrowser::favouriteClicked (int i, juce::ModifierKeys mods)
+{
+    if (i < 0 || i >= kFavourites) return;
+    const auto f = favourite (i);
+    if (mods.isAltDown())
+    {
+        setFavourite (i, {});
+        if (onStatus) onStatus ("FAV " + juce::String (i + 1) + " CLEARED");
+        return;
+    }
+    if (mods.isShiftDown() || f == juce::File()) { chooseFavourite (i); return; }
+    if (! f.isDirectory())
+    {
+        if (onStatus) onStatus ("FAV " + juce::String (i + 1) + ": " + f.getFullPathName().toUpperCase() + " ISN'T THERE (DRIVE UNPLUGGED?) - SHIFT-CLICK TO CHANGE IT");
+        return;
+    }
+    setDirectory (f);
+}
+
 void SampleBrowser::resized()
 {
     const float px = Theme::px;
@@ -274,6 +348,9 @@ void SampleBrowser::resized()
     r.removeFromTop (gap);
     layoutRow (r.removeFromTop (rowH), { &downloadsBtn, &docsBtn, &volumesBtn, &finderBtn });
     r.removeFromTop (gap);
+    layoutRow (r.removeFromTop (rowH), { &favBtn[0], &favBtn[1], &favBtn[2], &favBtn[3] });
+    r.removeFromTop (gap);
+    updateFavButtons();
     pathArea = r.removeFromTop (rowH).toFloat();
     r.removeFromTop (gap);
 

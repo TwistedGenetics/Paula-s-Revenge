@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "Panels.h"
 
 namespace prv::ui
 {
@@ -122,12 +123,30 @@ private:
     juce::Rectangle<float> eqGraph, chInsertsBox, chSendsBox, bandBox;
 
     // effect page
-    PixButton typeBtn[(int) FxType::Count] { PixButton ("EMPTY", true), PixButton ("FILTER", true), PixButton ("DRIVE", true), PixButton ("COMP", true),
+    PixButton typeBtn[kBuiltinFxTypes] { PixButton ("EMPTY", true), PixButton ("FILTER", true), PixButton ("DRIVE", true), PixButton ("COMP", true),
                                              PixButton ("DELAY", true), PixButton ("REVERB", true), PixButton ("CHORUS", true) };
     PixButton bypassBtn { "BYPASS", true }, defaultsBtn { "DEFAULTS" };
     std::unique_ptr<PixSlider> param[kFxParams];
     std::unique_ptr<PixButton> paramToggle[kFxParams];
     juce::Rectangle<float> fxInfoArea;
+
+    // plug-ins (VST3 / AU)
+    PixButton pluginBtn { "PLUG-IN...", true }, rescanBtn { "RESCAN" }, editPluginBtn { "OPEN PLUG-IN WINDOW" }, listCloseBtn { "BACK TO THE EFFECT" };
+    PixList pluginList;
+    std::vector<juce::PluginDescription> pluginChoices;
+    bool browsingPlugins = false;
+    juce::Rectangle<float> pluginInfoArea, listStatusArea;
+    juce::String lastScanStatus;
+    void showPluginList (bool);
+    void choosePlugin (int row);
+    void refreshPluginList();
+public:
+    // tests
+    bool isBrowsingPlugins() const { return browsingPlugins; }
+    void pickPlugin (int row) { choosePlugin (row); }
+    int  pluginChoiceCount() const { return (int) pluginChoices.size(); }
+    void openPluginList() { showPluginList (true); }
+private:
 
     juce::Rectangle<float> titleArea;
 
