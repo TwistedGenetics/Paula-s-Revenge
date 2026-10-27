@@ -1,0 +1,89 @@
+// Paula's Revenge - audio processor (shared by the plugin and the standalone app)
+#pragma once
+
+#include <JuceHeader.h>
+#include "engine/Song.h"
+#include "engine/Player.h"
+
+class PaulaProcessor : public juce::AudioProcessor
+{
+public:
+    PaulaProcessor();
+    ~PaulaProcessor() override = default;
+
+    void prepareToPlay (double sampleRate, int samplesPerBlock) override;
+    void releaseResources() override {}
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
+
+    const juce::String getName() const override { return "Paula's Revenge"; }
+    bool acceptsMidi() const override { return true; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
+
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram (int) override {}
+    const juce::String getProgramName (int) override { return {}; }
+    void changeProgramName (int, const juce::String&) override {}
+
+    void getStateInformation (juce::MemoryBlock& destData) override;
+    void setStateInformation (const void* data, int sizeInBytes) override;
+
+    // --- shared state. Lock `lock` for any change to song or player. ------
+    juce::SpinLock lock;
+    prv::Song song;
+    prv::Player player;
+
+    template <typename Fn> void withLock (Fn&& fn)
+    {
+        const juce::SpinLock::ScopedLockType sl (lock);
+        fn();
+    }
+
+    // Replace the whole song (loading). Stops playback.
+    void replaceSong (prv::Song&& newSong);
+
+    // host sync settings
+    std::atomic<bool> followHostTransport { true };
+    std::atomic<bool> followHostTempo { true };
+    std::atomic<bool> hostIsPlaying { false };
+    std::atomic<double> hostBpm { 0.0 };
+    bool isRunningStandalone() const { return wrapperType == wrapperType_Standalone; }
+
+    // editor state that should survive closing the window / reloading the set
+    struct EditorState
+    {
+        int instrument = 0;     // 0-based
+        int octave = 3;
+        int step = 1;
+        int block = 0;
+        int seqPos = 0;
+        int line = 0;
+        int track = 0;
+        int column = 0;
+        bool editMode = false;
+        bool follow = true;
+        bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
+        int  uiZoom = 0;        // -2..+3 text size adjust
+        juce::String lastFolder;
+    } editorState;
+
+    // MIDI notes jam the current instrument; the editor records them when in edit mode
+    std::atomic<int> jamInstrument { 0 };
+    bool popMidiNote (int& note);   // message thread
+
+private:
+    double currentRate = 44100.0;
+    bool wasHostPlaying = false;
+    juce::HeapBlock<float> scratchL, scratchR;
+    int scratchSize = 0;
+    juce::AbstractFifo midiFifo { 64 };
+    int midiNotes[64] {};
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PaulaProcessor)
+};

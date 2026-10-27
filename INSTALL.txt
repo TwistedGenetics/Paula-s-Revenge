@@ -1,0 +1,26 @@
+PAULA'S REVENGE - INSTALLING ON A MAC (APPLE SILICON)
+
+1. Standalone app
+   Drag "Paula's Revenge.app" into /Applications.
+
+2. VST3 plugin
+   Copy "Paula's Revenge.vst3" into:
+   ~/Library/Audio/Plug-Ins/VST3/
+
+3. AU plugin (Ableton Live, Logic, etc.)
+   Copy "Paula's Revenge.component" into:
+   ~/Library/Audio/Plug-Ins/Components/
+
+   (~ is your home folder. In Finder press Cmd+Shift+G and paste the path.)
+
+4. If macOS says the app or plugin "can't be opened" or is "damaged"
+   The builds are not notarised by Apple. Open Terminal and run these
+   (adjust the paths if you put the files somewhere else):
+
+   xattr -dr com.apple.quarantine "/Applications/Paula's Revenge.app"
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Paula's Revenge.vst3"
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"Paula's Revenge.component"
+
+5. In Ableton Live
+   Rescan plugins (Settings > Plug-Ins > Rescan). It shows up as an
+   instrument under Twisted Genetics.
