@@ -132,7 +132,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | 8-BIT | Samples are played at 8-bit resolution |
 | CRUNCH | In 8-track songs, track pairs are mixed together and squashed back to 8 bits, the way 8-channel Amiga trackers did it in software |
 | LED | The "LED" lowpass filter, on at the start of the song (commands `E00`/`E01` switch it while playing) |
-| SEP | Stereo separation from mono to hard Amiga left/right panning (tracks pan L-R-R-L) |
+| SEP | Stereo separation. The Amiga sent tracks 1 and 4 hard left and 2 and 3 hard right; SEP sets how much of that you get. It starts at 20% (nearly centred); 0% puts every track in the middle, 100% is the full Amiga split. Double-click the slider to reset it |
 
 Samples are resampled on load so `C-3` plays them at their original pitch (16.5 kHz, the Amiga convention). For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it.
 

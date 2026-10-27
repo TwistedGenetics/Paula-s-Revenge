@@ -14,7 +14,7 @@ struct PaulaOptions
     bool  zeroOrderHold = true;         // stepped Paula playback (vs. linear interpolation)
     bool  eightBit      = true;         // quantise sample data to 8 bits
     bool  crunch8ch     = true;         // requantise mixed track pairs in 8-track songs
-    float stereoSep     = 0.75f;        // 0 = mono, 1 = hard Amiga panning
+    float stereoSep     = 0.2f;         // 0 = everything centred, 1 = hard Amiga L-R-R-L panning
     float master        = 1.0f;          // 0..2
 };
 

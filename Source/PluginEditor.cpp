@@ -56,7 +56,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     eightBitBtn.onClick = [this] { applyOptions(); };
     crunchBtn.onClick   = [this] { applyOptions(); };
     ledBtn.onClick = [this] { proc.withLock ([&] { proc.song.ledFilterAtStart = ledBtn.getToggleState(); proc.player.setLed (ledBtn.getToggleState()); }); };
-    sepSlider.defaultValue = 0.75f;
+    sepSlider.defaultValue = 0.2f;
     sepSlider.labelChars = volSlider.labelChars = 4;
     volSlider.defaultValue = 0.5f;
     volSlider.format = [] (float v) { return juce::String (juce::roundToInt (v * 200)) + "%"; };

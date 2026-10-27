@@ -282,7 +282,7 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
         o.zeroOrderHold = st.getProperty ("zoh", true);
         o.eightBit = st.getProperty ("eightBit", true);
         o.crunch8ch = st.getProperty ("crunch", true);
-        o.stereoSep = st.getProperty ("sep", 0.75f);
+        o.stereoSep = st.getProperty ("sep", 0.2f);
         o.master = st.getProperty ("master", 1.0f);
     }
     followHostTransport = (bool) st.getProperty ("hostTransport", true);
