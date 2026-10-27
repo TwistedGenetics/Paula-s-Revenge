@@ -68,42 +68,120 @@ std::vector<uint8_t> PluginEffect::state()
 }
 
 // =========================================================================== scanning
+// Plug-ins are looked at in a separate copy of the app ("--prv-scan"), one file at a
+// time, so a plug-in that crashes or hangs while being looked at can't take the app
+// down; it's just listed as failed. (Some plug-ins also aren't safe to load and
+// unload on a background thread, which is what an in-app scan would do.)
+namespace
+{
+    void addFormats (juce::AudioPluginFormatManager& fm)
+    {
+       #if JUCE_PLUGINHOST_VST3
+        fm.addFormat (new juce::VST3PluginFormat());
+       #endif
+       #if JUCE_PLUGINHOST_AU && JUCE_MAC
+        fm.addFormat (new juce::AudioUnitPluginFormat());
+       #endif
+    }
+}
+
+bool PluginHost::isScanChild (const juce::StringArray& args) { return args.contains ("--prv-scan"); }
+
+void PluginHost::runScanChild (const juce::StringArray& args)
+{
+    const int i = args.indexOf ("--prv-scan");
+    if (i < 0 || args.size() < i + 4) return;
+   #if JUCE_MAC
+    juce::Process::setDockIconVisible (false);
+   #endif
+    juce::AudioPluginFormatManager fm;
+    addFormats (fm);
+    juce::XmlElement root ("PRVSCAN");
+    for (auto* f : fm.getFormats())
+    {
+        if (f->getName() != args[i + 1]) continue;
+        juce::OwnedArray<juce::PluginDescription> found;
+        f->findAllTypesForFile (found, args[i + 2]);
+        for (auto* d : found) root.addChildElement (d->createXml().release());
+    }
+    root.writeTo (juce::File (args[i + 3]));
+}
+
 class ScanThread : public juce::Thread
 {
 public:
     explicit ScanThread (PluginHost& h) : juce::Thread ("Plug-in scan"), host (h) {}
+
+    void setStatus (const juce::String& s) { const juce::ScopedLock sl (host.statusLock); host.status = s; }
+
+    // looks at one plug-in file in a child copy of the app; false = it crashed, hung or failed
+    bool scanInChild (juce::AudioPluginFormat& format, const juce::String& file)
+    {
+        const auto exe = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+        const auto out = juce::File::getSpecialLocation (juce::File::tempDirectory).getNonexistentChildFile ("prv-scan", ".xml");
+        juce::ChildProcess child;
+        if (! child.start (juce::StringArray { exe.getFullPathName(), "--prv-scan", format.getName(), file, out.getFullPathName() }, 0))
+        {
+            DBG ("plug-in scan: couldn't start " << exe.getFullPathName());
+            return false;
+        }
+        // most plug-ins take well under a second; give slow ones (big libraries) a minute
+        for (int waited = 0; child.isRunning() && waited < 60000; waited += 50)
+        {
+            if (threadShouldExit()) { child.kill(); out.deleteFile(); return true; }
+            juce::Thread::sleep (50);
+        }
+        if (child.isRunning()) { DBG ("plug-in scan: timed out on " << file); child.kill(); out.deleteFile(); return false; }
+        auto xml = juce::parseXML (out);
+        out.deleteFile();
+        if (xml == nullptr) { DBG ("plug-in scan: no result for " << file << " (exit code " << (int) child.getExitCode() << ")"); return false; }
+        for (auto* e : xml->getChildIterator())
+        {
+            juce::PluginDescription d;
+            if (d.loadFromXml (*e)) host.known.addType (d);
+        }
+        return true;
+    }
+
     void run() override
     {
-        // a plug-in that crashes the scan is named in this file and skipped next time
-        const auto pedal = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                               .getChildFile ("Paula's Revenge").getChildFile ("scan-crash.txt");
-        pedal.getParentDirectory().createDirectory();
         for (auto* format : host.formats.getFormats())
         {
             if (threadShouldExit()) break;
-            juce::PluginDirectoryScanner scanner (host.known, *format, format->getDefaultLocationsToSearch(), true, pedal, true);
-            juce::String name;
-            int count = 0;
-            for (;;)
+            if (format->isTrivialToScan())
             {
-                if (threadShouldExit()) break;
-                const auto next = scanner.getNextPluginFileThatWillBeScanned();
-                {
-                    const juce::ScopedLock sl (host.statusLock);
-                    host.status = "SCANNING " + format->getName().toUpperCase() + " " + juce::String (juce::roundToInt (scanner.getProgress() * 100.0f))
-                                + "%: " + juce::File::createFileWithoutCheckingPath (next).getFileNameWithoutExtension().toUpperCase();
-                }
-                if (! scanner.scanNextFile (true, name)) break;
-                ++count;
+                // nothing to load (e.g. built-in formats): scan here
+                juce::PluginDirectoryScanner scanner (host.known, *format, format->getDefaultLocationsToSearch(), true, juce::File(), false);
+                juce::String name;
+                while (! threadShouldExit() && scanner.scanNextFile (true, name)) {}
+                continue;
             }
-            const juce::ScopedLock sl (host.statusLock);
-            host.failed.addArray (scanner.getFailedFiles());
+            const auto files = format->searchPathsForPlugins (format->getDefaultLocationsToSearch(), true, true);
+            const auto blacklisted = host.known.getBlacklistedFiles();
+            int n = 0;
+            for (const auto& file : files)
+            {
+                ++n;
+                if (threadShouldExit()) break;
+                if (blacklisted.contains (file) || host.known.isListingUpToDate (file, *format)) continue;
+                setStatus ("SCANNING " + format->getName().toUpperCase() + " " + juce::String (n) + " OF " + juce::String (files.size()) + ": "
+                           + juce::File::createFileWithoutCheckingPath (file).getFileNameWithoutExtension().toUpperCase());
+                if (! scanInChild (*format, file))
+                {
+                    host.known.addToBlacklist (file);   // skipped from now on (RESCAN tries again)
+                    const juce::ScopedLock sl (host.statusLock);
+                    host.failed.add (file);
+                }
+            }
         }
         host.scanning = false;
         juce::MessageManager::callAsync ([h = &host]
         {
             h->saveList();
-            { const juce::ScopedLock sl (h->statusLock); h->status = juce::String ((int) h->effects().size()) + " EFFECT PLUG-INS FOUND"; }
+            const int bad = h->failedFiles().size();
+            { const juce::ScopedLock sl (h->statusLock);
+              h->status = juce::String ((int) h->effects().size()) + " EFFECT PLUG-INS FOUND"
+                        + (bad > 0 ? ", " + juce::String (bad) + " SKIPPED (CRASHED OR DIDN'T LOAD)" : juce::String()); }
             if (h->onScanFinished) h->onScanFinished();
         });
     }
@@ -113,12 +191,7 @@ private:
 
 PluginHost::PluginHost()
 {
-   #if JUCE_PLUGINHOST_VST3
-    formats.addFormat (new juce::VST3PluginFormat());
-   #endif
-   #if JUCE_PLUGINHOST_AU && JUCE_MAC
-    formats.addFormat (new juce::AudioUnitPluginFormat());
-   #endif
+    addFormats (formats);
     if (auto xml = juce::parseXML (prefs().getValue ("knownPlugins")))
         known.recreateFromXml (*xml);
 }
@@ -143,6 +216,7 @@ void PluginHost::startScan()
     if (scanning) return;
     if (scanThread != nullptr) scanThread->stopThread (4000);
     { const juce::ScopedLock sl (statusLock); status = "SCANNING..."; failed.clear(); }
+    known.clearBlacklistedFiles();
     scanning = true;
     scanThread = std::make_unique<ScanThread> (*this);
     scanThread->startThread();

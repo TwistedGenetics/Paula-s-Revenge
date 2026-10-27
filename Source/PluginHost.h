@@ -69,6 +69,10 @@ public:
     std::function<void()> onScanFinished;       // (message thread)
     void saveList();
 
+    // the child copy of the app that looks at one plug-in file ("--prv-scan format file out.xml")
+    static bool isScanChild (const juce::StringArray& args);
+    static void runScanChild (const juce::StringArray& args);
+
     static std::string keyFor (const juce::PluginDescription& d) { return d.createIdentifierString().toStdString(); }
     bool findDescription (const std::string& key, juce::PluginDescription& out) const;
 

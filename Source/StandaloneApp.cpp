@@ -9,6 +9,7 @@
 #if JucePlugin_Build_Standalone && JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP
 
 #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#include "PluginHost.h"
 
 #if JUCE_MAC
  void prvToggleNativeFullScreen (void* nsView);   // Source/mac/FullScreen.mm
@@ -40,7 +41,8 @@ public:
 
     const juce::String getApplicationName() override    { return juce::CharPointer_UTF8 (JucePlugin_Name); }
     const juce::String getApplicationVersion() override { return JucePlugin_VersionString; }
-    bool moreThanOneInstanceAllowed() override          { return false; }
+    // (a plug-in scan runs in a second copy of the app)
+    bool moreThanOneInstanceAllowed() override          { return prv::PluginHost::isScanChild (getCommandLineParameterArray()); }
 
     // ---------------------------------------------------------------------
     class MainWindow final : public juce::DocumentWindow
@@ -81,6 +83,15 @@ public:
     // ---------------------------------------------------------------------
     void initialise (const juce::String&) override
     {
+        if (prv::PluginHost::isScanChild (getCommandLineParameterArray()))
+        {
+            // looking at one plug-in for the main app, then quit (no window, no audio)
+           #if JUCE_MAC
+            juce::Process::setDockIconVisible (false);
+           #endif
+            juce::MessageManager::callAsync ([] { prv::PluginHost::runScanChild (juce::JUCEApplicationBase::getCommandLineParameterArray()); juce::JUCEApplicationBase::quit(); });
+            return;
+        }
         holder = std::make_unique<juce::StandalonePluginHolder> (appProperties.getUserSettings(), false, juce::String(), nullptr,
                                                                  juce::Array<juce::StandalonePluginHolder::PluginInOuts>(), false);
         ensureStereoOutputs();
@@ -120,8 +131,9 @@ public:
         quit();
     }
 
-    void anotherInstanceStarted (const juce::String&) override
+    void anotherInstanceStarted (const juce::String& cmd) override
     {
+        if (cmd.contains ("--prv-scan")) return;
         if (window != nullptr) window->toFront (true);
     }
 

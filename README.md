@@ -348,7 +348,7 @@ Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For t
 
 Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
 
-* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the effect plug-ins on your Mac in the background (instruments are left out); **RESCAN** looks again after you install more. A plug-in that crashes while being looked at is skipped next time.
+* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the effect plug-ins on your Mac in the background (instruments are left out); **RESCAN** looks again after you install more. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
 * Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
 * The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
 * The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.
