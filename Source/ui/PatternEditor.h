@@ -16,7 +16,6 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
-    void paintOverChildren (juce::Graphics&) override;   // "PLAY LINE BELOW / ABOVE" while it's off the screen
     // the view's own scrolling (FOLLOW doesn't scroll it while playing): ▲ / ▼ a page, ● to the play line
     void scrollView (int lines);
     void showPlayLine();

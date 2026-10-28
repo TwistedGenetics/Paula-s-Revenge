@@ -97,22 +97,6 @@ void PatternEditor::placeArrows()
     viewPlayBtn.setBounds (x, (int) (top + h * 0.5f) - bh / 2, (int) aw, bh);
 }
 
-void PatternEditor::paintOverChildren (juce::Graphics& g)
-{
-    const int off = playLineOffScreen();
-    if (off == 0) return;
-    // where the play line is, while FOLLOW lets it run off the screen
-    const float px = Theme::px;
-    const juce::String t = juce::String::charToString ((juce::juce_wchar) (off > 0 ? 4 : 3)) + (off > 0 ? " PLAY LINE BELOW" : " PLAY LINE ABOVE");
-    const float w = PixelFont::textWidth (t, px) + px * 6, h = px * 11;
-    const float x = (float) getWidth() - arrowsW() - w - px * 2;
-    const float y = off > 0 ? headerH() + rowsArea() - h - px : headerH() + px;
-    auto r = juce::Rectangle<float> (x, y, w, h);
-    g.setColour (Theme::skin.hot);
-    g.fillRect (r);
-    PixelFont::drawCentred (g, t, r, px, juce::Colours::white);
-}
-
 void PatternEditor::scrollView (int lines)
 {
     const bool following = proc.player.isPlaying() && st.follow;
@@ -489,7 +473,7 @@ void PatternEditor::paint (juce::Graphics& g)
     if (st.editMode) g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
     else             g.drawRect (bounds, 1.0f);
 
-    if (hasKeyboardFocus (false) == false && playLineOffScreen() <= 0)   // (the "PLAY LINE BELOW" tag goes there)
+    if (hasKeyboardFocus (false) == false)
     {
         const float hp = std::max (1.5f, px * 0.75f);
         const juce::String hint = "CLICK HERE TO TYPE";
