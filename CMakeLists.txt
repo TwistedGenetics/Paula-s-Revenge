@@ -91,7 +91,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/StandaloneApp.cpp)
 
 if(APPLE)
-    target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm)
+    target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm Source/mac/DefaultOutput.cpp)
 endif()
 
 target_compile_definitions(PaulasRevenge PUBLIC

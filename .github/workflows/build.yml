@@ -25,7 +25,15 @@ jobs:
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 
       - name: Build
-        run: cmake --build build --config Release -j 4
+        run: |
+          set -o pipefail
+          cmake --build build --config Release -j 4 2>&1 | tee build.log
+
+      - name: Show compiler errors
+        if: failure()
+        run: |
+          # as annotations, so they can be read without the full log
+          grep -E "error:|Error [0-9]|undefined symbol" build.log | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
 
       - name: Engine tests
         run: ./build/prv_engine_test
