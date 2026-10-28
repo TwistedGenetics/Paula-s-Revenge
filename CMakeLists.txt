@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.17.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.18.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -95,6 +95,9 @@ target_sources(PaulasRevenge PRIVATE
 
 if(APPLE)
     target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm Source/mac/DefaultOutput.cpp)
+elseif(WIN32)
+    target_sources(PaulasRevenge PRIVATE Source/win/DefaultOutput.cpp)
+    target_link_libraries(PaulasRevenge PRIVATE ole32)
 endif()
 
 target_compile_definitions(PaulasRevenge PUBLIC
@@ -105,7 +108,9 @@ target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_REPORT_APP_USAGE=0
     JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP=1
     JUCE_PLUGINHOST_VST3=1
-    JUCE_PLUGINHOST_AU=1)
+    JUCE_PLUGINHOST_AU=$<IF:$<PLATFORM_ID:Darwin>,1,0>
+    JUCE_WASAPI=1
+    JUCE_DIRECTSOUND=1)
 
 # the README and the PDF manual, built in (the HELP page)
 juce_add_binary_data(PaulasRevengeDocs

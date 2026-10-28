@@ -1,4 +1,4 @@
-PAULA'S REVENGE - INSTALL (Mac, Apple Silicon or Intel)
+PAULA'S REVENGE - INSTALL (Mac, Apple Silicon or Intel)   (Windows: see INSTALL-Windows.txt)
 
 Copy Paula's Revenge.app -> /Applications/
 

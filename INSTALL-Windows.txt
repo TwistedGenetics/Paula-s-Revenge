@@ -1,0 +1,20 @@
+PAULA'S REVENGE - INSTALL (Windows 10 / 11, 64-bit)
+
+1. Unzip PaulasRevenge-Windows.zip somewhere you keep programs,
+   for example C:\Program Files\Paula's Revenge or your Documents folder.
+2. Double-click "Paula's Revenge.exe".
+
+The first time, Windows may show "Windows protected your PC": the app
+isn't code-signed yet. Click "More info", then "Run anyway". It only
+asks once.
+
+Audio and MIDI devices: File > Audio/MIDI Settings... (Ctrl+,).
+"Windows Audio" is the usual choice; File > Follow System Output makes
+the sound follow Windows when you plug in headphones.
+
+Shortcuts: everything the Mac does with Cmd, the PC does with Ctrl
+(Ctrl+S save, Ctrl+Z undo, Ctrl+R capture...). Full screen is F11.
+
+Plug-ins: VST3 instruments and effects (Audio Units are Mac-only).
+Settings and the global chord set are kept in
+%APPDATA%\Paula's Revenge.

@@ -1,4 +1,4 @@
-// Paula's Revenge - standalone app with a normal macOS window
+// Paula's Revenge - standalone app with a normal window (macOS and Windows)
 //
 // Replaces JUCE's default standalone wrapper so the app gets the standard
 // title bar: red = quit, yellow = minimise, green = full screen. It also adds
@@ -27,13 +27,13 @@ enum CommandIDs
     cmdCapture       = 0x2004
 };
 
-// the real audio system for FOLLOW MAC OUTPUT
+// the real audio system for FOLLOW SYSTEM OUTPUT
 class AppOutputSystem final : public prv::OutputSystem
 {
 public:
     AppOutputSystem (juce::StandalonePluginHolder& h) : holder (h) {}
 
-    juce::String systemDefaultOutput() override { return prv::macDefaultOutputName(); }
+    juce::String systemDefaultOutput() override { return prv::systemDefaultOutputName(); }
     juce::String currentOutput() override
     {
         auto* dev = holder.deviceManager.getCurrentAudioDevice();
@@ -148,7 +148,7 @@ public:
                                                                  juce::Array<juce::StandalonePluginHolder::PluginInOuts>(), false);
         ensureStereoOutputs();
 
-        // FOLLOW MAC OUTPUT: headphones in, AirPods on... the sound goes there too
+        // FOLLOW SYSTEM OUTPUT: headphones in, AirPods on... the sound goes there too
         outputSystem = std::make_unique<AppOutputSystem> (*holder);
         follower = std::make_unique<prv::OutputFollower> (*outputSystem);
         follower->enabled = appProperties.getUserSettings()->getBoolValue ("followMacOutput", true);
@@ -172,6 +172,10 @@ public:
         appleExtras.addCommandItem (&commands, cmdAudioSettings);
         appleExtras.addCommandItem (&commands, cmdFollowOutput);
         juce::MenuBarModel::setMacMainMenu (this, &appleExtras);
+       #else
+        // a menu bar in the window, in big type like the rest of the app
+        window->setLookAndFeel (&menuLook);
+        window->setMenuBar (this, 30);
        #endif
         setApplicationCommandManagerToWatch (&commands);
     }
@@ -184,6 +188,8 @@ public:
         outputSystem = nullptr;
        #if JUCE_MAC
         juce::MenuBarModel::setMacMainMenu (nullptr);
+       #else
+        if (window != nullptr) { window->setMenuBar (nullptr); window->setLookAndFeel (nullptr); }
        #endif
         if (holder != nullptr) holder->savePluginState();
         window = nullptr;
@@ -209,19 +215,29 @@ public:
     }
 
     // --------------------------------------------------------------- menus
+    // the Mac: the app menu (Audio/MIDI Settings, Follow, Quit) + View; a PC: File + View in the window
+   #if JUCE_MAC
     juce::StringArray getMenuBarNames() override { return { "View" }; }
+   #else
+    juce::StringArray getMenuBarNames() override { return { "File", "View" }; }
+   #endif
 
-    juce::PopupMenu getMenuForIndex (int, const juce::String&) override
+    juce::PopupMenu getMenuForIndex (int, const juce::String& name) override
     {
         juce::PopupMenu m;
+        if (name == "File")
+        {
+            m.addCommandItem (&commands, cmdAudioSettings);
+            m.addCommandItem (&commands, cmdFollowOutput);
+            m.addSeparator();
+            m.addCommandItem (&commands, juce::StandardApplicationCommandIDs::quit);
+            return m;
+        }
         m.addCommandItem (&commands, cmdCapture);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
+       #if JUCE_MAC
         m.addCommandItem (&commands, cmdFollowOutput);
-       #if ! JUCE_MAC
-        m.addCommandItem (&commands, cmdAudioSettings);
-        m.addSeparator();
-        m.addCommandItem (&commands, juce::StandardApplicationCommandIDs::quit);
        #endif
         return m;
     }
@@ -245,7 +261,11 @@ public:
         else if (id == cmdFullScreen)
         {
             info.setInfo ("Toggle Full Screen", "Switch the window in and out of full screen", "View", 0);
+           #if JUCE_MAC
             info.addDefaultKeypress ('f', juce::ModifierKeys::commandModifier | juce::ModifierKeys::ctrlModifier);
+           #else
+            info.addDefaultKeypress (juce::KeyPress::F11Key, juce::ModifierKeys());   // (Ctrl+F is FOLLOW)
+           #endif
         }
         else if (id == cmdCapture)
         {
@@ -254,7 +274,7 @@ public:
         }
         else if (id == cmdFollowOutput)
         {
-            info.setInfo ("Follow Mac Output (Headphones)", "Play through whatever output the Mac switches to", "General", 0);
+            info.setInfo ("Follow System Output (Headphones)", "Play through whatever output the computer switches to", "General", 0);
             info.setTicked (follower != nullptr && follower->enabled);
         }
         else JUCEApplication::getCommandInfo (id, info);
@@ -270,7 +290,7 @@ public:
             const bool on = ! follower->enabled;
             appProperties.getUserSettings()->setValue ("followMacOutput", on);
             follower->setEnabled (on);
-            if (auto* ed = editor()) ed->setStatus (on ? "FOLLOW MAC OUTPUT ON" : "FOLLOW MAC OUTPUT OFF - STAYING ON " + outputSystem->currentOutput());
+            if (auto* ed = editor()) ed->setStatus (on ? "FOLLOW SYSTEM OUTPUT ON" : "FOLLOW SYSTEM OUTPUT OFF - STAYING ON " + outputSystem->currentOutput().toUpperCase());
             commands.commandStatusChanged();
             return true;
         }
@@ -278,6 +298,33 @@ public:
     }
 
 private:
+    // the menu bar and its menus in a large, clear font (a PC: the menus are in the window)
+    struct MenuLook final : public juce::LookAndFeel_V4
+    {
+        MenuLook()
+        {
+            setColour (juce::PopupMenu::backgroundColourId, juce::Colours::white);
+            setColour (juce::PopupMenu::textColourId, juce::Colours::black);
+            setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff1a1a1a));
+            setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+        }
+        juce::Font getMenuBarFont (juce::MenuBarComponent&, int, const juce::String&) override { return juce::Font (juce::FontOptions (20.0f, juce::Font::bold)); }
+        juce::Font getPopupMenuFont() override { return juce::Font (juce::FontOptions (20.0f)); }
+        void drawMenuBarBackground (juce::Graphics& g, int w, int h, bool, juce::MenuBarComponent&) override
+        {
+            g.fillAll (juce::Colours::white);
+            g.setColour (juce::Colours::black);
+            g.fillRect (0, h - 1, w, 1);
+        }
+        void drawMenuBarItem (juce::Graphics& g, int w, int h, int, const juce::String& text, bool over, bool open, bool, juce::MenuBarComponent& bar) override
+        {
+            if (over || open) { g.fillAll (juce::Colour (0xff1a1a1a)); g.setColour (juce::Colours::white); }
+            else g.setColour (juce::Colours::black);
+            g.setFont (getMenuBarFont (bar, 0, text));
+            g.drawFittedText (text, 0, 0, w, h, juce::Justification::centred, 1);
+        }
+    };
+    MenuLook menuLook;
     juce::ApplicationProperties appProperties;
     std::unique_ptr<juce::StandalonePluginHolder> holder;
     std::unique_ptr<MainWindow> window;
@@ -296,7 +343,7 @@ private:
         follower->deviceChanged();
         juce::MessageManager::callAsync ([this] { if (follower != nullptr) follower->check(); });
     }
-    // macOS can switch its output at any time: look twice a second (a cheap CoreAudio query)
+    // the system can switch its output at any time: look twice a second (a cheap query)
     void timerCallback() override { if (follower != nullptr) follower->check(); }
 
     void toggleFullScreen()

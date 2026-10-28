@@ -64,19 +64,78 @@ jobs:
           name: PaulasRevenge-macOS
           path: PaulasRevenge-macOS.zip
 
-      # Every green build of main becomes a downloadable Release
-      # (repo front page -> Releases), so there's no digging in Actions.
+  windows:
+    name: Windows x64 (standalone app)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache JUCE download
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.4-${{ runner.os }}
+
+      - name: Configure
+        # the C++ runtime built in (MultiThreaded): no Visual C++ redistributable needed on the PC
+        run: cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cmake --build build --config Release -- -m:4 -v:m 2>&1 | tee build.log
+
+      - name: Show compiler errors
+        if: failure()
+        run: |
+          grep -E ": (fatal )?error [A-Z]+[0-9]+|error LNK|unresolved external" build.log | sort -u | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
+
+      - name: Engine tests
+        run: ./build/Release/prv_engine_test.exe
+
+      - name: Package
+        run: |
+          ART="build/PaulasRevenge_artefacts/Release/Standalone"
+          test -f "$ART/Paula's Revenge.exe"
+          mkdir -p "dist/Paula's Revenge"
+          cp "$ART/Paula's Revenge.exe" "dist/Paula's Revenge/"
+          cp INSTALL-Windows.txt "dist/Paula's Revenge/INSTALL.txt"
+          cd dist && 7z a -tzip ../PaulasRevenge-Windows.zip "Paula's Revenge" > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PaulasRevenge-Windows
+          path: PaulasRevenge-Windows.zip
+
+  # Every green build of main becomes one downloadable Release with both
+  # (repo front page -> Releases), so there's no digging in Actions.
+  release:
+    name: Release (Mac + Windows)
+    needs: [macos, windows]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Publish release
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(sed -n 's/^project(PaulasRevenge VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           TAG="v${VERSION}-build.${{ github.run_number }}"
-          gh release create "$TAG" PaulasRevenge-macOS.zip \
+          gh release create "$TAG" dist/PaulasRevenge-macOS.zip dist/PaulasRevenge-Windows.zip \
             --target "${{ github.sha }}" \
             --title "Paula's Revenge ${VERSION} (build ${{ github.run_number }})" \
             --latest \
             --notes "$(git log -1 --pretty=%B)
 
-          Install: unzip, then follow INSTALL.txt (app into Applications, clear quarantine)."
+          Mac: unzip, then follow INSTALL.txt (app into Applications, clear quarantine).
+          Windows: unzip, run Paula's Revenge.exe (first time: More info -> Run anyway). See INSTALL.txt inside."
