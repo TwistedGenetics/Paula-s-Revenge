@@ -360,6 +360,22 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         scopeFifo.write (space).forEach ([&] (int idx) { scopeBuf[idx] = 0.5f * (l[k] + r[k]); ++k; });
     }
 
+    // a short fade (switching the output device): no clicks
+    {
+        const float target = outputGainTarget.load (std::memory_order_relaxed);
+        if (outputGain != target || target < 1.0f)
+        {
+            const float step = (float) (1.0 / (0.010 * std::max (1.0, currentRate)));   // 10 ms
+            float* l = scratchL.get();
+            float* r = scratchR.get();
+            for (int i = 0; i < n; ++i)
+            {
+                outputGain = target > outputGain ? std::min (target, outputGain + step) : std::max (target, outputGain - step);
+                l[i] *= outputGain; r[i] *= outputGain;
+            }
+        }
+    }
+
     if (buffer.getNumChannels() >= 2)
     {
         buffer.copyFrom (0, 0, scratchL.get(), n);

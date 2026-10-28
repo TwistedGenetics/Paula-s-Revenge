@@ -10,6 +10,8 @@
 
 #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
 #include "PluginHost.h"
+#include "PluginEditor.h"
+#include "OutputFollower.h"
 
 #if JUCE_MAC
  void prvToggleNativeFullScreen (void* nsView);   // Source/mac/FullScreen.mm
@@ -20,11 +22,60 @@ namespace
 enum CommandIDs
 {
     cmdAudioSettings = 0x2001,
-    cmdFullScreen    = 0x2002
+    cmdFullScreen    = 0x2002,
+    cmdFollowOutput  = 0x2003
+};
+
+// the real audio system for FOLLOW MAC OUTPUT
+class AppOutputSystem final : public prv::OutputSystem
+{
+public:
+    AppOutputSystem (juce::StandalonePluginHolder& h) : holder (h) {}
+
+    juce::String systemDefaultOutput() override { return prv::macDefaultOutputName(); }
+    juce::String currentOutput() override
+    {
+        auto* dev = holder.deviceManager.getCurrentAudioDevice();
+        return dev != nullptr ? holder.deviceManager.getAudioDeviceSetup().outputDeviceName : juce::String();
+    }
+    juce::StringArray outputs() override
+    {
+        auto* type = holder.deviceManager.getCurrentDeviceTypeObject();
+        return type != nullptr ? type->getDeviceNames (false) : juce::StringArray();
+    }
+    bool switchTo (const juce::String& name) override
+    {
+        auto& dm = holder.deviceManager;
+        auto* proc = dynamic_cast<PaulaProcessor*> (holder.processor.get());
+        const bool running = dm.getCurrentAudioDevice() != nullptr && dm.getCurrentAudioDevice()->isPlaying();
+        // fade out (10 ms), switch, fade back in: no clicks
+        if (proc != nullptr && running) { proc->outputGainTarget = 0.0f; juce::Thread::sleep (25); }
+        auto setup = dm.getAudioDeviceSetup();
+        setup.outputDeviceName = name;
+        setup.useDefaultOutputChannels = false;
+        setup.outputChannels.clear();
+        setup.outputChannels.setRange (0, 2, true);   // stereo 1+2 (a mono device just gets its one)
+        auto err = dm.setAudioDeviceSetup (setup, true);
+        if (err.isNotEmpty())
+        {
+            // its own sample rate / buffer size, if ours aren't possible
+            setup.sampleRate = 0; setup.bufferSize = 0;
+            err = dm.setAudioDeviceSetup (setup, true);
+        }
+        if (proc != nullptr) proc->outputGainTarget = 1.0f;
+        if (err.isNotEmpty() || dm.getCurrentAudioDevice() == nullptr) return false;
+        holder.saveAudioDeviceState();
+        return true;
+    }
+
+private:
+    juce::StandalonePluginHolder& holder;
 };
 
 class PaulaApp final : public juce::JUCEApplication,
-                       public juce::MenuBarModel
+                       public juce::MenuBarModel,
+                       private juce::ChangeListener,
+                       private juce::Timer
 {
 public:
     PaulaApp()
@@ -96,6 +147,20 @@ public:
                                                                  juce::Array<juce::StandalonePluginHolder::PluginInOuts>(), false);
         ensureStereoOutputs();
 
+        // FOLLOW MAC OUTPUT: headphones in, AirPods on... the sound goes there too
+        outputSystem = std::make_unique<AppOutputSystem> (*holder);
+        follower = std::make_unique<prv::OutputFollower> (*outputSystem);
+        follower->enabled = appProperties.getUserSettings()->getBoolValue ("followMacOutput", true);
+        follower->onStatus = [this] (const juce::String& m) { if (auto* ed = editor()) ed->setStatus (m); };
+        follower->onEnabledChanged = [this] (bool on)
+        {
+            appProperties.getUserSettings()->setValue ("followMacOutput", on);
+            commands.commandStatusChanged();
+        };
+        follower->check();
+        holder->deviceManager.addChangeListener (this);
+        startTimer (500);
+
         commands.registerAllCommandsForTarget (this);
         window = std::make_unique<MainWindow> (getApplicationName(), *holder->processor, appProperties.getUserSettings());
         window->addKeyListener (commands.getKeyMappings());
@@ -104,6 +169,7 @@ public:
        #if JUCE_MAC
         juce::PopupMenu appleExtras;
         appleExtras.addCommandItem (&commands, cmdAudioSettings);
+        appleExtras.addCommandItem (&commands, cmdFollowOutput);
         juce::MenuBarModel::setMacMainMenu (this, &appleExtras);
        #endif
         setApplicationCommandManagerToWatch (&commands);
@@ -111,6 +177,10 @@ public:
 
     void shutdown() override
     {
+        stopTimer();
+        if (holder != nullptr) holder->deviceManager.removeChangeListener (this);
+        follower = nullptr;
+        outputSystem = nullptr;
        #if JUCE_MAC
         juce::MenuBarModel::setMacMainMenu (nullptr);
        #endif
@@ -144,6 +214,7 @@ public:
     {
         juce::PopupMenu m;
         m.addCommandItem (&commands, cmdFullScreen);
+        m.addCommandItem (&commands, cmdFollowOutput);
        #if ! JUCE_MAC
         m.addCommandItem (&commands, cmdAudioSettings);
         m.addSeparator();
@@ -158,7 +229,7 @@ public:
     void getAllCommands (juce::Array<juce::CommandID>& c) override
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
-        c.addArray ({ cmdAudioSettings, cmdFullScreen });
+        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -173,6 +244,11 @@ public:
             info.setInfo ("Toggle Full Screen", "Switch the window in and out of full screen", "View", 0);
             info.addDefaultKeypress ('f', juce::ModifierKeys::commandModifier | juce::ModifierKeys::ctrlModifier);
         }
+        else if (id == cmdFollowOutput)
+        {
+            info.setInfo ("Follow Mac Output (Headphones)", "Play through whatever output the Mac switches to", "General", 0);
+            info.setTicked (follower != nullptr && follower->enabled);
+        }
         else JUCEApplication::getCommandInfo (id, info);
     }
 
@@ -180,6 +256,15 @@ public:
     {
         if (info.commandID == cmdAudioSettings) { if (holder != nullptr) holder->showAudioSettingsDialog(); return true; }
         if (info.commandID == cmdFullScreen)    { toggleFullScreen(); return true; }
+        if (info.commandID == cmdFollowOutput && follower != nullptr)
+        {
+            const bool on = ! follower->enabled;
+            appProperties.getUserSettings()->setValue ("followMacOutput", on);
+            follower->setEnabled (on);
+            if (auto* ed = editor()) ed->setStatus (on ? "FOLLOW MAC OUTPUT ON" : "FOLLOW MAC OUTPUT OFF - STAYING ON " + outputSystem->currentOutput());
+            commands.commandStatusChanged();
+            return true;
+        }
         return JUCEApplication::perform (info);
     }
 
@@ -188,6 +273,22 @@ private:
     std::unique_ptr<juce::StandalonePluginHolder> holder;
     std::unique_ptr<MainWindow> window;
     juce::ApplicationCommandManager commands;
+    std::unique_ptr<AppOutputSystem> outputSystem;
+    std::unique_ptr<prv::OutputFollower> follower;
+
+    PaulaEditor* editor() const
+    {
+        return window != nullptr ? dynamic_cast<PaulaEditor*> (window->getContentComponent()) : nullptr;
+    }
+    // the device changed (the settings window, a device going away...)
+    void changeListenerCallback (juce::ChangeBroadcaster*) override
+    {
+        if (follower == nullptr) return;
+        follower->deviceChanged();
+        juce::MessageManager::callAsync ([this] { if (follower != nullptr) follower->check(); });
+    }
+    // macOS can switch its output at any time: look twice a second (a cheap CoreAudio query)
+    void timerCallback() override { if (follower != nullptr) follower->check(); }
 
     void toggleFullScreen()
     {

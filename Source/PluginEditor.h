@@ -51,11 +51,11 @@ public:
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
     bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
     bool saveSongDirect();
+    void setStatus (const juce::String&);           // the status line (also the app: output changes)
 
 private:
     void timerCallback() override;
     void refreshAll();
-    void setStatus (const juce::String&);
     void applyOptions();
 
     void newSong();

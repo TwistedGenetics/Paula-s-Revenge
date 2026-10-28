@@ -155,6 +155,10 @@ private:
     std::map<int, int> heldKeys;   // key code -> jam note
     float vu[prv::kMaxTracks] {};
     int lastDrawnLine = -1, lastDrawnBlock = -1;
+    int lastPlayLine = -1, lastPlayBlock = -1;   // (the play-line marker as last drawn)
+public:
+    int repaintsAsked = 0;                       // (tests)
+private:
 
     // geometry
     int visibleTracks() const;

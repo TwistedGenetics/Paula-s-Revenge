@@ -80,7 +80,10 @@ public:
 
     // Replace the whole song (loading). Stops playback.
     void replaceSong (prv::Song&& newSong);   // (a song without its own chord table gets the global set)
-    prv::ChordTable globalChords = prv::loadGlobalChords();   // CHORDS: every new song starts with a copy
+    prv::ChordTable globalChords = prv::loadGlobalChords();
+    // output fade (0..1): the standalone app fades out, switches the output device, fades back in
+    std::atomic<float> outputGainTarget { 1.0f };
+    float outputGain = 1.0f;                                    // (audio thread)   // CHORDS: every new song starts with a copy
     juce::String chordReport (const prv::Song&) const;          // after loading: how its chords compare with the global set
     bool isRunningStandalone() const { return true; }   // v0.8: the app is standalone only
 

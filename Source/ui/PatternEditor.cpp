@@ -429,7 +429,15 @@ void PatternEditor::tick()
     if (proc.player.isPlaying() && st.follow) updateView (true);
     if (viewTop != oldTop) dirty = true;
 
-    if (dirty || st.line != lastDrawnLine || st.block != lastDrawnBlock) repaint();
+    // the play-line marker: redraw whenever the playing line moves (with FOLLOW off, or on
+    // silent tracks, nothing else would - the marker looked stuck while the song played on)
+    const bool playingNow = proc.player.isPlaying();
+    const int playBlockNow = playingNow ? proc.player.uiBlock.load() : -1;
+    const int playLineNow  = playingNow ? proc.player.uiLine.load() : -1;
+    if (playBlockNow != lastPlayBlock || playLineNow != lastPlayLine) dirty = true;
+    lastPlayBlock = playBlockNow; lastPlayLine = playLineNow;
+
+    if (dirty || st.line != lastDrawnLine || st.block != lastDrawnBlock) { repaint(); ++repaintsAsked; }
     lastDrawnLine = st.line; lastDrawnBlock = st.block;
 }
 

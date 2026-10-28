@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.13.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.13.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,6 +85,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/HelpPage.cpp
     Source/ui/ChordsPage.cpp
     Source/ui/ChordPicker.cpp
+    Source/OutputFollower.cpp
     Source/PluginHost.cpp
     Source/MidiOutHost.cpp
     Source/StandaloneApp.cpp)

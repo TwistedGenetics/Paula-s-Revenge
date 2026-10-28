@@ -170,6 +170,8 @@ Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, ste
 
 The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The menus have **Audio/MIDI Settings…** (`Cmd+,`), **Toggle Full Screen** (`Ctrl+Cmd+F`) and **Quit** (`Cmd+Q`). The app remembers its window size and position.
 
+**Headphones (FOLLOW MAC OUTPUT):** the app plays through whatever output your Mac is using, and moves with it: plug in headphones, connect AirPods or another Bluetooth set, or plug in a USB interface that the Mac switches to, and the sound goes there straight away (with a quick fade, so no click); unplug them and it goes back. The status line says where the sound went (`OUTPUT: EXTERNAL HEADPHONES`). It keeps your sample rate and buffer size when the new output can do them. **Follow Mac Output (Headphones)** in the app menu (next to Audio/MIDI Settings) turns it on and off; it's on to start with. Choosing a different device by hand in Audio/MIDI Settings (an audio interface you always want, say) turns it off, so your choice stays — the status line says so.
+
 ## Sample browser
 
 LOAD in the instrument panel opens a browser in place of the pattern. Every sample you highlight **plays straight away** (turn AUTO PLAY off to stop that), with its rate, length, mono/stereo and a waveform shown underneath.
