@@ -80,8 +80,11 @@ jobs:
           key: juce-8.0.4-${{ runner.os }}
 
       - name: Configure
-        # the C++ runtime built in (MultiThreaded): no Visual C++ redistributable needed on the PC
-        run: cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        # the newest Visual Studio on the runner; the C++ runtime built in (MultiThreaded):
+        # no Visual C++ redistributable needed on the PC
+        run: |
+          set -o pipefail
+          cmake -B build -S . -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded 2>&1 | tee configure.log
 
       - name: Build
         run: |
@@ -91,7 +94,9 @@ jobs:
       - name: Show compiler errors
         if: failure()
         run: |
-          grep -E ": (fatal )?error [A-Z]+[0-9]+|error LNK|unresolved external" build.log | sort -u | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
+          grep -A4 "CMake Error" configure.log 2>/dev/null | head -30 | while IFS= read -r line; do echo "::error::${line}"; done
+          grep -E ": (fatal )?error [A-Z]+[0-9]+|error LNK|unresolved external" build.log 2>/dev/null | sort -u | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
+          true
 
       - name: Engine tests
         run: ./build/Release/prv_engine_test.exe
