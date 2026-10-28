@@ -23,6 +23,12 @@ PatternEditor::PatternEditor (PaulaProcessor& p) : proc (p), st (p.editorState)
     setWantsKeyboardFocus (true);
     setOpaque (true);
     wheel.stepsPerUnit = 12.0f;
+    // ▲ ● ▼: the view a page up / down (held: on and on), ● to the play line
+    viewUpBtn.onClick = [this] { scrollView (-std::max (1, fullRows() - 2)); };
+    viewDownBtn.onClick = [this] { scrollView (std::max (1, fullRows() - 2)); };
+    viewPlayBtn.onClick = [this] { showPlayLine(); };
+    for (auto* b : { &viewUpBtn, &viewDownBtn }) { b->setRepeatSpeed (400, 120); }
+    for (auto* b : { &viewUpBtn, &viewPlayBtn, &viewDownBtn }) { b->setWantsKeyboardFocus (false); b->setMouseClickGrabsKeyboardFocus (false); addAndMakeVisible (*b); }
     edgeScroll.onStep = [this] (int dir)
     {
         if (proc.player.isPlaying() && st.follow) return;
@@ -45,16 +51,13 @@ void PatternEditor::updateView (bool fromTick)
     const float maxTop = (float) std::max (0, lines - full);
     const int blk = proc.song.safeBlock (st.block);
     const bool following = proc.player.isPlaying() && st.follow;
+    juce::ignoreUnused (fromTick);
     if (following)
     {
-        // playback glides through the view, the playing line about 40% down
-        const float target = juce::jlimit (0.0f, maxTop, (float) (st.line - (int) std::floor (full * 0.4f)));
-        if (blk != viewBlock || std::abs (target - viewTop) > (float) full) viewTop = target;
-        else if (fromTick)
-        {
-            viewTop += (target - viewTop) * 0.35f;
-            if (std::abs (target - viewTop) < 0.02f) viewTop = target;
-        }
+        // FOLLOW moves the cursor with playback, but the view stays where it is: the play line can
+        // go off the screen until you scroll (wheel, ▲ / ▼, ● for the play line). A new block
+        // starts at its top.
+        viewTop = blk != viewBlock ? 0.0f : std::round (viewTop);
     }
     else
     {
@@ -71,6 +74,75 @@ void PatternEditor::updateView (bool fromTick)
     viewLine = st.line;
     viewBlock = blk;
     viewFull = full;
+}
+
+void PatternEditor::resized()
+{
+    updateView (false);
+    if (picker != nullptr && picker->isVisible()) placePicker (*picker);
+    if (chordPicker != nullptr && chordPicker->isVisible()) placePicker (*chordPicker);
+    placeArrows();
+}
+
+void PatternEditor::placeArrows()
+{
+    // the ▲ ● ▼ column at the right of the rows
+    const float aw = arrowsW();
+    const float top = headerH();
+    const float h = std::max (aw, rowsArea());
+    const int x = (int) ((float) getWidth() - aw);
+    const int bh = (int) std::min (aw * 1.6f, h / 3.0f);
+    viewUpBtn.setBounds (x, (int) top, (int) aw, bh);
+    viewDownBtn.setBounds (x, (int) (top + h) - bh, (int) aw, bh);
+    viewPlayBtn.setBounds (x, (int) (top + h * 0.5f) - bh / 2, (int) aw, bh);
+}
+
+void PatternEditor::paintOverChildren (juce::Graphics& g)
+{
+    const int off = playLineOffScreen();
+    if (off == 0) return;
+    // where the play line is, while FOLLOW lets it run off the screen
+    const float px = Theme::px;
+    const juce::String t = juce::String::charToString ((juce::juce_wchar) (off > 0 ? 4 : 3)) + (off > 0 ? " PLAY LINE BELOW" : " PLAY LINE ABOVE");
+    const float w = PixelFont::textWidth (t, px) + px * 6, h = px * 11;
+    const float x = (float) getWidth() - arrowsW() - w - px * 2;
+    const float y = off > 0 ? headerH() + rowsArea() - h - px : headerH() + px;
+    auto r = juce::Rectangle<float> (x, y, w, h);
+    g.setColour (Theme::skin.hot);
+    g.fillRect (r);
+    PixelFont::drawCentred (g, t, r, px, juce::Colours::white);
+}
+
+void PatternEditor::scrollView (int lines)
+{
+    const bool following = proc.player.isPlaying() && st.follow;
+    if (! following)
+    {
+        // stopped: the cursor goes with it (the view follows the cursor)
+        wantMargin = true;
+        moveLine (juce::jlimit (-st.line, blockLines() - 1 - st.line, lines));
+        return;
+    }
+    const float maxTop = (float) std::max (0, blockLines() - fullRows());
+    viewTop = juce::jlimit (0.0f, maxTop, std::round (viewTop) + (float) lines);
+    repaint();
+}
+
+void PatternEditor::showPlayLine()
+{
+    const int line = proc.player.isPlaying() ? proc.player.uiLine.load() : st.line;
+    const float maxTop = (float) std::max (0, blockLines() - fullRows());
+    viewTop = juce::jlimit (0.0f, maxTop, (float) (line - (int) std::floor (fullRows() * 0.4f)));
+    repaint();
+}
+
+int PatternEditor::playLineOffScreen() const
+{
+    if (! proc.player.isPlaying()) return 0;
+    const int line = proc.player.uiLine.load();
+    if ((float) line < viewTop) return -1;
+    if ((float) line >= viewTop + (float) fullRows()) return 1;
+    return 0;
 }
 
 // ---------------------------------------------------------------- VU colour (MeterColours.h)
@@ -112,7 +184,7 @@ float PatternEditor::fontPx() const
 {
     const int chars = kLineNumChars + visibleTracks() * trackChars();
     const float maxPx = Theme::px * 1.5f;
-    return PixelFont::fitPx (chars, (float) getWidth() - 8.0f, maxPx);
+    return PixelFont::fitPx (chars, (float) getWidth() - 8.0f - arrowsW(), maxPx);
 }
 
 float PatternEditor::helpHeight() const { return st.column >= 3 ? Theme::px * 12 : 0.0f; }
@@ -417,12 +489,12 @@ void PatternEditor::paint (juce::Graphics& g)
     if (st.editMode) g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
     else             g.drawRect (bounds, 1.0f);
 
-    if (hasKeyboardFocus (false) == false)
+    if (hasKeyboardFocus (false) == false && playLineOffScreen() <= 0)   // (the "PLAY LINE BELOW" tag goes there)
     {
         const float hp = std::max (1.5f, px * 0.75f);
         const juce::String hint = "CLICK HERE TO TYPE";
         auto box = juce::Rectangle<float> (PixelFont::textWidth (hint, hp) + hp * 4, hp * 11)
-                       .withPosition (bounds.getRight() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - helpHeight() - hp * 14);
+                       .withPosition (bounds.getRight() - arrowsW() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - helpHeight() - hp * 14);
         g.setColour (Theme::panel);
         g.fillRect (box);
         Theme::bevel (g, box, true, 1.0f);
@@ -433,6 +505,7 @@ void PatternEditor::paint (juce::Graphics& g)
 // ---------------------------------------------------------------- refresh
 void PatternEditor::tick()
 {
+    placeArrows();   // (the ▲ ● ▼ column follows the header's size: 4 / 8 tracks, text size)
     bool dirty = false;
     for (int t = 0; t < kMaxTracks; ++t)
     {
@@ -1096,7 +1169,12 @@ void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
 
 void PatternEditor::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
 {
-    if (proc.player.isPlaying() && st.follow) return;
+    if (proc.player.isPlaying() && st.follow)
+    {
+        // following: the wheel scrolls the view (the cursor goes on with playback)
+        if (const int d = wheel (w); d != 0) scrollView (d * 3);
+        return;
+    }
     // one line per wheel notch; trackpad swipes are scaled down. No wrap-around.
     const int d = wheel (w);
     if (d == 0) return;
@@ -1175,6 +1253,20 @@ void PatternEditor::recordNote (int note, double timeMs)
 {
     note = juce::jlimit (1, (int) kNoteMax, note);
     const int blk = proc.song.safeBlock (st.block);
+    // recording while playing: an OFF just written on this track, on this line (or just before) -
+    // the new note ends the old one anyway, and the OFF would only overlap it, so it goes (step
+    // entry's OFFs are asked for, and stay)
+    if (st.track >= 0 && st.track < kMaxTracks)
+    {
+        auto& lo = lastOff[st.track];
+        // (the line before counts when the key went down less than half a line after the other was let go)
+        const double lineMs = 2500.0 / std::max (1, proc.player.uiTempo.load()) * std::max (1, proc.player.uiSpeed.load());
+        const bool close = lo.line == st.line || (lo.line == st.line - 1 && timeMs - lo.ms < lineMs * 0.5);
+        if (proc.player.isPlaying() && lo.block == blk && close && lo.line >= 0 && lo.line < proc.song.blocks[(size_t) blk].lines
+            && proc.song.blocks[(size_t) blk].at (lo.line, st.track).note == kNoteOff)
+            proc.withLock ([&] { auto& c = proc.song.blocks[(size_t) blk].at (lo.line, st.track); c.note = 0; c.instr = 0; });
+        lo = {};
+    }
     const bool plugIn = st.instrument >= 0 && st.instrument < kMaxInstruments && proc.song.instruments[(size_t) st.instrument].isPlugin();
     auto& g = chordGroup;
     // another note of a chord being played?
@@ -1605,8 +1697,14 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
 
 void PatternEditor::noteRecorded (int note, int group)
 {
-    held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument, group };
+    // (a chord's notes share one serial: the newest note on a track is the one its OFF may end)
+    const int serial = group != 0 ? -group : ++noteSerial;
+    if (st.track >= 0 && st.track < kMaxTracks) trackSerial[st.track] = serial;
+    held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument, group, serial };
 }
+
+bool PatternEditor::recordNoteOffs()          { return prv::prefs().getBoolValue ("recordNoteOffs", true); }
+void PatternEditor::setRecordNoteOffs (bool on) { prv::prefs().setValue ("recordNoteOffs", on); }
 
 void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
 {
@@ -1623,6 +1721,9 @@ void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
         for (const auto& kv : held) if (kv.second.group == h.group) return;
     if (! st.editMode || h.instrument < 0 || h.instrument >= kMaxInstruments) return;
     if (! proc.song.instruments[(size_t) h.instrument].isPlugin()) return;   // (samples play out by themselves)
+    if (! recordNoteOffs()) return;                                          // (NOTE-OFFS switched off)
+    // a newer note on the track already ends this one (legato): an OFF now would cut the new note
+    if (h.track < 0 || h.track >= kMaxTracks || trackSerial[h.track] != h.serial) return;
     int blk = h.block, line = -1;
     if (pos.playing)
     {
@@ -1646,6 +1747,7 @@ void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
         auto& c = proc.song.blocks[(size_t) blk].at (line, h.track);
         c.note = kNoteOff; c.instr = 0;
     });
+    lastOff[h.track] = { blk, line, juce::Time::getMillisecondCounterHiRes() };
     if (! pos.playing && blk == proc.song.safeBlock (st.block) && line == st.line) advance();
     changed();
 }

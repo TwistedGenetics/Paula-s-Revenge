@@ -40,6 +40,7 @@ PaulaProcessor::PaulaProcessor()
 {
     addStarterInstruments (song);
     song.chords = globalChords;
+    fullVelocity = prv::prefs().getBoolValue ("fullVelocity", false);
     player.setSong (&song);
     player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
@@ -381,8 +382,9 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         else if (msg.isNoteOn())
         {
             const int note = juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23); // MIDI 60 -> C-3
-            player.jamNoteOn (note, jamInstrument.load(), msg.getVelocity(), jamRangeStart.load(), jamRangeEnd.load(), jamRangeLoop.load());
-            pushMidiInput (note, true, msg.getVelocity(), meta.samplePosition);
+            const int vel = fullVelocity.load (std::memory_order_relaxed) ? 127 : (int) msg.getVelocity();
+            player.jamNoteOn (note, jamInstrument.load(), vel, jamRangeStart.load(), jamRangeEnd.load(), jamRangeLoop.load());
+            pushMidiInput (note, true, vel, meta.samplePosition);
         }
         else if (msg.isNoteOff())
         {
@@ -537,4 +539,10 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new PaulaProcessor();
+}
+
+void PaulaProcessor::setFullVelocity (bool on)
+{
+    fullVelocity = on;
+    prv::prefs().setValue ("fullVelocity", on);
 }

@@ -32,6 +32,11 @@ void MixerSettings::initReturns()
 FxSlot& MixerSettings::slot (int i)
 {
     if (i < kTrackSlots) return ch[i / kInserts].inserts[i % kInserts];
+    if (i >= kMixerSlots)
+    {
+        const int j = std::min (i - kMixerSlots, kInstrumentSlots - 1);
+        return inst[j / kInserts][j % kInserts];
+    }
     i -= kTrackSlots;
     if (i < kReturnSlots) return ret[i / kInserts].inserts[i % kInserts];
     return master.inserts[std::clamp (i - kReturnSlots, 0, kInserts - 1)];
@@ -49,6 +54,7 @@ bool MixerSettings::isFlat() const
     }
     if (master.volumeDb != 0.0f) return false;
     for (const auto& s : master.inserts) if (s.active()) return false;
+    for (int i = 0; i < kMixInstruments; ++i) if (instrumentChain (i)) return false;
     return true;   // (returns only hear what's sent to them)
 }
 

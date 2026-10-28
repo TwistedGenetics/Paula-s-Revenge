@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "InstrumentFx.h"
 
 namespace prv::ui
 {
@@ -15,6 +16,7 @@ public:
 
     std::function<void()> onClose, onChanged, onUsePlugin;   // onUsePlugin: PLUG-IN / MIDI OUT...
     std::function<void (const juce::String&)> onStatus;
+    std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
 
     void refresh();     // load the current instrument's values into the controls
     void tick();
@@ -32,6 +34,7 @@ public:
 
 private:
     PaulaProcessor& proc;
+    InstrumentFxRow fxRow { proc };   // the instrument's own effects (after proc: it uses it)
     int shownInstrument = -1;
 
     PixButton envOnBtn { "VOL ENVELOPE", true };

@@ -255,7 +255,7 @@ private:
     // plug-in instruments
     SynthRack rack;
     int  chunkPos = 0;                          // sample offset of events inside the current chunk
-    int  synthTrack[kMaxInstruments] {};        // AUTO output: the lowest track that's played it
+    int  synthTrack[kMaxInstruments] {};        // the track that played the instrument's latest note (AUTO output; its inserts' output)
     struct JamSynth { int note = -1, instr = -1, midi = -1; };
     JamSynth jamSynth[16];
     float synthL[MixerEngine::kMaxBlock] {}, synthR[MixerEngine::kMaxBlock] {};
@@ -297,6 +297,9 @@ private:
     MixerEngine mixerEngine;
     float trkL[kMaxTracks][MixerEngine::kMaxBlock] {}, trkR[kMaxTracks][MixerEngine::kMaxBlock] {};
     float jamL[MixerEngine::kMaxBlock] {}, jamR[MixerEngine::kMaxBlock] {};
+    // instruments with their own inserts: their audio is gathered here, through the inserts, then to a track
+    float instL[kMaxInstruments][MixerEngine::kMaxBlock] {}, instR[kMaxInstruments][MixerEngine::kMaxBlock] {};
+    bool  instChain[kMaxInstruments] {};
     bool  ledBuf[MixerEngine::kMaxBlock] {};
     double samplesPerTick() const;
     void renderVoice (Voice& v, double inc, float& outL, float& outR, int ch);

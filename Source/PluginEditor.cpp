@@ -32,8 +32,10 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     undoBtn.onClick = [this] { if (! proc.history.undo()) setStatus ("NOTHING TO UNDO"); };
     redoBtn.onClick = [this] { if (! proc.history.redo()) setStatus ("NOTHING TO REDO"); };
     proc.history.onRestored = [this] (const juce::String& what) { historyRestored (what); };
-    modBtn.onClick  = [this] { exportMod(); };
-    wavBtn.onClick  = [this] { exportWav(); };
+    fullVelBtn.onClick = [this] { setFullVelocity (fullVelBtn.getToggleState()); };
+    noteOffsBtn.onClick = [this] { setNoteOffs (noteOffsBtn.getToggleState()); };
+    fullVelBtn.setToggleState (proc.fullVelocity.load(), juce::dontSendNotification);
+    noteOffsBtn.setToggleState (prv::ui::PatternEditor::recordNoteOffs(), juce::dontSendNotification);
     helpBtn.onClick = [this] { toggleHelp(); };
     help.onClose = [this] { setView (helpReturn == View::Help ? View::Pattern : helpReturn); };
     help.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -55,6 +57,16 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     samplePage.onAudioSettings = [this] { if (openAudioSettings) openAudioSettings(); else setStatus ("AUDIO/MIDI SETTINGS: IN THE APP MENU"); };
     samplePage.onEdit = [this] { setView (View::SampleEdit); };
     addChildComponent (samplePage);
+    // an instrument's own effects: edited on the mixer's effect page, BACK returns here
+    auto openInstrumentFx = [this] (int slot)
+    {
+        fxReturn = proc.editorState.view;
+        setView (View::Mixer);
+        mixer.openEffect (slot);
+    };
+    params.onOpenFx = openInstrumentFx;
+    synthPage.onOpenFx = openInstrumentFx;
+    mixer.onBackFromInstrument = [this] { setView (fxReturn == View::Mixer ? View::Params : fxReturn); };
     instruments.openSample = [this] { openSample(); };
     pattern.onEditChords = [this] (int slot) { openChords (slot); };
     for (auto& a : recSeenTrack) for (auto& v : a) v = -1.0f;
@@ -88,7 +100,10 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         juce::Component::SafePointer<PaulaEditor> safe (this);
         choice.show (*this, "RECORDING", { st.recNoteOffs ? "STEP ENTRY NOTE-OFFS: ON (TURN OFF)" : "STEP ENTRY NOTE-OFFS: OFF (TURN ON)",
                                            prv::ui::PatternEditor::detectChords() ? "DETECT CHORDS: ON (TURN OFF)" : "DETECT CHORDS: OFF (TURN ON)",
-                                           "CAPTURE WHAT I PLAYED (CMD+R)" }, [safe] (int a)
+                                           "CAPTURE WHAT I PLAYED (CMD+R)",
+                                           prv::ui::PatternEditor::recordNoteOffs() ? "NOTE-OFFS: ON (TURN OFF - NO OFFS RECORDED AT ALL)" : "NOTE-OFFS: OFF (TURN ON)",
+                                           proc.fullVelocity.load() ? "FULL VEL: ON (TURN OFF - USE THE KEYBOARD'S VELOCITY)" : "FULL VEL: OFF (TURN ON - EVERY NOTE AT 127)" },
+                     [safe] (int a)
         {
             if (safe == nullptr) return;
             auto& s2 = safe->proc.editorState;
@@ -106,6 +121,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                                     : "DETECT CHORDS OFF: EVERY NOTE GOES IN AS PLAYED");
             }
             else if (a == 2) safe->captureNow();
+            else if (a == 3) safe->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs());
+            else if (a == 4) safe->setFullVelocity (! safe->proc.fullVelocity.load());
         });
     };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
@@ -260,7 +277,6 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     blockPanel.onDouble = [this] { pattern.doubleBlock(); };
     blockPanel.onHalve = [this] { pattern.halveBlock(); };
     pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
-    smpBtn.onClick = [this] { exportSamples(); };
     instruments.openBrowser = [this] { setView (View::Browser); };
     instruments.openSampleEditor = [this]
     {
@@ -280,7 +296,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (browser);
 
     for (auto* c : std::initializer_list<juce::Component*> {
-            &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &modBtn, &wavBtn, &smpBtn, &zoomOut, &zoomIn, &outMeter,
+            &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
@@ -584,14 +600,14 @@ void PaulaEditor::resized()
     // title bar buttons (right side)
     auto title = r.removeFromTop ((int) (px * 14)).reduced (gap, (int) (px * 1.5f));
     // the wide gaps between the groups close up when the window is narrow, so every label stays full size
-    const int buttonsW = 2 * (charsW (2) + gap) + charsW (14) + charsW (10) + charsW (8) + 2 * charsW (4) + charsW (7)
+    const int buttonsW = 2 * (charsW (2) + gap) + charsW (7) + charsW (9) + charsW (8) + 2 * charsW (4) + charsW (7)
                        + charsW (5) + charsW (4) + charsW (3) + charsW (4) + gap * 7;
     const int wide = buttonsW + gap * 3 * 4 <= title.getWidth() ? gap * 3 : gap;
     zoomIn.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap);
     zoomOut.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (wide);
-    smpBtn.setBounds (title.removeFromRight (charsW (14))); title.removeFromRight (gap);
-    wavBtn.setBounds (title.removeFromRight (charsW (10))); title.removeFromRight (gap);
-    modBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (wide);
+    captureBtn.setBounds (title.removeFromRight (charsW (7))); title.removeFromRight (gap);
+    noteOffsBtn.setBounds (title.removeFromRight (charsW (9))); title.removeFromRight (gap);
+    fullVelBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (wide);
     redoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
     undoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (wide);
     saveAsBtn.setBounds (title.removeFromRight (charsW (7))); title.removeFromRight (gap);
@@ -608,14 +624,6 @@ void PaulaEditor::resized()
     playBlockBtn.setBounds (tr.removeFromLeft (charsW (7))); tr.removeFromLeft (gap);
     stopBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
     editBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
-    {
-        // CAPTURE when there's room for it at full size (else Cmd+R, right-click EDIT, the menu bar)
-        const int need = charsW (4) + gap * 4 + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px)
-                       + stepBox.preferredWidth (px) + gap * 9 + charsW (7) + gap;
-        const bool room = tr.getWidth() >= need;
-        captureBtn.setVisible (room);
-        if (room) { captureBtn.setBounds (tr.removeFromLeft (charsW (7))); tr.removeFromLeft (gap); }
-    }
     loopBtn.setBounds (tr.removeFromLeft (charsW (4))); tr.removeFromLeft (gap * 4);
     tempoBox.setBounds (tr.removeFromLeft (tempoBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
     speedBox.setBounds (tr.removeFromLeft (speedBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
@@ -722,6 +730,21 @@ void PaulaEditor::openSample()
     setView (View::Sample);
 }
 
+void PaulaEditor::setFullVelocity (bool on)
+{
+    proc.setFullVelocity (on);
+    fullVelBtn.setToggleState (on, juce::dontSendNotification);
+    setStatus (on ? "FULL VEL: EVERY NOTE YOU PLAY GOES IN AT FULL VELOCITY (127)" : "FULL VEL OFF: NOTES USE THE KEYBOARD'S VELOCITY");
+}
+
+void PaulaEditor::setNoteOffs (bool on)
+{
+    prv::ui::PatternEditor::setRecordNoteOffs (on);
+    noteOffsBtn.setToggleState (on, juce::dontSendNotification);
+    setStatus (on ? "NOTE-OFFS: LETTING GO OF A KEY WRITES OFF (NOT WHEN THE NEXT NOTE STARTS ON THE SAME LINE)"
+                  : "NOTE-OFFS OFF: NO OFFS ARE RECORDED (LIVE, STEP ENTRY OR CAPTURE)");
+}
+
 int PaulaEditor::captureNow()
 {
     // CAPTURE: the latest take of what was played (MIDI keyboard, laptop keys) into the pattern
@@ -739,7 +762,7 @@ int PaulaEditor::captureNow()
     std::vector<bool> offs ((size_t) prv::kMaxInstruments, false);
     for (int i = 0; i < prv::kMaxInstruments; ++i) offs[(size_t) i] = proc.song.instruments[(size_t) i].isPlugin();
     const auto res = prv::placeCapture (proc.song, log, st.block, st.line, st.track, proc.song.tempo, proc.song.speed, offs,
-                                        prv::ui::PatternEditor::detectChords());
+                                        prv::ui::PatternEditor::detectChords(), prv::ui::PatternEditor::recordNoteOffs());
     int notes = 0;
     for (const auto& p : res.places) if (p.note != prv::kNoteOff) ++notes;
     if (res.places.empty())
@@ -819,6 +842,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
     {
         const auto ch = juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) k.getKeyCode());
         if (ch == 's') { if (m.isShiftDown()) saveSongAs(); else saveSong(); return true; }
+        if (ch == 'o' && ! m.isShiftDown()) { loadSong(); return true; }
         if (ch == 'z') { if (m.isShiftDown()) redoBtn.onClick(); else undoBtn.onClick(); return true; }
         if (ch == 'y') { redoBtn.onClick(); return true; }
         if (ch == '2') { mixerBtn.onClick(); return true; }

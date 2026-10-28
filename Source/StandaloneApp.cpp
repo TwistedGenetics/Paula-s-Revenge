@@ -25,7 +25,16 @@ enum CommandIDs
     cmdFullScreen    = 0x2002,
     cmdFollowOutput  = 0x2003,
     cmdCapture       = 0x2004,
-    cmdSample        = 0x2005
+    cmdSample        = 0x2005,
+    cmdNew           = 0x2010,
+    cmdLoad          = 0x2011,
+    cmdSave          = 0x2012,
+    cmdSaveAs        = 0x2013,
+    cmdSaveMod       = 0x2014,
+    cmdRenderWav     = 0x2015,
+    cmdExportSamples = 0x2016,
+    cmdNoteOffs      = 0x2020,
+    cmdFullVelocity  = 0x2021
 };
 
 // the real audio system for FOLLOW SYSTEM OUTPUT
@@ -220,26 +229,37 @@ public:
     }
 
     // --------------------------------------------------------------- menus
-    // the Mac: the app menu (Audio/MIDI Settings, Follow, Quit) + View; a PC: File + View in the window
-   #if JUCE_MAC
-    juce::StringArray getMenuBarNames() override { return { "View" }; }
-   #else
+    // File + View: on the Mac in the menu bar at the top of the screen (the app menu keeps
+    // Audio/MIDI Settings, Follow, Quit too), on a PC in the window
     juce::StringArray getMenuBarNames() override { return { "File", "View" }; }
-   #endif
 
     juce::PopupMenu getMenuForIndex (int, const juce::String& name) override
     {
         juce::PopupMenu m;
         if (name == "File")
         {
+            m.addCommandItem (&commands, cmdNew);
+            m.addCommandItem (&commands, cmdLoad);
+            m.addCommandItem (&commands, cmdSave);
+            m.addCommandItem (&commands, cmdSaveAs);
+            m.addSeparator();
+            m.addCommandItem (&commands, cmdSaveMod);
+            m.addCommandItem (&commands, cmdRenderWav);
+            m.addCommandItem (&commands, cmdExportSamples);
+            m.addSeparator();
             m.addCommandItem (&commands, cmdAudioSettings);
+           #if ! JUCE_MAC
             m.addCommandItem (&commands, cmdFollowOutput);
             m.addSeparator();
             m.addCommandItem (&commands, juce::StandardApplicationCommandIDs::quit);
+           #endif
             return m;
         }
         m.addCommandItem (&commands, cmdCapture);
         m.addCommandItem (&commands, cmdSample);
+        m.addSeparator();
+        m.addCommandItem (&commands, cmdNoteOffs);
+        m.addCommandItem (&commands, cmdFullVelocity);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -254,7 +274,8 @@ public:
     void getAllCommands (juce::Array<juce::CommandID>& c) override
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
-        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample });
+        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
+                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -283,6 +304,36 @@ public:
             info.setInfo ("Sample Audio...", "Record audio (the input, or the app's own output) into the instrument", "General", 0);
             info.addDefaultKeypress ('4', juce::ModifierKeys::commandModifier);
         }
+        else if (id == cmdNew)    info.setInfo ("New", "Start a new song", "File", 0);
+        else if (id == cmdLoad)
+        {
+            info.setInfo ("Load...", "Load a song or a MOD", "File", 0);
+            info.addDefaultKeypress ('o', juce::ModifierKeys::commandModifier);
+        }
+        else if (id == cmdSave)
+        {
+            info.setInfo ("Save", "Save the song", "File", 0);
+            info.addDefaultKeypress ('s', juce::ModifierKeys::commandModifier);
+        }
+        else if (id == cmdSaveAs)
+        {
+            info.setInfo ("Save As...", "Save the song under a new name", "File", 0);
+            info.addDefaultKeypress ('s', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier);
+        }
+        else if (id == cmdSaveMod)       info.setInfo ("Save MOD...", "Save the song as a ProTracker MOD", "File", 0);
+        else if (id == cmdRenderWav)     info.setInfo ("Render WAV...", "Render the song (or each track) to WAV", "File", 0);
+        else if (id == cmdExportSamples) info.setInfo ("Export Samples...", "Write every sample instrument as a WAV", "File", 0);
+        else if (id == cmdNoteOffs)
+        {
+            info.setInfo ("Record Note-Offs", "Letting go of a key writes OFF (plug-in / MIDI-out instruments)", "View", 0);
+            info.setTicked (prv::ui::PatternEditor::recordNoteOffs());
+        }
+        else if (id == cmdFullVelocity)
+        {
+            info.setInfo ("Full Velocity", "Ignore the keyboard's velocity: every note at 127", "View", 0);
+            auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
+            info.setTicked (proc != nullptr && proc->fullVelocity.load());
+        }
         else if (id == cmdFollowOutput)
         {
             info.setInfo ("Follow System Output (Headphones)", "Play through whatever output the computer switches to", "General", 0);
@@ -297,6 +348,22 @@ public:
         if (info.commandID == cmdFullScreen)    { toggleFullScreen(); return true; }
         if (info.commandID == cmdCapture)       { if (auto* ed = editor()) ed->captureNow(); return true; }
         if (info.commandID == cmdSample)        { if (auto* ed = editor()) ed->toggleSample(); return true; }
+        if (auto* ed = editor())
+        {
+            switch (info.commandID)
+            {
+                case cmdNew:           ed->newSong(); return true;
+                case cmdLoad:          ed->loadSong(); return true;
+                case cmdSave:          ed->saveSong(); return true;
+                case cmdSaveAs:        ed->saveSongAs(); return true;
+                case cmdSaveMod:       ed->exportMod(); return true;
+                case cmdRenderWav:     ed->exportWav(); return true;
+                case cmdExportSamples: ed->exportSamples(); return true;
+                case cmdNoteOffs:      ed->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs()); commands.commandStatusChanged(); return true;
+                case cmdFullVelocity:  ed->setFullVelocity (! ed->fullVelocityOn()); commands.commandStatusChanged(); return true;
+                default: break;
+            }
+        }
         if (info.commandID == cmdFollowOutput && follower != nullptr)
         {
             const bool on = ! follower->enabled;

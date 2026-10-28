@@ -49,6 +49,11 @@ public:
     // with `extraL/R` (preview notes) added to the master bus, into outL/outR.
     void process (const MixerSettings&, float* const* trackL, float* const* trackR, int numTracks,
                   const float* extraL, const float* extraR, float* outL, float* outR, int n, double bpm);
+    // an instrument's own inserts, in place (before its audio goes to a track's strip)
+    void processInstrument (const MixerSettings& m, int ins, float* L, float* R, int n, double bpm)
+    {
+        if (ins >= 0 && ins < kMixInstruments) runInserts (m.inst[ins], instrumentSlot (ins, 0), L, R, n, bpm);
+    }
 
     // meters (peaks since the UI last read them)
     std::atomic<float> trackPeak[kMixTracks] {}, returnPeak[kReturns] {}, masterPeakL { 0 }, masterPeakR { 0 };

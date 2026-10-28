@@ -25,6 +25,8 @@ History::Entry History::capture (Kind kind, int index) const
         case Kind::Instrument:
             e.index = juce::jlimit (0, prv::kMaxInstruments - 1, index);
             e.inst = std::make_shared<prv::Instrument> (song.instruments[(size_t) e.index]);
+            e.instFx = std::make_shared<std::array<prv::FxSlot, prv::kInserts>>();
+            for (int k = 0; k < prv::kInserts; ++k) (*e.instFx)[(size_t) k] = song.mixer.inst[e.index][k];
             e.bytes = (e.inst->data.size() + e.inst->dataR.size()) * sizeof (int16_t) + 256;
             break;
         case Kind::Mixer:
@@ -124,7 +126,12 @@ void History::apply (Entry& e)
             st.block = song.safeBlock (e.blockSel);
             break;
         case Kind::Instrument:
-            proc.withLock ([&] { proc.player.jamAllOff(); std::swap (song.instruments[(size_t) e.index], *e.inst); });
+            proc.withLock ([&]
+            {
+                proc.player.jamAllOff();
+                std::swap (song.instruments[(size_t) e.index], *e.inst);
+                if (e.instFx) for (int k = 0; k < prv::kInserts; ++k) std::swap (song.mixer.inst[e.index][k], (*e.instFx)[(size_t) k]);
+            });
             st.instrument = e.index;
             proc.updateMixerEffects();   // (a plug-in instrument may have come or gone)
             break;

@@ -8,12 +8,12 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 15;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 16;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
-                                  // v14: notes on chord slots, v15: chord slot colours
+                                  // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -261,6 +261,15 @@ juce::MemoryBlock writeSong (const Song& song)
     raw.writeShortBigEndian ((short) coloured);
     for (int i = 1; i < kChordSlots; ++i)
         if (song.chords[(size_t) i].colour != 0) { raw.writeByte ((char) i); raw.writeByte ((char) song.chords[(size_t) i].colour); }
+    // v16: each instrument's own inserts (only the ones in use)
+    {
+        int used = 0;
+        for (int i = 0; i < kMixInstruments; ++i) for (const auto& sl : song.mixer.inst[i]) if (sl.type != FxType::None) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMixInstruments; ++i)
+            for (int k = 0; k < kInserts; ++k)
+                if (song.mixer.inst[i][k].type != FxType::None) { raw.writeByte ((char) i); raw.writeByte ((char) k); writeSlot (raw, song.mixer.inst[i][k]); }
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -503,6 +512,19 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 const int slot = (int) (uint8_t) in.readByte();
                 const int c = (int) (uint8_t) in.readByte();
                 if (slot > 0 && slot < kChordSlots) s.chords[(size_t) slot].colour = std::clamp (c, 0, kChordColours);
+            }
+        }
+        if (version >= 16 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            if (used > kInstrumentSlots) { error = "The instrument effects part of this song is damaged."; return false; }
+            for (int n = 0; n < used; ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int k = (int) (uint8_t) in.readByte();
+                FxSlot sl;
+                readSlot (in, sl, version);
+                if (i < kMixInstruments && k < kInserts) s.mixer.inst[i][k] = sl;
             }
         }
     }

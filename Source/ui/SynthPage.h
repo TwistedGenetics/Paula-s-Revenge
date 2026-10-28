@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "InstrumentFx.h"
 #include "Panels.h"
 #include "Learn.h"
 
@@ -17,6 +18,7 @@ public:
 
     std::function<void()> onClose, onChanged, onChords;   // onChords: CHORDS... (the chord table page)
     std::function<void (const juce::String&)> onStatus;
+    std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
 
     void opened (bool browse);      // browse = show the list of instrument plug-ins
     void refresh();
@@ -41,6 +43,7 @@ public:
 
 private:
     PaulaProcessor& proc;
+    InstrumentFxRow fxRow { proc };   // the instrument's own effects (after proc: it uses it)
     bool browsing = false;
     int shown = -1;
     PixList list;

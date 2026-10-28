@@ -10,7 +10,7 @@ namespace prv
 {
 CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& log,
                             int cursorBlock, int cursorLine, int cursorTrack, int bpm, int speed,
-                            const std::vector<bool>& offsFor, bool detectChords)
+                            const std::vector<bool>& offsFor, bool detectChords, bool noteOffs)
 {
     CaptureResult res;
     if (log.empty() || song.blocks.empty()) return res;
@@ -63,6 +63,8 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         return l >= 0 && l < blk.lines && blk.at (l, t).note == 0 && used.count ({ b, l, t }) == 0;
     };
     // which captured note each track is holding, and until when (ms)
+    // a line's length in ms (a release this close after the next note is legato: the track is free)
+    auto lineMs = [&] (const CapturedNote& c) { return 2500.0 / bpm * std::max (1, played ? c.speed : speed); };
     double busyUntil[kMaxTracks];
     for (auto& b : busyUntil) b = -1.0;
 
@@ -76,6 +78,21 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         return -1;
     };
     auto plugIn = [&] (int ins) { return ins >= 0 && ins < (int) offsFor.size() && offsFor[(size_t) ins]; };
+    // an OFF waits until the track's next note is known: if that note starts on the OFF's line, or
+    // just after (legato - let go as the next key went down), the OFF never goes in; the next
+    // note ends the old one by itself, and nothing is pushed onto another track
+    CapturePlace pendingOff[kMaxTracks];
+    double pendingOffMs[kMaxTracks] = {};
+    bool hasPending[kMaxTracks] = {};
+    auto commitOff = [&] (int t)
+    {
+        if (! hasPending[t]) return;
+        hasPending[t] = false;
+        const auto& o = pendingOff[t];
+        if (! freeCell (o.block, o.line, t)) return;
+        res.places.push_back (o);
+        used.insert ({ o.block, o.line, t });
+    };
     for (size_t i = 0; i < take.size(); ++i)
     {
         const auto& n = take[i];
@@ -132,16 +149,27 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         auto fxFree = [&] (int t) { const auto& c = blk.at (line, t); return c.fx1Empty() || c.fx2Empty(); };
         int track = -1;
         for (int t = std::clamp (cursorTrack, 0, nt - 1); t < nt && track < 0; ++t)
-            if (busyUntil[t] <= n.timeMs && freeCell (p.block, line, t) && (! chord || fxFree (t))) track = t;
+            if (busyUntil[t] <= n.timeMs + lineMs (n) && freeCell (p.block, line, t) && (! chord || fxFree (t))) track = t;
         if (track < 0 && chord)
         {
             // no room for the #: the notes go in one by one after all
             chord = {};
             offMs = releaseOf (i, offIdx);
             for (int t = std::clamp (cursorTrack, 0, nt - 1); t < nt && track < 0; ++t)
-                if (busyUntil[t] <= n.timeMs && freeCell (p.block, line, t)) track = t;
+                if (busyUntil[t] <= n.timeMs + lineMs (n) && freeCell (p.block, line, t)) track = t;
         }
         if (track < 0) { ++res.skipped; continue; }
+
+        if (hasPending[track])
+        {
+            const auto& o = pendingOff[track];
+            // legato: the next note on the OFF's own line (or before it), or on the line after but less
+            // than half a line after the key was let go
+            const bool legato = o.block == p.block && line > o.forLine
+                             && (line <= o.line || (line == o.line + 1 && n.timeMs - pendingOffMs[track] < lineMs (n) * 0.5));
+            if (legato) hasPending[track] = false;
+            else commitOff (track);
+        }
 
         CapturePlace pl;
         pl.block = p.block; pl.line = line; pl.track = track;
@@ -161,7 +189,7 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         if (first) { res.firstBlock = p.block; res.firstLine = line; first = false; }
 
         // its release: OFF on the line it was let go (plug-in / MIDI-out instruments)
-        const bool wantsOff = plugIn (n.instrument);
+        const bool wantsOff = noteOffs && plugIn (n.instrument);
         if (wantsOff && offMs >= 0)
         {
             const Pos q = where (take[offIdx]);
@@ -170,15 +198,17 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
             // the block, so the note rings over the wrap when the block loops - as played
             const bool wrapped = played && take[offIdx].pass != n.pass;
             if (q.block == p.block && offLine <= line && ! (wrapped && offLine < line)) offLine = line + 1;
-            if (q.block == p.block && freeCell (q.block, offLine, track))
+            if (q.block == p.block && offLine >= 0 && offLine < blk.lines)
             {
                 CapturePlace off = pl;
-                off.line = offLine; off.note = kNoteOff; off.instr = 0; off.micro = 0; off.chordSlot = 0;
-                res.places.push_back (off);
-                used.insert ({ q.block, offLine, track });
+                off.line = offLine; off.note = kNoteOff; off.instr = 0; off.micro = 0; off.chordSlot = 0; off.forLine = line;
+                pendingOff[track] = off;
+                pendingOffMs[track] = take[offIdx].timeMs;
+                hasPending[track] = true;
             }
         }
     }
+    for (int t = 0; t < kMaxTracks; ++t) commitOff (t);
     return res;
 }
 } // namespace prv

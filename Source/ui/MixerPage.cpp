@@ -619,6 +619,8 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     backBtn.onClick = [this]
     {
+        // an instrument's own insert: back to that instrument's page
+        if (currentPage == Page::Effect && isInstrumentSlot (fxSlot) && onBackFromInstrument) { onBackFromInstrument(); return; }
         if (currentPage == Page::Effect && effectReturn == Page::Channel) openChannel (chTrack);
         else showStrips();
     };
@@ -630,12 +632,21 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     prevBtn.onClick = [this]
     {
         if (currentPage == Page::Channel) openChannel ((chTrack + proc.song.numTracks - 1) % proc.song.numTracks);
-        else if (currentPage == Page::Effect) openEffect ((fxSlot + kTotalSlots - 1) % kTotalSlots);
+        else if (currentPage == Page::Effect)
+        {
+            // (an instrument's inserts go round its own three; the mixer's go round the mixer)
+            if (isInstrumentSlot (fxSlot)) { const int b = fxSlot - fxSlot % kInserts + (kMixerSlots % kInserts); openEffect (b + ((fxSlot - b) + kInserts - 1) % kInserts); }
+            else openEffect ((fxSlot + kMixerSlots - 1) % kMixerSlots);
+        }
     };
     nextBtn.onClick = [this]
     {
         if (currentPage == Page::Channel) openChannel ((chTrack + 1) % proc.song.numTracks);
-        else if (currentPage == Page::Effect) openEffect ((fxSlot + 1) % kTotalSlots);
+        else if (currentPage == Page::Effect)
+        {
+            if (isInstrumentSlot (fxSlot)) { const int b = fxSlot - fxSlot % kInserts + (kMixerSlots % kInserts); openEffect (b + ((fxSlot - b) + 1) % kInserts); }
+            else openEffect ((fxSlot + 1) % kMixerSlots);
+        }
     };
     for (auto* c : std::initializer_list<juce::Component*> { &closeBtn, &backBtn, &resetAllBtn, &prevBtn, &nextBtn })
         addChildComponent (c);
@@ -843,6 +854,7 @@ template <typename Fn> void MixerPage::edit (const juce::String& label, bool mer
 
 juce::String MixerPage::slotOwner (int slot)
 {
+    if (isInstrumentSlot (slot)) return "INSTRUMENT " + juce::String::toHexString ((slot - kMixerSlots) / kInserts + 1).toUpperCase().paddedLeft ('0', 2);
     if (slot < kTrackSlots) return "TRACK " + juce::String (slot / kInserts + 1);
     slot -= kTrackSlots;
     if (slot < kReturnSlots) return juce::String ("SEND ") + (char) ('A' + slot / kInserts);

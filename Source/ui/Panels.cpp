@@ -800,8 +800,15 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     clearBtn.onClick = [this]
     {
         Instrument empty;
-        proc.history.instrument (proc.editorState.instrument, "CLEAR INSTRUMENT");
-        proc.withLock ([&] { std::swap (proc.song.instruments[(size_t) proc.editorState.instrument], empty); proc.player.jamAllOff(); });
+        const int idx = proc.editorState.instrument;
+        proc.history.instrument (idx, "CLEAR INSTRUMENT");
+        proc.withLock ([&]
+        {
+            std::swap (proc.song.instruments[(size_t) idx], empty);
+            for (auto& sl : proc.song.mixer.inst[idx]) sl = FxSlot {};   // (and its own inserts)
+            proc.player.jamAllOff();
+        });
+        proc.updateMixerEffects();
         changed();
     };
     nameBtn.onClick = [this]
@@ -948,27 +955,36 @@ void InstrumentPanel::resized()
 }
 
 // ---- right-click on an instrument
-namespace { Instrument instrumentClip; bool haveInstrumentClip = false; }
+namespace { Instrument instrumentClip; FxSlot instrumentFxClip[kInserts]; bool haveInstrumentClip = false; }
 
 void InstrumentPanel::showInstrumentMenu (int r)
 {
     const auto name = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
     juce::Component::SafePointer<InstrumentPanel> safe (this);
-    auto put = [safe] (int idx, const Instrument& in, const juce::String& what)
+    auto put = [safe] (int idx, const Instrument& in, const FxSlot* fx, const juce::String& what)
     {
         if (safe == nullptr) return;
         auto& self = *safe;
         Instrument copy = in;
+        FxSlot fxCopy[kInserts];
+        for (int k = 0; k < kInserts; ++k) fxCopy[k] = fx[k];   // (its own inserts go with it)
         self.proc.history.instrument (idx, what);
-        self.proc.withLock ([&] { self.proc.player.jamAllOff(); std::swap (self.proc.song.instruments[(size_t) idx], copy); });
+        self.proc.withLock ([&]
+        {
+            self.proc.player.jamAllOff();
+            std::swap (self.proc.song.instruments[(size_t) idx], copy);
+            for (int k = 0; k < kInserts; ++k) std::swap (self.proc.song.mixer.inst[idx][k], fxCopy[k]);
+        });
         self.proc.updateMixerEffects();   // (plug-in instruments: load / drop their plug-in)
         self.changed();
     };
     showMenu ("INSTRUMENT " + name, {
-        { "COPY", [safe, r] { if (safe == nullptr) return; instrumentClip = safe->proc.song.instruments[(size_t) r]; haveInstrumentClip = true;
+        { "COPY", [safe, r] { if (safe == nullptr) return; instrumentClip = safe->proc.song.instruments[(size_t) r];
+                               for (int k = 0; k < kInserts; ++k) instrumentFxClip[k] = safe->proc.song.mixer.inst[r][k];
+                               haveInstrumentClip = true;
                                safe->status ("INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2) + " COPIED"); } },
         { "PASTE", [safe, r, put] { if (safe == nullptr) return; if (! haveInstrumentClip) { safe->status ("NOTHING COPIED YET"); return; }
-                                    put (r, instrumentClip, "PASTE INSTRUMENT"); safe->status ("PASTED INTO INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2)); } },
+                                    put (r, instrumentClip, instrumentFxClip, "PASTE INSTRUMENT"); safe->status ("PASTED INTO INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2)); } },
         { "DUPLICATE TO NEXT FREE", [safe, r, put]
             {
                 if (safe == nullptr) return;
@@ -977,7 +993,9 @@ void InstrumentPanel::showInstrumentMenu (int r)
                 {
                     const auto& in = song.instruments[(size_t) i];
                     if (i == r || in.hasData() || in.isPlugin() || ! in.name.empty()) continue;
-                    put (i, song.instruments[(size_t) r], "DUPLICATE INSTRUMENT");
+                    FxSlot fx[kInserts];
+                    for (int k = 0; k < kInserts; ++k) fx[k] = song.mixer.inst[r][k];
+                    put (i, song.instruments[(size_t) r], fx, "DUPLICATE INSTRUMENT");
                     safe->proc.editorState.instrument = i;
                     safe->status ("DUPLICATED TO INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2));
                     safe->changed();

@@ -7,6 +7,9 @@ namespace { const char* kKnobLetters[kInstrumentKnobs] = { "L", "Q", "H", "W" };
 
 SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
 {
+    fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
+    fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    addAndMakeVisible (fxRow);
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
@@ -178,7 +181,9 @@ void SynthPage::openWindow()
 
 void SynthPage::refresh()
 {
+    fxRow.refresh();
     const bool plug = inst().isPlugin() && ! browsing;
+    fxRow.setVisible (! browsing && ! inst().isMidiOut());
     list.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
@@ -400,6 +405,8 @@ void SynthPage::resized()
         sampleBtn.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap * 3);
         chordsBtn.setBounds (row.getWidth() >= charsW (9) ? row.removeFromLeft (charsW (9)) : juce::Rectangle<int>());
     }
+    r.removeFromBottom (gap);
+    fxRow.setBounds (r.removeFromBottom (rowH));   // the instrument's own effects
     r.removeFromBottom (gap);
     r.removeFromTop (gap);
     {

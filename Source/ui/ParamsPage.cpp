@@ -36,6 +36,9 @@ namespace
 
 ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 {
+    fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
+    fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    addAndMakeVisible (fxRow);
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
@@ -161,6 +164,7 @@ void ParamsPage::armLearn (int knob)
 
 void ParamsPage::refresh()
 {
+    fxRow.refresh();
     if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
     const auto& in = inst();
@@ -248,6 +252,9 @@ void ParamsPage::resized()
         return area;
     };
 
+    // the instrument's own effects: under the volume envelope (its graph has the room)
+    fxRow.setBounds (left.removeFromBottom (rowH));
+    left.removeFromBottom (gap * 2);
     // volume envelope (left)
     envBox = left.toFloat();
     {

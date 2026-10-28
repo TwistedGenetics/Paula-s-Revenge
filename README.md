@@ -31,7 +31,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 
 | Area | What it does |
 |---|---|
-| Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
+| Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, **FULL VEL**, **NOTE-OFFS**, **CAPTURE**, text size `A-` / `A+`. SAVE MOD, RENDER WAV and EXPORT SAMPLES are in the **File** menu |
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
 | Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
@@ -55,7 +55,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | Pattern, effect columns | the command list (a `#xy` chord cell: the chord list); inside a highlight: BOUNCE |
 | Any level meter (the bar at the right of each track, the L / R meter, the mixer's meters) | VU METER COLOUR: green, amber, cyan, red, blue, pink, cream / black, or each track's colour - one colour for all of them, kept for next time |
 | The spectrum strip | SPECTRUM COLOUR: the same colours, or RAINBOW (the track colours, as it started) |
-| EDIT button | STEP ENTRY NOTE-OFFS, DETECT CHORDS, CAPTURE |
+| EDIT button | STEP ENTRY NOTE-OFFS, DETECT CHORDS, CAPTURE, NOTE-OFFS, FULL VEL |
 | Sample editor waveform | CUT, COPY, PASTE, DELETE, CROP, SILENCE, MAX VOL, REVERSE, FADE IN / OUT, SET LOOP, SELECT ALL |
 | Mixer: a strip's name | COPY STRIP, PASTE STRIP, RESET STRIP, OPEN CHANNEL (the returns and master: RESET) |
 | Mixer: an insert slot | COPY EFFECT, PASTE EFFECT, CLEAR SLOT, BYPASS ON / OFF, OPEN |
@@ -102,7 +102,7 @@ Signal flow per track: EQ → inserts → pre-fader sends → fader → post-fad
 ## Scrolling and the mouse
 
 * The pattern fills its area from line 0 at the top. The cursor moves freely and the view only scrolls when it gets within a few lines of the top or bottom edge; at the end of a block the last line sits on the bottom row. A click moves the cursor without moving the view.
-* With FOLLOW on, the view glides along with playback, the playing line about 40% of the way down.
+* With FOLLOW on, the cursor moves with playback but **the view doesn't scroll by itself**: the play line runs down the screen and can go off the bottom. A tag says **▼ PLAY LINE BELOW** (or **▲ ABOVE**) while it's out of sight. Scroll yourself with the wheel or the arrows at the right of the pattern: **▲** / **▼** move a page (hold to keep going), **●** jumps to the play line. A new block starts at its top. When playback is stopped, the arrows move the cursor a page, and the view works as before.
 * The wheel moves one line (or list row, or zoom step) per notch however fast it's spun; trackpad swipes are scaled down. The wheel doesn't wrap from the last line back to the first.
 * Holding a drag past an edge (selecting notes, marking a loop, moving positions in the sequence or the arrange page) scrolls at a steady pace — about 12 lines a second, faster the further past the edge you go.
 * Sliders and number boxes move relative to where you grab them, at a calm rate; hold `Shift` for fine adjustment. The mouse wheel also nudges them.
@@ -118,8 +118,18 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
 * **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
 * **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument or with your hardware instead of the sample (see below).
+* **FX** (under the volume envelope): the instrument's own effects (see Instrument effects).
 
 Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
+
+## Instrument effects
+
+Every instrument has **three insert slots of its own**, the same as a mixer strip's: the built-in effects (filter, drive, compressor, delay, reverb, chorus) or a VST3 / AU plug-in. They're on the **FX** row of the instrument's PARAMS page (and of a plug-in instrument's page).
+
+* Click a slot to open it on the mixer's effect page (type, settings, knobs, LEARN, plug-in window). **BACK** returns to the instrument. Right-click a slot for OPEN, BYPASS, COPY, PASTE and CLEAR. A lit slot is on; a slot that's bypassed isn't lit.
+* The instrument's sound goes through its effects first, then into the strip of the track it plays on (EQ, the track's inserts, sends, fader). Every note of the instrument goes through the one chain, so a reverb tail or a delay carries on across notes and tracks; the chain's output goes to the track of the instrument's **latest** note.
+* The effects belong to the instrument: they're saved in the song (and Live sets), are undo steps, and go with it when you COPY / PASTE / DUPLICATE the instrument. CLEAR on the instrument clears them too. RENDER WAV and bouncing include them.
+* A plug-in's own delay (latency) on an instrument slot isn't compensated.
 
 ## Arrange page
 
@@ -194,7 +204,11 @@ Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, ste
 
 ## The standalone app window
 
-The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The menus have **Audio/MIDI Settings…** (`Cmd+,`), **Toggle Full Screen** (`Ctrl+Cmd+F`) and **Quit** (`Cmd+Q`). The app remembers its window size and position.
+The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The app remembers its window size and position.
+
+* **File:** New, Load… (`Cmd+O`), Save (`Cmd+S`), Save As… (`Shift+Cmd+S`), **Save MOD…**, **Render WAV…**, **Export Samples…**, Audio/MIDI Settings… (`Cmd+,`); on a PC also Follow System Output and Exit.
+* **View:** Capture What I Played (`Cmd+R`), Sample Audio… (`Cmd+4`), **Record Note-Offs** and **Full Velocity** (ticked when on), Toggle Full Screen (`Ctrl+Cmd+F`; F11 on a PC), and on a Mac Follow System Output.
+* The Mac's app menu has Audio/MIDI Settings, Follow System Output and **Quit** (`Cmd+Q`).
 
 **Headphones (FOLLOW SYSTEM OUTPUT):** the app plays through whatever output your Mac (or PC) is using, and moves with it: plug in headphones, connect AirPods or another Bluetooth set, or plug in a USB interface that the computer switches to, and the sound goes there straight away (with a quick fade, so no click); unplug them and it goes back. The status line says where the sound went (`OUTPUT: EXTERNAL HEADPHONES`). It keeps your sample rate and buffer size when the new output can do them. **Follow System Output (Headphones)** in the app menu (next to Audio/MIDI Settings; on a PC in the File menu) turns it on and off; it's on to start with. Choosing a different device by hand in Audio/MIDI Settings (an audio interface you always want, say) turns it off, so your choice stays — the status line says so.
 
@@ -324,6 +338,7 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
+| `Cmd+O` | Load a song |
 | `F1` / `Cmd+/` | HELP: this manual, inside the app |
 
 A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
@@ -333,12 +348,14 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 ## Recording, note-offs and CAPTURE
 
 * With **EDIT** on, notes from a MIDI keyboard or the laptop keys go in at the cursor (while playing with FOLLOW on, on the line that's playing).
-* **Note-offs:** on a plug-in or MIDI-out instrument, letting go of a key while the song or block plays writes `OFF` on the line playing at that moment (the next line if it's still the note's own line), so held sounds stop where you stopped them. It never writes over another note. In step entry (stopped) that's off to start with, because the OFF would land where your next note goes: right-click **EDIT** and switch **STEP ENTRY NOTE-OFFS** on if you want them.
-* **CAPTURE** (like Ableton's Capture MIDI): the app always listens to what you play, even with EDIT off, and keeps the last two minutes. Liked what you just noodled? Press **CAPTURE** on the transport row (or `Cmd+R`, or right-click EDIT, or the View menu) and it goes into the pattern as one undo step:
+* **Note-offs:** on a plug-in or MIDI-out instrument, letting go of a key while the song or block plays writes `OFF` on the line playing at that moment (the next line if it's still the note's own line), so held sounds stop where you stopped them. It never writes over another note.
+  * **Legato:** if you let go of a key as (or just after) the next one goes down, no `OFF` is written — the next note ends the old one by itself. So the OFF never lands on top of the next note, and the next note isn't pushed onto another track. The same goes for CAPTURE.
+  * **NOTE-OFFS** in the title bar (also right-click EDIT, and the View menu) switches note-off recording off altogether: live, step entry and CAPTURE then write notes only. It's remembered. In step entry (stopped) that's off to start with, because the OFF would land where your next note goes: right-click **EDIT** and switch **STEP ENTRY NOTE-OFFS** on if you want them.
+* **CAPTURE** (like Ableton's Capture MIDI): the app always listens to what you play, even with EDIT off, and keeps the last two minutes. Liked what you just noodled? Press **CAPTURE** in the title bar (or `Cmd+R`, or right-click EDIT, or the View menu) and it goes into the pattern as one undo step:
   * played while the song or block was playing: each note on the line where you played it, in the block that was playing, with `Mxx` micro-moves for notes that were well off the beat. **One take is one time round**: each time playback goes back to the start (the end of the song, a looping block, the loop lines) a new take begins, so loops never pile up on each other. CAPTURE takes the latest time round that had notes in it: play on the 2nd time round, let it go round 5 more times without playing, and CAPTURE still writes the 2nd. A note held over the wrap gets its `OFF` where you let go, early in the block, so it rings over the loop as played;
   * played while stopped: from the cursor, at the song's BPM and speed, the first note on the cursor line (the notes since your last pause of more than 4 seconds).
   * Notes go on the cursor's track; chords that match the chord table go in as one note + `#xy` (see below), other notes played together spread across the next free tracks. It never writes over a note (it moves along, or skips and says how many). Plug-in and MIDI-out notes get their note-offs. After a capture it starts listening afresh.
-  * In a small window the CAPTURE button may not fit on the transport row; `Cmd+R` and the menus still do it.
+* **FULL VEL** (title bar; also right-click EDIT and the View menu): ignores how hard you hit the keys on a MIDI keyboard — every note plays and records at full velocity (127). Off: the keyboard's velocity is used. It's remembered.
 * **Chords you play** (DETECT CHORDS, on to start with): on a plug-in or MIDI-out instrument, notes pressed together (within 60 ms) that match a slot in the song's chord table go in as **one note, the root, with `#xy`** on one track — when recording with EDIT on, and when CAPTURE writes them in. See Chords.
 
 ## Effect commands
@@ -483,7 +500,7 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 
 * Pick the instrument, press **PARAMS**, then **PLUG-IN / MIDI OUT...** and **A VST3 / AU INSTRUMENT**, and double-click a plug-in in the list (RESCAN looks again after you install more). The instrument list shows a note sign in front of the name.
 * **EDIT** (or OPEN PLUG-IN WINDOW) opens the plug-in's own window. **CHANGE PLUG-IN...** swaps it, **BACK TO A SAMPLE** turns the slot back into a normal sample instrument.
-* **OUTPUT** picks the mixer strip it plays into. AUTO means the first (lowest) track that plays it, so its EQ, inserts and sends apply.
+* **OUTPUT** picks the mixer strip it plays into. **AUTO** means the track that played its latest note, so that track's EQ, inserts and sends apply — the same in the song, in RENDER WAV and when you bounce a highlighted part.
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
 * **ON** (next to BEND) switches the instrument off and on: while it's off, its notes are silent. To switch it from the pattern, press LEARN next to a knob (`L`, `Q`, `H` or `W`, or LEARN AUTO A / B), then click **ON**: that knob becomes the instrument's `ON/OFF`, with `00` = off and `01`–`FF` = on. It's saved in the song.

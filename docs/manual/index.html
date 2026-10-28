@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.20</span>
+  <span class="ver">MANUAL &middot; V0.21</span>
 </header>
 
 <div class="app">
@@ -157,7 +157,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <ol class="steps">
     <li>Open <b>Releases</b> on the right of the GitHub repo page. Each release has both versions: <code>PaulasRevenge-macOS.zip</code> for a Mac and <code>PaulasRevenge-Windows.zip</code> for a PC (Windows 10 or 11, 64-bit).</li>
     <li><b>Mac:</b> follow <code>INSTALL.txt</code> inside: copy the app into Applications and clear the macOS quarantine.<br><b>PC:</b> unzip it anywhere and run <code>Paula's Revenge.exe</code>. The first time, Windows says <i>Windows protected your PC</i> because the app isn't code-signed yet: click <b>More info</b>, then <b>Run anyway</b>.</li>
-    <li>Open it. Audio and MIDI devices are under <b>Audio/MIDI Settings…</b> (<kbd>Cmd</kbd><kbd>,</kbd>): in the app menu on a Mac, the <b>File</b> menu in the window on a PC.</li>
+    <li>Open it. Audio and MIDI devices are under <b>Audio/MIDI Settings…</b> (<kbd>Cmd</kbd><kbd>,</kbd>) in the <b>File</b> menu (on a Mac also in the app menu). The File menu has New, Load…, Save, Save As…, <b>Save MOD…</b>, <b>Render WAV…</b> and <b>Export Samples…</b>; the View menu has Capture, Sample Audio, <b>Record Note-Offs</b>, <b>Full Velocity</b> and full screen.</li>
     <li>The sound follows the computer's output: plug in headphones or connect AirPods and it moves there, with the status line saying where it went. <b>Follow System Output (Headphones)</b> in the menu turns this off; picking a device by hand in Audio/MIDI Settings turns it off too, so your choice stays.</li>
   </ol>
   <div class="status sunken"><span class="tag">PC</span><span>Every <kbd>Cmd</kbd> shortcut in this manual is <kbd>Ctrl</kbd> on a PC, and the app shows CTRL where the Mac shows CMD. Full screen is <kbd>F11</kbd>. Plug-ins are VST3 (Audio Units are Mac-only).</span></div>
@@ -183,7 +183,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>AREA</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
-      <tr><td>Title bar</td><td><span class="b">NEW</span> <span class="b">LOAD</span> <span class="b">SAVE</span> <span class="b">SAVE AS</span>, <span class="b">UNDO</span> <span class="b">REDO</span>, <span class="b">SAVE MOD</span>, <span class="b">RENDER WAV</span>, <span class="b">EXPORT SAMPLES</span>, and text size <span class="b">A-</span> <span class="b">A+</span>.</td></tr>
+      <tr><td>Title bar</td><td><span class="b">NEW</span> <span class="b">LOAD</span> <span class="b">SAVE</span> <span class="b">SAVE AS</span>, <span class="b">UNDO</span> <span class="b">REDO</span>, <span class="b">FULL VEL</span> <span class="b">NOTE-OFFS</span> <span class="b">CAPTURE</span> (see <a href="#pattern">Recording</a>), and text size <span class="b">A-</span> <span class="b">A+</span>. Save MOD, Render WAV and Export Samples are in the <b>File</b> menu.</td></tr>
       <tr><td>Transport</td><td>Play the song or the block, stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step.</td></tr>
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
@@ -212,7 +212,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>A CHORDS slot</td><td>Copy, paste, clear (all the picked slots), colour, play, record chords, note</td></tr>
       <tr><td>Any level meter: the bar at the right of each track, the L / R meter, the mixer's meters</td><td>Their colour, one for all of them: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
       <tr><td>The spectrum strip</td><td>Its colour: the same choices, or rainbow (the track colours, as it starts)</td></tr>
-      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture</td></tr>
+      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture, NOTE-OFFS, FULL VEL</td></tr>
       <tr><td>A HELP page</td><td>Copy the chapter, or all of HELP</td></tr>
     </tbody>
   </table></div>
@@ -236,13 +236,25 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </ul>
   <h3>Recording and note-offs</h3>
   <p>With EDIT on (<kbd>Esc</kbd> or <kbd>\</kbd>), playing while the song or block plays records the notes where you play them. On a plug-in or MIDI-out instrument, letting go of a key writes an <code>OFF</code> on the line you let go, so the notes are as long as you held them. When stopped (step entry), note-offs go in only if you ask: right-click <span class="b">EDIT</span> and turn on <span class="b">STEP ENTRY NOTE-OFFS</span>.</p>
+  <ul>
+    <li><b>Legato:</b> let go of a key as (or just after) the next one goes down and no <code>OFF</code> is written &mdash; the next note ends the old one by itself. The OFF never lands on the next note, and the next note isn't pushed onto another track. CAPTURE does the same.</li>
+    <li><span class="b">NOTE-OFFS</span> in the title bar (also right-click EDIT, and <b>Record Note-Offs</b> in the View menu) switches note-off recording off altogether: live, step entry and CAPTURE then write notes only.</li>
+    <li><span class="b">FULL VEL</span> in the title bar (also right-click EDIT, and <b>Full Velocity</b> in the View menu) ignores how hard you hit a MIDI keyboard: every note plays and records at full velocity (127).</li>
+  </ul>
+  <p>Both switches are remembered.</p>
+  <h3>FOLLOW and the arrows</h3>
+  <p>With <span class="b">FOLLOW</span> on, the cursor moves with playback but the view doesn't scroll by itself: the play line runs down the screen and can go off the bottom. A tag says <span class="b">PLAY LINE BELOW</span> (or ABOVE) while it's out of sight. Scroll with the wheel or the arrows at the right of the pattern: <span class="b">&#9650;</span> / <span class="b">&#9660;</span> move a page (hold to keep going), <span class="b">&#9679;</span> jumps to the play line. A new block starts at its top. When stopped, the arrows move the cursor a page.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/follow.png" alt="The pattern playing with FOLLOW on: the view stays at the top of the block, the arrows at the right, and a red tag PLAY LINE BELOW at the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Playing on past the bottom: the view stays where you left it</figcaption>
+  </figure>
   <h3>CAPTURE: keep what you just played</h3>
-  <p>The app is always listening to the MIDI keyboard and the laptop keys, even with EDIT off &mdash; the last two minutes. Noodle away; if you like what you played, press <kbd>Cmd</kbd><kbd>R</kbd> (or <span class="b">Capture What I Played</span> in the View menu, the <span class="b">CAPTURE</span> button on a wide window, or right-click <span class="b">EDIT</span>) and it is written into the pattern, one undo step.</p>
+  <p>The app is always listening to the MIDI keyboard and the laptop keys, even with EDIT off &mdash; the last two minutes. Noodle away; if you like what you played, press <span class="b">CAPTURE</span> in the title bar or <kbd>Cmd</kbd><kbd>R</kbd> (or <span class="b">Capture What I Played</span> in the View menu, or right-click <span class="b">EDIT</span>) and it is written into the pattern, one undo step.</p>
   <ul>
     <li>Played while the song or block was playing: the notes go where they were played, on the nearest line, with an <code>Mxx</code> for notes more than a third of a tick early or late.</li>
     <li><b>One take is one time round.</b> Each time playback goes back to the start (the end of the song, a looping block, the loop lines) a new take begins, so loops never pile up. CAPTURE takes the latest time round that had notes in it: play on the 2nd time round, let it go round 5 more times, and it still writes the 2nd. A note held over the wrap gets its <code>OFF</code> where you let go, early in the block, so it rings over the loop as played.</li>
     <li>Played while stopped: the notes since the last pause of more than 4 seconds go in from the cursor, at the song's tempo.</li>
-    <li>Notes start on the cursor's track; held notes spread over the tracks to the right. Chords that match the chord table go in as one note + <code>#xy</code> (see <a href="#chords">Playing chords in</a>). Plug-in and MIDI-out instruments get note-offs.</li>
+    <li>Notes start on the cursor's track; held notes spread over the tracks to the right. Chords that match the chord table go in as one note + <code>#xy</code> (see <a href="#chords">Playing chords in</a>). Plug-in and MIDI-out instruments get note-offs (not between legato notes, and none with NOTE-OFFS off).</li>
   </ul>
   <h3>Highlighting with the mouse</h3>
   <p>Drag across the pattern to highlight notes and effects; it snaps to whole fields and can cover several tracks. <kbd>Shift</kbd>-click highlights from the cursor to the click, and <kbd>Cmd</kbd><kbd>A</kbd> highlights the whole block.</p>
@@ -403,7 +415,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="accent t3"></div>
   <p><span class="b">PARAMS</span> opens the current instrument's page. Everything starts off or neutral, so MODs and older songs sound exactly as they did.</p>
   <figure>
-    <div class="frame sunken"><img src="img/params.png" alt="The PARAMS page with volume envelope, filter, filter envelope and pan panels, and the ON, TRACK and LEARN buttons along the bottom." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/params.png" alt="The PARAMS page with volume envelope, filter, filter envelope and pan panels, the FX row under the envelope with a drive and a delay, and the ON, TRACK and LEARN buttons along the bottom." width="1440" height="900" loading="lazy"></div>
     <figcaption>PARAMS: envelope, filter, pan, and the ON button</figcaption>
   </figure>
   <ul>
@@ -413,6 +425,13 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">&#9654; HOLD TO PLAY</span> or the keys to hear it; <span class="b">RESET ALL</span> puts everything back; double-click any slider for its default.</li>
     <li><span class="b">ON</span> switches the instrument off and on. To switch it from the pattern, pick a track, press <span class="b">LEARN A (V)</span> or <span class="b">LEARN B (J)</span>, then click ON: that track's <code>V00</code> switches it off and <code>V01</code>–<code>VFF</code> on.</li>
     <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
+  </ul>
+  <h3>Instrument effects</h3>
+  <p>Every instrument has <span class="b">three insert slots of its own</span>, like a mixer strip's: the built-in filter, drive, compressor, delay, reverb and chorus, or a VST3 / AU plug-in. They're on the <span class="b">FX</span> row, under the volume envelope in the picture above (and on a plug-in instrument's page).</p>
+  <ul>
+    <li>Click a slot to open it on the mixer's effect page; <span class="b">BACK</span> returns to the instrument. Right-click for OPEN, BYPASS, COPY, PASTE and CLEAR. A lit slot is on.</li>
+    <li>The sound goes through the instrument's effects first, then into the strip of the track it plays on. Every note goes through the one chain, so a delay or reverb carries on across notes; its output goes to the track of the instrument's <b>latest</b> note.</li>
+    <li>The effects belong to the instrument: saved in the song, undo steps, and copied with it (COPY / PASTE / DUPLICATE). RENDER WAV and bouncing include them. A plug-in's own delay on an instrument slot isn't compensated.</li>
   </ul>
 </section>
 
@@ -510,7 +529,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </div>
   <ul>
     <li><span class="b">EDIT</span> opens the plug-in's own window. The laptop keys keep playing it while that window is in front.</li>
-    <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the first track that plays it. <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
+    <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the track that played its latest note (the same in the song, a render and a bounce). <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
     <li>Notes play one at a time per track. <code>Cxx</code> is velocity, pitch commands become pitch bend, <code>Oxx</code> is the mod wheel, and <code>ECx</code> <code>EDx</code> <code>Nxx</code> <code>Kxx</code> <code>Mxx</code> <code>E9x</code> <code>Rxy</code> work. Sample-only commands are ignored.</li>
     <li>Chords: <code>#xy</code> on a note's line plays chord slot <code>xy</code> from the song's chord table, held. See <a href="#chords">Chords</a>.</li>
     <li>Letting go of a key while recording writes a note-off (see <a href="#pattern">Recording and note-offs</a>).</li>
@@ -679,7 +698,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <section class="ch raised" id="render">
   <h2>RENDERING</h2>
   <div class="accent t2"></div>
-  <p><span class="b">RENDER WAV</span> asks what to render:</p>
+  <p><span class="b">RENDER WAV</span> (File menu) asks what to render:</p>
   <figure>
     <div class="frame sunken"><img src="img/render_choice.png" alt="The RENDER WAV choice box: SONG (ONE WAV FILE), STEMS (A WAV PER TRACK), CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>SONG or STEMS</figcaption>
@@ -690,7 +709,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>After the song ends it keeps going until everything is quiet for a second (up to 20 seconds), so tails aren't cut. Plug-in delay is taken off the start.</li>
     <li>MIDI-out instruments can't be rendered; the status line says which were left out.</li>
   </ul>
-  <p><span class="b">EXPORT SAMPLES</span> writes every instrument's sample to a folder as <code>01 NAME.wav</code>, <code>02 NAME.wav</code>… <span class="b">SAVE MOD</span> writes a ProTracker MOD (4 tracks <code>M.K.</code>, 8 tracks <code>8CHN</code>) and says what a MOD can't hold.</p>
+  <p>These are in the <b>File</b> menu. <span class="b">EXPORT SAMPLES</span> writes every instrument's sample to a folder as <code>01 NAME.wav</code>, <code>02 NAME.wav</code>… <span class="b">SAVE MOD</span> writes a ProTracker MOD (4 tracks <code>M.K.</code>, 8 tracks <code>8CHN</code>) and says what a MOD can't hold.</p>
 </section>
 
 <!-- ============================================================ 014 -->
@@ -736,12 +755,13 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>O</kbd></td><td>Load a song</td></tr>
       <tr><td><kbd>Alt</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd></td><td>Move the selected song positions</td></tr>
     </tbody>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.20</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.21</footer>
 </main>
 </div>
 </body></html>

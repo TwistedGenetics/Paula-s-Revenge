@@ -27,6 +27,7 @@ struct CapturePlace
     uint8_t note = 0, instr = 0;   // note = kNoteOff for a release
     uint8_t micro = 0;             // Mxx (0 = on the line)
     uint8_t chordSlot = 0;         // #xy: notes played together that matched the chord table
+    int forLine = -1;              // an OFF: the line of the note it ends
     bool chordExact = true;
 };
 
@@ -44,8 +45,10 @@ struct CaptureResult
 // after it don't count; a held note's release can fall in a later pass). `offsFor` says which instruments
 // get note-offs (plug-ins / MIDI out: their notes would hang on otherwise). With `detectChords`,
 // notes those instruments played together (kChordWindowMs) that match the song's chord table
-// go in as the root + #xy on one track.
+// go in as the root + #xy on one track. A note let go within a line of the next one on its track
+// (legato) leaves the track free and gets no OFF - the next note ends it. noteOffs = false: no
+// OFFs at all.
 CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& log,
                             int cursorBlock, int cursorLine, int cursorTrack, int bpm, int speed,
-                            const std::vector<bool>& offsFor, bool detectChords = false);
+                            const std::vector<bool>& offsFor, bool detectChords = false, bool noteOffs = true);
 } // namespace prv

@@ -91,6 +91,8 @@ enum class FilterType : uint8_t { Off = 0, LowPass, HighPass, BandPass };
 // Tracker note -> MIDI note (C-3 = 60)
 inline int midiNoteFor (int note) { return std::clamp (note + 23, 0, 127); }
 
+static_assert (kMaxInstruments == kMixInstruments, "each instrument has its own mixer inserts");
+
 struct Instrument
 {
     std::string name;

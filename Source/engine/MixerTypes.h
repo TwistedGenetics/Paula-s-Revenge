@@ -1,6 +1,6 @@
 // Paula's Revenge - mixer settings stored in the song (plain C++)
 //
-// Signal flow per track:  EQ -> 3 inserts -> pre-fader sends -> fader -> post-fader sends -> master
+// Signal flow: instrument -> its 3 inserts -> the track it plays on: EQ -> 3 inserts -> pre-fader sends -> fader -> post-fader sends -> master
 // Two return buses (SEND A / B) with 3 inserts each, and a master bus with 3 inserts,
 // followed by the machine's output stage (Amiga / Akai) in the Player.
 #pragma once
@@ -19,10 +19,16 @@ constexpr int kFxParams  = 6;
 // slot numbering across the whole mixer: tracks, then returns, then master
 constexpr int kTrackSlots  = kMixTracks * kInserts;
 constexpr int kReturnSlots = kReturns * kInserts;
-constexpr int kTotalSlots  = kTrackSlots + kReturnSlots + kInserts;
+constexpr int kMixerSlots  = kTrackSlots + kReturnSlots + kInserts;   // the mixer's own slots
+// each instrument has its own inserts too, before the strip of the track it plays on
+constexpr int kMixInstruments  = 63;   // = kMaxInstruments
+constexpr int kInstrumentSlots = kMixInstruments * kInserts;
+constexpr int kTotalSlots  = kMixerSlots + kInstrumentSlots;
 inline int trackSlot (int track, int k)  { return track * kInserts + k; }
 inline int returnSlot (int ret, int k)   { return kTrackSlots + ret * kInserts + k; }
 inline int masterSlot (int k)            { return kTrackSlots + kReturnSlots + k; }
+inline int instrumentSlot (int ins, int k) { return kMixerSlots + ins * kInserts + k; }
+inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < kTotalSlots; }
 
 enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin, Count };
 constexpr int kBuiltinFxTypes = (int) FxType::Plugin;   // EMPTY + the six built-in effects
@@ -119,6 +125,13 @@ struct MixerSettings
     ReturnStrip  ret[kReturns];
     MasterStrip  master;
     AutoTarget   trackAuto[kMixTracks][kTrackKnobs];   // each track's AUTO A (V) and AUTO B (J)
+    FxSlot       inst[kMixInstruments][kInserts];      // each instrument's own inserts
+    bool instrumentChain (int ins) const               // anything in an instrument's inserts?
+    {
+        if (ins < 0 || ins >= kMixInstruments) return false;
+        for (const auto& s : inst[ins]) if (s.type != FxType::None) return true;
+        return false;
+    }
 
     MixerSettings()
     {

@@ -15,6 +15,13 @@ public:
     explicit PatternEditor (PaulaProcessor&);
 
     void paint (juce::Graphics&) override;
+    void resized() override;
+    void paintOverChildren (juce::Graphics&) override;   // "PLAY LINE BELOW / ABOVE" while it's off the screen
+    // the view's own scrolling (FOLLOW doesn't scroll it while playing): ▲ / ▼ a page, ● to the play line
+    void scrollView (int lines);
+    void showPlayLine();
+    int  playLineOffScreen() const;   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
+    float viewTopLine() const { return viewTop; }
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
@@ -26,12 +33,6 @@ public:
 
     // called ~30x a second by the main editor
     void tick();
-    void resized() override
-    {
-        updateView (false);
-        if (picker != nullptr && picker->isVisible()) placePicker (*picker);
-        if (chordPicker != nullptr && chordPicker->isVisible()) placePicker (*chordPicker);
-    }
     void visibilityChanged() override
     {
         if (isVisible()) return;
@@ -167,7 +168,11 @@ private:
     std::map<int, int> heldKeys;   // key code -> jam note
     std::vector<int> pickerNotes;  // the chord list's audition, sounding
     // notes recorded and still held: their release writes OFF (plug-in / MIDI-out instruments)
-    struct Held { int block = 0, line = 0, track = 0, instrument = 0, group = 0; };
+    struct Held { int block = 0, line = 0, track = 0, instrument = 0, group = 0, serial = 0; };
+    int noteSerial = 0;
+    int trackSerial[kMaxTracks] {};                  // the newest recorded note on each track
+    struct LastOff { int block = -1, line = -1; double ms = 0; };
+    LastOff lastOff[kMaxTracks];                     // the OFF last written on each track
     std::map<int, Held> held;
     void noteRecorded (int note, int group = 0);
     // notes pressed together (kChordWindowMs) on a plug-in / MIDI-out instrument: when they match
@@ -188,6 +193,8 @@ public:
     void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
     static bool detectChords();                                  // DETECT CHORDS (prefs, on by default)
+    static bool recordNoteOffs();                                // NOTE-OFFS: recording writes OFFs at all (prefs, on)
+    static void setRecordNoteOffs (bool);
     static void setDetectChords (bool);
 private:
     float vu[prv::kMaxTracks] {};
@@ -204,6 +211,11 @@ private:
     float helpHeight() const;
     int firstTrack() const;
     float fontPx() const;
+    void placeArrows();
+    float arrowsW() const { return Theme::px * 10.0f; }   // the ▲ ● ▼ column at the right
+    PixButton viewUpBtn { juce::String::charToString ((juce::juce_wchar) 3) }, viewPlayBtn { juce::String::charToString ((juce::juce_wchar) 5) },
+              viewDownBtn { juce::String::charToString ((juce::juce_wchar) 4) };
+    int viewRepeat = 0;
     float rowH() const;
     float headerH() const;
     float trackW() const;

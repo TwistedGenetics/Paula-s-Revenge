@@ -20,7 +20,7 @@ MixerEngine::MixerEngine()
 {
     clearAutomation();
     for (int r = 0; r < kReturns; ++r) { sendL[r].assign (kMaxBlock, 0.0f); sendR[r].assign (kMaxBlock, 0.0f); }
-    for (auto& d : slotDelay) d.setMax (kMaxSlotDelay);
+    for (int i = 0; i < kMixerSlots; ++i) slotDelay[i].setMax (kMaxSlotDelay);   // (instrument inserts: no delay kept)
     for (auto& d : trackAlign) d.setMax (kMaxTrackDelay);
 }
 

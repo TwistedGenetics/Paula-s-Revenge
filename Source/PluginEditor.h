@@ -56,6 +56,17 @@ public:
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
+    // the File menu (the standalone's menu bar; tests)
+    void newSong();
+    void loadSong();
+    void saveSong();
+    void saveSongAs();
+    void exportMod();
+    void exportWav();
+    void exportSamples();
+    void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
+    void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
+    bool fullVelocityOn() const { return proc.fullVelocity.load(); }
     bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
@@ -65,16 +76,9 @@ private:
     void refreshAll();
     void applyOptions();
 
-    void newSong();
-    void loadSong();
-    void saveSong();
-    void saveSongAs();
     bool writeSongTo (const juce::File&);
     void historyRestored (const juce::String&);
-    void exportMod();
-    void exportWav();
     void exportWav (bool stems);
-    void exportSamples();
 
     PaulaProcessor& proc;
     using PixButton = prv::ui::PixButton;
@@ -83,7 +87,8 @@ private:
     using PixLabel  = prv::ui::PixLabel;
 
     // title bar
-    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, saveAsBtn { "SAVE AS" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" }, smpBtn { "EXPORT SAMPLES" };
+    PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, saveAsBtn { "SAVE AS" };
+    PixButton fullVelBtn { "FULL VEL", true }, noteOffsBtn { "NOTE-OFFS", true };   // (SAVE MOD / RENDER WAV / EXPORT SAMPLES: the File menu)
     PixButton undoBtn { "UNDO" }, redoBtn { "REDO" }, helpBtn { "HELP", true };
     PixButton zoomOut { "A-" }, zoomIn { "A+" };
 
@@ -127,6 +132,7 @@ private:
     prv::ui::ChordsPage chords;
     prv::ui::SamplePage samplePage;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
+    PaulaProcessor::EditorState::View fxReturn = PaulaProcessor::EditorState::View::Params;
     PaulaProcessor::EditorState::View chordsReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View helpReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::ArrangePage arrange;

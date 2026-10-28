@@ -1973,6 +1973,36 @@ static void testMixer()
                 CHECK (! fxParamText ((FxType) t, k, sl.p).empty());
             }
     }
+    // an instrument's own inserts: before the strip of the track that played its latest note
+    {
+        Song s = quiet();
+        s.blocks[0].at (0, 0) = Cell {};
+        s.blocks[0].at (0, 2) = { 37, 1, 0, 0 };            // instrument 01 on track 3
+        const double base = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        initFxSlot (s.mixer.inst[0][0], FxType::Drive);
+        s.mixer.inst[0][0].p[0] = 1.0f;                      // a lot of drive
+        CHECK (! s.mixer.isFlat() && s.mixer.instrumentChain (0) && ! s.mixer.instrumentChain (1));
+        CHECK (&s.mixer.slot (instrumentSlot (0, 0)) == &s.mixer.inst[0][0] && isInstrumentSlot (instrumentSlot (62, 2)) && ! isInstrumentSlot (masterSlot (2)));
+        const double driven = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        // its sound goes to track 3's strip: track 3 down -> silent; track 1 down -> still there
+        s.mixer.ch[2].volumeDb = -60.0f;
+        const double t3off = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        s.mixer.ch[2].volumeDb = 0.0f; s.mixer.ch[0].volumeDb = -60.0f;
+        const double t1off = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        // bypassed: as without it
+        s.mixer.ch[0].volumeDb = 0.0f; s.mixer.inst[0][0].bypass = true;
+        const double bypassed = rmsOf (renderMix (s, 9600, true), 2000, 9600);
+        std::printf ("instrument inserts: plain %.4f, driven %.4f, track 3 down %.6f, track 1 down %.4f, bypassed %.4f\n", base, driven, t3off, t1off, bypassed);
+        CHECK (driven > base * 1.3 && t3off < 1e-6 && std::abs (t1off - driven) < driven * 0.02 && std::abs (bypassed - base) < base * 0.02);
+        // a delay on the instrument rings on after the note, through the track
+        s.mixer.inst[0][0] = FxSlot {};
+        initFxSlot (s.mixer.inst[0][1], FxType::Delay);
+        s.mixer.inst[0][1].p[1] = 0; s.mixer.inst[0][1].p[0] = (float) (std::log (100.0) / std::log (2000.0)); s.mixer.inst[0][1].p[2] = 0.5f;
+        s.instruments[0].loopLength = 0; s.instruments[0].data.resize (480);
+        const double echo = rmsOf (renderMix (s, 24000, false), 4700, 5200);
+        std::printf ("instrument delay: echo rms %.5f\n", echo);
+        CHECK (echo > 1e-3);
+    }
     // a song with a delay insert keeps sounding after the note stops; the mixer runs through the Player
     {
         Song s = quiet();
@@ -2376,6 +2406,60 @@ static void testCapturePasses()
     r = placeCapture (song, log2, 0, 0, 0, 125, 6, offs);
     std::printf ("capture held over the wrap: %s\n", lines (r).c_str());
     CHECK (r.places.size() == 2 && r.places[0].line == 60 && r.places[1].note == kNoteOff && r.places[1].line == 2);
+
+    // legato on a plug-in: let go just after the next note -> same track, no OFF between them
+    {
+        std::vector<CapturedNote> lg;
+        lg.push_back (ev (100, 37, true, 4.0, 5, 1));
+        lg.push_back (ev (500, 41, true, 8.0, 5, 1));      // pressed...
+        lg.push_back (ev (520, 37, false, 8.2, 5, 1));     // ...then the old one let go
+        lg.push_back (ev (900, 41, false, 12.0, 5, 1));
+        // and a real gap: let go on line 16, the next note on line 20
+        lg.push_back (ev (1300, 44, true, 14.0, 5, 1));
+        lg.push_back (ev (1500, 44, false, 16.0, 5, 1));
+        lg.push_back (ev (1900, 49, true, 20.0, 5, 1));
+        lg.push_back (ev (2000, 49, false, 21.0, 5, 1));
+        // let go exactly as the next note comes (same line)
+        lg.push_back (ev (2100, 37, true, 24.0, 5, 1));
+        lg.push_back (ev (2400, 37, false, 28.0, 5, 1));
+        lg.push_back (ev (2401, 41, true, 28.0, 5, 1));
+        lg.push_back (ev (2700, 41, false, 31.0, 5, 1));
+        auto r = placeCapture (song, lg, 0, 0, 0, 125, 6, offs);
+        std::string t;
+        for (auto& p : r.places) t += std::to_string (p.line) + "/" + std::to_string (p.track) + ":" + (p.note == kNoteOff ? std::string ("OFF") : std::to_string (p.note)) + " ";
+        std::printf ("capture legato: %s\n", t.c_str());
+        int tracksUsed = 0, offAt8 = 0, offAt16 = 0, offAt28 = 0, offAt12 = 0;
+        for (auto& p : r.places)
+        {
+            tracksUsed = std::max (tracksUsed, p.track + 1);
+            if (p.note == kNoteOff && p.line == 8) ++offAt8;
+            if (p.note == kNoteOff && p.line == 9) ++offAt8;
+            if (p.note == kNoteOff && p.line == 12) ++offAt12;
+            if (p.note == kNoteOff && p.line == 16) ++offAt16;
+            if (p.note == kNoteOff && (p.line == 28 || p.line == 27)) ++offAt28;
+        }
+        CHECK (tracksUsed == 1);            // nothing pushed onto the next track
+        CHECK (offAt8 == 0 && offAt28 == 0); // no OFFs that would cut / sit on the next note
+        CHECK (offAt12 == 1 && offAt16 == 1); // the real releases keep theirs
+        // NOTE-OFFS switched off: none at all
+        auto r2 = placeCapture (song, lg, 0, 0, 0, 125, 6, offs, false, false);
+        int offs2 = 0; for (auto& p : r2.places) if (p.note == kNoteOff) ++offs2;
+        CHECK (offs2 == 0 && r2.places.size() == 6);
+        // staccato: let go a line before the next note, well before it -> the OFF stays (a gap)
+        std::vector<CapturedNote> st;
+        st.push_back (ev (100, 37, true, 4.0, 5, 1));
+        st.push_back (ev (520, 37, false, 7.2, 5, 1));
+        st.push_back (ev (640, 41, true, 8.0, 5, 1));
+        st.push_back (ev (900, 41, false, 10.0, 5, 1));
+        auto r3 = placeCapture (song, st, 0, 0, 0, 125, 6, offs);
+        int off7 = 0; for (auto& p : r3.places) if (p.note == kNoteOff && p.line == 7) ++off7;
+        CHECK (off7 == 1);
+        // let go just before the next note, on the line before -> legato, no OFF
+        st[1] = ev (590, 37, false, 7.6, 5, 1);
+        r3 = placeCapture (song, st, 0, 0, 0, 125, 6, offs);
+        int offNear = 0; for (auto& p : r3.places) if (p.note == kNoteOff && (p.line == 7 || p.line == 8)) ++offNear;
+        CHECK (offNear == 0);
+    }
 
     // a release alone after the take doesn't start a new one
     std::vector<CapturedNote> log3 = log;

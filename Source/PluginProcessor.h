@@ -92,6 +92,8 @@ public:
     std::atomic<int>   recSource { SourceInput };
     std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
     std::atomic<bool>  monitorInput { false };  // hear the input through the app
+    std::atomic<bool>  fullVelocity { false };  // FULL VEL: MIDI notes play (and record) at 127, whatever the keyboard sent
+    void setFullVelocity (bool on);             // (and the prefs)
     std::atomic<int>   inputChannels { 0 };     // input channels the audio device gives (0 = none)
     std::atomic<bool>  audioRunning { false };  // processBlock has run recently (a device is open)
     double audioRate() const { return currentRate; }   // the rate the audio runs at (prepareToPlay)

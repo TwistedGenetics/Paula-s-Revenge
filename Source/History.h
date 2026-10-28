@@ -4,6 +4,7 @@
 // (one block, the block list + sequence, one instrument, or the song settings).
 // Undo swaps that saved copy back in and keeps the current one for redo.
 #pragma once
+#include <array>
 
 #include <JuceHeader.h>
 #include "engine/Song.h"
@@ -68,6 +69,7 @@ private:
         std::shared_ptr<prv::Block> block;
         std::shared_ptr<Structure> structure;
         std::shared_ptr<prv::Instrument> inst;
+        std::shared_ptr<std::array<prv::FxSlot, prv::kInserts>> instFx;   // (the instrument's own inserts go with it)
         std::shared_ptr<Settings> settings;
         std::shared_ptr<prv::MixerSettings> mix;
         size_t bytes = 0;

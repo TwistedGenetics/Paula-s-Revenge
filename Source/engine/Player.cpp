@@ -77,7 +77,7 @@ int Player::synthOutputTrack (int i) const
     const int nt = std::clamp (song->numTracks, 1, kMaxTracks);
     const int o = song->instruments[(size_t) i].pluginOutput;
     if (o >= 0) return std::min (o, nt - 1);
-    return synthTrack[i] < nt ? synthTrack[i] : 0;   // AUTO: the lowest track that has played it
+    return synthTrack[i] < nt ? synthTrack[i] : 0;   // AUTO: the track that played its latest note
 }
 
 bool Player::instrumentIsOn (int i) const
@@ -154,6 +154,7 @@ namespace
 void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
 {
     const auto& in = song->instruments[(size_t) v.instr];
+    if (ch >= 0 && ch < kMaxTracks) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts')
     synthRelease (v);   // one note at a time on a track, as with samples
     uint8_t p = 0;
     int note = (int) cell.note + in.transpose;
@@ -209,7 +210,6 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int j = 0; j < kMaxChordNotes; ++j)
         if (v.synthChord[j] >= 0) s->noteOn (v.synthChord[j], v.synthVel, chunkPos);
-    if (ch < kMaxTracks) synthTrack[v.instr] = std::min (synthTrack[v.instr], ch);
     synthBend (v);
 }
 
@@ -366,7 +366,6 @@ void Player::playSong (int pos, int startLine)
     if (mode != Mode::Stopped) sendClock (2, chunkPos);
     synthAllOff();
     resetSwitches();
-    for (auto& t : synthTrack) t = 99;
     for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
     seqPos = std::clamp (pos, 0, (int) song->sequence.size() - 1);
@@ -391,7 +390,6 @@ void Player::playBlock (int b, int startLine)
     if (mode != Mode::Stopped) sendClock (2, chunkPos);
     synthAllOff();
     resetSwitches();
-    for (auto& t : synthTrack) t = 99;
     for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
     block = song->safeBlock (b);
@@ -637,6 +635,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
         return;
     }
     v.fadeOut = 0;
+    if (ch < kMaxTracks) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;
@@ -1407,6 +1406,17 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     // with a mixer in use each track goes to its own buffer first
     // (plug-in instruments always go through the mixer: they play into a track's strip)
     const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any());
+    // instruments with their own inserts: gathered on their own first
+    bool anyChain = false;
+    for (int ins = 0; ins < kMaxInstruments; ++ins)
+    {
+        instChain[ins] = mixActive && song->mixer.instrumentChain (ins);
+        if (! instChain[ins]) continue;
+        anyChain = true;
+        std::fill (instL[ins], instL[ins] + numSamples, 0.0f);
+        std::fill (instR[ins], instR[ins] + numSamples, 0.0f);
+    }
+    auto chainOf = [&] (int ch) { const int vi = voices[ch].instr; return anyChain && vi >= 0 && vi < kMaxInstruments && instChain[vi] ? vi : -1; };
 
     float peaks[kMaxTracks] = {};
     const int nt = song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0;
@@ -1514,8 +1524,12 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         for (int j = kMaxTracks; j < kVoices; ++j)
         {
             const float p = isFixed[j] ? fixedPos[j] : 0.0f;
-            if (st[j]) { jl += valL[j] * 0.5f * std::min (1.0f, 1.0f - p); jr += valR[j] * 0.5f * std::min (1.0f, 1.0f + p); }
-            else addPanned (valL[j] * 0.7f, p, jl, jr);
+            float vl = 0, vr = 0;
+            if (st[j]) { vl = valL[j] * 0.5f * std::min (1.0f, 1.0f - p); vr = valR[j] * 0.5f * std::min (1.0f, 1.0f + p); }
+            else addPanned (valL[j] * 0.7f, p, vl, vr);
+            // (an instrument with inserts: through them, like its notes in the pattern)
+            if (const int vi = chainOf (j); vi >= 0) { instL[vi][i] += vl; instR[vi][i] += vr; }
+            else { jl += vl; jr += vr; }
         }
 
         if (mixActive)
@@ -1529,6 +1543,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 {
                     addVoice (t, scale, sidePan (nt > 4 ? t / 2 : t), tl, tr);
                     if (nt > 4 && options.crunches()) { tl = quant8 (tl); tr = quant8 (tr); }
+                    if (const int vi = chainOf (t); vi >= 0) { instL[vi][i] += tl; instR[vi][i] += tr; tl = tr = 0; }
                 }
                 trkL[t][i] = tl; trkR[t][i] = tr;
             }
@@ -1585,12 +1600,37 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (! instrumentIsOn (ins)) continue;   // (still run, so it's ready when switched back on)
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
             const float g = (float) std::clamp (song->instruments[(size_t) ins].volume, 0, 64) / 64.0f;
+            if (instChain[ins])
+            {
+                // through its own inserts first
+                for (int i = 0; i < numSamples; ++i) { instL[ins][i] += synthL[i] * g; instR[ins][i] += synthR[i] * g; }
+                continue;
+            }
             float pk = 0;
             for (int i = 0; i < numSamples; ++i)
             {
                 const float l = synthL[i] * g, r = synthR[i] * g;
                 trkL[t][i] += l; trkR[t][i] += r;
                 pk = std::max ({ pk, std::abs (l), std::abs (r) });
+            }
+            peaks[t] = std::max (peaks[t], pk);
+        }
+    }
+    if (anyChain)
+    {
+        // each instrument's inserts, then into the strip of the track that played its latest note
+        const double bpm = (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed);
+        for (int ins = 0; ins < kMaxInstruments; ++ins)
+        {
+            if (! instChain[ins]) continue;
+            mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
+            const int t = synthOutputTrack (ins);
+            if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
+            float pk = 0;
+            for (int i = 0; i < numSamples; ++i)
+            {
+                trkL[t][i] += instL[ins][i]; trkR[t][i] += instR[ins][i];
+                pk = std::max ({ pk, std::abs (instL[ins][i]), std::abs (instR[ins][i]) });
             }
             peaks[t] = std::max (peaks[t], pk);
         }

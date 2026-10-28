@@ -78,6 +78,7 @@ public:
     std::function<void (const juce::String&)> onStatus;
     std::function<void (bool song)> onPlayStop;
     std::function<void()> onMeterColourMenu;   // right-click a meter
+    std::function<void()> onBackFromInstrument;   // BACK on an instrument's own insert: its page
     std::function<void()> onOctave;      // [ ] changed the octave
 
     enum class Page { Strips, Channel, Effect };

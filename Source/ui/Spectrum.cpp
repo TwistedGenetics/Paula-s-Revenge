@@ -6,7 +6,7 @@ namespace prv::ui
 {
 Spectrum::Spectrum (PaulaProcessor& p) : proc (p)
 {
-    setInterceptsMouseClicks (false, false);
+    setInterceptsMouseClicks (true, false);   // (right-click: its colour)
     setOpaque (true);
 }
 
