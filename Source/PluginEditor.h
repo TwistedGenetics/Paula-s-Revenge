@@ -92,7 +92,7 @@ private:
     PixLabel  posLabel;
 
     // paula strip
-    PixButton a500Btn { "A500", true }, a1200Btn { "A1200", true }, cleanBtn { "CLEAN", true };
+    PixButton a500Btn { "A500", true }, a1200Btn { "A1200", true }, a4000Btn { "A4000", true }, cleanBtn { "CLEAN", true };
     PixButton s950Btn { "S950", true }, s1000Btn { "S1000", true };
     PixButton steppedBtn { "STEPPED", true }, eightBitBtn { "8-BIT", true }, crunchBtn { "CRUNCH", true }, ledBtn { "LED", true };
     PixLabel  ledLabel { {}, false };

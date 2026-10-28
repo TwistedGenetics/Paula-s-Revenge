@@ -113,6 +113,8 @@ void Player::releaseForTail()
 
 void Player::resetSwitches()
 {
+    // a new start: the tracks' Paula channels start from silence (a stop's last steps are dropped)
+    for (int t = 0; t < kMaxTracks; ++t) blepCh[t].reset();
     // play / stop start again from the BYPASS and ON buttons
     for (auto& o : instOnOv) o = -1;
     mixerEngine.clearOnOff();
@@ -286,6 +288,9 @@ void Player::setSampleRate (double sr)
     mixerEngine.prepare (sampleRate);
     rack.prepare (sampleRate, MixerEngine::kMaxBlock);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
+    if (blepTable.rate() != sampleRate) blepTable.build (sampleRate);
+    for (auto& b : blepCh) b.reset();
+    blepClock = 0;
     for (auto& b : akL) b.reset();
     for (auto& b : akR) b.reset();
 }
@@ -294,12 +299,22 @@ void Player::updateFilters()
 {
     lastModel = options.model;
     const double nyq = sampleRate * 0.45;
-    // A500: fixed RC lowpass ~4.4 kHz. A1200: ~34 kHz (effectively open).
-    const double lpHz = options.model == PaulaOptions::Model::A500 ? 4420.0 : 34000.0;
-    lpL.setLowpass (std::min (lpHz, nyq), sampleRate); lpR = lpL;
+    // The fixed output filter, from Henryk Richter's "Amiga Paula vs. System Theory":
+    //  A500 / A600 / A2000: RC low-pass 4.42 kHz (100 nF, 360 ohm)
+    //  A1200: its whole output measured -3 dB around 14-15.5 kHz, falling to about -4.4 dB
+    //         (a shelf: the inverse of the paper's compensation filter (1 - 0.125/z) / (1 + 0.125/z) at 44.3 kHz)
+    //  A4000: measured, the inverse of (4 - 2/z) / (1 + 0.5/z) at 44.3 kHz: about 4.6 kHz, falling faster near 20 kHz
+    //  (the band-limited steps then cut everything above 20 kHz, as the real output does)
+    switch (options.model)
+    {
+        case PaulaOptions::Model::A1200: lpL.set (10976.0, 18139.0, sampleRate); break;
+        case PaulaOptions::Model::A4000: lpL.set (4703.0, 42332.0, sampleRate); break;
+        default:                         lpL.set (std::min (4420.0, nyq), 0.0, sampleRate); break;
+    }
+    lpR = lpL;
     hpL.setLowpass (5.2, sampleRate); hpR = hpL;
-    // "LED" filter: 2-pole Butterworth-ish lowpass ~3.1 kHz, Q 0.66
-    ledL.setLowpass (3091.0, 0.660, sampleRate); ledR = ledL;
+    // "LED" filter: 12 dB/oct Butterworth at about 3.2 kHz (the paper; OpenMPT uses 3275 Hz)
+    ledL.setLowpass (std::min (3200.0, nyq), 0.70710678, sampleRate); ledR = ledL;
 
     // Akai: a Butterworth low-pass built from 2-pole sections
     //  S950: the voice filter (6th-order Butterworth switched-capacitor, MF6 type) fully open
@@ -1078,7 +1093,7 @@ void Player::advanceLine()
 }
 
 // ---------------------------------------------------------------------------
-void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
+void Player::renderVoice (Voice& v, double inc, float& outL, float& outR, int ch)
 {
     outL = outR = 0.0f;
     if (! v.active || v.instr < 0 || song == nullptr) return;
@@ -1111,6 +1126,74 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR)
     };
 
     float L = 0.0f, R = 0.0f;
+    if (options.usesBlep() && ch >= 0 && ch < kVoices)
+    {
+        // Paula's staircase as band-limited steps: each change of level at its exact time
+        // (on the 55.4 kHz grid below volume 64, as a real Paula does), nothing folding back
+        float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f;
+        if (v.fadeOut > 0)
+        {
+            g *= (float) v.fadeOut / (float) v.fadeLen;
+            if (--v.fadeOut == 0) v.active = false;
+        }
+        auto& bc = blepCh[ch];
+        const double t0 = blepClock;
+        bc.begin ((long long) t0 + 1);
+        const bool snap = options.snapsVolume() && g * 64.0f < 63.5f;
+        const double grid = sampleRate / kPaulaDacRate;
+        auto when = [&] (double tau)
+        {
+            const double t = t0 + tau;
+            return snap ? std::ceil (t / grid - 1e-9) * grid : t;
+        };
+        auto level = [&] (double pos, double tau)
+        {
+            const size_t idx = (size_t) std::clamp ((int) std::floor (pos), 0, last);
+            const float l = conv (d[idx]) * g;
+            bc.set (blepTable, when (tau), l, stereo ? conv (dr[idx]) * g : l);
+        };
+        if (! v.active) bc.set (blepTable, when (0.0), 0.0f, 0.0f);   // (faded out)
+        else if (v.reverse)
+        {
+            level (v.pos, 0.0);
+            v.pos -= inc;
+            if (v.pingBack && v.pos < loopStart)
+            {
+                v.pos = std::min (end - 1.0, loopStart + (loopStart - v.pos));
+                v.reverse = v.pingBack = false;
+            }
+            else if (v.pos < begin) { if (looped && loopLen >= 4) v.pos = end - 1.0; else { v.active = false; bc.set (blepTable, when (1.0), 0.0f, 0.0f); } }
+        }
+        else
+        {
+            level (v.pos, 0.0);   // (a new note, or the volume changed)
+            double p = v.pos, remaining = inc;
+            int guard = 0;
+            while (remaining > 1e-12 && guard++ < 4096)
+            {
+                const double fl = std::floor (p);
+                const double step = std::min (fl + 1.0 - p, remaining);
+                p += step; remaining -= step;
+                const double tau = (inc - remaining) / inc;
+                if (p >= end)
+                {
+                    if (! looped || loopLen < 1.0) { v.active = false; bc.set (blepTable, when (tau), 0.0f, 0.0f); break; }
+                    if (in.pingPong && v.regionStart < 0 && loopLen >= 2.0)
+                    {
+                        p = std::max (loopStart, end - 1.0 - (p - end));
+                        v.reverse = v.pingBack = true;
+                        level (p, tau);
+                        break;
+                    }
+                    while (p >= end) p -= loopLen;
+                }
+                if (step > 0.0 && p == std::floor (p)) level (p, tau);   // crossed into the next sample
+            }
+            v.pos = p;
+        }
+        bc.out (outL, outR);
+        return;
+    }
     if (v.reverse)
     {
         // backwards: step down through the sample, stop at the start
@@ -1219,8 +1302,8 @@ void Player::outputStage (float& L, float& R, bool led)
     }
     else if (options.model != PaulaOptions::Model::Clean)
     {
-        L = hpL.hp (lpL.lp (L));
-        R = hpR.hp (lpR.lp (R));
+        L = hpL.hp (lpL.process (L));
+        R = hpR.hp (lpR.process (R));
     }
     if (led && ! options.isAkai())
     {
@@ -1273,6 +1356,12 @@ void Player::updateSynths (int numSamples)
 void Player::renderChunk (float* left, float* right, int numSamples)
 {
     if (options.model != lastModel) updateFilters();
+    if (options.usesBlep() != blepWasOn)
+    {
+        blepWasOn = options.usesBlep();
+        for (auto& b : blepCh) b.reset();
+    }
+    if (blepClock > 1.0e12) { blepClock = 0; for (auto& b : blepCh) b.reset(); }   // (after years of playing)
     if (rack.any()) updateSynths (numSamples);
     else { for (auto& d : sampleDelay) d = 0; for (int t = 0; t < kMaxTracks; ++t) mixerEngine.setInputLatency (t, 0); mixerEngine.setExtraDelay (0); }
     bool anyClock = false;
@@ -1338,11 +1427,24 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             for (int ch = 0; ch < kVoices; ++ch)
             {
                 Voice& v = voices[ch];
-                if (! v.active) continue;
+                if (! v.active)
+                {
+                    // a stopped note's last band-limited step still has to finish
+                    if (ch < kVoices && ! blepCh[ch].idle())
+                    {
+                        float tl = 0, tr = 0;
+                        blepCh[ch].begin ((long long) blepClock + 1);
+                        blepCh[ch].set (blepTable, blepClock, 0.0f, 0.0f);
+                        blepCh[ch].out (tl, tr);
+                        if (blepCh[ch].settled() && std::abs (tl) < 1e-7f && std::abs (tr) < 1e-7f) blepCh[ch].reset();
+                        if (ch >= kMaxTracks || ! (mute[ch].load (std::memory_order_relaxed) || ch >= nt)) { valL[ch] = tl; valR[ch] = tr; }
+                    }
+                    continue;
+                }
                 const double rateMul = v.instr >= 0 ? song->instruments[(size_t) v.instr].rate / kAmigaC3Rate : 1.0;
                 const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate * rateMul * v.pitchMul;
                 float sl, sr;
-                renderVoice (v, inc, sl, sr);
+                renderVoice (v, inc, sl, sr, ch);
                 if (v.active || sl != 0.0f || sr != 0.0f)
                     if (v.instr >= 0) shapeVoice (v, sl, sr);
                 if (ch < kMaxTracks)
@@ -1354,6 +1456,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 st[ch] = v.instr >= 0 && song->instruments[(size_t) v.instr].isStereo();
             }
         }
+        blepClock += 1.0;
 
         // Pans: 8xx in the pattern, then the track's pan, then the instrument's
         // pan; otherwise mono voices follow the Amiga L-R-R-L layout scaled by

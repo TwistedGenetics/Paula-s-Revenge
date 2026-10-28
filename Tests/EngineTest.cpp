@@ -1,5 +1,6 @@
 // Engine tests: render, pitch check, MOD round-trip, loader fuzzing.
 // Build: c++ -std=c++20 -O1 -g -fsanitize=address,undefined -I Source Tests/EngineTest.cpp Source/engine/*.cpp
+#include <chrono>
 #include "engine/Player.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
@@ -1985,6 +1986,7 @@ static void testAkaiModels()
         s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
         Player p; p.setSampleRate (48000); p.setSong (&s);
         p.options.model = m; p.options.stereoSep = 0.0f;
+        p.options.zeroOrderHold = m != PaulaOptions::Model::Clean;   // (the reference: the samples exactly as they are)
         p.playBlock (0);
         std::vector<float> L (24000), R (24000);
         p.render (L.data(), R.data(), 24000);
@@ -2019,6 +2021,171 @@ static void testAkaiModels()
     CHECK (std::abs (b10k) < 0.5 && b20k < -3.0 && b20k > a20k);
 }
 
+
+// ---- v0.14: the accurate Paula (band-limited steps, the 55.4 kHz grid, the models' filters)
+static std::vector<float> paulaPlay (PaulaOptions::Model m, bool stepped, double sr, const std::vector<int16_t>& data,
+                                     int note, int vol, int n, bool led = false)
+{
+    Song s;
+    s.numTracks = 4;
+    auto& in = s.instruments[0];
+    in.data = data; in.loopStart = 0; in.loopLength = (int) data.size(); in.volume = 64;
+    s.blocks[0].at (0, 0) = { (uint8_t) note, 1, 0xC, (uint8_t) vol };
+    s.ledFilterAtStart = led;
+    Player p; p.setSampleRate (sr); p.setSong (&s);
+    p.options.model = m; p.options.zeroOrderHold = stepped; p.options.eightBit = false; p.options.crunch8ch = false; p.options.stereoSep = 0.0f;
+    p.playBlock (0);
+    std::vector<float> L ((size_t) n), R ((size_t) n);
+    p.render (L.data(), R.data(), n);
+    return L;
+}
+
+// level (dB) at one frequency, Hann window, from sample a on
+static double levelAt (const std::vector<float>& v, double f, double sr, int a = 8192)
+{
+    const int n = (int) v.size() - a;
+    double re = 0, im = 0, wsum = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        const double w = 0.5 - 0.5 * std::cos (2.0 * kPi * i / n);
+        const double ph = 2.0 * kPi * f * i / sr;
+        re += v[(size_t) (a + i)] * w * std::cos (ph);
+        im -= v[(size_t) (a + i)] * w * std::sin (ph);
+        wsum += w;
+    }
+    return 20.0 * std::log10 (std::sqrt (re * re + im * im) * 2.0 / wsum + 1e-12);
+}
+
+static std::vector<int16_t> sineCycle (int len, double amp = 30000.0)
+{
+    std::vector<int16_t> d ((size_t) len);
+    for (int i = 0; i < len; ++i) d[(size_t) i] = (int16_t) std::lround (amp * std::sin (2.0 * kPi * i / len));
+    return d;
+}
+
+static void testBlepSteps()
+{
+    const auto sine = sineCycle (32);
+    const double paulaC2 = kPaulaClock / periodFor (25, 0);   // C-2: the Paula rate (8,287 Hz)
+    // 1. a low note: Paula's own staircase image below 20 kHz is kept, at its true level
+    {
+        const double f0 = paulaC2 / 32.0, img = paulaC2 - f0;
+        auto v = paulaPlay (PaulaOptions::Model::Clean, true, 48000, sine, 25, 64, 48000 + 8192);
+        const double tone = levelAt (v, f0, 48000), image = levelAt (v, img, 48000);
+        const double expect = 20.0 * std::log10 (std::abs (std::sin (kPi * img / paulaC2) / (kPi * img / paulaC2)) / (std::sin (kPi * f0 / paulaC2) / (kPi * f0 / paulaC2)));
+        std::printf ("blep: C-2 tone %.1f Hz %.1f dB, staircase image %.0f Hz %.1f dB below it (a real Paula: %.1f)\n", f0, tone, img, tone - image, -expect);
+        CHECK (std::abs ((image - tone) - expect) < 1.0);
+    }
+    // 2. a high note: the images above 24 kHz don't fold back (the old way they came back at 13.8 / 15.9 kHz)
+    {
+        const double rate = kPaulaClock / periodFor (49, 0), f0 = rate / 32.0;
+        const double a1 = 48000.0 - (rate + f0), a2 = 48000.0 - (rate - f0) ;
+        auto v = paulaPlay (PaulaOptions::Model::Clean, true, 48000, sine, 49, 64, 48000 + 8192);
+        const double tone = levelAt (v, f0, 48000);
+        const double al = std::max (levelAt (v, std::abs (a1), 48000), levelAt (v, std::abs (a2), 48000));
+        std::printf ("blep: C-4 tone %.0f Hz %.1f dB, fold-back at %.0f / %.0f Hz %.1f dB below it\n", f0, tone, std::abs (a1), std::abs (a2), tone - al);
+        CHECK (tone - al > 70.0);
+    }
+    // 3. the same at 44.1 and 48 kHz below 18 kHz
+    {
+        const double f0 = paulaC2 / 32.0;
+        auto a = paulaPlay (PaulaOptions::Model::Clean, true, 44100, sine, 25, 64, 44100 + 8192);
+        auto b = paulaPlay (PaulaOptions::Model::Clean, true, 48000, sine, 25, 64, 48000 + 8192);
+        double worst = 0;
+        for (int k : { 1, 31, 33, 63, 65 })   // the tone and the staircase images round 8.3 and 16.6 kHz
+        {
+            const double f = k == 1 ? f0 : (k / 32) * paulaC2 + (k % 32 == 1 ? f0 : -f0);
+            worst = std::max (worst, std::abs (levelAt (a, f, 44100) - levelAt (b, f, 48000)));
+        }
+        std::printf ("blep: 44.1 vs 48 kHz differ by at most %.2f dB\n", worst);
+        CHECK (worst < 0.5);
+    }
+    // 4. a note that stops: no click (the level goes down as a band-limited step too)
+    {
+        Song s; s.numTracks = 4;
+        auto& in = s.instruments[0];
+        in.data = std::vector<int16_t> (2000, 30000); in.volume = 64;   // a held level, not looped: it ends
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.model = PaulaOptions::Model::Clean; p.options.eightBit = false; p.options.stereoSep = 0.0f;
+        p.playBlock (0);
+        std::vector<float> L (12000), R (12000);
+        p.render (L.data(), R.data(), 12000);
+        float jump = 0;
+        for (size_t i = 3000; i + 1 < L.size(); ++i) jump = std::max (jump, std::abs (L[i + 1] - L[i]));
+        std::printf ("blep: biggest jump when the sample ends %.3f (level %.3f)\n", jump, L[3000]);
+        CHECK (jump < 0.7f * std::abs (L[3000]) && std::abs (L.back()) < 1e-4f);   // (a raw jump would be 100%)
+    }
+}
+
+static void testVolumeGrid()
+{
+    // below volume 64 a real Paula moves each change onto its 55.4 kHz grid: extra components appear;
+    // at 64 they don't. Measured at 55,420 - 6 x 8,287 Hz +/- the tone (in band, nowhere near a harmonic)
+    const auto sine = sineCycle (32);
+    const double rate = kPaulaClock / periodFor (25, 0), f0 = rate / 32.0;
+    const double im = Player::kPaulaDacRate - 6.0 * rate;
+    auto v64 = paulaPlay (PaulaOptions::Model::A1200, true, 48000, sine, 25, 0x40, 96000);
+    auto v63 = paulaPlay (PaulaOptions::Model::A1200, true, 48000, sine, 25, 0x3F, 96000);
+    auto clean63 = paulaPlay (PaulaOptions::Model::Clean, true, 48000, sine, 25, 0x3F, 96000);
+    auto lv = [&] (const std::vector<float>& v) { return std::max (levelAt (v, im - f0, 48000), levelAt (v, im + f0, 48000)) - levelAt (v, f0, 48000); };
+    std::printf ("55.4 kHz grid: component at %.0f Hz: volume 63 %.1f dB, volume 64 %.1f dB, CLEAN at 63 %.1f dB (re the tone)\n",
+                 im - f0, lv (v63), lv (v64), lv (clean63));
+    CHECK (lv (v63) > lv (v64) + 20.0 && lv (v63) < -20.0 && lv (clean63) < lv (v63) - 20.0);
+    // and the tone itself is the same apart from the level
+    CHECK (std::abs ((levelAt (v63, f0, 48000) - levelAt (v64, f0, 48000)) - 20.0 * std::log10 (63.0 / 64.0)) < 0.2);
+}
+
+static void testModelFilters()
+{
+    // the same noise through each model, divided by CLEAN: the model's output filter
+    std::vector<int16_t> noise (8192);
+    uint32_t r = 12345;
+    for (auto& x : noise) { r = r * 1664525u + 1013904223u; x = (int16_t) ((int) (r >> 16) - 32768) ; }
+    const int n = 65536 + 8192;
+    auto clean = paulaPlay (PaulaOptions::Model::Clean, true, 48000, noise, 61, 64, n);   // C-5: content up to ~30 kHz
+    auto corner = [&] (const std::vector<float>& v, const std::vector<float>& ref)
+    {
+        const double base = levelAt (v, 300, 48000) - levelAt (ref, 300, 48000);
+        for (double f = 500; f < 20000; f += 50)
+            if (levelAt (v, f, 48000) - levelAt (ref, f, 48000) < base - 3.0) return f;
+        return 20000.0;
+    };
+    auto a500 = paulaPlay (PaulaOptions::Model::A500, true, 48000, noise, 61, 64, n);
+    auto a4000 = paulaPlay (PaulaOptions::Model::A4000, true, 48000, noise, 61, 64, n);
+    auto a1200 = paulaPlay (PaulaOptions::Model::A1200, true, 48000, noise, 61, 64, n);
+    auto led = paulaPlay (PaulaOptions::Model::A1200, true, 48000, noise, 61, 64, n, true);
+    const double c500 = corner (a500, clean), c4000 = corner (a4000, clean), c1200 = corner (a1200, clean), cled = corner (led, a1200);
+    const double at20k = (levelAt (a1200, 19000, 48000) - levelAt (clean, 19000, 48000)) - (levelAt (a1200, 300, 48000) - levelAt (clean, 300, 48000));
+    std::printf ("filters (-3 dB): A500 %.0f Hz, A4000 %.0f Hz, A1200 %.0f Hz (%.1f dB at 19 kHz), LED %.0f Hz\n", c500, c4000, c1200, at20k, cled);
+    CHECK (std::abs (c500 - 4420) < 4420 * 0.03);
+    CHECK (std::abs (c4000 - 4520) < 4520 * 0.03);
+    CHECK (c1200 > 13000 && c1200 < 16000 && at20k < -3.0 && at20k > -6.0);
+    CHECK (std::abs (cled - 3200) < 3200 * 0.03);
+}
+
+static void testBlepCpu()
+{
+    // 8 tracks of high notes, 10 seconds: the band-limited steps against plain interpolation
+    Song s; s.numTracks = 8;
+    auto& in = s.instruments[0];
+    in.data = sineCycle (32); in.loopStart = 0; in.loopLength = 32; in.volume = 64;
+    for (int t = 0; t < 8; ++t) s.blocks[0].at (0, t) = { (uint8_t) (61 + t), 1, 0xC, 0x30 };   // C-5 up: ~4 Paula samples a host sample
+    auto timeIt = [&] (bool stepped)
+    {
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.model = PaulaOptions::Model::A500; p.options.zeroOrderHold = stepped;
+        p.playBlock (0);
+        std::vector<float> L (512), R (512);
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int done = 0; done < 48000 * 10; done += 512) p.render (L.data(), R.data(), 512);
+        return std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count();
+    };
+    const double blep = timeIt (true), lin = timeIt (false);
+    std::printf ("cpu: 8 high tracks, 10 s of audio: band-limited steps %.2f s, interpolation %.2f s (this build)\n", blep, lin);
+    CHECK (blep < lin * 6.0);   // (relative: the machine may be busy; an optimised build is about 4x faster than real time needs)
+}
+
 int main()
 {
     testDoubleHalve();
@@ -2039,6 +2206,10 @@ int main()
     testOnOff();
     testChords();
     testChordTable();
+    testBlepSteps();
+    testVolumeGrid();
+    testModelFilters();
+    testBlepCpu();
     testSampleOnOff();
     testLatency();
     testMidiOut();

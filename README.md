@@ -354,18 +354,27 @@ Every track has a **second effect column** so a note can carry two effects; **FX
 
 | Control | What it does |
 |---|---|
-| A500 | 4.4 kHz output filter of the original A500 — warm and dull |
-| A1200 | Open output filter — brighter, more aliasing sparkle |
-| CLEAN | No output filtering at all |
+| A500 | The A500 (also the A600 and A2000): a 4.42 kHz output filter — warm and dull |
+| A1200 | The A1200: a much brighter output, about −3 dB around 14 kHz and −4.4 dB at the top, as measured |
+| A4000 | The A4000: about 4.6 kHz, falling a little faster towards 20 kHz, as measured |
+| CLEAN | Paula's playback with no output filtering at all |
 | S950 | Akai S950: 12-bit, stepped variable-rate playback, its 6-pole voice filter (see below) |
 | S1000 | Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output (see below) |
-| STEPPED | Sample-and-hold playback like the real chip (off = smooth interpolation) |
+| STEPPED | Paula's stepped (sample-and-hold) playback, exactly as the chip makes it (off = smooth interpolation) — see "How the Paula modes work" |
 | 8-BIT | Samples are played at 8-bit resolution |
 | CRUNCH | In 8-track songs, track pairs are mixed together and squashed back to 8 bits, the way 8-channel Amiga trackers did it in software |
-| LED | The "LED" lowpass filter, on at the start of the song (commands `E00`/`E01` switch it while playing) |
+| LED | The "LED" low-pass filter (12 dB/oct Butterworth at 3.2 kHz), on at the start of the song (commands `E00`/`E01` switch it while playing) |
 | SEP | How far tracks lean to the Amiga sides (tracks 1+4 left, 2+3 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
 
 For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it, or slice it (see Slicing).
+
+### How the Paula modes work
+
+Based on Henryk Richter's measurements in *Amiga Paula vs. System Theory*, with the band-limited step method of OpenMPT and Antti S. Lankila:
+
+* **The staircase, without false notes.** Paula holds each sample until the next one, so its output is a staircase, and the staircase's copies of the sound (images) go far above hearing. Played straight at the computer's rate, those copies fold back down as out-of-tune tones. With STEPPED on, every change of level is added as a *band-limited step* instead: everything a real Paula puts out below 20 kHz — its own images included, which is a big part of the sound of low-pitched samples — is there at its true level, and nothing folds back. It sounds the same at 44.1, 48 or 96 kHz.
+* **Volume below 64.** At volume 64 a real Paula changes level exactly when the next sample is due. At 63 and below it works on a fixed 55.4 kHz grid instead (its volume is made of short pulses in that grid), so each change waits for the next grid point. That adds a faint extra grit — small distortion products that come and go with the pitch — on everything that isn't at full volume. The A500, A1200 and A4000 modes do this; CLEAN doesn't.
+* **The output filters** are the real models': the A500/A600/A2000's 4.42 kHz RC filter (100 nF, 360 Ω), the A1200's and A4000's measured responses, and the LED filter as a 3.2 kHz Butterworth. The A600 sounds like the A500, so it has no separate button.
 
 ### The Akai modes
 
@@ -374,7 +383,7 @@ These model the playback side of the two samplers behind so much 90s jungle. Wha
 * **S950** — 12-bit samples and a variable sample rate up to 48 kHz ([Wikipedia](https://en.wikipedia.org/wiki/Akai_S900), [polynominal.com](https://www.polynominal.com/akai-s950/)). Like the S900 it plays samples back at a variable rate rather than interpolating (the S1000 review below contrasts the two). Its filter is a 6th-order Butterworth switched-capacitor low-pass with no resonance ([ALM's MUM M8, a recreation of it](https://www.juno.co.uk/products/alm-busy-circuits-alm-mum-m8-akais-s950/679163-01)). The model: sample data cut to 12 bits, stepped (sample-and-hold) playback at each voice's own rate, so pitched-down samples keep their grit and steps, and the 6-pole Butterworth low-pass at its open setting (16 kHz, an estimate; the real one is set per sample) plus output coupling. STEPPED, 8-BIT, CRUNCH and LED are Amiga features and switch off in this mode.
 * **S1000** — 16-bit, 44.1 kHz, pitched with an interpolation algorithm that a 1988 review found "extremely clean" and brighter than variable-rate playback; its filter is an 18 dB/octave low-pass with no resonance ([Music Technology, Dec 1988](https://www.muzines.co.uk/articles/akai-s1000/2303)). The model: full 16-bit data, interpolated playback and a steep 8th-order reconstruction filter at 19.5 kHz. The per-sample filter isn't part of the mode (use the instrument's PARAMS filter).
 
-Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For the full old-sampler sound, also lower the sample's rate (RESAMPLE, with RAW for no filtering).
+Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time. For the full old-sampler sound, also lower the sample's rate (RESAMPLE, with RAW for no filtering).
 
 ## Rendering
 
@@ -455,7 +464,7 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 
 ## Credits
 
-The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
+Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula vs. System Theory*; the band-limited steps follow OpenMPT's Paula emulation and Antti S. Lankila's work. The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
 
 ## Files
 

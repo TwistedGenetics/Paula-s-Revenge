@@ -5,6 +5,7 @@
 #include "Mixer.h"
 #include "PluginSynth.h"
 #include "DelayLine.h"
+#include "Blep.h"
 #include <atomic>
 
 namespace prv
@@ -17,10 +18,16 @@ constexpr double kS1000Cutoff = 19500.0;
 
 struct PaulaOptions
 {
-    // A500/A1200/Clean: Amiga Paula. S950/S1000: Akai samplers (see README)
-    enum class Model { A500, A1200, Clean, S950, S1000 };
+    // A500/A1200/A4000/Clean: Amiga Paula. S950/S1000: Akai samplers (see README)
+    // (new models go on the end: the number is saved)
+    enum class Model { A500, A1200, Clean, S950, S1000, A4000 };
     Model model        = Model::A500;   // analogue output filter model
     bool isAkai() const { return model == Model::S950 || model == Model::S1000; }
+    bool isAmiga() const { return model == Model::A500 || model == Model::A1200 || model == Model::A4000; }
+    // Paula's staircase as band-limited steps (every Paula model with STEPPED on)
+    bool usesBlep() const  { return ! isAkai() && zeroOrderHold; }
+    // below volume 64 a real Paula moves sample changes onto its 55.4 kHz grid
+    bool snapsVolume() const { return isAmiga() && zeroOrderHold; }
     // what the model actually does with the Amiga options
     bool stepped() const   { return model == Model::S950 ? true : model == Model::S1000 ? false : zeroOrderHold; }
     int  dropBits() const  { return model == Model::S950 ? 4 : model == Model::S1000 ? 0 : (eightBit ? 8 : 0); }   // 16 - bit depth
@@ -40,6 +47,24 @@ struct OnePole
     float lp (float x) { z += a * (x - z); return z; }
     float hp (float x) { z += a * (x - z); return x - z; }
     void reset() { z = 0; }
+};
+
+// first-order section from an analogue prototype H(s) = (1 + s/wz) / (1 + s/wp), bilinear
+// (wz = 0: a plain RC low-pass). Used for the measured Amiga output responses.
+struct FirstOrder
+{
+    double b0 = 1, b1 = 0, a1 = 0, z1 = 0;
+    void set (double poleHz, double zeroHz, double fs)
+    {
+        const double k = 2.0 * fs;
+        const double wp = 2.0 * kPi * poleHz;
+        const double cz = zeroHz > 0 ? 1.0 / (2.0 * kPi * zeroHz) : 0.0, cp = 1.0 / wp;
+        // (1 + cz s) / (1 + cp s), s = k (1 - z^-1) / (1 + z^-1)
+        const double a0 = 1.0 + cp * k;
+        b0 = (1.0 + cz * k) / a0; b1 = (1.0 - cz * k) / a0; a1 = (1.0 - cp * k) / a0;
+    }
+    float process (float x) { const double y = b0 * x + z1; z1 = b1 * x - a1 * y; return (float) y; }
+    void reset() { z1 = 0; }
 };
 
 struct Biquad
@@ -269,7 +294,16 @@ private:
     float jamL[MixerEngine::kMaxBlock] {}, jamR[MixerEngine::kMaxBlock] {};
     bool  ledBuf[MixerEngine::kMaxBlock] {};
     double samplesPerTick() const;
-    void renderVoice (Voice& v, double inc, float& outL, float& outR);
+    void renderVoice (Voice& v, double inc, float& outL, float& outR, int ch);
+    // Paula's staircase as band-limited steps, one channel per voice
+    BlepTable blepTable;
+    BlepChannel blepCh[kVoices];
+    double blepClock = 0;            // output samples since the start (the steps' time line)
+    bool blepWasOn = false;
+public:
+    static constexpr double kPaulaDacRate = kPaulaClock / 64.0;   // 55,420 Hz: the grid below volume 64
+    const BlepTable& blep() const { return blepTable; }
+private:
     double vibratoDelta (uint8_t pos, uint8_t depth, uint8_t wave, int shift) const;
     void updateFilters();
     void startShaping (Voice& v);
@@ -302,7 +336,8 @@ private:
     bool firstTickOfRow = true;
 
     // output filters
-    OnePole lpL, lpR, hpL, hpR;
+    FirstOrder lpL, lpR;     // the model's fixed output filter (measured response where there is one)
+    OnePole hpL, hpR;
     Biquad  ledL, ledR;
     Biquad  akL[4], akR[4];   // Akai output filter (cascaded 2-pole sections)
     int     akStages = 0;

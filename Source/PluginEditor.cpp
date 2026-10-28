@@ -81,8 +81,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         proc.withLock ([&] { proc.player.options.model = m; });
         refreshAll();
     };
-    a500Btn.onClick  = [setModel] { setModel (prv::PaulaOptions::Model::A500); };
-    a1200Btn.onClick = [setModel] { setModel (prv::PaulaOptions::Model::A1200); };
+    a500Btn.onClick  = [this, setModel] { setModel (prv::PaulaOptions::Model::A500);
+                                          setStatus ("A500 / A600 / A2000: PAULA, 4.4 KHZ OUTPUT FILTER"); };
+    a1200Btn.onClick = [this, setModel] { setModel (prv::PaulaOptions::Model::A1200);
+                                          setStatus ("A1200: PAULA, BRIGHT OUTPUT (-3 DB AROUND 14 KHZ)"); };
+    a4000Btn.onClick = [this, setModel] { setModel (prv::PaulaOptions::Model::A4000);
+                                          setStatus ("A4000: PAULA, 4.6 KHZ OUTPUT FILTER (MEASURED)"); };
     cleanBtn.onClick = [setModel] { setModel (prv::PaulaOptions::Model::Clean); };
     s950Btn.onClick  = [this, setModel] { setModel (prv::PaulaOptions::Model::S950);
                                           setStatus ("AKAI S950: 12-BIT, VARIABLE-RATE PLAYBACK, 6-POLE SWITCHED-CAP FILTER"); };
@@ -226,7 +230,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &modBtn, &wavBtn, &smpBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
-            &a500Btn, &a1200Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
+            &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
@@ -357,6 +361,7 @@ void PaulaEditor::refreshAll()
     const auto& o = proc.player.options;
     a500Btn.setToggleState (o.model == prv::PaulaOptions::Model::A500, juce::dontSendNotification);
     a1200Btn.setToggleState (o.model == prv::PaulaOptions::Model::A1200, juce::dontSendNotification);
+    a4000Btn.setToggleState (o.model == prv::PaulaOptions::Model::A4000, juce::dontSendNotification);
     cleanBtn.setToggleState (o.model == prv::PaulaOptions::Model::Clean, juce::dontSendNotification);
     s950Btn.setToggleState (o.model == prv::PaulaOptions::Model::S950, juce::dontSendNotification);
     s1000Btn.setToggleState (o.model == prv::PaulaOptions::Model::S1000, juce::dontSendNotification);
@@ -521,17 +526,21 @@ void PaulaEditor::resized()
 
     // title bar buttons (right side)
     auto title = r.removeFromTop ((int) (px * 14)).reduced (gap, (int) (px * 1.5f));
+    // the wide gaps between the groups close up when the window is narrow, so every label stays full size
+    const int buttonsW = 2 * (charsW (2) + gap) + charsW (14) + charsW (10) + charsW (8) + 2 * charsW (4) + charsW (7)
+                       + charsW (5) + charsW (4) + charsW (3) + charsW (4) + gap * 7;
+    const int wide = buttonsW + gap * 3 * 4 <= title.getWidth() ? gap * 3 : gap;
     zoomIn.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap);
-    zoomOut.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap * 3);
+    zoomOut.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (wide);
     smpBtn.setBounds (title.removeFromRight (charsW (14))); title.removeFromRight (gap);
     wavBtn.setBounds (title.removeFromRight (charsW (10))); title.removeFromRight (gap);
-    modBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (gap * 3);
+    modBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (wide);
     redoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
-    undoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap * 3);
+    undoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (wide);
     saveAsBtn.setBounds (title.removeFromRight (charsW (7))); title.removeFromRight (gap);
     saveBtn.setBounds (title.removeFromRight (charsW (5))); title.removeFromRight (gap);
     loadBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
-    newBtn.setBounds (title.removeFromRight (charsW (3))); title.removeFromRight (gap * 3);
+    newBtn.setBounds (title.removeFromRight (charsW (3))); title.removeFromRight (wide);
     helpBtn.setBounds (title.removeFromRight (charsW (4)));
 
     r.removeFromTop (gap);
@@ -575,6 +584,7 @@ void PaulaEditor::resized()
 
     a500Btn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
     a1200Btn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
+    a4000Btn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
     cleanBtn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
     s950Btn.setBounds (paula.removeFromLeft (charsW (4))); paula.removeFromLeft (gap);
     s1000Btn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap * 3);

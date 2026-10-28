@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.13.1</span>
+  <span class="ver">MANUAL &middot; V0.14</span>
 </header>
 
 <div class="app">
@@ -363,18 +363,25 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
-      <tr><td><span class="b">A500</span></td><td>The original A500's 4.4 kHz output filter: warm and dull</td></tr>
-      <tr><td><span class="b">A1200</span></td><td>An open output filter: brighter, more aliasing sparkle</td></tr>
-      <tr><td><span class="b">CLEAN</span></td><td>No output filtering</td></tr>
+      <tr><td><span class="b">A500</span></td><td>The A500 (and A600, A2000): a 4.42 kHz output filter, warm and dull</td></tr>
+      <tr><td><span class="b">A1200</span></td><td>The A1200: much brighter, about &minus;3 dB around 14 kHz, as measured</td></tr>
+      <tr><td><span class="b">A4000</span></td><td>The A4000: about 4.6 kHz, as measured</td></tr>
+      <tr><td><span class="b">CLEAN</span></td><td>Paula with no output filtering</td></tr>
       <tr><td><span class="b">S950</span></td><td>Akai S950: 12-bit, stepped variable-rate playback, its 6-pole filter</td></tr>
       <tr><td><span class="b">S1000</span></td><td>Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output</td></tr>
-      <tr><td><span class="b">STEPPED</span></td><td>Sample-and-hold playback like the real chip (off = smooth)</td></tr>
+      <tr><td><span class="b">STEPPED</span></td><td>Paula's stepped playback, exactly as the chip makes it (off = smooth)</td></tr>
       <tr><td><span class="b">8-BIT</span></td><td>Samples play at 8-bit resolution</td></tr>
       <tr><td><span class="b">CRUNCH</span></td><td>In 8-track songs, track pairs are mixed and squashed back to 8 bits, as 8-channel Amiga trackers did</td></tr>
-      <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
+      <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter (12 dB/oct at 3.2 kHz) at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
       <tr><td>SEP</td><td>How far tracks lean to the Amiga sides (1 and 4 left, 2 and 3 right). 20% to start; 0% = all centred</td></tr>
     </tbody>
   </table></div>
+  <h3>How the Paula modes work</h3>
+  <ul>
+    <li><span class="b">The staircase, without false notes.</span> Paula holds each sample until the next, so its output is a staircase whose copies of the sound go far above hearing. Played straight, those copies fold back as out-of-tune tones. With STEPPED on, every change of level is a band-limited step instead: everything a real Paula puts out below 20 kHz is there, its own staircase images included, and nothing folds back. It sounds the same at 44.1, 48 or 96 kHz.</li>
+    <li><span class="b">Volume below 64.</span> At 64 a real Paula changes level exactly when the next sample is due; below 64 it works on a fixed 55.4 kHz grid, so each change waits for the next grid point. That adds a faint grit to everything not at full volume. A500, A1200 and A4000 do this; CLEAN doesn't.</li>
+    <li><span class="b">The filters</span> are the real ones: the A500's 4.42 kHz RC filter (100 nF, 360 &Omega;), the A1200's and A4000's measured responses, the LED filter as a Butterworth. (From Henryk Richter's <i>Amiga Paula vs. System Theory</i>; the band-limited steps follow OpenMPT and Antti S. Lankila.)</li>
+  </ul>
   <h3>Panning, in order</h3>
   <ol class="steps">
     <li><code>8xx</code> in the pattern (an absolute position, not scaled by SEP).</li>
@@ -628,7 +635,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.13.1</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.14</footer>
 </main>
 </div>
 </body></html>

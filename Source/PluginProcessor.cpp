@@ -445,7 +445,7 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     {
         const juce::SpinLock::ScopedLockType sl (lock);
         auto& o = player.options;
-        o.model = (prv::PaulaOptions::Model) juce::jlimit (0, 4, (int) st.getProperty ("model", 0));
+        o.model = (prv::PaulaOptions::Model) juce::jlimit (0, 5, (int) st.getProperty ("model", 0));
         o.zeroOrderHold = st.getProperty ("zoh", true);
         o.eightBit = st.getProperty ("eightBit", true);
         o.crunch8ch = st.getProperty ("crunch", true);
