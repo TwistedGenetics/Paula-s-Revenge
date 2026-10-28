@@ -6,6 +6,7 @@
 #include "engine/Player.h"
 #include "History.h"
 #include "PluginHost.h"
+#include "MidiOutHost.h"
 
 class PaulaProcessor : public juce::AudioProcessor
 {
@@ -40,6 +41,7 @@ public:
     juce::SpinLock lock;
     prv::Song song;
     prv::PluginHost pluginHost;   // (before the player: plug-ins in the mixer go first)
+    prv::MidiOutHost midiHost;
     prv::Player player;
 
     template <typename Fn> void withLock (Fn&& fn)
@@ -65,7 +67,14 @@ public:
     std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, double)> synthFactory();
     // plug-in instruments
     prv::PluginSynthImpl* synthAt (int instrument) const;
-    bool pluginLoadedInstrument (int instrument) const { return synthAt (instrument) != nullptr; }
+    prv::MidiOutSynth* midiAt (int instrument) const;
+    // the instrument's plug-in (or MIDI output) is running
+    bool pluginLoadedInstrument (int instrument) const { return const_cast<PaulaProcessor*> (this)->player.synths().at (instrument) != nullptr; }
+    juce::String instrumentError (int instrument) const;   // why it isn't
+    // every MIDI-out instrument: all notes off now (STOP when already stopped)
+    void midiPanic();
+    // the last CC that came in on a MIDI input (for LEARN CC); serial counts them
+    std::atomic<int> lastCcNumber { -1 }, ccSerial { 0 };
     void reloadInstrumentPlugin (int instrument);
 
     // Replace the whole song (loading). Stops playback.
@@ -87,7 +96,8 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut } view = View::Pattern;
+        bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust

@@ -178,6 +178,8 @@ private:
     void refreshEffect();
     void setSlotType (int slot, FxType);
     juce::String pageTitle() const;
+    juce::String delayText() const;
+    int shownDelay = -1;
     void paintEqGraph (juce::Graphics&, juce::Rectangle<float>);
     static juce::String effectInfo (FxType);
 };

@@ -28,7 +28,7 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
         // back to an ordinary (empty) sample instrument
         const int i = proc.editorState.instrument;
         proc.history.instrument (i, "BACK TO A SAMPLE");
-        proc.withLock ([&] { auto& in = inst(); in.plugin = false; in.pluginOff = false; in.pluginKey.clear(); in.pluginName.clear(); in.pluginState.clear(); });
+        proc.withLock ([&] { auto& in = inst(); in.plugin = false; in.switchedOff = false; in.pluginKey.clear(); in.pluginName.clear(); in.pluginState.clear(); });
         proc.updateMixerEffects();
         if (onChanged) onChanged();
         if (onClose) onClose();
@@ -63,11 +63,18 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
         };
     }
     onBtn.onClick = [this] { toggleOn(); };
+    chordBtn.onClick = [this]
+    {
+        const bool on = chordBtn.getToggleState();
+        proc.history.instrument (proc.editorState.instrument, on ? "CHORD ON" : "CHORD OFF");
+        proc.withLock ([&] { inst().chord = on; });
+        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS THE NOTE WITH X AND Y SEMITONES ABOVE IT, HELD" : "CHORD OFF: 0XY IS AN ARPEGGIO");
+    };
     learnA.onClick = [this] { learnTrackKnob (0); };
     learnB.onClick = [this] { learnTrackKnob (1); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &list, &rescanBtn, &cancelBtn, &windowBtn, &changeBtn, &sampleBtn, &closeBtn,
-                                                             &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn })
+                                                             &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn })
         addChildComponent (c);
     for (int k = 0; k < kInstrumentKnobs; ++k) { addChildComponent (learnK[k]); addChildComponent (clearK[k]); }
 }
@@ -129,7 +136,7 @@ void SynthPage::choose (int row)
         in.pluginKey = prv::PluginHost::keyFor (d);
         in.pluginName = d.name.toUpperCase().toStdString();
         in.name = in.pluginName.substr (0, 22);
-        in.pluginOff = false;
+        in.switchedOff = false;
         juce::ignoreUnused (keepName);
     });
     proc.updateMixerEffects();
@@ -179,7 +186,7 @@ void SynthPage::refresh()
     list.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
-    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn })
+    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn })
         c->setVisible (plug);
     for (int k = 0; k < kInstrumentKnobs; ++k) { learnK[k].setVisible (plug); clearK[k].setVisible (plug); }
     closeBtn.setVisible (true);
@@ -187,9 +194,10 @@ void SynthPage::refresh()
     {
         outBox.setValue (inst().pluginOutput + 1);
         bendBox.setValue (inst().bendRange);
-        const bool on = proc.player.synthIsOn (proc.editorState.instrument);
+        const bool on = proc.player.instrumentIsOn (proc.editorState.instrument);
         onBtn.setToggleState (on, juce::dontSendNotification);
         onBtn.setButtonText (on ? "ON" : "OFF");
+        chordBtn.setToggleState (inst().chord, juce::dontSendNotification);
         const bool loaded = proc.pluginLoadedInstrument (proc.editorState.instrument);
         windowBtn.setEnabled (loaded);
         for (auto& b : learnK) b.setEnabled (loaded);
@@ -218,7 +226,7 @@ void SynthPage::tick()
         if ((int) proc.pluginHost.instruments().size() != (int) choices.size()) refreshList();
     }
     // the ON button follows V / J switching while the song plays
-    if (! browsing && inst().isPlugin() && onBtn.getToggleState() != proc.player.synthIsOn (proc.editorState.instrument)) refresh();
+    if (! browsing && inst().isPlugin() && onBtn.getToggleState() != proc.player.instrumentIsOn (proc.editorState.instrument)) refresh();
     // LEARN: the first control that moves
     const int moved = learner.poll();
     if (moved >= 0) learned (moved);
@@ -256,9 +264,9 @@ void SynthPage::toggleOn()
     // with LEARN armed, ON is learned: the knob then switches the instrument on and off
     if (learner.armed) { learned (kAutoOnOff); return; }
     const int i = proc.editorState.instrument;
-    const bool off = ! inst().pluginOff;
+    const bool off = ! inst().switchedOff;
     proc.history.instrument (i, off ? "INSTRUMENT OFF" : "INSTRUMENT ON");
-    proc.withLock ([&] { inst().pluginOff = off; proc.player.setSynthOn (i, -1); });   // (the button wins over V / J switching)
+    proc.withLock ([&] { inst().switchedOff = off; proc.player.setInstrumentOn (i, -1); });   // (the button wins over V / J switching)
     if (onStatus) onStatus (off ? "INSTRUMENT SWITCHED OFF - ITS NOTES ARE SILENT" : "INSTRUMENT SWITCHED ON");
     refresh();
 }
@@ -339,8 +347,8 @@ void SynthPage::paint (juce::Graphics& g)
     const bool loaded = proc.pluginLoadedInstrument (i);
     juce::StringArray lines;
     lines.add (juce::String (in.pluginName) + (known ? "  BY " + d.manufacturerName.toUpperCase() + " (" + (d.pluginFormatName == "AudioUnit" ? juce::String ("AU") : d.pluginFormatName.toUpperCase()) + ")" : juce::String()));
-    lines.add (loaded && ! proc.player.synthIsOn (i) ? juce::String ("SWITCHED OFF: SILENT UNTIL IT IS ON AGAIN") :
-               loaded ? "PLAYS INTO TRACK " + juce::String (proc.player.synthOutputTrack (i) + 1) + "'S MIXER STRIP" + (in.pluginOutput < 0 ? " (AUTO: THE FIRST TRACK THAT PLAYS IT)" : "")
+    lines.add (loaded && ! proc.player.instrumentIsOn (i) ? juce::String ("SWITCHED OFF: SILENT UNTIL IT IS ON AGAIN") :
+               loaded ? "PLAYS INTO TRACK " + juce::String (proc.player.synthOutputTrack (i) + 1) + "'S MIXER STRIP" + (in.pluginOutput < 0 ? " (AUTO)" : "")
                       : "MISSING: " + proc.pluginHost.lastError (in.pluginKey) + " - SILENT, SETTINGS KEPT");
     auto r = infoArea;
     for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::ink); }
@@ -355,7 +363,7 @@ void SynthPage::paint (juce::Graphics& g)
     juce::String ta = "TRACK " + juce::String (tr + 1) + ":  A = ";
     const auto& a = proc.song.mixer.trackAuto[tr][0];
     const auto& b = proc.song.mixer.trackAuto[tr][1];
-    const int room = (int) (trackArea.getWidth() / (px * PixelFont::kCellW)) / 2 - 7;
+    const int room = ((int) (trackArea.getWidth() / (px * PixelFont::kCellW)) - 21) / 2;
     ta += (a.valid() ? shortTargetName (a.name, room) : juce::String ("-")) + "   B = " + (b.valid() ? shortTargetName (b.name, room) : juce::String ("-"));
     PixelFont::drawLeft (g, fit (ta, trackArea.getWidth()), trackArea, px, Theme::ink);
 }
@@ -395,7 +403,8 @@ void SynthPage::resized()
     {
         auto row = r.removeFromTop (rowH);
         outBox.setBounds (row.removeFromLeft (std::min (row.getWidth() / 2, outBox.preferredWidth (px) + charsW (2)))); row.removeFromLeft (gap * 3);
-        onBtn.setBounds (row.removeFromRight (charsW (4))); row.removeFromRight (gap * 3);
+        onBtn.setBounds (row.removeFromRight (charsW (4))); row.removeFromRight (gap);
+        chordBtn.setBounds (row.removeFromRight (charsW (5))); row.removeFromRight (gap * 3);
         bendBox.setBounds (row.removeFromLeft (std::min (row.getWidth(), bendBox.preferredWidth (px))));
     }
     r.removeFromTop (gap * 3);
@@ -412,9 +421,8 @@ void SynthPage::resized()
     {
         auto row = r.removeFromTop (rowH);
         trackBox.setBounds (row.removeFromLeft (trackBox.preferredWidth (px))); row.removeFromLeft (gap * 2);
-        const int w = (row.getWidth() - gap) / 2;
-        learnA.setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap);
-        learnB.setBounds (row);
+        learnA.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap);
+        learnB.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (16))));
     }
 }
 } // namespace prv::ui

@@ -8,8 +8,10 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 10;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
-                                  // v5: ping-pong loops + slices, v6: song sections, v7: mixer
+    constexpr int kVersion = 11;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+                                  // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
+                                  // v9: automation + plug-in instruments, v10: instruments switched off,
+                                  // v11: CHORD, MIDI out, sample instruments switched off
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -215,7 +217,17 @@ juce::MemoryBlock writeSong (const Song& song)
         for (const auto& k : in.knobs) writeTarget (raw, k);
     }
     // v10: plug-in instruments switched off
-    for (const auto& in : song.instruments) if (in.plugin) raw.writeByte (in.pluginOff ? 1 : 0);
+    for (const auto& in : song.instruments) if (in.plugin) raw.writeByte (in.switchedOff ? 1 : 0);
+    // v11: CHORD, MIDI out, any instrument switched off
+    for (const auto& in : song.instruments)
+    {
+        raw.writeByte ((in.chord ? 1 : 0) | (in.midiOut ? 2 : 0) | (in.switchedOff ? 4 : 0) | (in.midiClock ? 8 : 0));
+        if (! in.midiOut) continue;
+        writeLong (raw, in.midiDevice.data(), in.midiDevice.size());
+        raw.writeIntBigEndian (in.midiChannel);
+        raw.writeIntBigEndian (in.midiDelayMs);
+        for (int c : in.midiCC) raw.writeIntBigEndian (c);
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -395,7 +407,25 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         if (! ok) { error = "The automation / plug-in instrument part of this song is damaged."; return false; }
     }
     if (version >= 10 && ! in.isExhausted())
-        for (auto& ins : s.instruments) if (ins.plugin) ins.pluginOff = in.readByte() != 0;
+        for (auto& ins : s.instruments) if (ins.plugin) ins.switchedOff = in.readByte() != 0;
+    if (version >= 11 && ! in.isExhausted())
+    {
+        bool ok = true;
+        for (auto& ins : s.instruments)
+        {
+            if (! ok || in.isExhausted()) { ok = false; break; }
+            const int f = in.readByte();
+            ins.chord = (f & 1) != 0; ins.midiOut = (f & 2) != 0; ins.switchedOff = (f & 4) != 0; ins.midiClock = (f & 8) != 0;
+            if (! ins.midiOut) continue;
+            std::vector<uint8_t> dev;
+            ok = readLong (in, dev, 1 << 12);
+            ins.midiDevice.assign (dev.begin(), dev.end());
+            ins.midiChannel = juce::jlimit (1, 16, in.readIntBigEndian());
+            ins.midiDelayMs = juce::jlimit (-50, 200, in.readIntBigEndian());
+            for (int& c : ins.midiCC) c = juce::jlimit (0, 127, in.readIntBigEndian());
+        }
+        if (! ok) { error = "The instrument settings part of this song is damaged."; return false; }
+    }
     out = std::move (s);
     return true;
 }
@@ -527,46 +557,150 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error,
     return true;
 }
 
+namespace
+{
+    // collects one rendered block of every stem
+    struct StemCollector : Player::StemTap
+    {
+        explicit StemCollector (int block) { for (auto& b : bufs) { b.setSize (2, block); b.clear(); } }
+        juce::AudioBuffer<float> bufs[Player::kStems];
+        int fill[Player::kStems] {};
+        void begin() { for (int i = 0; i < Player::kStems; ++i) { fill[i] = 0; bufs[i].clear(); } }
+        void add (int stem, const float* l, const float* r, int n) override
+        {
+            if (stem < 0 || stem >= Player::kStems) return;
+            n = std::min (n, bufs[stem].getNumSamples() - fill[stem]);
+            if (n <= 0) return;
+            bufs[stem].copyFrom (0, fill[stem], l, n);
+            bufs[stem].copyFrom (1, fill[stem], r, n);
+            fill[stem] += n;
+        }
+    };
+}
+
+std::vector<bool> usedTracks (const Song& song)
+{
+    std::vector<bool> used ((size_t) kMaxTracks, false);
+    const int nt = std::clamp (song.numTracks, 1, kMaxTracks);
+    for (int pos = 0; pos < (int) song.sequence.size(); ++pos)
+    {
+        const auto& b = song.blocks[(size_t) song.safeBlock (song.sequence[(size_t) pos])];
+        for (int ln = 0; ln < b.lines; ++ln)
+            for (int t = 0; t < nt; ++t)
+                if (b.at (ln, t).note != 0) used[(size_t) t] = true;
+    }
+    for (const auto& in : song.instruments)
+        if (in.isPlugin() && ! in.isMidiOut() && in.pluginOutput >= 0 && in.pluginOutput < nt) used[(size_t) in.pluginOutput] = true;
+    return used;
+}
+
+juce::File stemFolderFor (const juce::File& file)
+{
+    return file.getParentDirectory().getChildFile (file.getFileNameWithoutExtension() + " STEMS");
+}
+
+juce::String stemFileName (int stem)
+{
+    if (stem < kMaxTracks) return juce::String (stem + 1).paddedLeft ('0', 2) + " TRACK " + juce::String (stem + 1) + ".wav";
+    if (stem < kMaxTracks + kReturns) return juce::String (stem + 1).paddedLeft ('0', 2) + " SEND " + juce::String::charToString ((juce::juce_wchar) ('A' + stem - kMaxTracks)) + ".wav";
+    return juce::String (stem + 1).paddedLeft ('0', 2) + " MASTER.wav";
+}
+
 bool renderSongToWav (const Song& song, const PaulaOptions& options, double sampleRate,
                       const juce::File& file, juce::String& error,
                       std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory,
-                      std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory)
+                      std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory,
+                      bool stems, juce::StringArray* leftOut)
 {
     Player p;
     p.options = options;
     p.setSampleRate (sampleRate);
     p.mixer().pluginFactory = std::move (pluginFactory);
-    p.synths().factory = std::move (synthFactory);
+    // MIDI-out instruments play hardware: they can't be in a WAV
+    p.synths().factory = [f = std::move (synthFactory), leftOut] (int i, const Instrument& in, double sr) -> std::unique_ptr<PluginSynth>
+    {
+        if (in.isMidiOut())
+        {
+            if (leftOut != nullptr) leftOut->add (juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " " + juce::String (in.name).toUpperCase());
+            return nullptr;
+        }
+        return f ? f (i, in, sr) : nullptr;
+    };
     p.synths().syncNow (song, sampleRate);
+    p.synths().prepare (sampleRate, MixerEngine::kMaxBlock);
     p.setSong (&song);
     p.mixer().syncEffectsNow (song.mixer);   // the song's mixer is part of the render
-    p.playSong();
-
-    file.deleteFile();
-    std::unique_ptr<juce::FileOutputStream> os (file.createOutputStream());
-    if (os == nullptr) { error = "Couldn't write " + file.getFullPathName(); return false; }
-    juce::WavAudioFormat wav;
-    std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (os.get(), sampleRate, 2, 24, {}, 0));
-    if (writer == nullptr) { error = "Couldn't create the WAV writer."; return false; }
-    os.release();
+    if (stems) p.forceMixPath = true;         // (each track through its own strip)
 
     const int block = 4096;
     juce::AudioBuffer<float> buf (2, block);
+    // the plug-ins' delay: found by running the mixer once, then cut off the start
+    p.render (buf.getWritePointer (0), buf.getWritePointer (1), MixerEngine::kMaxBlock);
+    int skip = p.latencySamples();
+    p.playSong();
+
+    // the files
+    std::vector<int> stemList;
+    if (stems)
+    {
+        const auto used = usedTracks (song);
+        for (int t = 0; t < kMaxTracks; ++t) if (used[(size_t) t]) stemList.push_back (t);
+        for (int r = 0; r < kReturns; ++r) stemList.push_back (kMaxTracks + r);
+        stemList.push_back (Player::kStems - 1);
+    }
+    else stemList.push_back (Player::kStems - 1);
+    std::vector<std::unique_ptr<juce::AudioFormatWriter>> writers;
+    juce::File folder = stems ? stemFolderFor (file) : file.getParentDirectory();
+    if (stems && ! folder.createDirectory()) { error = "Couldn't make the folder " + folder.getFullPathName(); return false; }
+    for (int st : stemList)
+    {
+        const auto f = stems ? folder.getChildFile (stemFileName (st)) : file;
+        f.deleteFile();
+        std::unique_ptr<juce::FileOutputStream> os (f.createOutputStream());
+        if (os == nullptr) { error = "Couldn't write " + f.getFullPathName(); return false; }
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (os.get(), sampleRate, 2, 24, {}, 0));
+        if (w == nullptr) { error = "Couldn't create the WAV writer."; return false; }
+        os.release();
+        writers.push_back (std::move (w));
+    }
+
+    StemCollector tap (block);
+    if (stems) p.stemTap = &tap;
+    auto renderBlock = [&]
+    {
+        tap.begin();
+        p.render (buf.getWritePointer (0), buf.getWritePointer (1), block);
+        // (the first `skip` samples are the plug-ins' delay)
+        const int from = std::min (skip, block);
+        skip -= from;
+        float peak = 0;
+        for (size_t k = 0; k < stemList.size(); ++k)
+        {
+            const auto& b = stems ? tap.bufs[stemList[k]] : buf;
+            if (from < block) writers[k]->writeFromAudioSampleBuffer (b, from, block - from);
+            peak = std::max (peak, b.getMagnitude (0, block));
+        }
+        return peak;
+    };
+
     const auto maxSamples = (juce::int64) (sampleRate * 60.0 * 20.0); // stop after 20 minutes
     juce::int64 done = 0;
     while (p.songWraps.load() == 0 && p.isPlaying() && done < maxSamples)
     {
-        p.render (buf.getWritePointer (0), buf.getWritePointer (1), block);
-        writer->writeFromAudioSampleBuffer (buf, 0, block);
+        renderBlock();
         done += block;
     }
-    // one second tail for releases and filter ring-out
+    // the tail: until everything has been quiet (below -90 dB) for a second, at most 20 s
     p.stop();
-    for (int i = 0; i < (int) sampleRate / block + 1; ++i)
+    const float quiet = std::pow (10.0f, -90.0f / 20.0f);
+    juce::int64 tail = 0, silent = 0;
+    while (silent < (juce::int64) sampleRate && tail < (juce::int64) (sampleRate * 20.0))
     {
-        p.render (buf.getWritePointer (0), buf.getWritePointer (1), block);
-        writer->writeFromAudioSampleBuffer (buf, 0, block);
+        silent = renderBlock() < quiet ? silent + block : 0;
+        tail += block;
     }
+    p.stemTap = nullptr;
     return true;
 }
 } // namespace prv

@@ -17,6 +17,7 @@ public:
     virtual void process (float* left, float* right, int numSamples, const float* params, double bpm) = 0;
     // automation of a plug-in's own parameter (built-in effects are automated through their slot values)
     virtual void setParameter (int /*index*/, float /*value01*/) {}
+    virtual int  latency() const { return 0; }   // samples its output is late by (plug-ins)
 };
 
 std::unique_ptr<Effect> makeEffect (FxType);

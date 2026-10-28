@@ -41,12 +41,39 @@ PaulaProcessor::PaulaProcessor()
     player.setSong (&song);
     player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
-    player.synths().factory = [this] (int i, const prv::Instrument& in, double sr) { return pluginHost.createSynth (i, in, sr); };
+    player.synths().factory = [this] (int i, const prv::Instrument& in, double sr)
+    {
+        return in.isMidiOut() ? midiHost.createSynth (in, sr) : pluginHost.createSynth (i, in, sr);
+    };
 }
 
 std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, double)> PaulaProcessor::synthFactory()
 {
-    return [this] (int i, const prv::Instrument& in, double sr) { return pluginHost.createSynth (i, in, sr); };
+    // (renders leave MIDI-out instruments out)
+    return [this] (int i, const prv::Instrument& in, double sr) -> std::unique_ptr<prv::PluginSynth>
+    {
+        return in.isMidiOut() ? nullptr : pluginHost.createSynth (i, in, sr);
+    };
+}
+
+prv::MidiOutSynth* PaulaProcessor::midiAt (int i) const
+{
+    return dynamic_cast<prv::MidiOutSynth*> (const_cast<PaulaProcessor*> (this)->player.synths().at (i));
+}
+
+juce::String PaulaProcessor::instrumentError (int i) const
+{
+    if (i < 0 || i >= prv::kMaxInstruments) return {};
+    const auto& in = song.instruments[(size_t) i];
+    return in.isMidiOut() ? midiHost.lastError (in.midiDevice) : pluginHost.lastError (in.pluginKey);
+}
+
+void PaulaProcessor::midiPanic()
+{
+    withLock ([&] {
+        for (int i = 0; i < prv::kMaxInstruments; ++i)
+            if (auto* m = midiAt (i)) m->allNotesOff (0);
+    });
 }
 
 prv::PluginSynthImpl* PaulaProcessor::synthAt (int i) const
@@ -256,6 +283,8 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         scratchR.allocate ((size_t) n, true);
     }
 
+    midiHost.outputLatencyMs = 1000.0 * n / std::max (1.0, currentRate);
+
     const juce::SpinLock::ScopedLockType sl (lock);
 
     // tell hosted plug-ins where the song is
@@ -302,6 +331,11 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         else if (msg.isAllNotesOff() || msg.isAllSoundOff())
         {
             player.jamAllOff();
+        }
+        else if (msg.isController())
+        {
+            lastCcNumber = msg.getControllerNumber();
+            ++ccSerial;
         }
     }
     renderTo (n);

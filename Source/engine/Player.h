@@ -4,6 +4,7 @@
 #include "Song.h"
 #include "Mixer.h"
 #include "PluginSynth.h"
+#include "DelayLine.h"
 #include <atomic>
 
 namespace prv
@@ -121,12 +122,32 @@ public:
     SynthRack& synths() { return rack; }
     // which track's mixer strip a plug-in instrument plays into right now
     int synthOutputTrack (int instrument) const;
-    // a plug-in instrument switched on/off: by its ON button, or by an automation knob while playing
-    bool synthIsOn (int instrument) const;
-    void setSynthOn (int instrument, int state);   // (audio lock) 0 = off, 1 = on, -1 = back to its ON button
+    // an instrument switched on/off: by its ON button, or by an automation knob while playing
+    bool instrumentIsOn (int instrument) const;
+    void setInstrumentOn (int instrument, int state);   // (audio lock) 0 = off, 1 = on, -1 = back to its ON button
     void resetSwitches();   // automated on/off of effects and instruments back to their buttons
-    int  synthOnOverride (int instrument) const { return instrument >= 0 && instrument < kMaxInstruments ? synthOnOv[instrument] : -1; }
-    bool forceMixPath = false;    // tests: use the mixer path even when flat
+    int  instrumentOnOverride (int instrument) const { return instrument >= 0 && instrument < kMaxInstruments ? instOnOv[instrument] : -1; }
+    bool forceMixPath = false;    // tests (and stem renders): use the mixer path even when flat
+
+    // the value an automation knob was last set to by the pattern (-1 = not yet); kind 0 = track knob, 1 = instrument knob
+    float laneValue (int kind, int a, int b) const
+    {
+        if (kind == 0) return a >= 0 && a < kMaxTracks && b >= 0 && b < kTrackKnobs ? trackLanes[a][b].cur : -1.0f;
+        return a >= 0 && a < kMaxInstruments && b >= 0 && b < kInstrumentKnobs ? instLanes[a][b].cur : -1.0f;
+    }
+
+    // stem renders: called after each block with every track (0..7, after its fader), the two
+    // returns (8, 9) and the master (10)
+    struct StemTap
+    {
+        virtual ~StemTap() = default;
+        virtual void add (int stem, const float* left, const float* right, int numSamples) = 0;
+    };
+    StemTap* stemTap = nullptr;
+    static constexpr int kStems = kMaxTracks + kReturns + 1;
+
+    // samples the whole output is late by (plug-in delays, MIDI-out lead)
+    int latencySamples() const { return mixerEngine.totalLatency(); }
 
     // Read by the UI
     std::atomic<int>   uiSeqPos { 0 }, uiBlock { 0 }, uiLine { 0 }, uiTempo { 125 }, uiSpeed { 6 };
@@ -136,6 +157,7 @@ public:
     std::atomic<float> uiOutL { 0.0f }, uiOutR { 0.0f };   // output peaks of the last block
     std::atomic<int>   uiJamPos[kJamVoices] {};             // jam voice positions (-1 = silent), for playheads
     std::atomic<int>   uiJamInstr[kJamVoices] {};
+    std::atomic<int>   uiTrackInstr[kMaxTracks] {};         // the instrument each track last played (-1 none)
 
 private:
     struct Voice
@@ -179,6 +201,10 @@ private:
         Cell   microCell; long long microDelay = -1; bool earlyDone = false;  // Mxx
         // a plug-in instrument's note on this track
         int    synthNote = -1, synthInstr = -1, synthVel = 100, lastBend = 8192;
+        int    synthChord[2] { -1, -1 };          // CHORD: the extra notes of 0xy
+        bool   chordLine = false;                  // 0xy on this line made a chord (no arpeggio)
+        // switched off while sounding: fades out
+        int    fadeOut = 0, fadeLen = 1;
     };
 
     // automation: a value moving (or gliding) towards its target, one per knob
@@ -189,7 +215,7 @@ private:
     int  rowGlide = 0; bool knobSetThisRow = false;
     void setLane (Lane&, float value, int glide, int kind, int a, int b);
     void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob
-    int  synthOnOv[kMaxInstruments];   // automated on/off of a plug-in instrument: -1 = its ON button
+    int  instOnOv[kMaxInstruments];   // automated on/off of a plug-in instrument: -1 = its ON button
     void advanceAutomation();
 
     // plug-in instruments
@@ -199,6 +225,18 @@ private:
     struct JamSynth { int note = -1, instr = -1, midi = -1; };
     JamSynth jamSynth[16];
     float synthL[MixerEngine::kMaxBlock] {}, synthR[MixerEngine::kMaxBlock] {};
+    const Cell* chordSource = nullptr;          // (a delayed note: the cell its 0xy came from)
+    // latency: samples on a track wait for its plug-in instrument
+    DelayLine sampleAlign[kMaxTracks];
+    int  sampleDelay[kMaxTracks] {};
+    // MIDI clock
+    double ppq = 0;                              // song position in beats
+    long long nextClock = 0;
+    bool clockStartPending = false;
+    bool clockOwner[kMaxInstruments] {};
+    void updateSynths (int numSamples);
+    void sendClock (int kind, int offset);
+    double positionInBeats (int seqPos, int line) const;
     bool isSynthVoice (const Voice& v) const;
     void synthTrigger (Voice& v, const Cell& cell, int ch);
     void synthRelease (Voice& v);

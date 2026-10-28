@@ -1,6 +1,6 @@
 # PAULA'S REVENGE
 
-An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses), VST3 / AU instruments and effect automation from the pattern. Big pixel text, keyboard-driven.
+An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses), VST3 / AU instruments, MIDI out to your hardware, effect automation from the pattern (or recorded by hand) and stem renders. Big pixel text, keyboard-driven.
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
@@ -63,6 +63,8 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 
 **Returns** — SEND A starts with a reverb and SEND B with a delay, both fully wet; they're silent until a track sends to them. Each has three inserts, a fader, a balance and a mute. **Master** has three inserts and a fader, and then comes the machine's output stage (A500/A1200/CLEAN/S950/S1000 and their options).
 
+**Delay compensation** — some plug-ins (lookahead limiters, linear-phase EQs, some instruments) give their sound back late. Each track is delayed just enough that every track lines up with the slowest one, sends included, so breaks stay tight. A bypassed plug-in (or one switched off from the pattern) keeps its delay, so nothing jumps mid-song. The strips page shows the total delay in its title, and a plug-in's effect page says how late it is. Plug-ins on SEND A / B and the master just add their delay at the end. Notes you play live through a sample instrument aren't delayed; live notes on a plug-in instrument go through its track, so they are.
+
 Signal flow per track: EQ → inserts → pre-fader sends → fader → post-fader sends → master. A mixer with nothing changed (all faders at 0 dB, no EQ, no effects, no sends) is skipped, so the song sounds exactly as it did before v0.8. Everything in the mixer is saved in the song, undoable, and included in RENDER WAV. (The insert slots are built so plug-in effects can be added later.)
 
 ## Scrolling and the mouse
@@ -82,6 +84,8 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **Filter envelope**: ATK, DEC, SUS, REL.
 * **Pan**: AMIGA L/R follows the track layout above; switch it off and use PAN to give the instrument its own position.
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
+* **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
+* **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument or with your hardware instead of the sample (see below).
 
 Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
 
@@ -259,6 +263,8 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 
 A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
+**STOP** pressed while already stopped is a **panic**: every MIDI-out instrument sends note-offs and All Notes Off.
+
 ## Effect commands
 
 **Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for a list of every command with what it does. Click one (or use the arrows and Enter; typing a command's letter jumps to it, and `E` again steps through the E commands) and it goes into that cell with a useful starting value — or the value already there, if it was the same command — and the cursor lands on the value so you can type over it. `Esc` closes the list. It's one undo step.
@@ -267,7 +273,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 
 | Cmd | Effect |
 |---|---|
-| `0xy` | Arpeggio (+x, +y semitones) |
+| `0xy` | Arpeggio (+x, +y semitones). On a plug-in / MIDI-out instrument with CHORD on, `0xy` on a note's line plays a held chord instead |
 | `1xx` / `2xx` | Slide pitch up / down |
 | `3xx` | Slide to note |
 | `4xy` | Vibrato (speed x, depth y) |
@@ -350,7 +356,13 @@ Neither mode alters the samples; switch back to A500/A1200/CLEAN any time. For t
 
 ## Rendering
 
-**RENDER WAV** writes the song once through as a 24-bit stereo WAV, mixer and all.
+**RENDER WAV** asks **SONG** or **STEMS**:
+
+* **SONG** writes the song once through as a 24-bit stereo WAV, mixer and all.
+* **STEMS** makes a folder next to the name you pick (`<name> STEMS`) with one 24-bit WAV per used track (after its EQ, inserts and fader), SEND A, SEND B and the master: `01 TRACK 1.wav` … `09 SEND A.wav`, `10 SEND B.wav`, `11 MASTER.wav`. Every file starts at the same moment and is the same length, so they line up when you drop them into Ableton. (The machine's output stage — A500 filter, LED and so on — is only on the master.)
+* After the song ends, the render carries on until everything has been quiet (below −90 dB) for a second, up to 20 seconds, so reverb and delay tails aren't cut off.
+* Plug-in delay is taken off the start, so the render starts on the beat.
+* MIDI-out instruments play hardware, so they can't be in a WAV: the render finishes without them and the status line says which ones were left out. (Record the hardware back in, or sample it.)
 
 ## Plug-in effects (VST3 / AU)
 
@@ -360,7 +372,7 @@ Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one 
 * Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
 * The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
 * The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.
-* Changes made inside a plug-in's own window aren't separate undo steps. Plug-in latency is shown but not compensated.
+* Changes made inside a plug-in's own window aren't separate undo steps. Plug-in latency is compensated (see Mixer).
 
 ## Automation (V, J and Y)
 
@@ -372,25 +384,43 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 * Put `Yxx` on a line before (or on the same line as) a `V` or `J` and the change glides over xx ticks instead of jumping.
 * The channel page shows what each knob controls under **AUTOMATION KNOBS**, with CLEAR buttons, and the strip's EQ button reads `EQ  AB` when a knob is set. Right-click the effect column, or put the cursor on a `V` or `J`, and the list and the help strip name the learned control.
 * **Switching an effect on and off**: press LEARN AUTO A (or B), then click the effect's **BYPASS** button instead of moving a control. The knob is learned as `ON/OFF`: `V00` switches the effect off and `V01`–`VFF` switch it on, whatever its BYPASS button says. This works for built-in effects and plug-ins on any track, send bus or the master.
+* **Recording by hand (REC AUTO)**: switch on **REC AUTO** on the bottom row, turn EDIT on and play the song or block. Moving a learned control then writes its command on the line that's playing: AUTO A writes `Vxx`, AUTO B `Jxx`, and a plug-in or MIDI-out instrument's own knobs write `Lxx` / `Qxx` / `Hxx` / `Wxx` on the track that's playing that instrument. A learned control can be a built-in effect's slider, a knob in a plug-in's own window, or a MIDI-out instrument's SEND bars. It goes in the first effect column if that's empty (or already holds the same letter), otherwise in the second (FX2 shows it). If both hold other commands, that line is skipped (never overwritten) and the status line says so. Each line gets at most one value per knob, and a value the same as the last one written isn't written again. Values the pattern itself plays back aren't recorded again. Everything recorded in one pass (until you stop) is one undo step. Nothing is written when EDIT is off. (ON/OFF knobs aren't recorded: type `V00` / `V01`.)
 * Knobs are saved in the song and are undo steps. Built-in effects go back to their slider settings when automation stops. On/off switching starts again from the BYPASS and ON buttons each time the song or block starts or stops, and clicking BYPASS (or ON) takes back control from the pattern.
 
 ## Plug-in instruments (VST3 / AU)
 
 Any instrument slot can play one of your instrument plug-ins instead of a sample:
 
-* Pick the instrument, press **PARAMS** and then **USE A VST3 / AU INSTRUMENT INSTEAD OF A SAMPLE...**, and double-click a plug-in in the list (RESCAN looks again after you install more). The instrument list shows a note sign in front of the name.
+* Pick the instrument, press **PARAMS**, then **PLUG-IN / MIDI OUT...** and **A VST3 / AU INSTRUMENT**, and double-click a plug-in in the list (RESCAN looks again after you install more). The instrument list shows a note sign in front of the name.
 * **EDIT** (or OPEN PLUG-IN WINDOW) opens the plug-in's own window. **CHANGE PLUG-IN...** swaps it, **BACK TO A SAMPLE** turns the slot back into a normal sample instrument.
 * **OUTPUT** picks the mixer strip it plays into. AUTO means the first (lowest) track that plays it, so its EQ, inserts and sends apply.
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
-* **ON** (next to BEND) switches the instrument off and on: while it's off, its notes are silent. To switch it from the pattern, press LEARN next to a knob (`L`, `Q`, `H` or `W`, or LEARN AS AUTO A / B), then click **ON**: that knob becomes the instrument's `ON/OFF`, with `00` = off and `01`–`FF` = on. It's saved in the song.
+* **ON** (next to BEND) switches the instrument off and on: while it's off, its notes are silent. To switch it from the pattern, press LEARN next to a knob (`L`, `Q`, `H` or `W`, or LEARN AUTO A / B), then click **ON**: that knob becomes the instrument's `ON/OFF`, with `00` = off and `01`–`FF` = on. It's saved in the song.
+* **CHORD** (next to ON): `0xy` on a note's line plays the note with notes x and y semitones above it at the same time, held, instead of an arpeggio (`037` = a minor chord, `047` = major). The chord ends like a note does: the next note on the track, note-off, `ECx` or `Nxx`. Pitch commands bend the whole chord. `0xy` on a line without a note is still an arpeggio. The help strip and the right-click list say CHORD for such instruments.
+* A plug-in instrument's own delay is compensated: the samples on its track wait for it.
 * Four knobs of the plug-in's own can be learned on its page (**LEARN** next to `L`, `Q`, `H` and `W`). On that instrument's notes, `Lxx`, `Qxx`, `Hxx` and `Wxx` then set those knobs instead of the filters, and `Yxx` makes them glide. `Oxx` sends the mod wheel (MIDI CC 1). The track's AUTO A / B can be learned here too.
 * The computer keyboard and a MIDI keyboard play it live, on the pattern, the mixer and its own page — also while the plug-in's own window is in front, so you can play and tweak the sound without clicking back. (Text boxes inside the plug-in still get your typing; Esc and Tab stay with the plug-in.)
 * Its settings are saved in the song, changes made on its page are undo steps, and RENDER WAV includes it. If a song uses a plug-in this computer doesn't have, the instrument shows `!NAME`, plays nothing and keeps its settings for when the plug-in is back.
 
+## MIDI out (hardware)
+
+An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 — over MIDI instead of a sample:
+
+* Pick the instrument, press **PARAMS**, then **PLUG-IN / MIDI OUT...** and **MIDI OUT TO HARDWARE**, and double-click a MIDI output in the list (RESCAN looks again after you plug one in). The instrument takes the device's name and shows a note sign in the list. EDIT (or PARAMS) opens its page again.
+* **CHANNEL** (1–16) and **BEND** (the hardware's pitch bend range, so pitch commands land in tune).
+* It plays exactly like a plug-in instrument: note on/off, `Cxx` velocity, a new note ends the track's previous one, pitch commands as pitch bend, `Oxx` the mod wheel, and `E9x`, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx` and `Rxy` work. **CHORD** and **ON** work as above. The computer keyboard and a MIDI keyboard play it live.
+* **KNOB L / Q / H / W**: the CC each one sends (74, 71, 73 and 10 to start with). `Lxx`, `Qxx`, `Hxx`, `Wxx` on its notes send them (`00`–`FF` → 0–127), and `Yxx` glides them. **LEARN CC** takes the CC number from the next knob you turn on a MIDI controller. Each knob's **SEND** bar sends that CC straight away; with REC AUTO it's recorded, and LEARN AUTO A / B can learn it (or the ON button) for the track's `V` / `J`.
+* **DELAY** (−50 to +200 ms) lines the hardware up with the audio: positive values send the MIDI later; negative values make all the audio later instead (through the delay compensation).
+* **SEND MIDI CLOCK**: sends 24-a-beat MIDI clock plus start / stop / continue and song position to that device, following BPM and SPD changes (4 lines = a beat), so the MPC One / microKORG 2 / NTS-1 follow the song. If two instruments use one device, only the first sends the clock.
+* Messages are timed from the audio and sent by the device's own thread at the moment the audio is heard.
+* STOP sends note-offs for everything sounding plus All Notes Off on its channels. **PANIC** on its page (or STOP while already stopped) does that for every MIDI output.
+* All its settings are saved in the song and changes are undo steps. If the device isn't connected, the instrument shows `!NAME`, sends nothing and keeps its settings; CHANGE DEVICE... and the same device again reconnects it.
+* It isn't in RENDER WAV (see Rendering).
+
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 10 saves a plug-in instrument switched off (v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 11 adds CHORD, MIDI-out instruments and switching sample instruments off (v10: a plug-in instrument switched off; v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

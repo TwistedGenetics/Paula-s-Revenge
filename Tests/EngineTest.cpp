@@ -9,6 +9,7 @@
 #include "engine/Mixer.h"
 #include "engine/Effects.h"
 #include "engine/PluginSynth.h"
+#include "engine/MidiOut.h"
 #include "engine/Commands.h"
 #include "AkaizerGolden.h"
 #include <cstdio>
@@ -964,18 +965,343 @@ static void testOnOff()
         CHECK (count ('n', 62) == 0 && count ('n', 64) == 1);
         CHECK (count ('n', 68) == 0);
         CHECK (levelOff < 1e-6f && levelOn > 0.05f);
-        CHECK (! p.synthIsOn (0) && p.synthOnOverride (0) == 0);
+        CHECK (! p.instrumentIsOn (0) && p.instrumentOnOverride (0) == 0);
         p.stop();
-        CHECK (p.synthIsOn (0) && p.synthOnOverride (0) == -1);   // stop: back to its ON button
+        CHECK (p.instrumentIsOn (0) && p.instrumentOnOverride (0) == -1);   // stop: back to its ON button
         // its ON button off
-        song.instruments[0].pluginOff = true;
+        song.instruments[0].switchedOff = true;
         log.clear();
         p.jamNoteOn (37, 0, 100);
         p.render (L.data(), R.data(), 512);
         float pk = 0; for (float x : L) pk = std::max (pk, std::abs (x));
-        CHECK (! p.synthIsOn (0) && pk < 1e-6f);
+        CHECK (! p.instrumentIsOn (0) && pk < 1e-6f);
         p.jamAllOff();
     }
+}
+
+
+// ---------------------------------------------------------------- v0.11
+namespace
+{
+    // a looped sine for sample-instrument tests
+    void sineInstrument (Instrument& in)
+    {
+        in.clear();
+        in.name = "SINE";
+        in.data.resize (64);
+        for (int i = 0; i < 64; ++i) in.data[(size_t) i] = (int16_t) std::lround (std::sin (i * 2.0 * kPi / 64.0) * 20000.0);
+        in.loopStart = 0; in.loopLength = 64; in.volume = 64;
+    }
+    int tickSamples (int tempo = 125) { return (int) std::lround (48000 * 2.5 / tempo); }
+}
+
+static void testChords()
+{
+    Song song;
+    song.numTracks = 4;
+    auto& in = song.instruments[0];
+    in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH"; in.chord = true;
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 37, 1, 0x0, 0x37 };                                   // C-3 minor chord: C, D#, G
+    b.at (2, 0) = { kNoteOff, 0, 0, 0 };
+    b.at (4, 0) = { 39, 1, 0xE, 0xD2, 0x0, 0x47 };                        // delayed 2 ticks, 0xy in FX2: D, F#, A
+    b.at (6, 0) = { 0, 0, 0x0, 0x0C };                                    // no note: arpeggio (bends) as before
+    b.at (8, 0) = { 41, 1, 0xE, 0xC2 };                                   // ECx cuts the whole chord
+    std::vector<Ev> log; long long clock = 0;
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
+    p.synths().syncNow (song, 48000);
+    p.playBlock (0);
+    std::vector<float> L (512), R (512);
+    const int lineLen = tickSamples() * 6;
+    for (int done = 0; done < lineLen * 10; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
+    p.stop();
+    auto on = [&] (int n) { int c = 0; for (auto& e : log) if (e.type == 'n' && e.a == n) ++c; return c; };
+    auto off = [&] (int n) { int c = 0; for (auto& e : log) if (e.type == 'f' && e.a == n) ++c; return c; };
+    long long chordEnd = -1, arpBends = 0, line0Bends = 0, d3On = -1;
+    for (auto& e : log)
+    {
+        if (e.type == 'f' && e.a == 63 && chordEnd < 0) chordEnd = e.when;
+        if (e.type == 'b' && e.a != 8192 && e.when >= lineLen * 6 && e.when < lineLen * 7) ++arpBends;
+        if (e.type == 'b' && e.a != 8192 && e.when < lineLen * 2) ++line0Bends;
+        if (e.type == 'n' && e.a == 62 && d3On < 0) d3On = e.when;
+    }
+    std::printf ("chords: C-3 %d D#3 %d G-3 %d, ended at %lld (line 2 = %d); D-3 %d F#3 %d A-3 %d at %lld (expect %d); bends on the chord line %lld, arpeggio bends %lld; F-3 chord offs %d\n",
+                 on (60), on (63), on (67), chordEnd, lineLen * 2, on (62), on (66), on (69), d3On, lineLen * 4 + tickSamples() * 2, line0Bends, arpBends, off (64));
+    CHECK (on (60) == 1 && on (63) == 1 && on (67) == 1 && off (63) >= 1 && off (67) >= 1);
+    CHECK (chordEnd >= 0 && std::abs ((int) (chordEnd - lineLen * 2)) <= 2);
+    CHECK (on (62) == 1 && on (66) == 1 && on (69) == 1 && std::abs ((int) (d3On - (lineLen * 4 + tickSamples() * 2))) <= 2);
+    CHECK (line0Bends == 0 && arpBends >= 2);
+    CHECK (on (64) == 1 && on (68) == 0);   // (F-3 with no 0xy: one note)
+    // CHORD off: 0xy is an arpeggio again, one note
+    song.instruments[0].chord = false;
+    log.clear(); clock = 0;
+    p.playBlock (0);
+    for (int done = 0; done < lineLen * 2; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
+    int bends = 0; for (auto& e : log) if (e.type == 'b' && e.a != 8192) ++bends;
+    CHECK (on (60) == 1 && on (63) == 0 && bends >= 2);
+}
+
+static void testSampleOnOff()
+{
+    Song song;
+    song.numTracks = 4;
+    sineInstrument (song.instruments[0]);
+    song.mixer.trackAuto[0][0] = { kAutoInstrumentBase, kAutoOnOff, "SINE: ON/OFF" };
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 37, 1, 0, 0 };
+    b.at (2, 0) = { 0, 0, cmdLetter ('V'), 0x00 };     // off: fades out
+    b.at (3, 0) = { 37, 1, 0, 0 };                     // not played
+    b.at (5, 0) = { 0, 0, cmdLetter ('V'), 0x01 };     // on
+    b.at (6, 0) = { 37, 1, 0, 0 };                     // plays
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.playBlock (0);
+    std::vector<float> L (256), R (256);
+    float lvl[8] {};
+    float worstStep = 0, prev = 0;
+    bool fading = false;
+    for (int guard = 0; guard < 4000 && p.uiLine.load() < 7; ++guard)
+    {
+        const int line = p.uiLine.load();
+        p.render (L.data(), R.data(), 256);
+        for (int i = 0; i < 256; ++i)
+        {
+            if (line == 2) { worstStep = std::max (worstStep, std::abs (L[(size_t) i] - prev)); fading = true; }
+            prev = L[(size_t) i];
+        }
+        lvl[line] = std::max (lvl[line], p.uiLevel[0].load());
+    }
+    std::printf ("sample on/off: line levels"); for (float v : lvl) std::printf (" %.3f", v); std::printf (", biggest step while switching %.3f\n", worstStep);
+    CHECK (lvl[1] > 0.1f && lvl[3] < 1e-4f && lvl[4] < 1e-4f && lvl[6] > 0.1f);
+    CHECK (fading && worstStep < 0.2f);
+    // its ON button off: live notes are silent too
+    song.instruments[0].switchedOff = true;
+    p.stop();
+    for (int k = 0; k < 40; ++k) p.render (L.data(), R.data(), 256);   // (let the output filters settle)
+    p.jamNoteOn (37, 0, 127);
+    float pk = 0;
+    for (int k = 0; k < 4; ++k) { p.render (L.data(), R.data(), 256); for (float x : L) pk = std::max (pk, std::abs (x)); }
+    CHECK (pk < 1e-4f && ! p.instrumentIsOn (0));
+    song.instruments[0].switchedOff = false;
+    p.jamNoteOn (37, 0, 127);
+    for (int k = 0; k < 4; ++k) { p.render (L.data(), R.data(), 256); for (float x : L) pk = std::max (pk, std::abs (x)); }
+    CHECK (pk > 0.05f);
+}
+
+namespace
+{
+    // an effect that's late by a fixed number of samples, like a lookahead plug-in
+    struct LateFx : Effect
+    {
+        int lat; DelayLine d;
+        explicit LateFx (int l) : lat (l) { d.setMax (4096); }
+        void prepare (double) override {}
+        void reset() override {}
+        void process (float* L, float* R, int n, const float*, double) override { d.process (L, R, n, lat); }
+        int latency() const override { return lat; }
+    };
+    struct LateSynth : FakeSynth
+    {
+        int lat;
+        LateSynth (std::vector<Ev>* l, long long* c, int la) : FakeSynth (l, c), lat (la) { level = 0; }
+        int latency() const override { return lat; }
+    };
+    int firstAbove (const std::vector<float>& v, float above = 1e-3f)
+    {
+        for (size_t i = 0; i < v.size(); ++i) if (std::abs (v[i]) > above) return (int) i;
+        return -1;
+    }
+}
+
+static void testLatency()
+{
+    // ---- tracks line up with the slowest one; a bypassed plug-in keeps its delay; sends too
+    {
+        MixerEngine mx; mx.prepare (48000);
+        MixerSettings m;
+        auto& sl = m.ch[0].inserts[0];
+        sl.type = FxType::Plugin; sl.pluginKey = "late"; sl.pluginName = "LATE";
+        m.ch[1].send[0] = 1.0f; m.ch[1].sendPre[0] = true;
+        for (auto& r : m.ret) for (auto& x : r.inserts) x.type = FxType::None;   // (no reverb smearing the click)
+        mx.pluginFactory = [] (int, const FxSlot&, double) { return std::make_unique<LateFx> (100); };
+        mx.syncEffectsNow (m);
+        auto run = [&] (std::vector<float>& t0, std::vector<float>& t1, std::vector<float>& ret, std::vector<float>& out)
+        {
+            std::vector<float> a (512, 0.0f), b (512, 0.0f), ar (512, 0.0f), br (512, 0.0f), outR (512);
+            a[0] = ar[0] = 1.0f; b[0] = br[0] = 1.0f;     // a click on tracks 1 and 2
+            float* tl[2] = { a.data(), b.data() }; float* tr[2] = { ar.data(), br.data() };
+            out.assign (512, 0.0f);
+            mx.process (m, tl, tr, 2, nullptr, nullptr, out.data(), outR.data(), 512, 120);
+            t0 = a; t1 = b; ret.assign (mx.returnLeft (0), mx.returnLeft (0) + 512);
+            // flush the delay lines
+            std::vector<float> z (512, 0.0f), z2 (512, 0.0f), z3 (512, 0.0f), z4 (512, 0.0f), o1 (512), o2 (512);
+            float* zl[2] = { z.data(), z2.data() }; float* zr[2] = { z3.data(), z4.data() };
+            mx.process (m, zl, zr, 2, nullptr, nullptr, o1.data(), o2.data(), 512, 120);
+        };
+        std::vector<float> t0, t1, ret, out;
+        run (t0, t1, ret, out);
+        std::printf ("latency: track 1 click at %d, track 2 at %d, its send at %d, total %d\n", firstAbove (t0), firstAbove (t1), firstAbove (ret), mx.totalLatency());
+        CHECK (firstAbove (t0) == 100 && firstAbove (t1) == 100 && firstAbove (ret) == 100 && mx.totalLatency() == 100);
+        CHECK (mx.trackLatency (0) == 100 && mx.trackLatency (1) == 0);
+        m.ch[0].inserts[0].bypass = true;
+        run (t0, t1, ret, out);
+        CHECK (firstAbove (t0) == 100 && firstAbove (t1) == 100 && mx.totalLatency() == 100);
+        mx.setAutomation (trackSlot (0, 0), kAutoOnOff, 1.0f);   // V on/off doesn't change it either
+        run (t0, t1, ret, out);
+        CHECK (firstAbove (t0) == 100 && firstAbove (t1) == 100);
+        // a slow return adds to the total (not compensated: it's after the tracks)
+        m.ch[0].inserts[0].bypass = false;
+        auto& rs = m.ret[0].inserts[0];
+        rs.type = FxType::Plugin; rs.pluginKey = "late"; rs.pluginName = "LATE";
+        mx.syncEffectsNow (m);
+        run (t0, t1, ret, out);
+        CHECK (mx.totalLatency() == 200);
+    }
+    // ---- a plug-in instrument's delay: the samples on its track wait for it
+    {
+        auto firstOut = [] (int synthLatency)
+        {
+            Song song; song.numTracks = 4;
+            sineInstrument (song.instruments[0]);
+            auto& in = song.instruments[1];
+            in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH"; in.pluginOutput = 0;
+            song.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+            std::vector<Ev> log; long long clock = 0;
+            Player p; p.setSampleRate (48000); p.setSong (&song);
+            p.options.model = PaulaOptions::Model::Clean;
+            p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<LateSynth> (&log, &clock, synthLatency); };
+            p.synths().syncNow (song, 48000);
+            p.playBlock (0);
+            std::vector<float> L (4096), R (4096);
+            p.render (L.data(), R.data(), 4096);
+            return firstAbove (L, 1e-4f);
+        };
+        const int a = firstOut (0), b = firstOut (64);
+        std::printf ("latency: samples start at %d, with a 64-sample synth on the track at %d\n", a, b);
+        CHECK (a >= 0 && b - a == 64);
+    }
+    // ---- a MIDI-out instrument with a negative delay makes the audio later
+    {
+        Song song; song.numTracks = 4;
+        sineInstrument (song.instruments[0]);
+        auto& in = song.instruments[1];
+        in.plugin = true; in.midiOut = true; in.pluginKey = "MIDI:X"; in.midiDevice = "X"; in.midiDelayMs = -10;
+        song.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&song);
+        p.options.model = PaulaOptions::Model::Clean;
+        p.synths().factory = [] (int, const Instrument&, double) { return std::make_unique<MidiOutSynth> (nullptr); };
+        p.synths().syncNow (song, 48000);
+        p.playBlock (0);
+        std::vector<float> L (4096), R (4096);
+        p.render (L.data(), R.data(), 4096);
+        std::printf ("latency: MIDI out -10 ms: audio starts at %d, total %d\n", firstAbove (L, 1e-4f), p.latencySamples());
+        CHECK (firstAbove (L, 1e-4f) >= 480 && firstAbove (L, 1e-4f) < 480 + 8 && p.latencySamples() == 480);
+    }
+}
+
+namespace
+{
+    struct MidiEv { std::vector<uint8_t> m; long long when; };
+    struct FakeSink : MidiSink
+    {
+        std::vector<MidiEv>* log; long long pos = 0; double lastDelay = -1;
+        explicit FakeSink (std::vector<MidiEv>* l) : log (l) {}
+        void send (const uint8_t* d, int n, int offset) override { log->push_back ({ std::vector<uint8_t> (d, d + n), pos + offset }); }
+        void flush (int n, double, double delayMs) override { pos += n; lastDelay = delayMs; }
+        void sendNow (const uint8_t* d, int n) override { log->push_back ({ std::vector<uint8_t> (d, d + n), -1 }); }
+    };
+}
+
+static void testMidiOut()
+{
+    Song song;
+    song.numTracks = 4;
+    auto setMidi = [&] (int i, const char* dev, int chan)
+    {
+        auto& in = song.instruments[(size_t) i];
+        in.clear();
+        in.plugin = true; in.midiOut = true; in.midiDevice = dev; in.pluginKey = std::string ("MIDI:") + dev; in.pluginName = dev;
+        in.midiChannel = chan; in.chord = true; in.midiDelayMs = 25;
+        for (int k = 0; k < kInstrumentKnobs; ++k) in.knobs[k] = { kAutoInstrumentBase + i, k, "CC" };
+    };
+    setMidi (0, "MPC", 3);
+    setMidi (1, "MPC", 4);          // same device: only one sends the clock
+    song.instruments[0].midiClock = song.instruments[1].midiClock = true;
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 37, 1, 0xC, 0x20, 0x0, 0x47 };                         // C-3, velocity 64, chord C E G
+    b.at (2, 0) = { 0, 0, cmdLetter ('L'), 0x80, cmdLetter ('O'), 0x40 };  // CC 74 = 64, mod wheel 32
+    b.at (3, 0) = { 0, 0, 0x1, 0x02 };                                     // slide up: bend
+    b.at (4, 0) = { kNoteOff, 0, 0, 0 };
+    b.at (5, 1) = { 49, 2, 0, 0 };                                         // C-4 on the other instrument (channel 4)
+    std::vector<MidiEv> log;
+    std::vector<FakeSink*> sinks;
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.synths().factory = [&] (int, const Instrument&, double) { auto s = std::make_unique<FakeSink> (&log); sinks.push_back (s.get()); return std::make_unique<MidiOutSynth> (std::move (s)); };
+    p.synths().syncNow (song, 48000);
+    p.playBlock (0);
+    std::vector<float> L (512), R (512);
+    const int lineLen = tickSamples() * 6;
+    for (int done = 0; done < lineLen * 8; done += 512) p.render (L.data(), R.data(), 512);
+    p.stop();
+    p.render (L.data(), R.data(), 512);   // (the stop's messages go out with the next block)
+    auto find = [&] (int status, int d1 = -1) -> const MidiEv* { for (auto& e : log) if (e.m[0] == status && (d1 < 0 || (e.m.size() > 1 && e.m[1] == d1))) return &e; return nullptr; };
+    auto count = [&] (int status) { int n = 0; for (auto& e : log) if (e.m[0] == status) ++n; return n; };
+    const auto* c3 = find (0x92, 60);
+    const auto* e3 = find (0x92, 64);
+    const auto* g3 = find (0x92, 67);
+    const auto* cc74 = find (0xB2, 74);
+    const auto* mod = find (0xB2, 1);
+    const auto* off = find (0x82, 60);
+    const auto* c4 = find (0x93, 72);
+    std::printf ("midi out: C-3 vel %d at %lld, chord %d %d, CC74 %d at %lld (line 2 = %d), mod %d, bends %d, off at %lld (line 4 = %d), ch4 note at %lld (line 5 = %d), delay %.0f ms\n",
+                 c3 ? c3->m[2] : -1, c3 ? c3->when : -1, e3 != nullptr, g3 != nullptr, cc74 ? cc74->m[2] : -1, cc74 ? cc74->when : -1, lineLen * 2,
+                 mod ? mod->m[2] : -1, count (0xE2), off ? off->when : -1, lineLen * 4, c4 ? c4->when : -1, lineLen * 5, sinks.empty() ? -1.0 : sinks[0]->lastDelay);
+    CHECK (c3 && c3->m[2] == 64 && c3->when == 0 && e3 && g3);
+    CHECK (cc74 && cc74->m[2] == 64 && std::abs ((int) (cc74->when - lineLen * 2)) <= 1);
+    CHECK (mod && mod->m[2] == 32);
+    CHECK (count (0xE2) >= 4);
+    CHECK (off && std::abs ((int) (off->when - lineLen * 4)) <= 1 && find (0x82, 64) && find (0x82, 67));
+    // (the C-4 on track 2 is instrument 2, channel 4, MIDI note 72 - 23 = 49 + 23)
+    const auto* c4b = find (0x93, 72);
+    CHECK (c4b && std::abs ((int) (c4b->when - lineLen * 5)) <= 1);
+    CHECK (find (0xB2, 123) && find (0xB3, 123));                       // stop: all notes off on both channels
+    CHECK (! sinks.empty() && sinks[0]->lastDelay == 25.0);
+    // clock: start at 0, 24 a beat (a beat = 4 lines = 24 ticks), one device sends it once, stop
+    const auto* spp = find (0xF2);
+    const auto* start = find (0xFA);
+    std::vector<long long> clocks;
+    for (auto& e : log) if (e.m[0] == 0xF8) clocks.push_back (e.when);
+    bool even = clocks.size() > 2;
+    for (size_t i = 1; i < clocks.size(); ++i) even = even && std::abs ((int) (clocks[i] - clocks[i - 1] - tickSamples())) <= 1;
+    std::printf ("midi clock: SPP %d, start at %lld, %zu clocks (expect %d), even %d, stop %d\n", spp != nullptr, start ? start->when : -1,
+                 clocks.size(), lineLen * 8 / tickSamples() + 1, (int) even, count (0xFC));
+    CHECK (spp && spp->m[1] == 0 && start && start->when == 0);
+    CHECK (std::abs ((int) clocks.size() - (lineLen * 8 / tickSamples() + 1)) <= 1 && even);
+    CHECK (count (0xFC) == 1 && count (0xFA) == 1);
+    // playing from line 4 of a later position: Song Position + Continue
+    song.sequence = { 0, 0 };
+    log.clear();
+    p.playSong (1, 4);
+    p.render (L.data(), R.data(), 512);
+    const auto* spp2 = find (0xF2);
+    CHECK (spp2 && (spp2->m[1] | (spp2->m[2] << 7)) == (64 + 4) && find (0xFB) && ! find (0xFA));   // 68 lines = 17 beats = 68 16ths
+    p.stop();
+    // switched off: no notes; deleting the instrument's synth switches its notes off
+    song.instruments[0].switchedOff = true;
+    log.clear();
+    p.playBlock (0);
+    for (int done = 0; done < lineLen * 2; done += 512) p.render (L.data(), R.data(), 512);
+    CHECK (! find (0x92, 60));
+    p.stop();
+    song.instruments[0].switchedOff = false;
+    p.jamNoteOn (37, 0, 100);
+    p.render (L.data(), R.data(), 512);
+    CHECK (find (0x92, 60) != nullptr);
+    log.clear();
+    p.synths().factory = nullptr;
+    song.instruments[0].clear();
+    p.synths().syncNow (song, 48000);   // (the old synth is freed: the held note goes off straight away)
+    CHECK (find (0x82, 60) && find (0x82, 60)->when == -1);
 }
 
 // ---------------------------------------------------------------- v0.9: AKAIZER
@@ -1580,6 +1906,10 @@ int main()
     testAutomation();
     testPluginInstruments();
     testOnOff();
+    testChords();
+    testSampleOnOff();
+    testLatency();
+    testMidiOut();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();

@@ -135,9 +135,21 @@ struct Instrument
     std::vector<uint8_t> pluginState;
     int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
-    bool pluginOff = false;                 // switched off (its ON button): plays nothing
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
-    bool isPlugin() const { return plugin; }
+    bool chord = false;                     // 0xy on a note's line plays a held chord (plug-in / MIDI out)
+    bool isPlugin() const { return plugin; }   // (also true for MIDI out: both play through the synth rack)
+
+    // MIDI out to hardware instead of a sample (plugin is true as well; pluginKey = "MIDI:" + device)
+    bool midiOut = false;
+    std::string midiDevice;                 // the MIDI output's name
+    int  midiChannel = 1;                   // 1..16
+    int  midiDelayMs = 0;                   // -50..+200: later MIDI, or (negative) later audio
+    int  midiCC[kInstrumentKnobs] { 74, 71, 73, 10 };   // the CCs knobs L, Q, H, W send
+    bool midiClock = false;                 // send MIDI clock and start / stop to the device
+    bool isMidiOut() const { return plugin && midiOut; }
+
+    // any instrument can be switched off (the ON button): its notes are silent
+    bool switchedOff = false;
 
     bool hasData() const { return ! data.empty(); }
     bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }

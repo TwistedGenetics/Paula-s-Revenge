@@ -1070,6 +1070,7 @@ void MixerPage::finishLearn (int param)
 
 void MixerPage::tick()
 {
+    if (proc.player.latencySamples() != shownDelay) { shownDelay = proc.player.latencySamples(); repaint (titleArea.toNearestInt()); }
     if (learner.armed && currentPage == Page::Effect)
     {
         const int moved = learner.poll();
@@ -1175,6 +1176,15 @@ void MixerPage::releaseNotes()
 }
 
 // ---------------------------------------------------------------------------
+juce::String MixerPage::delayText() const
+{
+    // plug-in delay compensation: how late everything comes out
+    const int lat = proc.player.latencySamples();
+    if (lat <= 0) return {};
+    const double sr = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+    return "   DELAY " + juce::String (lat * 1000.0 / sr, 1) + " MS (" + juce::String (lat) + ")";
+}
+
 juce::String MixerPage::pageTitle() const
 {
     switch (currentPage)
@@ -1187,7 +1197,8 @@ juce::String MixerPage::pageTitle() const
             const int i = proc.editorState.instrument;
             const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, i)];
             return "MIXER   KEYS PLAY " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " "
-                 + juce::String (in.name).toUpperCase() + "  OCT " + juce::String (proc.editorState.octave);
+                 + juce::String (in.name).toUpperCase() + "  OCT " + juce::String (proc.editorState.octave)
+                 + delayText();
         }
     }
 }
@@ -1282,7 +1293,8 @@ void MixerPage::paint (juce::Graphics& g)
         if (pe != nullptr)
         {
             const int lat = pe->instance().getLatencySamples();
-            lines.add (lat > 0 ? "LATENCY " + juce::String (lat) + " SAMPLES (NOT COMPENSATED)" : juce::String ("NO LATENCY"));
+            const double sr = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+            lines.add (lat > 0 ? "LATENCY " + juce::String (lat * 1000.0 / sr, 1) + " MS - COMPENSATED" : juce::String ("NO LATENCY"));
         }
         else
         {

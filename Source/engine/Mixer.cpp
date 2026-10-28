@@ -20,6 +20,19 @@ MixerEngine::MixerEngine()
 {
     clearAutomation();
     for (int r = 0; r < kReturns; ++r) { sendL[r].assign (kMaxBlock, 0.0f); sendR[r].assign (kMaxBlock, 0.0f); }
+    for (auto& d : slotDelay) d.setMax (kMaxSlotDelay);
+    for (auto& d : trackAlign) d.setMax (kMaxTrackDelay);
+}
+
+int MixerEngine::slotLatency (int slot) const
+{
+    if (slot < 0 || slot >= kTotalSlots || fx[slot] == nullptr) return 0;
+    return std::clamp (fx[slot]->latency(), 0, kMaxSlotDelay);
+}
+
+bool MixerEngine::slotReady (const FxSlot& s, int slot) const
+{
+    return fx[slot] && fxType[slot] == s.type && (s.type != FxType::Plugin || fxKey[slot] == s.pluginKey);
 }
 
 void MixerEngine::prepare (double sampleRate)
@@ -102,7 +115,14 @@ void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R
         // (an effect that hasn't been created yet for a new type is skipped)
         const int ov = autoOn[first + k];
         const bool on = ov >= 0 ? (ov == 1 && s.type != FxType::None) : s.active();
-        if (on && fx[first + k] && fxType[first + k] == s.type && (s.type != FxType::Plugin || fxKey[first + k] == s.pluginKey))
+        const bool ready = slotReady (s, first + k);
+        if (! on && ready)
+        {
+            // switched off or bypassed: the audio still waits as long as the effect would make it
+            const int lat = slotLatency (first + k);
+            if (lat > 0) slotDelay[first + k].process (L, R, n, lat);
+        }
+        if (on && ready)
         {
             const float* a = autoParam[first + k];
             if (s.type != FxType::Plugin && (a[0] >= 0 || a[1] >= 0 || a[2] >= 0 || a[3] >= 0 || a[4] >= 0 || a[5] >= 0))
@@ -124,6 +144,28 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
     std::fill (outR, outR + n, 0.0f);
     for (int r = 0; r < kReturns; ++r) { std::fill (sendL[r].begin(), sendL[r].begin() + n, 0.0f); std::fill (sendR[r].begin(), sendR[r].begin() + n, 0.0f); }
 
+    // delay compensation: how late each track comes out of its inserts
+    int lat[kMixTracks] {}, maxLat = 0;
+    for (int t = 0; t < numTracks && t < kMixTracks; ++t)
+    {
+        lat[t] = inputLat[t];
+        for (int k = 0; k < kInserts; ++k)
+            if (m.ch[t].inserts[k].type != FxType::None && slotReady (m.ch[t].inserts[k], trackSlot (t, k))) lat[t] += slotLatency (trackSlot (t, k));
+        maxLat = std::max (maxLat, lat[t]);
+        uiTrackLat[t].store (lat[t], std::memory_order_relaxed);
+    }
+    {
+        int after = 0;   // the slowest return, plus the master's inserts
+        for (int r = 0; r < kReturns; ++r)
+        {
+            int rl = 0;
+            for (int k = 0; k < kInserts; ++k) if (m.ret[r].inserts[k].type != FxType::None && slotReady (m.ret[r].inserts[k], returnSlot (r, k))) rl += slotLatency (returnSlot (r, k));
+            after = std::max (after, rl);
+        }
+        for (int k = 0; k < kInserts; ++k) if (m.master.inserts[k].type != FxType::None && slotReady (m.master.inserts[k], masterSlot (k))) after += slotLatency (masterSlot (k));
+        uiTotalLat.store (std::min (maxLat + extraDelay, kMaxTrackDelay) + after, std::memory_order_relaxed);
+    }
+
     for (int t = 0; t < numTracks && t < kMixTracks; ++t)
     {
         const auto& c = m.ch[t];
@@ -131,6 +173,7 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         float* R = tR[t];
         if (c.eq.anyOn()) eq[t].process (L, R, n, c.eq);
         runInserts (c.inserts, trackSlot (t, 0), L, R, n, bpm);
+        trackAlign[t].process (L, R, n, maxLat - lat[t] + extraDelay);
         const float g = dbToGain (c.volumeDb);
         for (int r = 0; r < kReturns; ++r)
         {

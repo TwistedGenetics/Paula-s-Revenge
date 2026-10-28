@@ -3,6 +3,7 @@
 
 #include "MixerTypes.h"
 #include "Effects.h"
+#include "DelayLine.h"
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -54,6 +55,19 @@ public:
 
     bool hasEffect (int slot) const { return slot >= 0 && slot < kTotalSlots && fx[slot] != nullptr; }
 
+    // ---- plug-in delay compensation. Each track is delayed so all of them line up with the
+    // slowest one (its inserts' latencies plus what comes in late, e.g. a plug-in instrument);
+    // `extra` delays every track (MIDI-out instruments that play ahead of the audio).
+    static constexpr int kMaxTrackDelay = 65535, kMaxSlotDelay = 16383;
+    void setInputLatency (int track, int samples) { if (track >= 0 && track < kMixTracks) inputLat[track] = std::max (0, samples); }
+    void setExtraDelay (int samples) { extraDelay = std::clamp (samples, 0, kMaxTrackDelay / 2); }
+    int  slotLatency (int slot) const;                          // the effect's latency (0 = none / empty)
+    int  trackLatency (int t) const { return t >= 0 && t < kMixTracks ? uiTrackLat[t].load (std::memory_order_relaxed) : 0; }
+    int  totalLatency() const { return uiTotalLat.load (std::memory_order_relaxed); }   // everything, return and master included
+    // the returns' output (after their faders) from the last process(), for stems
+    const float* returnLeft (int r) const { return sendL[r].data(); }
+    const float* returnRight (int r) const { return sendR[r].data(); }
+
 private:
     double sr = 48000.0;
     ChannelEqProcessor eq[kMixTracks];
@@ -63,6 +77,12 @@ private:
     float autoParam[kTotalSlots][kFxParams];   // automated built-in values (< 0 = not automated)
     int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];
+    DelayLine slotDelay[kTotalSlots];      // a bypassed plug-in keeps its delay
+    DelayLine trackAlign[kMixTracks];
+    int inputLat[kMixTracks] {};
+    int extraDelay = 0;
+    std::atomic<int> uiTrackLat[kMixTracks] {}, uiTotalLat { 0 };
+    bool slotReady (const FxSlot&, int slot) const;
     void runInserts (const FxSlot* slots, int firstSlot, float* L, float* R, int n, double bpm);
 };
 } // namespace prv

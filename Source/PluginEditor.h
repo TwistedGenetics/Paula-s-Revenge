@@ -11,6 +11,8 @@
 #include "ui/SampleBrowser.h"
 #include "ui/ParamsPage.h"
 #include "ui/SynthPage.h"
+#include "ui/MidiOutPage.h"
+#include "ui/ChoiceBox.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 
@@ -32,6 +34,10 @@ public:
     prv::ui::ArrangePage& getArrange() { return arrange; }
     prv::ui::MixerPage& getMixer() { return mixer; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
+    prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
+    prv::ui::ChoiceBox& getChoice() { return choice; }
+    void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
+    void recordAutomation();                          // REC AUTO: called by the timer
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
@@ -52,6 +58,7 @@ private:
     void historyRestored (const juce::String&);
     void exportMod();
     void exportWav();
+    void exportWav (bool stems);
     void exportSamples();
 
     PaulaProcessor& proc;
@@ -86,7 +93,7 @@ private:
     // song strip
     PixButton tracksBtn { "8 TRACKS", true }, viewBtn { "BIG VIEW", true };
     PixButton nameBtn { "NAME" }, mixerBtn { "MIXER", true };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
@@ -98,6 +105,8 @@ private:
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;
     prv::ui::SynthPage synthPage;
+    prv::ui::MidiOutPage midiPage;
+    prv::ui::ChoiceBox choice;
     prv::ui::ArrangePage arrange;
     prv::ui::MixerPage mixer;
     prv::ui::OutputMeter outMeter;
@@ -111,6 +120,15 @@ private:
     bool showPanels = true;
     bool lastPlaying = false;
     int lastSeq = -1;
+
+    // REC AUTO: what each learned control was last seen at, and what was last written
+    float recSeenTrack[prv::kMaxTracks][prv::kTrackKnobs];
+    float recSeenInst[prv::kMaxInstruments][prv::kInstrumentKnobs];
+    int   recLastTrack[prv::kMaxTracks][prv::kTrackKnobs];
+    int   recLastInst[prv::kMaxInstruments][prv::kInstrumentKnobs];
+    bool  recPass = false;           // this pass has an undo step already
+    float targetValue (const prv::AutoTarget&);   // a learned control's value now (-1 = can't tell)
+    void  recordValue (int track, char letter, float value, int& lastWritten);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PaulaEditor)
 };

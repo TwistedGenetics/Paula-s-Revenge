@@ -93,9 +93,15 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
     };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     pluginBtn.onClick = [this] { if (onUsePlugin) onUsePlugin(); };
+    onBtn.onClick = [this] { toggleOn(); };
+    learnA.onClick = [this] { armLearn (0); };
+    learnB.onClick = [this] { armLearn (1); };
+    trackBox.labelChars = 5; trackBox.valueChars = 1;
+    trackBox.onChange = [this] (int) { learning = -1; refresh(); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk,
-                                                             &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn })
+                                                             &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn,
+                                                             &onBtn, &learnA, &learnB, &trackBox })
         addAndMakeVisible (c);
     refresh();
 }
@@ -118,10 +124,49 @@ template <typename Fn> void ParamsPage::edit (Fn&& fn)
     if (onChanged) onChanged();
 }
 
+void ParamsPage::toggleOn()
+{
+    const int i = proc.editorState.instrument;
+    if (learning >= 0)
+    {
+        // LEARN armed: the track's knob switches this instrument on and off
+        const int k = learning, tr = trackBox.getValue() - 1;
+        learning = -1;
+        const juce::String name = (inst().name.empty() ? "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2)
+                                                      : juce::String (inst().name).toUpperCase()) + ": ON/OFF";
+        proc.history.mixer ("TRACK " + juce::String (tr + 1) + (k == 0 ? " AUTO A = " : " AUTO B = ") + name);
+        proc.withLock ([&] { proc.song.mixer.trackAuto[tr][k] = AutoTarget { kAutoInstrumentBase + i, kAutoOnOff, name.toStdString() }; });
+        if (onStatus) onStatus ("TRACK " + juce::String (tr + 1) + (k == 0 ? " AUTO A (VXX) NOW SWITCHES " : " AUTO B (JXX) NOW SWITCHES ") + name + " (00 = OFF, 01-FF = ON)");
+        refresh();
+        return;
+    }
+    const bool off = ! inst().switchedOff;
+    proc.history.instrument (i, off ? "INSTRUMENT OFF" : "INSTRUMENT ON");
+    proc.withLock ([&] { inst().switchedOff = off; proc.player.setInstrumentOn (i, -1); });   // (the button wins over V / J switching)
+    if (onStatus) onStatus (off ? "INSTRUMENT SWITCHED OFF - ITS NOTES ARE SILENT" : "INSTRUMENT SWITCHED ON");
+    if (onChanged) onChanged();
+    refresh();
+}
+
+void ParamsPage::armLearn (int knob)
+{
+    if (learning == knob) { learning = -1; if (onStatus) onStatus ("LEARN CANCELLED"); refresh(); return; }
+    learning = knob;
+    if (onStatus) onStatus ("NOW CLICK ON: TRACK " + juce::String (trackBox.getValue()) + (knob == 0 ? " AUTO A (VXX)" : " AUTO B (JXX)")
+                            + " WILL SWITCH THIS INSTRUMENT ON AND OFF (LEARN AGAIN CANCELS)");
+    refresh();
+}
+
 void ParamsPage::refresh()
 {
+    if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
     const auto& in = inst();
+    const bool on = proc.player.instrumentIsOn (proc.editorState.instrument);
+    onBtn.setToggleState (on, juce::dontSendNotification);
+    onBtn.setButtonText (on ? "ON" : "OFF");
+    learnA.setToggleState (learning == 0, juce::dontSendNotification);
+    learnB.setToggleState (learning == 1, juce::dontSendNotification);
     envOnBtn.setToggleState (in.volEnv.on, juce::dontSendNotification);
     atk.setValue (timeToSlider (in.volEnv.attack)); dec.setValue (timeToSlider (in.volEnv.decay));
     sus.setValue (in.volEnv.sustain);               rel.setValue (timeToSlider (in.volEnv.release));
@@ -147,6 +192,8 @@ void ParamsPage::refresh()
 void ParamsPage::tick()
 {
     if (shownInstrument != proc.editorState.instrument) refresh();
+    // the ON button follows V / J switching while the song plays
+    else if (onBtn.getToggleState() != proc.player.instrumentIsOn (proc.editorState.instrument)) refresh();
 }
 
 void ParamsPage::resized()
@@ -158,15 +205,24 @@ void ParamsPage::resized()
 
     titleArea = r.removeFromTop (rowH).toFloat();
     r.removeFromTop (gap);
+    auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+    // bottom: ON, the track and LEARN A / B for switching it, CLOSE
     auto bottom = r.removeFromBottom (rowH);
     {
-        const int w = (bottom.getWidth() - gap * 2) / 4;
-        playBtn.setBounds (bottom.removeFromLeft (w * 2)); bottom.removeFromLeft (gap);
-        resetBtn.setBounds (bottom.removeFromLeft (w)); bottom.removeFromLeft (gap);
-        closeBtn.setBounds (bottom);
+        closeBtn.setBounds (bottom.removeFromRight (charsW (5))); bottom.removeFromRight (gap * 2);
+        onBtn.setBounds (bottom.removeFromLeft (charsW (4))); bottom.removeFromLeft (gap);
+        trackBox.setBounds (bottom.removeFromLeft (trackBox.preferredWidth (px))); bottom.removeFromLeft (gap);
+        learnA.setBounds (bottom.removeFromLeft (charsW (11))); bottom.removeFromLeft (gap);
+        learnB.setBounds (bottom.removeFromLeft (std::min (bottom.getWidth(), charsW (11))));
     }
     r.removeFromBottom (gap);
-    pluginBtn.setBounds (r.removeFromBottom (rowH));
+    // play, reset, and a plug-in or MIDI out instead of the sample
+    auto row2 = r.removeFromBottom (rowH);
+    {
+        playBtn.setBounds (row2.removeFromLeft (charsW (14))); row2.removeFromLeft (gap);
+        resetBtn.setBounds (row2.removeFromLeft (charsW (9))); row2.removeFromLeft (gap);
+        pluginBtn.setBounds (row2);
+    }
     r.removeFromBottom (gap * 2);
 
     auto panRow = r.removeFromBottom (rowH + (int) (px * 14));

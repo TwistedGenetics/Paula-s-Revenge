@@ -486,6 +486,7 @@ juce::String PatternEditor::contextName (int line, int track, uint8_t cmd) const
     const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
     if (plug && knobForCmd (cmd) >= 0) return "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd));
     if (plug && cmd == cmdLetter ('O')) return "MOD WHEEL";
+    if (plug && cmd == 0x0 && proc.song.instruments[(size_t) ins].chord) return "CHORD";
     return {};
 }
 
@@ -507,6 +508,7 @@ juce::String PatternEditor::contextOverview (int line, int track, uint8_t cmd) c
             return t.param >= 0 ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT ON THE INSTRUMENT'S PAGE (PARAMS)");
         }
         if (cmd == cmdLetter ('O')) return "SENDS THE MOD WHEEL (CC1), 00-FF";
+        if (cmd == 0x0 && proc.song.instruments[(size_t) ins].chord) return "ON A NOTE: + X AND + Y SEMITONES, HELD (NO NOTE: ARPEGGIO)";
         if (sampleOnly (cmd)) return "NOT USED BY PLUG-IN INSTRUMENTS";
     }
     return {};
@@ -525,6 +527,12 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
         if (! t.valid()) return head + "AUTO " + (a ? "A" : "B") + " ISN'T SET - LEARN IT ON AN EFFECT PAGE IN THE MIXER";
         if (t.param == kAutoOnOff) return head + juce::String (t.name) + (param == 0 ? " - OFF" : " - ON");
         return head + juce::String (t.name) + " " + juce::String (pct) + "%";
+    }
+    if (plug && cmd == 0x0 && param != 0 && proc.song.instruments[(size_t) ins].chord)
+    {
+        const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)];
+        const bool note = line >= 0 && line < b.lines && track >= 0 && track < kMaxTracks && b.at (line, track).note > 0 && b.at (line, track).note <= kNoteMax;
+        if (note) return head + "CHORD: THE NOTE +" + juce::String (param >> 4) + " AND +" + juce::String (param & 15) + " SEMITONES, HELD";
     }
     if (plug)
     {

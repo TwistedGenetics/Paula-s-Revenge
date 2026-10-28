@@ -39,6 +39,7 @@ public:
     void reset() override;
     void process (float* left, float* right, int numSamples, const float* params, double bpm) override;
     void setParameter (int index, float value01) override;
+    int  latency() const override { return plugin->getLatencySamples(); }
     juce::AudioPluginInstance& instance() { return *plugin; }
     std::vector<uint8_t> state();
 
@@ -66,6 +67,7 @@ public:
     void controller (int cc, int value, int offset) override;
     void setParameter (int index, float value01) override;
     void render (float* left, float* right, int numSamples) override;
+    int  latency() const override { return plugin->getLatencySamples(); }
     juce::AudioPluginInstance& instance() { return *plugin; }
     std::vector<uint8_t> state();
 

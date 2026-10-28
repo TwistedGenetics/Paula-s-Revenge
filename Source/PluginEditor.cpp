@@ -14,7 +14,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), arrange (p), mixer (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -31,13 +31,29 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     proc.history.onRestored = [this] (const juce::String& what) { historyRestored (what); };
     modBtn.onClick  = [this] { exportMod(); };
     wavBtn.onClick  = [this] { exportWav(); };
+    for (auto& a : recSeenTrack) for (auto& v : a) v = -1.0f;
+    for (auto& a : recSeenInst) for (auto& v : a) v = -1.0f;
+    for (auto& a : recLastTrack) for (auto& v : a) v = -1;
+    for (auto& a : recLastInst) for (auto& v : a) v = -1;
+    recAutoBtn.onClick = [this, &st]
+    {
+        st.recAuto = recAutoBtn.getToggleState();
+        setStatus (st.recAuto ? "REC AUTO ON: WITH EDIT ON AND THE SONG PLAYING, MOVING A LEARNED CONTROL WRITES ITS V / J / L / Q / H / W"
+                              : "REC AUTO OFF");
+        pattern.grabKeyboardFocus();
+    };
     zoomOut.onClick = [this, &st] { st.uiZoom = std::max (-3, st.uiZoom - 1); resized(); repaint(); };
     zoomIn.onClick  = [this, &st] { st.uiZoom = std::min (4, st.uiZoom + 1); resized(); repaint(); };
 
     // ---- transport
     playSongBtn.onClick  = [this, &st] { proc.withLock ([&] { proc.player.playSong (st.seqPos, 0); }); refreshAll(); };
     playBlockBtn.onClick = [this, &st] { proc.withLock ([&] { proc.player.playBlock (st.block, 0); }); refreshAll(); };
-    stopBtn.onClick      = [this] { pattern.stopPlayback(); refreshAll(); };
+    stopBtn.onClick      = [this]
+    {
+        // STOP while already stopped: panic (all notes off on every MIDI output)
+        if (! proc.player.isPlaying()) { proc.midiPanic(); setStatus ("PANIC: ALL NOTES OFF ON EVERY MIDI OUTPUT"); }
+        pattern.stopPlayback(); refreshAll();
+    };
     editBtn.onClick      = [this, &st] { st.editMode = editBtn.getToggleState(); pattern.grabKeyboardFocus(); refreshAll(); };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
     followBtn.onClick    = [this, &st] { st.follow = followBtn.getToggleState(); refreshAll(); };
@@ -104,7 +120,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
 
     // PARAMS: a plug-in instrument has its own page
-    instruments.openParams = [this] { setView (proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin() ? View::Synth : View::Params); };
+    instruments.openParams = [this]
+    {
+        const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+        setView (in.isMidiOut() ? View::MidiOut : in.isPlugin() ? View::Synth : View::Params);
+    };
     sequence.openArrange = [this] { setView (View::Arrange); };
     sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
     sequence.returnFocus = [this]
@@ -115,6 +135,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::Browser:    browser.grabKeyboardFocus(); break;
             case View::Params:     params.grabKeyboardFocus(); break;
             case View::Synth:      synthPage.grabKeyboardFocus(); break;
+            case View::MidiOut:    midiPage.grabKeyboardFocus(); break;
             case View::Arrange:    arrange.grabKeyboardFocus(); break;
             case View::Mixer:      mixer.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
@@ -132,7 +153,21 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     mixerBtn.onClick = [this] { setView (proc.editorState.view == View::Mixer ? View::Pattern : View::Mixer); };
     fx2Btn.onClick = [this, &st] { st.showFx2 = fx2Btn.getToggleState(); if (! st.showFx2) st.column = std::min (st.column, 5); refreshAll(); };
     params.onClose = [this] { setView (View::Pattern); };
-    params.onUsePlugin = [this] { setView (View::Synth); synthPage.opened (true); };
+    params.onUsePlugin = [this]
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        choice.show (*this, "PLAY THIS INSTRUMENT WITH", { "A VST3 / AU INSTRUMENT", "MIDI OUT TO HARDWARE" }, [safe] (int a)
+        {
+            if (safe == nullptr || a < 0) return;
+            if (a == 0) { safe->setView (View::Synth); safe->synthPage.opened (true); }
+            else { safe->setView (View::MidiOut); safe->midiPage.opened (true); }
+        });
+    };
+    params.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    midiPage.onClose = [this] { setView (View::Pattern); };
+    midiPage.onChanged = [this] { refreshAll(); };
+    midiPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    addChildComponent (midiPage);
     synthPage.onClose = [this] { setView (View::Pattern); };
     synthPage.onChanged = [this] { refreshAll(); };
     synthPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -149,7 +184,9 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     instruments.openSampleEditor = [this]
     {
         // EDIT on a plug-in instrument opens the plug-in's own window
-        if (proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin()) synthPage.openWindow();
+        const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+        if (in.isMidiOut()) setView (View::MidiOut);
+        else if (in.isPlugin()) synthPage.openWindow();
         else setView (View::SampleEdit);
     };
     sampleEditor.onChanged = [this] { instruments.refresh(); };
@@ -166,7 +203,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
-            &skinBtn, &specBtn, &fx2Btn, &spectrum,
+            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
 
@@ -198,6 +235,7 @@ void PaulaEditor::keyStateFromElsewhere (bool down)
         case View::Browser:    browser.keyStateChanged (down); break;
         case View::Params:     params.keyStateChanged (down); break;
         case View::Synth:      synthPage.keyStateChanged (down); break;
+        case View::MidiOut:    midiPage.keyStateChanged (down); break;
         case View::Mixer:      mixer.keyStateChanged (down); break;
         case View::Arrange:    break;
         default:               pattern.keyStateChanged (down); break;
@@ -234,6 +272,7 @@ void PaulaEditor::setView (View v)
     if (st.view == View::SampleEdit && v != View::SampleEdit) sampleEditor.stop();
     if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
+    if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
     const bool layoutChange = (st.view == View::Mixer) != (v == View::Mixer);
     st.view = v;
     if (layoutChange) resized();
@@ -242,11 +281,13 @@ void PaulaEditor::setView (View v)
     browser.setVisible (v == View::Browser);
     params.setVisible (v == View::Params);
     synthPage.setVisible (v == View::Synth);
+    midiPage.setVisible (v == View::MidiOut);
     arrange.setVisible (v == View::Arrange);
     mixer.setVisible (v == View::Mixer);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
     else if (v == View::Synth) synthPage.opened (false);
+    else if (v == View::MidiOut) midiPage.opened (false);
     else if (v == View::Arrange) arrange.opened();
     else if (v == View::SampleEdit) { sampleEditor.instrumentSelected(); sampleEditor.grabKeyboardFocus(); }
     else if (v == View::Browser) browser.opened();
@@ -316,6 +357,7 @@ void PaulaEditor::refreshAll()
     skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
+    recAutoBtn.setToggleState (st.recAuto, juce::dontSendNotification);
     if (! st.showFx2) st.column = std::min (st.column, 5);
     viewBtn.setEnabled (song.numTracks > 4);
 
@@ -343,8 +385,15 @@ void PaulaEditor::timerCallback()
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
     if (synthPage.isVisible()) synthPage.tick();
-    // the PARAMS page follows the instrument: a plug-in instrument shows its own page
-    if (proc.editorState.view == View::Params && proc.song.instruments[(size_t) proc.editorState.instrument].isPlugin()) setView (View::Synth);
+    if (midiPage.isVisible()) midiPage.tick();
+    // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
+    {
+        const auto& cur = proc.song.instruments[(size_t) proc.editorState.instrument];
+        const auto view = proc.editorState.view;
+        if ((view == View::Params || view == View::Synth) && cur.isMidiOut()) setView (View::MidiOut);
+        else if ((view == View::Params || view == View::MidiOut) && cur.isPlugin() && ! cur.isMidiOut()) setView (View::Synth);
+    }
+    recordAutomation();
     if (arrange.isVisible()) arrange.tick();
     if (mixer.isVisible()) mixer.tick();
     outMeter.tick();
@@ -486,6 +535,7 @@ void PaulaEditor::resized()
     skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
+    recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -534,6 +584,7 @@ void PaulaEditor::resized()
     browser.setBounds (main);
     params.setBounds (main);
     synthPage.setBounds (main);
+    midiPage.setBounds (main);
     arrange.setBounds (main);
 }
 
@@ -557,6 +608,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Browser:    return browser.keyPressed (k);
         case View::Params:     return params.keyPressed (k);
         case View::Synth:      return synthPage.keyPressed (k);
+        case View::MidiOut:    return midiPage.keyPressed (k);
         case View::Arrange:    return arrange.keyPressed (k);
         case View::Mixer:      return mixer.keyPressed (k);
         default:               return pattern.keyPressed (k);
@@ -692,27 +744,151 @@ void PaulaEditor::exportMod()
 
 void PaulaEditor::exportWav()
 {
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "RENDER WAV", { "SONG (ONE WAV FILE)", "STEMS (A WAV PER TRACK)" }, [safe] (int a)
+    {
+        if (safe != nullptr && a >= 0) safe->exportWav (a == 1);
+    });
+}
+
+void PaulaEditor::exportWav (bool stems)
+{
     auto& st = proc.editorState;
     juce::File start = prv::startFolder (st.lastFolder, "songFolder")
                            .getChildFile (juce::File::createLegalFileName (juce::String (proc.song.name).toLowerCase()) + ".wav");
-    chooser = std::make_unique<juce::FileChooser> ("Render song to WAV", start, "*.wav");
+    chooser = std::make_unique<juce::FileChooser> (stems ? "Render stems (a folder is made next to this name)" : "Render song to WAV", start, "*.wav");
     juce::Component::SafePointer<PaulaEditor> safe (this);
-    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [safe] (const juce::FileChooser& fc)
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [safe, stems] (const juce::FileChooser& fc)
     {
         if (safe == nullptr) return;
         auto file = fc.getResult();
         if (file == juce::File()) return;
         if (! file.hasFileExtension ("wav")) file = file.withFileExtension ("wav");
-        auto& self = *safe;
-        prv::Song copy;
-        prv::PaulaOptions opts;
-        self.proc.capturePluginStates();   // plug-ins render with their current settings
-        self.proc.withLock ([&] { copy = self.proc.song; opts = self.proc.player.options; });
-        juce::String err;
-        const double rate = self.proc.getSampleRate() > 0 ? self.proc.getSampleRate() : 48000.0;
-        if (prv::renderSongToWav (copy, opts, rate, file, err, self.proc.pluginFactory(), self.proc.synthFactory())) self.setStatus ("RENDERED " + file.getFileName());
-        else self.setStatus ("ERROR: " + err);
+        safe->renderTo (file, stems);
     });
+}
+
+void PaulaEditor::renderTo (const juce::File& file, bool stems)
+{
+    prv::Song copy;
+    prv::PaulaOptions opts;
+    proc.capturePluginStates();   // plug-ins render with their current settings
+    proc.withLock ([&] { copy = proc.song; opts = proc.player.options; });
+    juce::String err;
+    juce::StringArray leftOut;
+    const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+    if (prv::renderSongToWav (copy, opts, rate, file, err, proc.pluginFactory(), proc.synthFactory(), stems, &leftOut))
+    {
+        juce::String m = stems ? "RENDERED STEMS INTO " + prv::stemFolderFor (file).getFileName() : "RENDERED " + file.getFileName();
+        if (! leftOut.isEmpty()) m << " - LEFT OUT (MIDI OUT, HARDWARE): " << leftOut.joinIntoString (", ");
+        setStatus (m);
+    }
+    else setStatus ("ERROR: " + err);
+}
+
+// ---------------------------------------------------------------------------
+// REC AUTO
+float PaulaEditor::targetValue (const prv::AutoTarget& t)
+{
+    if (! t.valid() || t.param == prv::kAutoOnOff) return -1.0f;
+    if (t.target < prv::kAutoInstrumentBase)
+    {
+        if (t.target >= prv::kTotalSlots) return -1.0f;
+        const auto& s = proc.song.mixer.slot (t.target);
+        if (s.type == prv::FxType::Plugin)
+        {
+            auto* pe = proc.pluginAt (t.target);
+            if (pe == nullptr) return -1.0f;
+            const auto& ps = pe->instance().getParameters();
+            return t.param < ps.size() ? ps[t.param]->getValue() : -1.0f;
+        }
+        return t.param < prv::kFxParams ? s.p[t.param] : -1.0f;
+    }
+    const int i = t.target - prv::kAutoInstrumentBase;
+    if (auto* m = proc.midiAt (i)) return m->knobValue (t.param);
+    if (auto* s = proc.synthAt (i))
+    {
+        const auto& ps = s->instance().getParameters();
+        return t.param < ps.size() ? ps[t.param]->getValue() : -1.0f;
+    }
+    return -1.0f;
+}
+
+void PaulaEditor::recordValue (int track, char letter, float value, int& lastWritten)
+{
+    const int v = juce::jlimit (0, 255, juce::roundToInt (value * 255.0f));
+    if (v == lastWritten) return;   // (the same as the last value written: nothing new)
+    const int b = proc.song.safeBlock (proc.player.uiBlock.load());
+    const auto& blk = proc.song.blocks[(size_t) b];
+    const int line = juce::jlimit (0, blk.lines - 1, proc.player.uiLine.load());
+    const uint8_t cmd = prv::cmdLetter (letter);
+    const auto& c = blk.at (line, track);
+    int column = -1;
+    if ((c.cmd == 0 && c.param == 0) || c.cmd == cmd) column = 0;
+    else if ((c.cmd2 == 0 && c.param2 == 0) || c.cmd2 == cmd) column = 1;
+    if (column < 0)
+    {
+        setStatus ("REC AUTO: LINE " + juce::String (line).paddedLeft ('0', 3) + " OF TRACK " + juce::String (track + 1) + " HAS NO FREE EFFECT COLUMN - SKIPPED");
+        return;
+    }
+    if (! recPass) { proc.history.structure ("RECORD AUTOMATION"); recPass = true; }
+    proc.withLock ([&]
+    {
+        auto& cell = proc.song.blocks[(size_t) b].at (line, track);
+        if (column == 0) { cell.cmd = cmd; cell.param = (uint8_t) v; }
+        else { cell.cmd2 = cmd; cell.param2 = (uint8_t) v; }
+    });
+    lastWritten = v;
+    pattern.repaint();
+}
+
+void PaulaEditor::recordAutomation()
+{
+    const auto& st = proc.editorState;
+    const bool on = st.recAuto && st.editMode && proc.player.isPlaying();
+    const int nt = proc.song.numTracks;
+    // track knobs (V / J)
+    for (int t = 0; t < prv::kMaxTracks; ++t)
+        for (int k = 0; k < prv::kTrackKnobs; ++k)
+        {
+            const float v = t < nt ? targetValue (proc.song.mixer.trackAuto[t][k]) : -1.0f;
+            float& seen = recSeenTrack[t][k];
+            if (! on || v < 0 || seen < 0) { seen = v; continue; }
+            if (std::abs (v - seen) < 0.002f) continue;
+            seen = v;
+            // (the pattern moving it isn't the hand moving it)
+            const float lane = proc.player.laneValue (0, t, k);
+            if (lane >= 0 && std::abs (lane - v) < 0.006f) continue;
+            recordValue (t, k == 0 ? 'V' : 'J', v, recLastTrack[t][k]);
+        }
+    // a plug-in / MIDI-out instrument's own knobs (L / Q / H / W) on the track playing it
+    static const char letters[prv::kInstrumentKnobs] = { 'L', 'Q', 'H', 'W' };
+    for (int i = 0; i < prv::kMaxInstruments; ++i)
+    {
+        const auto& in = proc.song.instruments[(size_t) i];
+        if (! in.isPlugin()) continue;
+        for (int k = 0; k < prv::kInstrumentKnobs; ++k)
+        {
+            const float v = targetValue (in.knobs[k]);
+            float& seen = recSeenInst[i][k];
+            if (! on || v < 0 || seen < 0) { seen = v; continue; }
+            if (std::abs (v - seen) < 0.002f) continue;
+            seen = v;
+            const float lane = proc.player.laneValue (1, i, k);
+            if (lane >= 0 && std::abs (lane - v) < 0.006f) continue;
+            int track = -1;
+            for (int t = 0; t < nt && track < 0; ++t) if (proc.player.uiTrackInstr[t].load() == i) track = t;
+            if (track < 0) continue;
+            recordValue (track, letters[k], v, recLastInst[i][k]);
+        }
+    }
+    if (! on)
+    {
+        // a new pass next time (its own undo step), and nothing counts as already written
+        recPass = false;
+        for (auto& a : recLastTrack) for (auto& x : a) x = -1;
+        for (auto& a : recLastInst) for (auto& x : a) x = -1;
+    }
 }
 
 bool PaulaEditor::exportSamplesTo (const juce::File& folder, int& written, juce::String& error)
