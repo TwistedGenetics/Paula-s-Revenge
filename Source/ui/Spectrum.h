@@ -14,6 +14,8 @@ public:
     void tick();                 // ~30x a second
     void paint (juce::Graphics&) override;
     void feed (const float* samples, int n);   // used by tests
+    void mouseDown (const juce::MouseEvent&) override;
+    std::function<void()> onColourMenu;        // right-click: the spectrum's colour
 
 private:
     static constexpr int kOrder = 11, kSize = 1 << kOrder, kBands = 48;
@@ -32,8 +34,10 @@ private:
 class OutputMeter : public juce::Component
 {
 public:
-    explicit OutputMeter (PaulaProcessor& p) : proc (p) { setInterceptsMouseClicks (false, false); }
+    explicit OutputMeter (PaulaProcessor& p) : proc (p) {}
     void tick();
+    void mouseDown (const juce::MouseEvent&) override;
+    std::function<void()> onColourMenu;        // right-click: the meters' colour
     void paint (juce::Graphics&) override;
 private:
     PaulaProcessor& proc;

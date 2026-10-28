@@ -1,5 +1,6 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
+#include "ui/MeterColours.h"
 #include "engine/Capture.h"
 #include "SongFile.h"
 #include "engine/Bounce.h"
@@ -174,17 +175,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     blockPanel.onCopyBlock = [this] (bool cut) { pattern.copyBlock (cut); };
     blockPanel.onPasteBlock = [this] { pattern.pasteBlock(); };
     prv::ui::menuHook() = [this] (const juce::String& t, const juce::StringArray& a, std::function<void (int)> done) { choice.show (*this, t, a, std::move (done)); };
-    pattern.onVuMenu = [this]
-    {
-        juce::Component::SafePointer<PaulaEditor> safe (this);
-        choice.show (*this, "VU METER COLOUR", prv::ui::PatternEditor::vuColourNames(), [safe] (int a)
-        {
-            if (safe == nullptr || a < 0) return;
-            prv::ui::PatternEditor::setVuColourChoice (a);
-            safe->setStatus ("VU METERS: " + prv::ui::PatternEditor::vuColourNames()[a]);
-            safe->pattern.repaint();
-        });
-    };
+    pattern.onVuMenu = [this] { showMeterColourMenu (false); };
+    outMeter.onColourMenu = [this] { showMeterColourMenu (false); };
+    mixer.onMeterColourMenu = [this] { showMeterColourMenu (false); };
+    spectrum.onColourMenu = [this] { showMeterColourMenu (true); };
+    pattern.onSpectrumMenu = [this] { showMeterColourMenu (true); };
 
     // PARAMS: a plug-in instrument has its own page
     instruments.openParams = [this]
@@ -751,6 +746,21 @@ int PaulaEditor::captureNow()
     refreshAll();
     repaint();
     return notes;
+}
+
+void PaulaEditor::showMeterColourMenu (bool forSpectrum)
+{
+    // one colour for every level meter (pattern VU bars, L/R, mixer), another for the spectrum
+    namespace meters = prv::ui::meters;
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, forSpectrum ? "SPECTRUM COLOUR" : "VU METER COLOUR", meters::names (forSpectrum), [safe, forSpectrum] (int a)
+    {
+        if (safe == nullptr || a < 0) return;
+        if (forSpectrum) meters::setSpectrumChoice (a); else meters::setVuChoice (a);
+        safe->setStatus ((forSpectrum ? "SPECTRUM: " : "VU METERS: ") + meters::names (forSpectrum)[a]
+                         + (forSpectrum ? " - RIGHT-CLICK THE METERS FOR THEIR COLOUR" : " - RIGHT-CLICK THE SPECTRUM FOR ITS COLOUR"));
+        safe->repaint();
+    });
 }
 
 void PaulaEditor::toggleHelp()

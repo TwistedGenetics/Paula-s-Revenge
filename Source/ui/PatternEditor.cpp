@@ -1,6 +1,7 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
 #include "ChoiceBox.h"
+#include "MeterColours.h"
 #include "../engine/ChordDetect.h"
 #include "../Prefs.h"
 #include "../engine/Commands.h"
@@ -71,41 +72,11 @@ void PatternEditor::updateView (bool fromTick)
     viewFull = full;
 }
 
-// ---------------------------------------------------------------- VU colour
-namespace
-{
-    struct VuChoice { const char* name; juce::uint32 dark, light; };
-    const VuChoice kVuChoices[] = {
-        { "GREEN", 0xff5ee05e, 0xff1f7a1f }, { "AMBER", 0xfff2b23a, 0xff9a5a00 }, { "CYAN", 0xff3fd0e6, 0xff00768a },
-        { "RED", 0xffff5a4a, 0xffc01818 },   { "BLUE", 0xff6aa4ff, 0xff1f4fb0 },  { "PINK", 0xffe864c8, 0xff9c1f94 },
-        { "CREAM / BLACK", 0xfff4ecd6, 0xff000000 }, { "TRACK COLOURS", 0, 0 },
-    };
-}
-
-juce::StringArray PatternEditor::vuColourNames()
-{
-    juce::StringArray a;
-    for (auto& c : kVuChoices) a.add (c.name);
-    return a;
-}
-
-int PatternEditor::vuColourChoice()
-{
-    return juce::jlimit (0, (int) std::size (kVuChoices) - 1, prv::prefs().getIntValue ("vuColour", 0));
-}
-
-void PatternEditor::setVuColourChoice (int i)
-{
-    prv::prefs().setValue ("vuColour", juce::jlimit (0, (int) std::size (kVuChoices) - 1, i));
-    prv::prefs().saveIfNeeded();
-}
-
-juce::Colour PatternEditor::vuColour (int track) const
-{
-    const auto& c = kVuChoices[(size_t) vuColourChoice()];
-    if (c.dark == 0) return Theme::skin.track[juce::jlimit (0, 7, track)];
-    return juce::Colour (Theme::skin.dark ? c.dark : c.light);
-}
+// ---------------------------------------------------------------- VU colour (MeterColours.h)
+juce::StringArray PatternEditor::vuColourNames()   { return meters::names (false); }
+int PatternEditor::vuColourChoice()                { return meters::vuChoice(); }
+void PatternEditor::setVuColourChoice (int i)      { meters::setVuChoice (i); }
+juce::Colour PatternEditor::vuColour (int track) const { return meters::vu (track); }
 
 bool PatternEditor::isOnVu (juce::Point<float> p) const
 {
@@ -837,6 +808,8 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
                 { "INSERT A LINE", act ([] (PatternEditor& p) { p.insertLine(); }) },
                 { "DELETE THE LINE", act ([] (PatternEditor& p) { p.deleteLine(); }) },
                 { "EFFECT COMMANDS...", act ([line, track] (PatternEditor& p) { p.openCommandMenu (line, track, 1); }) },
+                { "VU METER COLOUR...", act ([] (PatternEditor& p) { if (p.onVuMenu) p.onVuMenu(); }) },
+                { "SPECTRUM COLOUR...", act ([] (PatternEditor& p) { if (p.onSpectrumMenu) p.onSpectrumMenu(); }) },
             });
             return;
         }

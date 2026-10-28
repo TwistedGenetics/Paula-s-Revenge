@@ -53,7 +53,7 @@ public:
     std::function<void (int slot)> onEditChords;     // EDIT CHORDS...: the CHORDS page on that slot
 
     // the track VU meters: one colour, chosen by right-clicking a meter (kept on this computer)
-    std::function<void()> onVuMenu;
+    std::function<void()> onVuMenu, onSpectrumMenu;
     static juce::StringArray vuColourNames();
     static int  vuColourChoice();
     static void setVuColourChoice (int);
@@ -122,7 +122,9 @@ private:
     int downLine = 0, downTrack = 0, downColumn = 0;
     int groupsPerTrack() const { return st.showFx2 ? 3 : 2; }
     static int groupOfColumn (int column) { return column <= 2 ? 0 : column <= 5 ? 1 : 2; }
-    bool cellAt (juce::Point<float>, int& line, int& track, int& column) const;
+public:
+    bool cellAt (juce::Point<float>, int& line, int& track, int& column) const;   // (tests use it too)
+private:
     template <typename Fn> void forEachSelected (Fn&& fn) const;   // fn (line, track, group)
     juce::Rectangle<float> cornerRect() const;
     void askBlockNumber();

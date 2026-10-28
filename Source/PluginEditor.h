@@ -47,6 +47,7 @@ public:
     bool bounceSelection (bool withFx);               // the highlighted area to a new instrument
     void askBounce();                                 // DRY or WITH FX?
     int  captureNow();                                // CAPTURE (Cmd+R): what was played into the pattern; notes written
+    void showMeterColourMenu (bool forSpectrum);      // right-click a level meter / the spectrum: its colour
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);

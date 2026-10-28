@@ -35,6 +35,7 @@ public:
     }
     bool isShowing() const { return isVisible(); }
     void choose (int answer) { finish (answer); }   // (tests)
+    const juce::String& getTitle() const { return title; }
     int  numAnswers() const { return (int) buttons.size() - 1; }
 
     void paint (juce::Graphics& g) override

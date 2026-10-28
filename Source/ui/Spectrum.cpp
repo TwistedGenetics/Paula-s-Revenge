@@ -1,5 +1,6 @@
 // Paula's Revenge - spectrum strip under the pattern
 #include "Spectrum.h"
+#include "MeterColours.h"
 
 namespace prv::ui
 {
@@ -64,11 +65,11 @@ void Spectrum::paint (juce::Graphics& g)
     {
         const float x = inner.getX() + b * bw;
         const int lit = juce::roundToInt (bands[b] * segs);
-        // bars pick up the track colours left to right so the strip ties in with the pattern
-        const auto c = sk.track[(b * 8) / kBands];
+        // one colour, or (RAINBOW) the track colours left to right - right-click to choose
+        const auto c = meters::spectrum (b, kBands);
         for (int k = 0; k < lit; ++k)
         {
-            g.setColour (sk.dark ? c : sk.specBar);
+            g.setColour (c);
             g.fillRect (x + 1.0f, inner.getBottom() - (k + 1) * segH + 1.0f, bw - 2.0f, segH - 1.0f);
         }
         const int pk = juce::roundToInt (peaks[b] * segs);
@@ -111,11 +112,20 @@ void OutputMeter::paint (juce::Graphics& g)
         auto bar = cell.withTrimmedLeft (labelW).reduced (0, area.getHeight() * 0.22f);
         g.setColour (sk.bg);
         g.fillRect (bar);
-        g.setColour (toFrac (v) > 0.92f ? sk.hot : sk.track[3]);
+        g.setColour (toFrac (v) > 0.92f ? sk.hot : meters::vu (3));
         g.fillRect (bar.withWidth (bar.getWidth() * toFrac (v)));
         g.setColour (sk.text);
         g.fillRect (bar.getX() + bar.getWidth() * toFrac (hold) - 1.0f, bar.getY(), 2.0f, bar.getHeight());
         Theme::bevel (g, bar, false, 1.0f);
     }
+}
+void Spectrum::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onColourMenu) onColourMenu();
+}
+
+void OutputMeter::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu() && onColourMenu) onColourMenu();
 }
 } // namespace prv::ui

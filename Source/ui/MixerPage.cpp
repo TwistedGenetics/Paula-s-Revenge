@@ -1,6 +1,7 @@
 // Paula's Revenge - the mixer: channel strips, channel EQ page, effect editor page
 #include "MixerPage.h"
 #include "ChoiceBox.h"
+#include "MeterColours.h"
 #include "../engine/Effects.h"
 
 namespace prv::ui
@@ -175,7 +176,7 @@ void FaderMeter::paint (juce::Graphics& g)
         const float hpos = dbToPos (juce::Decibels::gainToDecibels (hold, -60.0f));
         const float zero = dbToPos (0.0f);
         auto lit = bar.withTop (bar.getBottom() - bar.getHeight() * pos);
-        g.setColour (colour);
+        g.setColour (meters::vu (track));
         g.fillRect (lit.withTop (std::max (lit.getY(), bar.getBottom() - bar.getHeight() * zero)));
         if (pos > zero)
         {
@@ -212,6 +213,8 @@ void FaderMeter::paint (juce::Graphics& g)
 
 void FaderMeter::mouseDown (const juce::MouseEvent& e)
 {
+    // right-click: the meters' colour (never moves the fader)
+    if (e.mods.isPopupMenu()) { if (onColourMenu) onColourMenu(); return; }
     if (onDragStart) onDragStart();
     // clicking the trough away from the cap jumps the cap there; then drags are relative
     auto t = troughArea();
@@ -223,6 +226,7 @@ void FaderMeter::mouseDown (const juce::MouseEvent& e)
 
 void FaderMeter::mouseDrag (const juce::MouseEvent& e)
 {
+    if (e.mods.isPopupMenu()) return;
     auto t = troughArea();
     const float fine = e.mods.isShiftDown() ? 0.15f : 1.0f;
     const float pos = dbToPos (dragStartDb) - e.getDistanceFromDragStartY() / std::max (1.0f, t.getHeight()) * fine;
@@ -263,6 +267,8 @@ public:
     {
         nameBtn.setButtonText (kind == Kind::Track ? "TRK " + juce::String (idx + 1) : kind == Kind::Return ? juce::String ("SEND ") + (char) ('A' + idx) : juce::String ("MASTER"));
         nameBtn.onClick = [this] { if (kind == Kind::Track) page.openChannel (index); };
+        fader.track = kind == Kind::Track ? index : (kind == Kind::Return ? 5 + index : 3);
+        fader.onColourMenu = [this] { if (page.onMeterColourMenu) page.onMeterColourMenu(); };
         eqBtn.onClick = [this] { if (kind == Kind::Track) page.openChannel (index); refresh(); };
         nameBtn.onRightClick = [this] { stripMenu(); };
         for (int k2 = 0; k2 < kInserts; ++k2)

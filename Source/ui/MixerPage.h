@@ -43,6 +43,8 @@ public:
     juce::Colour colour { 0xff40c0ff };
     std::function<void (float)> onChange;
     std::function<void()> onDragStart;
+    std::function<void()> onColourMenu;   // right-click on the meter: the meters' colour
+    int track = 3;                        // (its colour with TRACK COLOURS)
 
     void setDb (float d, bool notify = false);
     void setLevels (float l, float r);    // latest peaks (linear), decays by itself
@@ -75,6 +77,7 @@ public:
     std::function<void()> onClose;
     std::function<void (const juce::String&)> onStatus;
     std::function<void (bool song)> onPlayStop;
+    std::function<void()> onMeterColourMenu;   // right-click a meter
     std::function<void()> onOctave;      // [ ] changed the octave
 
     enum class Page { Strips, Channel, Effect };

@@ -34,7 +34,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 | Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
-| Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The VU meters are one colour: right-click one to choose it |
+| Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, **MIXER** (`Cmd+2`) |
 
@@ -49,9 +49,10 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR, RENAME, LOAD SAMPLE, PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
-| Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS |
+| Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
 | Pattern, effect columns | the command list (a `#xy` chord cell: the chord list); inside a highlight: BOUNCE |
-| Pattern, VU meters | the meters' colour |
+| Any level meter (the bar at the right of each track, the L / R meter, the mixer's meters) | VU METER COLOUR: green, amber, cyan, red, blue, pink, cream / black, or each track's colour - one colour for all of them, kept for next time |
+| The spectrum strip | SPECTRUM COLOUR: the same colours, or RAINBOW (the track colours, as it started) |
 | EDIT button | STEP ENTRY NOTE-OFFS, DETECT CHORDS, CAPTURE |
 | Sample editor waveform | CUT, COPY, PASTE, DELETE, CROP, SILENCE, MAX VOL, REVERSE, FADE IN / OUT, SET LOOP, SELECT ALL |
 | Mixer: a strip's name | COPY STRIP, PASTE STRIP, RESET STRIP, OPEN CHANNEL (the returns and master: RESET) |
