@@ -6,7 +6,7 @@ It's an original program inspired by the classic Amiga trackers of the early 90s
 
 ![Paula's Revenge](docs/screenshot.png)
 
-**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser).
+**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser), or as an A4 PDF: [`Paulas Revenge Manual v0.12.pdf`](<docs/manual/Paulas Revenge Manual v0.12.pdf>).
 
 ## Install (no building needed)
 
