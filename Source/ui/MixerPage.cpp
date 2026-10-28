@@ -1,5 +1,6 @@
 // Paula's Revenge - the mixer: channel strips, channel EQ page, effect editor page
 #include "MixerPage.h"
+#include "ChoiceBox.h"
 #include "../engine/Effects.h"
 
 namespace prv::ui
@@ -42,11 +43,11 @@ void MiniBar::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat().reduced (1.0f);
-    g.setColour (Theme::paper);
+    g.setColour (Theme::palFor (*this).paper);
     g.fillRect (r);
     if (showFill)
     {
-        g.setColour (Theme::band);
+        g.setColour (&Theme::palFor (*this) == &Theme::darkPalette() ? Theme::palFor (*this).pressed : Theme::band);
         auto in = r.reduced (px * 0.5f);
         if (bipolar)
         {
@@ -55,9 +56,9 @@ void MiniBar::paint (juce::Graphics& g)
         }
         else g.fillRect (in.withWidth (in.getWidth() * value));
     }
-    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
     const juce::String t = label.isEmpty() ? format (value) : label + " " + format (value);
-    PixelFont::drawCentred (g, t, r, px, isEnabled() ? Theme::ink : Theme::faint);
+    PixelFont::drawCentred (g, t, r, px, isEnabled() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
 }
 
 void MiniBar::mouseDown (const juce::MouseEvent&)
@@ -151,7 +152,7 @@ void FaderMeter::paint (juce::Graphics& g)
     auto meter = r.withTrimmedLeft (r.getWidth() * 0.5f).reduced (px, px * 3);
 
     // scale ticks (0 dB marked) between the fader and the meter
-    g.setColour (Theme::ink);
+    g.setColour (Theme::palFor (*this).ink);
     for (float d : { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f })
     {
         const float y = trough.getBottom() - trough.getHeight() * dbToPos (d);
@@ -161,7 +162,7 @@ void FaderMeter::paint (juce::Graphics& g)
     // fader trough with a centre slot
     g.setColour (sk.bg);
     g.fillRect (trough);
-    Theme::bevel (g, trough, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, trough, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
     g.setColour (sk.dim);
     g.fillRect (trough.withSizeKeepingCentre (px, trough.getHeight() - px * 2));
 
@@ -196,16 +197,16 @@ void FaderMeter::paint (juce::Graphics& g)
         drawBar (inner, levelR, holdR);
     }
     else drawBar (inner, std::max (levelL, levelR), std::max (holdL, holdR));
-    Theme::bevel (g, meter, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, meter, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
 
     // the fader cap
     const float capH = px * 6;
     const float y = trough.getBottom() - trough.getHeight() * dbToPos (db);
     auto cap = juce::Rectangle<float> (trough.getX() - px, y - capH * 0.5f, trough.getWidth() + px * 2, capH);
-    g.setColour (Theme::panel);
+    g.setColour (Theme::palFor (*this).panel);
     g.fillRect (cap);
-    Theme::bevel (g, cap, true, std::max (1.0f, px * 0.5f));
-    g.setColour (Theme::ink);
+    Theme::bevel (g, cap, true, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
+    g.setColour (Theme::palFor (*this).ink);
     g.fillRect (cap.withSizeKeepingCentre (cap.getWidth() - px * 2, std::max (1.0f, px * 0.75f)));
 }
 
@@ -247,6 +248,13 @@ void FaderMeter::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWhe
 
 // ---------------------------------------------------------------------------
 // One channel strip: a track, a return (SEND A / B) or the master
+// right-click clipboards (strips and effects, within the app)
+namespace
+{
+    ChannelStrip stripClip; bool haveStripClip = false;
+    FxSlot slotClip; bool haveSlotClip = false;
+}
+
 class MixStrip : public juce::Component
 {
 public:
@@ -256,6 +264,7 @@ public:
         nameBtn.setButtonText (kind == Kind::Track ? "TRK " + juce::String (idx + 1) : kind == Kind::Return ? juce::String ("SEND ") + (char) ('A' + idx) : juce::String ("MASTER"));
         nameBtn.onClick = [this] { if (kind == Kind::Track) page.openChannel (index); };
         eqBtn.onClick = [this] { if (kind == Kind::Track) page.openChannel (index); refresh(); };
+        nameBtn.onRightClick = [this] { stripMenu(); };
         for (int k2 = 0; k2 < kInserts; ++k2)
         {
             slotBtn[k2].onClick = [this, k2]
@@ -264,6 +273,7 @@ public:
                 if (juce::ModifierKeys::currentModifiers.isShiftDown()) page.toggleBypass (s);
                 else page.openEffect (s);
             };
+            slotBtn[k2].onRightClick = [this, k2] { slotMenu (slotIndex (k2)); };
             addAndMakeVisible (slotBtn[k2]);
         }
         for (int s = 0; s < kSends; ++s)
@@ -445,9 +455,9 @@ public:
         const auto& sk = Theme::skin;
         const float px = Theme::px;
         auto r = getLocalBounds().toFloat();
-        g.setColour (Theme::panel);
+        g.setColour (Theme::palFor (*this).panel);
         g.fillRect (r);
-        Theme::bevel (g, r, true, std::max (1.0f, px * 0.5f));
+        Theme::bevel (g, r, true, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
         // colour bar along the top
         g.setColour (fader.colour);
         g.fillRect (r.reduced (px).removeFromTop (px * 2));
@@ -456,10 +466,89 @@ public:
         g.setColour (sk.bg);
         g.fillRect (dbArea);
         PixelFont::drawCentred (g, FaderMeter::dbText (currentDb()), dbArea, px, sk.text);
-        Theme::bevel (g, dbArea, false, std::max (1.0f, px * 0.5f));
+        Theme::bevel (g, dbArea, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
         // labels in the rows a return / the master don't use
         for (auto& [area, text] : spare)
-            PixelFont::drawCentred (g, text, area, px, Theme::faint);
+            PixelFont::drawCentred (g, text, area, px, Theme::palFor (*this).faint);
+    }
+
+    // right-click on the strip's name: COPY / PASTE / RESET
+    void stripMenu()
+    {
+        auto& proc = page.processor();
+        const juce::String who = kind == Kind::Track ? "TRACK " + juce::String (index + 1) : kind == Kind::Return ? juce::String ("SEND ") + (char) ('A' + index) : juce::String ("MASTER");
+        juce::Component::SafePointer<MixStrip> safe (this);
+        std::vector<MenuItem> items;
+        if (kind == Kind::Track)
+        {
+            items.push_back ({ "COPY STRIP", [safe, &proc, who]
+            {
+                if (safe == nullptr) return;
+                proc.capturePluginStates();
+                stripClip = proc.song.mixer.ch[safe->index]; haveStripClip = true;
+                if (safe->page.onStatus) safe->page.onStatus (who + " COPIED (EQ, INSERTS, SENDS, FADER)");
+            } });
+            items.push_back ({ "PASTE STRIP", [safe, who]
+            {
+                if (safe == nullptr) return;
+                if (! haveStripClip) { if (safe->page.onStatus) safe->page.onStatus ("NOTHING COPIED YET"); return; }
+                const int i2 = safe->index;
+                safe->page.edit ("PASTE " + who, false, [i2] (MixerSettings& m) { m.ch[i2] = stripClip; }, true);
+            } });
+            items.push_back ({ "RESET STRIP", [safe, who]
+            {
+                if (safe == nullptr) return;
+                const int i2 = safe->index;
+                safe->page.edit ("RESET " + who, false, [i2] (MixerSettings& m) { m.ch[i2] = ChannelStrip {}; }, true);
+            } });
+            items.push_back ({ "OPEN CHANNEL", [safe] { if (safe != nullptr) safe->page.openChannel (safe->index); } });
+        }
+        else
+        {
+            items.push_back ({ "RESET STRIP", [safe, who]
+            {
+                if (safe == nullptr) return;
+                const bool ret = safe->kind == Kind::Return;
+                const int i2 = safe->index;
+                safe->page.edit ("RESET " + who, false, [ret, i2] (MixerSettings& m)
+                {
+                    const MixerSettings fresh;
+                    if (ret) m.ret[i2] = fresh.ret[i2]; else m.master = fresh.master;
+                }, true);
+            } });
+        }
+        showMenu (who, std::move (items));
+    }
+    // right-click on an insert slot: COPY / PASTE / CLEAR / BYPASS / OPEN
+    void slotMenu (int slot)
+    {
+        auto& proc = page.processor();
+        const juce::String who = MixerPage::slotOwner (slot) + " INSERT " + juce::String (slot % kInserts + 1);
+        juce::Component::SafePointer<MixStrip> safe (this);
+        const bool empty = proc.song.mixer.slot (slot).type == FxType::None;
+        showMenu (who, {
+            { "COPY EFFECT", [safe, &proc, slot, who, empty]
+                {
+                    if (safe == nullptr) return;
+                    if (empty) { if (safe->page.onStatus) safe->page.onStatus ("AN EMPTY SLOT - NOTHING TO COPY"); return; }
+                    proc.capturePluginStates();
+                    slotClip = proc.song.mixer.slot (slot); haveSlotClip = true;
+                    if (safe->page.onStatus) safe->page.onStatus (who + " COPIED");
+                } },
+            { "PASTE EFFECT", [safe, slot, who]
+                {
+                    if (safe == nullptr) return;
+                    if (! haveSlotClip) { if (safe->page.onStatus) safe->page.onStatus ("NOTHING COPIED YET"); return; }
+                    safe->page.edit ("PASTE INTO " + who, false, [slot] (MixerSettings& m) { m.slot (slot) = slotClip; }, true);
+                } },
+            { "CLEAR SLOT", [safe, slot, who]
+                {
+                    if (safe == nullptr) return;
+                    safe->page.edit ("CLEAR " + who, false, [slot] (MixerSettings& m) { m.slot (slot) = FxSlot {}; }, true);
+                } },
+            { "BYPASS ON / OFF", [safe, slot] { if (safe != nullptr) safe->page.toggleBypass (slot); } },
+            { "OPEN", [safe, slot] { if (safe != nullptr) safe->page.openEffect (slot); } },
+        });
     }
 
     void resized() override
@@ -517,6 +606,7 @@ public:
 // ---------------------------------------------------------------------------
 MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
 {
+    Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
 
@@ -1146,6 +1236,7 @@ bool MixerPage::keyPressed (const juce::KeyPress& k)
     {
         heldKeys[k.getKeyCode()] = note;
         proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
+        proc.keyNoteInput (note, true);   // (CAPTURE hears it)
     }
     return true;
 }
@@ -1158,6 +1249,7 @@ bool MixerPage::keyStateChanged (bool)
         {
             const int n = it->second;
             proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            proc.keyNoteInput (n, false);   // (CAPTURE hears it)
             it = heldKeys.erase (it);
         }
         else ++it;
@@ -1171,6 +1263,7 @@ void MixerPage::releaseNotes()
     {
         const int n = kv.second;
         proc.withLock ([&] { proc.player.jamNoteOff (n); });
+        proc.keyNoteInput (n, false);   // (CAPTURE hears it)
     }
     heldKeys.clear();
 }
@@ -1222,8 +1315,8 @@ void MixerPage::paint (juce::Graphics& g)
 {
     const auto& sk = Theme::skin;
     const float px = Theme::px;
-    g.fillAll (Theme::panel);
-    PixelFont::drawLeft (g, pageTitle(), titleArea, px, Theme::ink);
+    g.fillAll (Theme::palFor (*this).panel);
+    PixelFont::drawLeft (g, pageTitle(), titleArea, px, Theme::palFor (*this).ink);
 
     if (currentPage == Page::Strips)
     {
@@ -1232,10 +1325,10 @@ void MixerPage::paint (juce::Graphics& g)
     }
     if (currentPage == Page::Channel)
     {
-        Theme::panelBox (g, bandBox, "EQ");
-        Theme::panelBox (g, chInsertsBox, "INSERTS");
-        Theme::panelBox (g, chSendsBox, "SENDS AND FADER");
-        Theme::panelBox (g, chAutoBox, "AUTOMATION KNOBS");
+        Theme::panelBox (g, bandBox, "EQ", Theme::palFor (*this));
+        Theme::panelBox (g, chInsertsBox, "INSERTS", Theme::palFor (*this));
+        Theme::panelBox (g, chSendsBox, "SENDS AND FADER", Theme::palFor (*this));
+        Theme::panelBox (g, chAutoBox, "AUTOMATION KNOBS", Theme::palFor (*this));
         {
             auto fitT = [px] (juce::String t, float w) {
                 const int n0 = std::max (4, (int) (w / (px * PixelFont::kCellW)));
@@ -1244,8 +1337,8 @@ void MixerPage::paint (juce::Graphics& g)
                 const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
             const auto& a = proc.song.mixer.trackAuto[chTrack][0];
             const auto& b = proc.song.mixer.trackAuto[chTrack][1];
-            PixelFont::drawLeft (g, fitT ("A (V): " + (a.valid() ? juce::String (a.name) : juce::String ("NOT SET")), chAutoA.getWidth() - px * 2), chAutoA.withTrimmedLeft (px), px, a.valid() ? Theme::ink : Theme::faint);
-            PixelFont::drawLeft (g, fitT ("B (J): " + (b.valid() ? juce::String (b.name) : juce::String ("NOT SET")), chAutoB.getWidth() - px * 2), chAutoB.withTrimmedLeft (px), px, b.valid() ? Theme::ink : Theme::faint);
+            PixelFont::drawLeft (g, fitT ("A (V): " + (a.valid() ? juce::String (a.name) : juce::String ("NOT SET")), chAutoA.getWidth() - px * 2), chAutoA.withTrimmedLeft (px), px, a.valid() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
+            PixelFont::drawLeft (g, fitT ("B (J): " + (b.valid() ? juce::String (b.name) : juce::String ("NOT SET")), chAutoB.getWidth() - px * 2), chAutoB.withTrimmedLeft (px), px, b.valid() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
         }
         paintEqGraph (g, eqGraph);
         return;
@@ -1254,7 +1347,7 @@ void MixerPage::paint (juce::Graphics& g)
     const auto& s = proc.song.mixer.slot (fxSlot);
     g.setColour (sk.bg);
     g.fillRect (fxInfoArea);
-    Theme::bevel (g, fxInfoArea, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, fxInfoArea, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
     juce::String info = browsingPlugins ? juce::String ("DOUBLE-CLICK A PLUG-IN TO LOAD IT") : effectInfo (s.type);
     PixelFont::drawCentred (g, fit (info, fxInfoArea.getWidth() - px * 4), fxInfoArea, px, sk.text);
@@ -1270,14 +1363,14 @@ void MixerPage::paint (juce::Graphics& g)
                                    const int room = (int) (learnInfoArea.getWidth() / (px * PixelFont::kCellW)) / 2 - 4;
                                    return "A: " + (a.valid() ? shortTargetName (a.name, room) : juce::String ("-"))
                                         + "  B: " + (b.valid() ? shortTargetName (b.name, room) : juce::String ("-")); }();
-        PixelFont::drawLeft (g, fitL (t, learnInfoArea.getWidth()), learnInfoArea, px, Theme::ink);
+        PixelFont::drawLeft (g, fitL (t, learnInfoArea.getWidth()), learnInfoArea, px, Theme::palFor (*this).ink);
     }
     if (browsingPlugins)
     {
         const auto st = proc.pluginHost.scanStatus();
         const juce::String t = proc.pluginHost.isScanning() || st.isNotEmpty() ? st
                              : juce::String ((int) pluginChoices.size()) + " EFFECT PLUG-INS (RESCAN AFTER INSTALLING MORE)";
-        PixelFont::drawLeft (g, fit (t, listStatusArea.getWidth()), listStatusArea, px, Theme::ink);
+        PixelFont::drawLeft (g, fit (t, listStatusArea.getWidth()), listStatusArea, px, Theme::palFor (*this).ink);
     }
     else if (s.type == FxType::Plugin)
     {
@@ -1305,7 +1398,7 @@ void MixerPage::paint (juce::Graphics& g)
         for (auto& l : lines)
         {
             auto row = r.removeFromTop (lh);
-            PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, (&l == &lines.getReference (0)) ? Theme::ink : Theme::ink);
+            PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, (&l == &lines.getReference (0)) ? Theme::palFor (*this).ink : Theme::palFor (*this).ink);
         }
     }
 }
@@ -1356,7 +1449,7 @@ void MixerPage::paintEqGraph (juce::Graphics& g, juce::Rectangle<float> r)
         g.setColour (sk.text);
         g.fillRect (dot);
     }
-    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
 }
 
 void MixerPage::resized()

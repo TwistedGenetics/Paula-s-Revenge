@@ -2,6 +2,7 @@
 #include "Panels.h"
 #include "../SongFile.h"
 #include "../engine/SongOps.h"
+#include "ChoiceBox.h"
 
 namespace prv::ui
 {
@@ -234,6 +235,25 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     list.onClick = [this] (int r, const juce::MouseEvent& e)
     {
         grabKeyboardFocus();   // so CUT/COPY/PASTE/DUP keys work here; other keys go on to the pattern
+        if (e.mods.isPopupMenu())
+        {
+            // right-click: the position (or the highlight it's in), then what to do with it
+            if (! (ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd())) selectPosition (r);
+            juce::Component::SafePointer<SequencePanel> safe (this);
+            auto act = [safe] (std::function<void (SequencePanel&)> f) { return [safe, f] { if (safe != nullptr) f (*safe); }; };
+            showMenu ("SONG POSITION " + juce::String (r).paddedLeft ('0', 3), {
+                { "COPY", act ([] (SequencePanel& s) { s.ops.copy(); }) },
+                { "CUT", act ([] (SequencePanel& s) { s.ops.cut(); }) },
+                { "PASTE", act ([] (SequencePanel& s) { s.ops.paste(); }) },
+                { "DUPLICATE", act ([] (SequencePanel& s) { s.ops.duplicate(); }) },
+                { "DELETE", act ([] (SequencePanel& s) { s.ops.remove(); }) },
+                { "INSERT THE SAME BLOCK", act ([] (SequencePanel& s) { s.insertPosition (false); }) },
+                { "INSERT A NEW BLOCK", act ([] (SequencePanel& s) { s.insertPosition (true); }) },
+                { "CLONE IN PLACE", act ([] (SequencePanel& s) { s.cloneInPlace(); }) },
+                { "SECTION NAME...", act ([r] (SequencePanel& s) { s.list.onTagClick (r); }) },
+            });
+            return;
+        }
         if (e.mods.isShiftDown()) { ops.select (ops.anchor(), r); this->changed(); return; }
         if (ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd()) return;   // (a drag moves the highlight)
         selectPosition (r);
@@ -576,6 +596,34 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c)
         addAndMakeVisible (c2);
 }
 
+void BlockPanel::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) showBlockMenu();
+}
+
+void BlockPanel::showBlockMenu()
+{
+    const int b = proc.song.safeBlock (proc.editorState.block);
+    juce::Component::SafePointer<BlockPanel> safe (this);
+    auto act = [safe] (std::function<void (BlockPanel&)> f) { return [safe, f] { if (safe != nullptr) f (*safe); }; };
+    showMenu ("BLOCK " + juce::String (b).paddedLeft ('0', 3), {
+        { "COPY BLOCK", act ([] (BlockPanel& p) { if (p.onCopyBlock) p.onCopyBlock (false); }) },
+        { "CUT BLOCK", act ([] (BlockPanel& p) { if (p.onCopyBlock) p.onCopyBlock (true); }) },
+        { "PASTE BLOCK", act ([] (BlockPanel& p) { if (p.onPasteBlock) p.onPasteBlock(); }) },
+        { "CLEAR BLOCK", act ([b] (BlockPanel& p)
+            {
+                p.proc.history.block (b, "CLEAR BLOCK");
+                p.proc.withLock ([&] { auto& blk = p.proc.song.blocks[(size_t) b]; for (int l = 0; l < blk.lines; ++l) for (int t = 0; t < kMaxTracks; ++t) blk.at (l, t) = Cell {}; });
+                p.changed();
+            }) },
+        { "DUPLICATE BLOCK", act ([] (BlockPanel& p) { p.cloneBtn.onClick(); }) },
+        { "NEW BLOCK", act ([] (BlockPanel& p) { p.newBtn.onClick(); }) },
+        { "DELETE BLOCK", act ([] (BlockPanel& p) { p.delBtn.onClick(); }) },
+        { "DOUBLE LENGTH", act ([] (BlockPanel& p) { if (p.onDouble) p.onDouble(); }) },
+        { "HALVE LENGTH", act ([] (BlockPanel& p) { if (p.onHalve) p.onHalve(); }) },
+    });
+}
+
 void BlockPanel::refresh()
 {
     auto& st = proc.editorState;
@@ -726,7 +774,8 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     {
         st.instrument = r;
         proc.jamInstrument = r;
-        if (e.mods.isAltDown() || e.mods.isRightButtonDown()) proc.withLock ([&] { proc.player.jamNoteOn (37, r); });
+        if (e.mods.isPopupMenu()) { changed(); showInstrumentMenu (r); return; }
+        if (e.mods.isAltDown()) proc.withLock ([&] { proc.player.jamNoteOn (37, r); });
         changed();
     };
     list.onDoubleClick = [this] (int) { nameBtn.triggerClick(); };
@@ -883,5 +932,50 @@ void InstrumentPanel::resized()
     }
     r.removeFromBottom (gap);
     list.setBounds (r);
+}
+
+// ---- right-click on an instrument
+namespace { Instrument instrumentClip; bool haveInstrumentClip = false; }
+
+void InstrumentPanel::showInstrumentMenu (int r)
+{
+    const auto name = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+    juce::Component::SafePointer<InstrumentPanel> safe (this);
+    auto put = [safe] (int idx, const Instrument& in, const juce::String& what)
+    {
+        if (safe == nullptr) return;
+        auto& self = *safe;
+        Instrument copy = in;
+        self.proc.history.instrument (idx, what);
+        self.proc.withLock ([&] { self.proc.player.jamAllOff(); std::swap (self.proc.song.instruments[(size_t) idx], copy); });
+        self.proc.updateMixerEffects();   // (plug-in instruments: load / drop their plug-in)
+        self.changed();
+    };
+    showMenu ("INSTRUMENT " + name, {
+        { "COPY", [safe, r] { if (safe == nullptr) return; instrumentClip = safe->proc.song.instruments[(size_t) r]; haveInstrumentClip = true;
+                               safe->status ("INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2) + " COPIED"); } },
+        { "PASTE", [safe, r, put] { if (safe == nullptr) return; if (! haveInstrumentClip) { safe->status ("NOTHING COPIED YET"); return; }
+                                    put (r, instrumentClip, "PASTE INSTRUMENT"); safe->status ("PASTED INTO INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2)); } },
+        { "DUPLICATE TO NEXT FREE", [safe, r, put]
+            {
+                if (safe == nullptr) return;
+                auto& song = safe->proc.song;
+                for (int i = 0; i < kMaxInstruments; ++i)
+                {
+                    const auto& in = song.instruments[(size_t) i];
+                    if (i == r || in.hasData() || in.isPlugin() || ! in.name.empty()) continue;
+                    put (i, song.instruments[(size_t) r], "DUPLICATE INSTRUMENT");
+                    safe->proc.editorState.instrument = i;
+                    safe->status ("DUPLICATED TO INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2));
+                    safe->changed();
+                    return;
+                }
+                safe->status ("NO FREE INSTRUMENT SLOT");
+            } },
+        { "CLEAR", [safe] { if (safe != nullptr) safe->clearBtn.onClick(); } },
+        { "RENAME...", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
+        { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
+        { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
+    });
 }
 } // namespace prv::ui

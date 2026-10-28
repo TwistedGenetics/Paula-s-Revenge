@@ -1,5 +1,7 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
+#include "ChoiceBox.h"
+#include "../Prefs.h"
 #include "../engine/Commands.h"
 #include "../engine/SongOps.h"
 
@@ -66,6 +68,55 @@ void PatternEditor::updateView (bool fromTick)
     viewLine = st.line;
     viewBlock = blk;
     viewFull = full;
+}
+
+// ---------------------------------------------------------------- VU colour
+namespace
+{
+    struct VuChoice { const char* name; juce::uint32 dark, light; };
+    const VuChoice kVuChoices[] = {
+        { "GREEN", 0xff5ee05e, 0xff1f7a1f }, { "AMBER", 0xfff2b23a, 0xff9a5a00 }, { "CYAN", 0xff3fd0e6, 0xff00768a },
+        { "RED", 0xffff5a4a, 0xffc01818 },   { "BLUE", 0xff6aa4ff, 0xff1f4fb0 },  { "PINK", 0xffe864c8, 0xff9c1f94 },
+        { "CREAM / BLACK", 0xfff4ecd6, 0xff000000 }, { "TRACK COLOURS", 0, 0 },
+    };
+}
+
+juce::StringArray PatternEditor::vuColourNames()
+{
+    juce::StringArray a;
+    for (auto& c : kVuChoices) a.add (c.name);
+    return a;
+}
+
+int PatternEditor::vuColourChoice()
+{
+    return juce::jlimit (0, (int) std::size (kVuChoices) - 1, prv::prefs().getIntValue ("vuColour", 0));
+}
+
+void PatternEditor::setVuColourChoice (int i)
+{
+    prv::prefs().setValue ("vuColour", juce::jlimit (0, (int) std::size (kVuChoices) - 1, i));
+    prv::prefs().saveIfNeeded();
+}
+
+juce::Colour PatternEditor::vuColour (int track) const
+{
+    const auto& c = kVuChoices[(size_t) vuColourChoice()];
+    if (c.dark == 0) return Theme::skin.track[juce::jlimit (0, 7, track)];
+    return juce::Colour (Theme::skin.dark ? c.dark : c.light);
+}
+
+bool PatternEditor::isOnVu (juce::Point<float> p) const
+{
+    const float px = fontPx(), cw = px * PixelFont::kCellW;
+    const float tw = trackW(), lnw = lineNumW();
+    if (p.y < headerH()) return false;
+    for (int s = 0; s < visibleTracks(); ++s)
+    {
+        const float x = lnw + s * tw + (st.showFx2 ? 14.4f : 10.4f) * cw;
+        if (p.x >= x - px && p.x <= x + 1.4f * cw + px) return true;
+    }
+    return false;
 }
 
 // ---------------------------------------------------------------- geometry
@@ -341,12 +392,13 @@ void PatternEditor::paint (juce::Graphics& g)
         // dB scale: -42 dB .. -3 dB fills the column
         const float db = juce::Decibels::gainToDecibels (vu[t], -100.0f);
         const int lit = juce::roundToInt (juce::jlimit (0.0f, 1.0f, (db + 42.0f) / 39.0f) * segs);
-        g.setColour (sk.track[t].withAlpha (sk.dark ? 0.16f : 0.12f));
+        const auto vc = vuColour (t);   // one colour (right-click a meter to change it)
+        g.setColour (vc.withAlpha (sk.dark ? 0.16f : 0.12f));
         g.fillRect (x, vuTop, w, vuBottom - vuTop);
+        g.setColour (vc);
         for (int k = 0; k < lit; ++k)
         {
             const float yy = vuBottom - (k + 1) * segH;
-            g.setColour (k >= segs - std::max (2, segs / 8) ? sk.hot : sk.track[t]);
             g.fillRect (x, yy + 1.0f, w, segH - 2.0f);
         }
     }
@@ -417,13 +469,19 @@ void PatternEditor::tick()
         }
     }
 
-    // MIDI notes from the host or a MIDI keyboard
-    int note;
-    while (proc.popMidiNote (note))
-        if (st.editMode) { pushUndo (st.block, "MIDI NOTE"); proc.withLock ([&] {
-                auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
-                c.note = (uint8_t) note; c.instr = (uint8_t) (st.instrument + 1); });
-            advance(); changed(); }
+    // MIDI notes from the host or a MIDI keyboard (and their releases)
+    PaulaProcessor::InputNote in;
+    while (proc.popMidiNote (in))
+    {
+        if (! in.on) { recordRelease (in.note, in.pos); continue; }
+        if (! st.editMode) continue;
+        pushUndo (st.block, "MIDI NOTE");
+        proc.withLock ([&] {
+            auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+            c.note = (uint8_t) in.note; c.instr = (uint8_t) (st.instrument + 1); });
+        noteRecorded (in.note);
+        advance(); changed();
+    }
 
     const float oldTop = viewTop;
     if (proc.player.isPlaying() && st.follow) updateView (true);
@@ -494,7 +552,6 @@ juce::String PatternEditor::contextName (int line, int track, uint8_t cmd) const
     const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
     if (plug && knobForCmd (cmd) >= 0) return "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd));
     if (plug && cmd == cmdLetter ('O')) return "MOD WHEEL";
-    if (plug && cmd == 0x0 && proc.song.instruments[(size_t) ins].chord) return "CHORD";
     return {};
 }
 
@@ -516,8 +573,6 @@ juce::String PatternEditor::contextOverview (int line, int track, uint8_t cmd) c
             return t.param >= 0 ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT ON THE INSTRUMENT'S PAGE (PARAMS)");
         }
         if (cmd == cmdLetter ('O')) return "SENDS THE MOD WHEEL (CC1), 00-FF";
-        if (cmd == 0x0 && proc.song.instruments[(size_t) ins].chord)
-            return proc.song.chordsLegacy ? "ON A NOTE: + X AND + Y SEMITONES, HELD (AN OLD SONG)" : "ON A NOTE: CHORD SLOT XY, HELD (RIGHT-CLICK IT: THE LIST)";
         if (sampleOnly (cmd)) return "NOT USED BY PLUG-IN INSTRUMENTS";
     }
     return {};
@@ -537,17 +592,15 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
         if (t.param == kAutoOnOff) return head + juce::String (t.name) + (param == 0 ? " - OFF" : " - ON");
         return head + juce::String (t.name) + " " + juce::String (pct) + "%";
     }
-    if (plug && cmd == 0x0 && param != 0 && proc.song.instruments[(size_t) ins].chord)
+    if (cmd == kCmdChord)
     {
-        const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)];
-        const bool note = line >= 0 && line < b.lines && track >= 0 && track < kMaxTracks && b.at (line, track).note > 0 && b.at (line, track).note <= kNoteMax;
-        if (note && proc.song.chordsLegacy) return head + "CHORD: THE NOTE +" + juce::String (param >> 4) + " AND +" + juce::String (param & 15) + " SEMITONES, HELD (AN OLD SONG)";
-        if (note)
-        {
-            const auto& d = proc.song.chords[param];
-            return head + "CHORD " + (d.empty() ? juce::String ("SLOT IS EMPTY - JUST THE NOTE (SET IT ON THE CHORDS PAGE)")
-                                                : juce::String (d.name) + "  " + juce::String (notesText (d)) + ", HELD");
-        }
+        // #xy: the slot's chord from the song's table
+        const auto& d = proc.song.chords[param];
+        juce::String t = head + (param == 0 ? juce::String ("CHORD 00: JUST THE NOTE")
+                                            : d.empty() ? "CHORD " + juce::String::toHexString ((int) param).toUpperCase().paddedLeft ('0', 2) + " IS EMPTY - JUST THE NOTE (SET IT ON THE CHORDS PAGE)"
+                                                        : "CHORD " + juce::String (d.name) + "  " + juce::String (notesText (d)) + ", HELD");
+        if (ins >= 0 && ! plug && param != 0) t << "  (A SAMPLE INSTRUMENT: JUST THE NOTE)";
+        return t;
     }
     if (plug)
     {
@@ -570,11 +623,8 @@ bool PatternEditor::isChordCell (int line, int track, int group) const
     const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
     if (line < 0 || line >= b.lines || track < 0 || track >= proc.song.numTracks) return false;
     const int ins = instrumentAt (line, track);
-    if (ins < 0 || ! proc.song.instruments[(size_t) ins].isPlugin() || ! proc.song.instruments[(size_t) ins].chord) return false;
     const auto& c = b.at (line, track);
-    const uint8_t cmd = group == 2 ? c.cmd2 : c.cmd, param = group == 2 ? c.param2 : c.param;
-    const bool note = c.note > 0 && c.note <= kNoteMax;
-    return cmd == 0 && (param != 0 || note);
+    return (group == 2 ? c.cmd2 : c.cmd) == kCmdChord;
 }
 
 void PatternEditor::openChordMenu (int line, int track, int group)
@@ -584,7 +634,16 @@ void PatternEditor::openChordMenu (int line, int track, int group)
     {
         chordPicker = std::make_unique<ChordPicker>();
         chordPicker->onPick = [this] (int slot) { applyPickedChord (slot); };
-        chordPicker->onCancel = [this] { closeCommandMenu(); };
+        chordPicker->onCancel = [this]
+        {
+            const bool fromList = chordFromCommandList;
+            closeCommandMenu();
+            if (fromList && onStatus)
+            {
+                const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
+                onStatus (contextDescribe (pickLine, pickTrack, kCmdChord, pickGroup == 2 ? c.param2 : c.param) + "  -  RIGHT-CLICK IT TO CHANGE THE CHORD");
+            }
+        };
         chordPicker->onCommands = [this] { const int l = pickLine, t = pickTrack, g = pickGroup; closeCommandMenu(); openCommandMenu (l, t, g); };
         chordPicker->onEdit = [this]
         {
@@ -611,19 +670,20 @@ void PatternEditor::openChordMenu (int line, int track, int group)
 
 void PatternEditor::applyPickedChord (int slot)
 {
+    chordFromCommandList = false;
     const int blk = proc.song.safeBlock (st.block);
     pushUndo (blk, "CHORD " + juce::String::toHexString (slot).toUpperCase().paddedLeft ('0', 2));
     proc.withLock ([&]
     {
         auto& c = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
-        if (pickGroup == 2) { c.cmd2 = 0; c.param2 = (uint8_t) slot; }
-        else { c.cmd = 0; c.param = (uint8_t) slot; }
+        if (pickGroup == 2) { c.cmd2 = kCmdChord; c.param2 = (uint8_t) slot; }
+        else { c.cmd = kCmdChord; c.param = (uint8_t) slot; }
     });
     closeCommandMenu();
     st.line = pickLine; st.track = pickTrack;
     st.column = pickGroup == 2 ? 7 : 4;
     changed();
-    if (onStatus) onStatus (contextDescribe (pickLine, pickTrack, 0, (uint8_t) slot));
+    if (onStatus) onStatus (contextDescribe (pickLine, pickTrack, kCmdChord, (uint8_t) slot));
 }
 
 void PatternEditor::placePicker (juce::Component& pk)
@@ -640,6 +700,7 @@ void PatternEditor::placePicker (juce::Component& pk)
 
 void PatternEditor::closeCommandMenu()
 {
+    chordFromCommandList = false;
     if (picker != nullptr) picker->setVisible (false);
     if (chordPicker != nullptr) chordPicker->setVisible (false);
     grabKeyboardFocus();
@@ -657,6 +718,23 @@ void PatternEditor::applyPickedCommand (const CommandInfo& info)
     {
         if (! info.extended) param = oldParam;
         else if ((oldParam >> 4) == (info.param >> 4)) param = oldParam;
+    }
+    if (info.cmd == kCmdChord)
+    {
+        // # CHORD: the cell becomes #xy (the slot already there, else the first filled one), then the chord list
+        uint8_t slot = oldCmd == kCmdChord ? oldParam : 0;
+        for (int i = 1; i < kChordSlots && slot == 0; ++i) if (! proc.song.chords[(size_t) i].empty()) slot = (uint8_t) i;
+        pushUndo (blk, "COMMAND # CHORD");
+        proc.withLock ([&]
+        {
+            auto& c = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
+            if (pickGroup == 2) { c.cmd2 = kCmdChord; c.param2 = slot; } else { c.cmd = kCmdChord; c.param = slot; }
+        });
+        const int l = pickLine, t = pickTrack, g = pickGroup;
+        closeCommandMenu();
+        openChordMenu (l, t, g);
+        chordFromCommandList = true;
+        return;
     }
     pushUndo (blk, "COMMAND " + juce::String (info.code) + " " + juce::String (info.name));
     proc.withLock ([&]
@@ -729,6 +807,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
         loopDragFrom = l;   // (the view stays put)
         return;
     }
+    if (e.mods.isPopupMenu() && isOnVu (e.position) && onVuMenu) { onVuMenu(); return; }
     int line = 0, track = 0, column = 0;
     if (! cellAt (e.position, line, track, column)) return;
     if (e.mods.isPopupMenu())
@@ -740,9 +819,34 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
             onSelectionMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
             return;
         }
+        // right-click on the note column: the track / line menu
+        if (groupOfColumn (column) == 0)
+        {
+            st.line = line; st.track = track; st.column = 0;
+            changed();
+            juce::Component::SafePointer<PatternEditor> safe (this);
+            auto act = [safe] (std::function<void (PatternEditor&)> f) { return [safe, f] { if (safe != nullptr) f (*safe); }; };
+            const auto title = "TRACK " + juce::String (track + 1) + ", LINE " + juce::String (line).paddedLeft ('0', 3);
+            showMenu (title, {
+                { "COPY TRACK", act ([] (PatternEditor& p) { p.copyTrack (false); p.lastCopy = LastCopy::Track; }) },
+                { "CUT TRACK", act ([] (PatternEditor& p) { p.copyTrack (true); p.lastCopy = LastCopy::Track; }) },
+                { "PASTE TRACK", act ([] (PatternEditor& p) { p.pasteTrack(); }) },
+                { "CLEAR THIS LINE", act ([] (PatternEditor& p)
+                    {
+                        const int blk = p.proc.song.safeBlock (p.st.block);
+                        p.pushUndo (blk, "CLEAR LINE");
+                        p.proc.withLock ([&] { p.proc.song.blocks[(size_t) blk].at (p.st.line, p.st.track) = Cell {}; });
+                        p.changed();
+                    }) },
+                { "INSERT A LINE", act ([] (PatternEditor& p) { p.insertLine(); }) },
+                { "DELETE THE LINE", act ([] (PatternEditor& p) { p.deleteLine(); }) },
+                { "EFFECT COMMANDS...", act ([line, track] (PatternEditor& p) { p.openCommandMenu (line, track, 1); }) },
+            });
+            return;
+        }
         // right-click: a chord from the song's table (a chord cell), else an effect command from a list (FX2 when clicked there)
         const int group = groupOfColumn (column) == 2 ? 2 : 1;
-        if (groupOfColumn (column) > 0 && isChordCell (line, track, group)) openChordMenu (line, track, group);
+        if (groupOfColumn (column) > 0 && isChordCell (line, track, group)) openChordMenu (line, track, group);   // (a #xy cell)
         else openCommandMenu (line, track, group);
         return;
     }
@@ -1057,6 +1161,7 @@ void PatternEditor::enterNote (int note)
 {
     note = juce::jlimit (1, (int) kNoteMax, note);
     proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
+    proc.keyNoteInput (note, true);
     if (! st.editMode) return;
     pushUndo (st.block, "NOTE " + juce::String (noteName ((uint8_t) note)));
     proc.withLock ([&] {
@@ -1064,6 +1169,7 @@ void PatternEditor::enterNote (int note)
         c.note = (uint8_t) note;
         c.instr = (uint8_t) (st.instrument + 1);
     });
+    noteRecorded (note);
     advance();
     changed();
 }
@@ -1294,7 +1400,8 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
 
     // --- transport: space plays/stops (shift = song), esc toggles edit mode
     if (code == juce::KeyPress::spaceKey) { togglePlayStop (shift); return true; }
-    if (code == juce::KeyPress::escapeKey) { toggleEdit(); return true; }
+    // EDIT on/off: Esc, or \ (by key code: on a UK Mac keyboard it's the key next to Return)
+    if (code == juce::KeyPress::escapeKey || (code == '\\' && ! mods.isCommandDown()) || k.getTextCharacter() == '\\') { toggleEdit(); return true; }
     if (code == juce::KeyPress::returnKey)
     {
         proc.withLock ([&] {
@@ -1382,13 +1489,78 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         return false;
     }
 
-    // command columns take 0-9 and A-Z; the others are hex
+    // command columns take 0-9, A-Z and # (Shift+3 by key position: on a UK Mac keyboard that's £); the others are hex
     int hv = -1;
-    if (st.column == 3 || st.column == 6) hv = commandFromChar ((char) ch);
+    if (st.column == 3 || st.column == 6)
+    {
+        hv = (k.getModifiers().isShiftDown() && k.getKeyCode() == '3') || k.getTextCharacter() == '#' ? (int) kCmdChord : commandFromChar ((char) ch);
+        if (hv == kCmdChord && st.editMode)
+        {
+            // #: a chord - start it on the first filled slot, the cursor stays to type the slot
+            uint8_t slot = 0;
+            for (int i = 1; i < kChordSlots && slot == 0; ++i) if (! proc.song.chords[(size_t) i].empty()) slot = (uint8_t) i;
+            pushUndo (st.block, "COMMAND # CHORD");
+            const int col = st.column;
+            proc.withLock ([&] {
+                auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+                if (col == 6) { if (c.cmd2 != kCmdChord) c.param2 = slot; c.cmd2 = kCmdChord; }
+                else { if (c.cmd != kCmdChord) c.param = slot; c.cmd = kCmdChord; }
+            });
+            st.column = col + 1;
+            changed();
+            if (onStatus)
+            {
+                const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+                onStatus (contextDescribe (st.line, st.track, kCmdChord, col == 6 ? c.param2 : c.param) + "  -  TYPE THE SLOT, OR RIGHT-CLICK FOR THE LIST");
+            }
+            return true;
+        }
+    }
     else if (ch >= '0' && ch <= '9') hv = (int) (ch - '0');
     else if (ch >= 'a' && ch <= 'f') hv = (int) (ch - 'a' + 10);
     if (hv >= 0) { enterHex (hv); return true; }
     return false;
+}
+
+void PatternEditor::noteRecorded (int note)
+{
+    held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument };
+}
+
+void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
+{
+    // a key let go: with EDIT on, a plug-in / MIDI-out note gets its OFF
+    auto it = held.find (note);
+    if (it == held.end()) return;
+    const Held h = it->second;
+    held.erase (it);
+    if (! st.editMode || h.instrument < 0 || h.instrument >= kMaxInstruments) return;
+    if (! proc.song.instruments[(size_t) h.instrument].isPlugin()) return;   // (samples play out by themselves)
+    int blk = h.block, line = -1;
+    if (pos.playing)
+    {
+        // the line playing when it was let go (the next one if that's the note's own line)
+        blk = proc.song.safeBlock (pos.block);
+        line = (int) std::floor (pos.line);
+        if (blk == h.block && line <= h.line) line = h.line + 1;
+    }
+    else
+    {
+        if (! st.recNoteOffs) return;
+        blk = proc.song.safeBlock (st.block);
+        line = st.line;
+        if (blk == h.block && line == h.line) line = h.line + 1;
+    }
+    const auto& b = proc.song.blocks[(size_t) blk];
+    if (line < 0 || line >= b.lines || h.track < 0 || h.track >= proc.song.numTracks) return;
+    if (b.at (line, h.track).note != 0) return;   // (never over another note)
+    pushUndo (blk, "NOTE OFF");
+    proc.withLock ([&] {
+        auto& c = proc.song.blocks[(size_t) blk].at (line, h.track);
+        c.note = kNoteOff; c.instr = 0;
+    });
+    if (! pos.playing && blk == proc.song.safeBlock (st.block) && line == st.line) advance();
+    changed();
 }
 
 bool PatternEditor::keyStateChanged (bool)
@@ -1398,8 +1570,11 @@ bool PatternEditor::keyStateChanged (bool)
         if (! juce::KeyPress::isKeyCurrentlyDown (it->first))
         {
             const int n = it->second;
-            proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            Player::PlayPos pos;
+            proc.withLock ([&] { proc.player.jamNoteOff (n); pos = proc.player.playPos(); });
+            proc.keyNoteInput (n, false);
             it = heldKeys.erase (it);
+            recordRelease (n, pos);
         }
         else ++it;
     }

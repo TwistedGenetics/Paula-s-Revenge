@@ -36,6 +36,7 @@ namespace
 
 ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 {
+    Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
 
@@ -79,6 +80,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
         playingHeld = down;
         const int note = proc.editorState.octave * 12 + 1;
         proc.withLock ([&] { if (down) proc.player.jamNoteOn (note, proc.editorState.instrument); else proc.player.jamNoteOff (note); });
+        proc.keyNoteInput (note, down);
     };
     resetBtn.onClick = [this]
     {
@@ -293,29 +295,29 @@ void ParamsPage::drawEnvelope (juce::Graphics& g, juce::Rectangle<float> area, c
     p.lineTo (x (total), y (0));
     g.setColour (active ? sk.track[2] : sk.dim);
     g.strokePath (p, juce::PathStrokeType (std::max (2.0f, Theme::px * 0.75f)));
-    Theme::bevel (g, area, false, 1.0f);
+    Theme::bevel (g, area, false, 1.0f, Theme::palFor (*this));
 }
 
 void ParamsPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
-    g.fillAll (Theme::panel);
+    g.fillAll (Theme::palFor (*this).panel);
     const auto& in = inst();
     const juce::String idx = juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2);
     juce::String t = "INSTRUMENT " + idx + "  " + (in.name.empty() ? juce::String (in.hasData() ? "(NO NAME)" : "(EMPTY)") : juce::String (in.name));
     float tp = px;
     while (tp > 1.5f && PixelFont::textWidth (t, tp) > titleArea.getWidth()) tp -= 0.5f;
-    PixelFont::drawLeft (g, t, titleArea, tp, Theme::ink);
+    PixelFont::drawLeft (g, t, titleArea, tp, Theme::palFor (*this).ink);
 
-    Theme::panelBox (g, envBox, "VOLUME");
-    Theme::panelBox (g, filterBox, "FILTER");
-    Theme::panelBox (g, fenvBox, "FILTER ENVELOPE");
-    Theme::panelBox (g, panBox, "PAN");
+    Theme::panelBox (g, envBox, "VOLUME", Theme::palFor (*this));
+    Theme::panelBox (g, filterBox, "FILTER", Theme::palFor (*this));
+    Theme::panelBox (g, fenvBox, "FILTER ENVELOPE", Theme::palFor (*this));
+    Theme::panelBox (g, panBox, "PAN", Theme::palFor (*this));
     drawEnvelope (g, envGraph, in.volEnv, in.volEnv.on);
 
     if (hasKeyboardFocus (true))
     {
-        g.setColour (Theme::ink);
+        g.setColour (Theme::palFor (*this).ink);
         g.drawRect (getLocalBounds().toFloat(), std::max (2.0f, px * 0.5f));
     }
 }
@@ -337,6 +339,7 @@ bool ParamsPage::keyPressed (const juce::KeyPress& k)
     {
         heldKeys[k.getKeyCode()] = note;
         proc.withLock ([&] { proc.player.jamNoteOn (note, proc.editorState.instrument); });
+        proc.keyNoteInput (note, true);   // (CAPTURE hears it)
     }
     return true;
 }
@@ -349,6 +352,7 @@ bool ParamsPage::keyStateChanged (bool)
         {
             const int n = it->second;
             proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            proc.keyNoteInput (n, false);   // (CAPTURE hears it)
             it = heldKeys.erase (it);
         }
         else ++it;

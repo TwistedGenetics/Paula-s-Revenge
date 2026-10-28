@@ -42,6 +42,7 @@ std::string commandName (int c)
         case 'R': return "ROLL";           case 'S': return "SLICE";          case 'T': return "MICRO-TUNE";
         case 'U': return "REVERSE";        case 'W': return "BAND-PASS";      case 'X': return "RANDOMISE";
         case 'Z': return "BIT CRUSH";
+        case '#': return "CHORD";
         default: return "UNUSED";
     }
 }
@@ -90,6 +91,7 @@ std::string describeCommand (int c, uint8_t p)
     }
     switch (commandChar (c))
     {
+        case '#': return head + (p ? fmt ("CHORD SLOT %02X, HELD (PLUG-IN / MIDI-OUT INSTRUMENTS)", p) : std::string ("CHORD SLOT 00: JUST THE NOTE"));
         case 'G': return head + fmt ("GLIDE TO THE NOTE OVER %d TICKS", std::max (1, (int) p));
         case 'H': return head + fmt ("HIGH-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
         case 'I':
@@ -127,7 +129,8 @@ std::string describeCommand (int c, uint8_t p)
 const std::vector<CommandInfo>& commandList()
 {
     static const std::vector<CommandInfo> list {
-        { 0x0, 0x37, false, "0",  "ARPEGGIO",          "CHORD: NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
+        { kCmdChord, 0x01, false, "#", "CHORD",        "PLAYS CHORD XY FROM THE SONG'S CHORD TABLE, HELD - PLUG-IN / MIDI-OUT INSTRUMENTS; ON A SAMPLE, JUST THE NOTE" },
+        { 0x0, 0x37, false, "0",  "ARPEGGIO",          "NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
         { 0x1, 0x08, false, "1",  "SLIDE UP",          "BENDS THE PITCH UP, XX PER TICK" },
         { 0x2, 0x08, false, "2",  "SLIDE DOWN",        "BENDS THE PITCH DOWN, XX PER TICK" },
         { 0x3, 0x10, false, "3",  "SLIDE TO NOTE",     "GLIDES FROM THE LAST NOTE TO THIS ONE AT SPEED XX" },

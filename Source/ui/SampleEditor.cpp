@@ -1,5 +1,6 @@
 // Paula's Revenge - sample (instrument waveform) editor
 #include "SampleEditor.h"
+#include "ChoiceBox.h"
 #include "../SongFile.h"
 #include "../engine/TimeStretch.h"
 #include "../engine/Slicer.h"
@@ -929,6 +930,20 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
     if (! waveArea.contains (e.position)) return;
+    if (e.mods.isPopupMenu() && length() > 0)
+    {
+        // right-click on the waveform: the edits (on the highlight, or the whole sample where that makes sense)
+        juce::Component::SafePointer<SampleEditor> safe (this);
+        auto click = [safe] (PixButton SampleEditor::* b) { return [safe, b] { if (safe != nullptr && ((*safe).*b).onClick) ((*safe).*b).onClick(); }; };
+        showMenu ("SAMPLE", {
+            { "CUT", click (&SampleEditor::cutBtn) }, { "COPY", click (&SampleEditor::copyBtn) }, { "PASTE", click (&SampleEditor::pasteBtn) },
+            { "DELETE", click (&SampleEditor::deleteBtn) }, { "CROP", click (&SampleEditor::cropBtn) }, { "SILENCE", click (&SampleEditor::silenceBtn) },
+            { "MAX VOL", click (&SampleEditor::normBtn) }, { "REVERSE", click (&SampleEditor::reverseBtn) },
+            { "FADE IN", click (&SampleEditor::fadeInBtn) }, { "FADE OUT", click (&SampleEditor::fadeOutBtn) },
+            { "SET LOOP", click (&SampleEditor::loopSelBtn) }, { "SELECT ALL", click (&SampleEditor::selAllBtn) },
+        });
+        return;
+    }
 
     // loop handles (top) and slice tabs (bottom)
     dragLoopMarker = 0; dragSlice = -1;

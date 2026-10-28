@@ -1,5 +1,6 @@
 // Paula's Revenge - CHORDS page
 #include "ChordsPage.h"
+#include "ChoiceBox.h"
 #include "../engine/SongOps.h"
 
 namespace prv::ui
@@ -23,7 +24,11 @@ ChordsPage::ChordsPage (PaulaProcessor& p) : proc (p)
     slots.getNumRows = [] { return kChordSlots - 1; };
     slots.getRowText = [this] (int r) { return slotRowText (r); };
     slots.isRowDim = [this] (int r) { return table()[(size_t) r + 1].empty(); };
-    slots.onClick = [this] (int r, const juce::MouseEvent&) { selectSlot (r + 1); previewFromDb = false; grabKeyboardFocus(); };
+    slots.onClick = [this] (int r, const juce::MouseEvent& e)
+    {
+        selectSlot (r + 1); previewFromDb = false; grabKeyboardFocus();
+        if (e.mods.isPopupMenu()) slotMenu (r + 1);
+    };
     slots.onDoubleClick = [this] (int) { previewFromDb = false; preview(); };
     addAndMakeVisible (slots);
 
@@ -302,6 +307,26 @@ void ChordsPage::preview()
     status ("PLAYING " + juce::String (d.name) + " ON C-3 (INSTRUMENT " + hex2 (ins + 1) + ")");
 }
 
+namespace { ChordDef chordClip; bool haveChordClip = false; }
+
+void ChordsPage::slotMenu (int slot)
+{
+    juce::Component::SafePointer<ChordsPage> safe (this);
+    const juce::String hx = juce::String::toHexString (slot).toUpperCase().paddedLeft ('0', 2);
+    showMenu ((global ? "GLOBAL SLOT " : "SLOT ") + hx, {
+        { "COPY", [safe, slot, hx] { if (safe == nullptr) return; chordClip = safe->table()[(size_t) slot]; haveChordClip = true; safe->status ("SLOT " + hx + " COPIED"); } },
+        { "PASTE", [safe, slot, hx]
+            {
+                if (safe == nullptr) return;
+                if (! haveChordClip) { safe->status ("NOTHING COPIED YET"); return; }
+                safe->editTable ("PASTE CHORD " + hx, [slot] (ChordTable& t) { t[(size_t) slot] = chordClip; });
+                safe->status ("PASTED INTO SLOT " + hx);
+            } },
+        { "CLEAR", [safe] { if (safe != nullptr) safe->clearSlot(); } },
+        { "PLAY", [safe] { if (safe != nullptr) { safe->previewFromDb = false; safe->preview(); } } },
+    });
+}
+
 void ChordsPage::stopPreview()
 {
     stopTimer();
@@ -343,7 +368,7 @@ void ChordsPage::paint (juce::Graphics& g)
     const int slot = selectedSlot();
     const auto& d = table()[(size_t) slot];
     juce::String line1 = (global ? "GLOBAL " : "SLOT ") + hex2 (slot) + ": " + (d.empty() ? juce::String ("EMPTY") : juce::String (d.name) + "  " + notesText (d))
-                       + (global ? juce::String() : "   (0" + hex2 (slot) + " PLAYS IT)");
+                       + (global ? juce::String() : "   (#" + hex2 (slot) + " PLAYS IT)");
     juce::String line2;
     if (db.selected >= 0 && db.selected < (int) shown.size())
     {

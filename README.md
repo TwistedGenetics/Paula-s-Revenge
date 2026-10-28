@@ -23,6 +23,8 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 
 **HELP** (top left of the title bar, or `F1`, or `Cmd+/`) shows this README inside the app, in the same big pixel text, with the chapters listed on the left: click one to go there. The wheel, the arrow keys, `PgUp` / `PgDn` / `Space`, `Home` / `End` and the scroll bar move through it; `←` `→` go to the previous / next chapter; `Esc` (or HELP again) goes back to where you were. **OPEN PDF MANUAL** opens the illustrated PDF manual, which is built into the app too. Both always match the version you're running.
 
+**Searching:** just type (two letters or more): the chapter list shows only the chapters with a match, the matches are marked in the text, and the status line says which one you're on (`3 OF 12`). `Enter` (or `Cmd+G`) goes to the next match, `Shift+Enter` the one before; `Esc` clears the search, `Esc` again closes HELP. Right-click the text to copy a chapter, or all of it, to paste somewhere else.
+
 ## The screen
 
 | Area | What it does |
@@ -32,11 +34,32 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 | Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
-| Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO |
+| Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The VU meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
 | Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, **MIXER** (`Cmd+2`) |
 
-The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
+The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
+
+## Right-click menus
+
+Right-click almost anything for what you can do with it (a big-text list; `Esc` or CANCEL closes it, and each action is one undo step):
+
+| Where | What's there |
+|---|---|
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR, RENAME, LOAD SAMPLE, PLAY C-3 (Alt+click still plays it) |
+| Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME |
+| Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
+| Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS |
+| Pattern, effect columns | the command list (a `#xy` chord cell: the chord list); inside a highlight: BOUNCE |
+| Pattern, VU meters | the meters' colour |
+| EDIT button | STEP ENTRY NOTE-OFFS, CAPTURE |
+| Sample editor waveform | CUT, COPY, PASTE, DELETE, CROP, SILENCE, MAX VOL, REVERSE, FADE IN / OUT, SET LOOP, SELECT ALL |
+| Mixer: a strip's name | COPY STRIP, PASTE STRIP, RESET STRIP, OPEN CHANNEL (the returns and master: RESET) |
+| Mixer: an insert slot | COPY EFFECT, PASTE EFFECT, CLEAR SLOT, BYPASS ON / OFF, OPEN |
+| CHORDS page slots | COPY, PASTE, CLEAR, PLAY |
+| HELP text | COPY THIS CHAPTER, COPY ALL OF IT |
+
+Copied instruments, strips, effects and chords stay in the app (paste them into another slot or another song); HELP text goes to the Mac's clipboard.
 
 ## Panning and left/right balance
 
@@ -262,7 +285,7 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `1` | Note off |
 | `0–9 A–F` | Hex entry in the instrument / command columns |
 | `Space` | Play / stop the block (from the loop start when a loop is marked) · `Shift+Space` the song |
-| `Esc` | Edit mode on/off |
+| `Esc` or `\` | Edit mode on/off (`\` is the key next to Return on a UK Mac keyboard) |
 | `Enter` | Play block · `Shift+Enter` play song · `Cmd+Enter` play block from the cursor |
 | Arrows | Move · `Shift+↑/↓` 4 lines · `Shift+←/→` track |
 | `Tab` / `Shift+Tab` | Next / previous track |
@@ -281,21 +304,34 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Cmd+S` / `Cmd+Shift+S` | Save / save as |
 | `Cmd+2` / `Cmd+1` | Mixer / pattern |
 | `Cmd+3` | CHORDS: the chord table (again to go back) |
+| `Cmd+F` | FOLLOW on / off (the view moves with playback) |
+| `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `F1` / `Cmd+/` | HELP: this manual, inside the app |
 
 A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
 **STOP** pressed while already stopped is a **panic**: every MIDI-out instrument sends note-offs and All Notes Off.
 
+## Recording, note-offs and CAPTURE
+
+* With **EDIT** on, notes from a MIDI keyboard or the laptop keys go in at the cursor (while playing with FOLLOW on, on the line that's playing).
+* **Note-offs:** on a plug-in or MIDI-out instrument, letting go of a key while the song or block plays writes `OFF` on the line playing at that moment (the next line if it's still the note's own line), so held sounds stop where you stopped them. It never writes over another note. In step entry (stopped) that's off to start with, because the OFF would land where your next note goes: right-click **EDIT** and switch **STEP ENTRY NOTE-OFFS** on if you want them.
+* **CAPTURE** (like Ableton's Capture MIDI): the app always listens to what you play, even with EDIT off, and keeps the last two minutes. Liked what you just noodled? Press **CAPTURE** on the transport row (or `Cmd+R`, or right-click EDIT, or the View menu) and it goes into the pattern as one undo step:
+  * played while the song or block was playing: each note on the line where you played it, in the block that was playing, with `Mxx` micro-moves for notes that were well off the beat;
+  * played while stopped: from the cursor, at the song's BPM and speed, the first note on the cursor line (the notes since your last pause of more than 4 seconds).
+  * Notes go on the cursor's track; chords spread across the next free tracks. It never writes over a note (it moves along, or skips and says how many). Plug-in and MIDI-out notes get their note-offs. After a capture it starts listening afresh.
+  * In a small window the CAPTURE button may not fit on the transport row; `Cmd+R` and the menus still do it.
+
 ## Effect commands
 
-**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for a list of every command with what it does. Click one (or use the arrows and Enter; typing a command's letter jumps to it, and `E` again steps through the E commands) and it goes into that cell with a useful starting value — or the value already there, if it was the same command — and the cursor lands on the value so you can type over it. `Esc` closes the list. It's one undo step.
+**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for a list of every command with what it does (a cell holding a chord, `#xy`, gives the chord list instead). Click one (or use the arrows and Enter; typing a command's letter jumps to it, and `E` again steps through the E commands) and it goes into that cell with a useful starting value — or the value already there, if it was the same command — and the cursor lands on the value so you can type over it. `Esc` closes the list. It's one undo step.
 
 Same numbering as ProTracker, so MOD files load straight in.
 
 | Cmd | Effect |
 |---|---|
-| `0xy` | Arpeggio (+x, +y semitones). On a plug-in / MIDI-out instrument with CHORD on, `0xy` on a note's line plays chord slot `xy` from the song's chord table, held (see Chords) |
+| `#xy` | **Chord**: plays chord slot `xy` from the song's chord table, held, on plug-in / MIDI-out instruments (on a sample instrument, just the note). Type `#` with Shift+3; first in the right-click list. See Chords |
+| `0xy` | Arpeggio (+x, +y semitones) |
 | `1xx` / `2xx` | Slide pitch up / down |
 | `3xx` | Slide to note |
 | `4xy` | Vibrato (speed x, depth y) |
@@ -428,7 +464,7 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
 * **ON** (next to BEND) switches the instrument off and on: while it's off, its notes are silent. To switch it from the pattern, press LEARN next to a knob (`L`, `Q`, `H` or `W`, or LEARN AUTO A / B), then click **ON**: that knob becomes the instrument's `ON/OFF`, with `00` = off and `01`–`FF` = on. It's saved in the song.
-* **CHORD** (next to ON): `0xy` on a note's line plays chord slot `xy` from the song's chord table, held, instead of an arpeggio (`001` = slot 01, a minor chord to start with). **Right-click** the effect cell for a list of the song's chords. See **Chords** below. **CHORDS...** (bottom row) opens the chord table.
+* **Chords**: `#xy` on a note's line plays chord slot `xy` from the song's chord table, held (`#01` = slot 01, a minor chord to start with). See **Chords** below. **CHORDS...** (bottom row) opens the chord table.
 * A plug-in instrument's own delay is compensated: the samples on its track wait for it.
 * Four knobs of the plug-in's own can be learned on its page (**LEARN** next to `L`, `Q`, `H` and `W`). On that instrument's notes, `Lxx`, `Qxx`, `Hxx` and `Wxx` then set those knobs instead of the filters, and `Yxx` makes them glide. `Oxx` sends the mod wheel (MIDI CC 1). The track's AUTO A / B can be learned here too.
 * The computer keyboard and a MIDI keyboard play it live, on the pattern, the mixer and its own page — also while the plug-in's own window is in front, so you can play and tweak the sound without clicking back. (Text boxes inside the plug-in still get your typing; Esc and Tab stay with the plug-in.)
@@ -436,15 +472,16 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 
 ## Chords
 
-A plug-in or MIDI-out instrument with **CHORD** on plays a whole chord from one note: put `0xy` on the note's line and it plays **chord slot `xy`** from the song's **chord table**, held. The note you type is the chord's root: `C-3` with `001` (slot 01 = MIN) plays C, D#, G. A slot can hold up to 8 notes, below the root as well as above it, and an inversion doesn't play the root at the bottom (`C-3` with MAJ INV 1 plays E, G, C above). The chord ends like a note does: the next note on the track, note-off, `ECx` or `Nxx`. Pitch commands bend the whole chord. `0xy` on a line without a note is still an arpeggio, and on sample instruments `0xy` is always an arpeggio.
+A plug-in or MIDI-out instrument plays a whole chord from one note: put **`#xy`** on the note's line and it plays **chord slot `xy`** from the song's **chord table**, held. The note you type is the chord's root: `C-3` with `#01` (slot 01 = MIN) plays C, D#, G. A slot can hold up to 8 notes, below the root as well as above it, and an inversion doesn't play the root at the bottom (`C-3` with MAJ INV 1 plays E, G, C above). The chord ends like a note does: the next note on the track, note-off, `ECx` or `Nxx`. Pitch commands bend the whole chord. On a sample instrument `#xy` plays just the note. `0xy` is the ordinary arpeggio everywhere.
 
-* **Right-click** the effect cell on the note's line (an empty one, or one with a `0xy` in it) for the song's chords: click one (or arrows and Enter; type a slot number to jump) and `0xy` goes in. **EDIT CHORDS...** opens the CHORDS page on that slot, **EFFECT COMMANDS...** the usual list.
-* **The CHORDS page** (`Cmd+3`, or **CHORDS...** on the instrument's page): the slots 01–FF on the left, the chord database on the right. Click a slot, then double-click a chord (or Enter) to put it in the slot. The category buttons (MAJOR, MINOR, DOM, SUS, DIM, AUG, OTHER) narrow the list, and typing searches it (`MIN7`, `SUS4`, `DROP 2`, `7B9` for 7♭9; Backspace and Esc clear it). **PLAY** (or Space) plays the chord on `C-3` with the current instrument, **CLEAR SLOT** (Delete) empties a slot (its `0xy` then plays just the note). Shift+↑/↓ moves through the slots.
+* **Putting a chord in:** right-click the effect cell and click **`#  CHORD`** at the top of the list (it says what it does): `#` goes in and the song's chord list opens straight away — click a chord (or arrows and Enter; type a slot number to jump) and `#xy` is set. Cancel it and the cell keeps `#01` (the first filled slot). Or type `#` (Shift+3, the same key on a UK keyboard where it shows £) and then the slot number.
+* **Changing one:** right-click a `#xy` cell for the chord list. **EDIT CHORDS...** opens the CHORDS page on that slot, **EFFECT COMMANDS...** the usual list.
+* **The CHORDS page** (`Cmd+3`, or **CHORDS...** on the instrument's page): the slots 01–FF on the left, the chord database on the right. Click a slot, then double-click a chord (or Enter) to put it in the slot. The category buttons (MAJOR, MINOR, DOM, SUS, DIM, AUG, OTHER) narrow the list, and typing searches it (`MIN7`, `SUS4`, `DROP 2`, `7B9` for 7♭9; Backspace and Esc clear it). **PLAY** (or Space) plays the chord on `C-3` with the current instrument, **CLEAR SLOT** (Delete) empties a slot (its `#xy` then plays just the note). Right-click a slot for COPY, PASTE, CLEAR and PLAY. Shift+↑/↓ moves through the slots.
 * **The database**: 116 chord types — major, minor, dominant, suspended, diminished, augmented and more, from the tonal music library's list (which comes from Wikibooks' complete list of chord patterns) — each as written (ROOT), in every inversion (INV 1, INV 2...), as DROP 2 and DROP 3 voicings for four-note chords and OPEN for triads: 638 voicings. The flat sign is drawn as ♭ (MIN7♭5).
 * **Each song has its own table**, saved in the song. **The global set** is the table every new song (and every MOD or old song without a table) starts with; it's kept on this computer. Changing a song's chords doesn't change the global set, and changing the global set doesn't change any song — so a saved song always plays its own chords, whatever the global set is now.
 * **THIS SONG / GLOBAL SET** (top right) picks which table you're editing. **SAVE AS GLOBAL SET** makes the song's table the global set (it asks first); **USE GLOBAL SET** gives the song the global set (undo takes it back). Slots marked `*` differ between the two, and the line under the lists says how the song's chords compare with the global set.
 * Loading a song tells you how its chords compare with the global set (for example `SLOTS 05 1F DIFFER FROM THE GLOBAL SET`); it plays its own either way.
-* Songs from v0.11 used `0xy` as two intervals (x and y semitones up). They still play that way; **CONVERT OLD 0XY** on the CHORDS page gives each one a slot with the same notes and writes the slot numbers into the patterns, so the song sounds the same and uses the table from then on (one undo step).
+* Older songs are converted when they load, so they sound the same: v0.13 songs' chords (`0xy` on an instrument that had CHORD on) become `#xy`; v0.11 songs' interval chords (`0xy` = x and y semitones up) each get a slot with the same notes, as `#xy`.
 * Changes to the song's table are undo steps.
 
 ## MIDI out (hardware)
@@ -453,7 +490,7 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 
 * Pick the instrument, press **PARAMS**, then **PLUG-IN / MIDI OUT...** and **MIDI OUT TO HARDWARE**, and double-click a MIDI output in the list (RESCAN looks again after you plug one in). The instrument takes the device's name and shows a note sign in the list. EDIT (or PARAMS) opens its page again.
 * **CHANNEL** (1–16) and **BEND** (the hardware's pitch bend range, so pitch commands land in tune).
-* It plays exactly like a plug-in instrument: note on/off, `Cxx` velocity, a new note ends the track's previous one, pitch commands as pitch bend, `Oxx` the mod wheel, and `E9x`, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx` and `Rxy` work. **CHORD** and **ON** work as above. The computer keyboard and a MIDI keyboard play it live.
+* It plays exactly like a plug-in instrument: note on/off, `Cxx` velocity, a new note ends the track's previous one, pitch commands as pitch bend, `Oxx` the mod wheel, and `E9x`, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx` and `Rxy` work. Chords (`#xy`) and **ON** work as above. The computer keyboard and a MIDI keyboard play it live.
 * **KNOB L / Q / H / W**: the CC each one sends (74, 71, 73 and 10 to start with). `Lxx`, `Qxx`, `Hxx`, `Wxx` on its notes send them (`00`–`FF` → 0–127), and `Yxx` glides them. **LEARN CC** takes the CC number from the next knob you turn on a MIDI controller. Each knob's **SEND** bar sends that CC straight away; with REC AUTO it's recorded, and LEARN AUTO A / B can learn it (or the ON button) for the track's `V` / `J`.
 * **DELAY** (−50 to +200 ms) lines the hardware up with the audio: positive values send the MIDI later; negative values make all the audio later instead (through the delay compensation).
 * **SEND MIDI CLOCK**: sends 24-a-beat MIDI clock plus start / stop / continue and song position to that device, following BPM and SPD changes (4 lines = a beat), so the MPC One / microKORG 2 / NTS-1 follow the song. If two instruments use one device, only the first sends the clock.
@@ -468,7 +505,7 @@ Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula v
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 12 adds the song's own chord table (v11: CHORD, MIDI-out instruments and switching sample instruments off; v10: a plug-in instrument switched off; v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed). Format version 13 has chords as `#xy` (v12: the song's own chord table; v11: CHORD, MIDI-out instruments and switching sample instruments off; v10: a plug-in instrument switched off; v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
 * `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.

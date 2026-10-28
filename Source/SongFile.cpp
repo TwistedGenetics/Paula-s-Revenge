@@ -8,10 +8,11 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 12;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 13;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
-                                  // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table
+                                  // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
+                                  // v13: chords are #xy (older songs' chord 0xy converted on loading)
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -467,6 +468,16 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     {
         // v0.11 chords were two intervals in 0xy: keep playing them that way
         for (const auto& ins : s.instruments) if (ins.chord) s.chordsLegacy = true;
+    }
+    if (version < 13)
+    {
+        // chords are #xy now (0xy is an arpeggio again): convert the old ones so they sound the same
+        if (s.chordsLegacy)
+        {
+            if (! s.chordsSaved) s.chords = defaultChordTable();   // (the slots it gets go with the factory set)
+            if (convertLegacyChords (s) >= 0) s.chordsSaved = true;
+        }
+        else convertChordFlags (s);
     }
     out = std::move (s);
     return true;

@@ -1,5 +1,6 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
+#include "engine/Capture.h"
 #include "SongFile.h"
 #include "engine/Bounce.h"
 #include "engine/ModuleIO.h"
@@ -65,6 +66,25 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         pattern.stopPlayback(); refreshAll();
     };
     editBtn.onClick      = [this, &st] { st.editMode = editBtn.getToggleState(); pattern.grabKeyboardFocus(); refreshAll(); };
+    captureBtn.onClick   = [this] { captureNow(); };
+    // right-click EDIT: recording options and CAPTURE
+    editBtn.onRightClick = [this, &st]
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        choice.show (*this, "RECORDING", { st.recNoteOffs ? "STEP ENTRY NOTE-OFFS: ON (TURN OFF)" : "STEP ENTRY NOTE-OFFS: OFF (TURN ON)",
+                                           "CAPTURE WHAT I PLAYED (CMD+R)" }, [safe] (int a)
+        {
+            if (safe == nullptr) return;
+            auto& s2 = safe->proc.editorState;
+            if (a == 0)
+            {
+                s2.recNoteOffs = ! s2.recNoteOffs;
+                safe->setStatus (s2.recNoteOffs ? "STEP ENTRY: LETTING GO OF A KEY WRITES OFF (PLUG-IN / MIDI-OUT INSTRUMENTS)"
+                                                : "STEP ENTRY: NO NOTE-OFFS (WHILE PLAYING THEY'RE STILL RECORDED)");
+            }
+            else if (a == 1) safe->captureNow();
+        });
+    };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
     followBtn.onClick    = [this, &st] { st.follow = followBtn.getToggleState(); refreshAll(); };
     panelsBtn.onClick    = [this] { showPanels = panelsBtn.getToggleState(); resized(); };
@@ -143,6 +163,20 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         });
     };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    blockPanel.onCopyBlock = [this] (bool cut) { pattern.copyBlock (cut); };
+    blockPanel.onPasteBlock = [this] { pattern.pasteBlock(); };
+    prv::ui::menuHook() = [this] (const juce::String& t, const juce::StringArray& a, std::function<void (int)> done) { choice.show (*this, t, a, std::move (done)); };
+    pattern.onVuMenu = [this]
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        choice.show (*this, "VU METER COLOUR", prv::ui::PatternEditor::vuColourNames(), [safe] (int a)
+        {
+            if (safe == nullptr || a < 0) return;
+            prv::ui::PatternEditor::setVuColourChoice (a);
+            safe->setStatus ("VU METERS: " + prv::ui::PatternEditor::vuColourNames()[a]);
+            safe->pattern.repaint();
+        });
+    };
 
     // PARAMS: a plug-in instrument has its own page
     instruments.openParams = [this]
@@ -229,7 +263,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &modBtn, &wavBtn, &smpBtn, &zoomOut, &zoomIn, &outMeter,
-            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
+            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
             &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
@@ -273,6 +307,7 @@ void PaulaEditor::keyStateFromElsewhere (bool down)
 
 PaulaEditor::~PaulaEditor()
 {
+    prv::ui::menuHook() = nullptr;
     proc.pluginHost.onWindowKey = nullptr;
     proc.pluginHost.onWindowKeyState = nullptr;
     stopTimer();
@@ -551,6 +586,14 @@ void PaulaEditor::resized()
     playBlockBtn.setBounds (tr.removeFromLeft (charsW (7))); tr.removeFromLeft (gap);
     stopBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
     editBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
+    {
+        // CAPTURE when there's room for it at full size (else Cmd+R, right-click EDIT, the menu bar)
+        const int need = charsW (4) + gap * 4 + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px)
+                       + stepBox.preferredWidth (px) + gap * 9 + charsW (7) + gap;
+        const bool room = tr.getWidth() >= need;
+        captureBtn.setVisible (room);
+        if (room) { captureBtn.setBounds (tr.removeFromLeft (charsW (7))); tr.removeFromLeft (gap); }
+    }
     loopBtn.setBounds (tr.removeFromLeft (charsW (4))); tr.removeFromLeft (gap * 4);
     tempoBox.setBounds (tr.removeFromLeft (tempoBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
     speedBox.setBounds (tr.removeFromLeft (speedBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
@@ -643,6 +686,55 @@ void PaulaEditor::openChords (int slot)
     if (slot > 0) chords.opened (slot);
 }
 
+int PaulaEditor::captureNow()
+{
+    // CAPTURE: the latest take of what was played (MIDI keyboard, laptop keys) into the pattern
+    auto& st = proc.editorState;
+    { PaulaProcessor::InputNote in; while (proc.popMidiNote (in)) {} }   // (anything still on its way)
+    std::vector<prv::CapturedNote> log;
+    for (const auto& n : proc.captureLog)
+    {
+        prv::CapturedNote c;
+        c.timeMs = n.timeMs; c.note = n.note; c.velocity = n.velocity; c.on = n.on; c.instrument = n.instrument;
+        c.playing = n.pos.playing; c.seqPos = n.pos.seqPos; c.block = n.pos.block; c.line = n.pos.line; c.speed = n.pos.speed;
+        log.push_back (c);
+    }
+    if (log.empty()) { setStatus ("CAPTURE: NOTHING PLAYED YET - PLAY SOMETHING, THEN CAPTURE"); return 0; }
+    std::vector<bool> offs ((size_t) prv::kMaxInstruments, false);
+    for (int i = 0; i < prv::kMaxInstruments; ++i) offs[(size_t) i] = proc.song.instruments[(size_t) i].isPlugin();
+    const auto res = prv::placeCapture (proc.song, log, st.block, st.line, st.track, proc.song.tempo, proc.song.speed, offs);
+    int notes = 0;
+    for (const auto& p : res.places) if (p.note != prv::kNoteOff) ++notes;
+    if (res.places.empty())
+    {
+        setStatus ("CAPTURE: NO ROOM - " + juce::String (res.skipped) + " NOTES HAD NO FREE CELL");
+        return 0;
+    }
+    proc.history.structure ("CAPTURE " + juce::String (notes) + " NOTES");
+    proc.withLock ([&]
+    {
+        for (const auto& p : res.places)
+        {
+            auto& c = proc.song.blocks[(size_t) p.block].at (p.line, p.track);
+            c.note = p.note; c.instr = p.instr;
+            if (p.micro != 0)
+            {
+                const uint8_t m = prv::cmdLetter ('M');
+                if (c.fx1Empty()) { c.cmd = m; c.param = p.micro; }
+                else if (c.fx2Empty()) { c.cmd2 = m; c.param2 = p.micro; }
+            }
+        }
+    });
+    proc.captureLog.clear();
+    st.block = res.firstBlock; st.line = res.firstLine;
+    setStatus ("CAPTURED " + juce::String (notes) + (notes == 1 ? " NOTE" : " NOTES") + " INTO BLOCK " + juce::String (res.firstBlock).paddedLeft ('0', 3)
+               + " FROM LINE " + juce::String (res.firstLine).paddedLeft ('0', 3) + (res.played ? " (WHERE THEY WERE PLAYED)" : " (FROM THE CURSOR)")
+               + (res.skipped > 0 ? " - " + juce::String (res.skipped) + " SKIPPED (NO FREE CELL)" : juce::String()));
+    refreshAll();
+    repaint();
+    return notes;
+}
+
 void PaulaEditor::toggleHelp()
 {
     auto& st = proc.editorState;
@@ -670,7 +762,22 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 'y') { redoBtn.onClick(); return true; }
         if (ch == '2') { mixerBtn.onClick(); return true; }
         if (ch == '1') { setView (View::Pattern); return true; }
+       #if JUCE_MAC
+        const bool fullScreenKeys = m.isCtrlDown();   // (Ctrl+Cmd+F stays full screen)
+       #else
+        const bool fullScreenKeys = false;
+       #endif
+        if (ch == 'f' && ! fullScreenKeys)
+        {
+            auto& st = proc.editorState;
+            st.follow = ! st.follow;
+            followBtn.setToggleState (st.follow, juce::dontSendNotification);
+            setStatus (st.follow ? "FOLLOW ON - THE VIEW MOVES WITH PLAYBACK (CMD+F)" : "FOLLOW OFF (CMD+F)");
+            refreshAll();
+            return true;
+        }
         if (ch == '3') { if (proc.editorState.view == View::Chords) chords.onClose(); else openChords(); return true; }
+        if (ch == 'r' && ! m.isShiftDown()) { captureNow(); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
     switch (proc.editorState.view)

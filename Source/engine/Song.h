@@ -32,11 +32,13 @@ constexpr double kPi = 3.14159265358979323846;
 // Rate (Hz) a sample plays at on C-3 in the Amiga convention
 constexpr double kAmigaC3Rate = 16574.27;
 
-// Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended.
-constexpr int kNumCommands = 36;
-inline char commandChar (int c) { return c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+// Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD).
+constexpr int kNumCommands = 37;
+constexpr uint8_t kCmdChord = 36;   // #xy: plays chord slot xy from the song's chord table
+inline char commandChar (int c) { return c == kCmdChord ? '#' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
 inline int  commandFromChar (char ch)
 {
+    if (ch == '#') return kCmdChord;
     if (ch >= '0' && ch <= '9') return ch - '0';
     if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
     if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;
@@ -48,7 +50,7 @@ struct Cell
 {
     uint8_t note   = 0;   // 0 none, 1..96, kNoteOff
     uint8_t instr  = 0;   // 0 none, 1..63
-    uint8_t cmd    = 0;   // 0..35 (0-F ProTracker, G-Z extended)
+    uint8_t cmd    = 0;   // 0..36 (0-F ProTracker, G-Z extended, # chord)
     uint8_t param  = 0;   // 0x00 .. 0xFF
     uint8_t cmd2   = 0;   // second effect column
     uint8_t param2 = 0;
@@ -137,7 +139,7 @@ struct Instrument
     int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
-    bool chord = false;                     // 0xy on a note's line plays chord slot xy, held (plug-in / MIDI out)
+    bool chord = false;                     // (v0.13 songs: 0xy played chords; converted to #xy on loading)
     bool isPlugin() const { return plugin; }   // (also true for MIDI out: both play through the synth rack)
 
     // MIDI out to hardware instead of a sample (plugin is true as well; pluginKey = "MIDI:" + device)

@@ -48,7 +48,7 @@ private:
     PixButton changeBtn { "CHANGE DEVICE..." }, sampleBtn { "BACK TO A SAMPLE" }, panicBtn { "PANIC" }, closeBtn { "CLOSE" };
     NumberBox chanBox { "CHANNEL", 1, 16, 1 }, bendBox { "BEND", 1, 48, 2 }, delayBox { "DELAY", -50, 200, 0 }, trackBox { "TRACK", 1, 8, 1 };
     PixButton chordsBtn { "CHORDS..." };
-    PixButton chordBtn { "CHORD", true }, onBtn { "ON", true }, clockBtn { "SEND MIDI CLOCK", true };
+    PixButton onBtn { "ON", true }, clockBtn { "SEND MIDI CLOCK", true };
     std::unique_ptr<NumberBox> ccBox[kInstrumentKnobs];
     PixSlider knobBar[kInstrumentKnobs] { PixSlider ("SEND"), PixSlider ("SEND"), PixSlider ("SEND"), PixSlider ("SEND") };
     PixButton learnCcBtn[kInstrumentKnobs] { PixButton ("LEARN CC", true), PixButton ("LEARN CC", true), PixButton ("LEARN CC", true), PixButton ("LEARN CC", true) };

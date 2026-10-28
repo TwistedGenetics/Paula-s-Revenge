@@ -135,8 +135,15 @@ void Player::synthRelease (Voice& v)
 
 namespace
 {
-    // 0xy on a line: the chord slot it plays (0 = none)
+    // #xy on a line: the chord slot it plays (-1 = no chord command; 0 = just the note)
     int chordOf (const Cell& c)
+    {
+        if (c.cmd == kCmdChord) return c.param;
+        if (c.cmd2 == kCmdChord) return c.param2;
+        return -1;
+    }
+    // (an old v0.11 song that couldn't be converted: 0xy on a CHORD instrument, two intervals)
+    int legacyChordOf (const Cell& c)
     {
         if (c.cmd == 0 && c.param != 0) return c.param;
         if (c.cmd2 == 0 && c.param2 != 0) return c.param2;
@@ -167,8 +174,9 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     if (v.lastBend != 8192) { s->pitchBend (8192, chunkPos); v.lastBend = 8192; }
     v.synthNote = midiNoteFor (v.note);
     v.synthInstr = v.instr;
-    // CHORD: 0xy plays chord slot xy from the song's own table, held (the played note is its root)
-    const int slot = in.chord ? chordOf (chordSource != nullptr ? *chordSource : cell) : 0;
+    // CHORD: #xy plays chord slot xy from the song's own table, held (the played note is its root)
+    const Cell& src = chordSource != nullptr ? *chordSource : cell;
+    const int slot = song->chordsLegacy ? (in.chord ? legacyChordOf (src) : 0) : std::max (0, chordOf (src));
     v.synthRootOn = true;
     if (slot != 0)
     {
@@ -529,8 +537,9 @@ void Player::doTick()
     block = song->safeBlock (block);
     if (line >= song->blocks[(size_t) block].lines) line = 0;
 
-    if (tick == 0 && firstTickOfRow) processRow();
+    if (tick == 0 && firstTickOfRow) { processRow(); rowSeq = seqPos; rowBlock = block; rowLine = line; rowTicks = 0; }
     else for (int ch = 0; ch < kMaxTracks; ++ch) tickEffects (ch);
+    ++rowTicks;
     advanceAutomation();
 
     if (mode == Mode::Stopped) return;
@@ -540,6 +549,19 @@ void Player::doTick()
         tick = 0;
         advanceLine();
     }
+}
+
+Player::PlayPos Player::playPos() const
+{
+    PlayPos p;
+    p.playing = mode != Mode::Stopped;
+    p.speed = std::max (1, speed);
+    if (! p.playing) { p.seqPos = seqPos; p.block = block; p.line = line; return p; }
+    const double spt = std::max (1.0, samplesPerTick());
+    const double into = std::clamp ((double) rowTicks - std::max (0.0, tickRemain) / spt, 0.0, (double) p.speed);
+    p.seqPos = rowSeq; p.block = rowBlock;
+    p.line = rowLine + into / p.speed;
+    return p;
 }
 
 void Player::processRow()

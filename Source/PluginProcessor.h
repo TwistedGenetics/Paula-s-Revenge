@@ -2,6 +2,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <deque>
 #include "engine/Song.h"
 #include "engine/Player.h"
 #include "History.h"
@@ -104,6 +105,7 @@ public:
         bool darkSkin = true;
         enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
+        bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust
@@ -124,7 +126,23 @@ public:
     // when set (>= 0) MIDI notes play only this region of the instrument (sample editor "SEL KEYS")
     std::atomic<int> jamRangeStart { -1 }, jamRangeEnd { -1 };
     std::atomic<bool> jamRangeLoop { false };
-    bool popMidiNote (int& note);   // message thread
+    // a note played on the MIDI keyboard or the laptop keys: for recording (with EDIT on),
+    // note-offs from releases, and CAPTURE (what was played, even with EDIT off)
+    struct InputNote
+    {
+        double timeMs = 0;          // Time::getMillisecondCounterHiRes when it was played
+        int note = 0, velocity = 100;
+        bool on = true;             // false = released
+        bool fromMidi = false;
+        int instrument = 0;         // the instrument it played
+        prv::Player::PlayPos pos;   // where the song was (playing or not)
+    };
+    bool popMidiNote (InputNote& n);   // message thread: MIDI notes, in order
+    // the laptop keys (any page): plays nothing itself, just logs it like a MIDI note
+    void keyNoteInput (int note, bool on, int velocity = 100);
+    // CAPTURE: the last 2 minutes of notes played (message thread)
+    std::deque<InputNote> captureLog;
+    void logInput (const InputNote& n);
 
     // ---- audition player for the sample browser and the sample editor ----
     struct PreviewAudio
@@ -153,8 +171,8 @@ private:
     double currentRate = 44100.0;
     juce::HeapBlock<float> scratchL, scratchR;
     int scratchSize = 0;
-    juce::AbstractFifo midiFifo { 64 };
-    int midiNotes[64] {};
+    juce::AbstractFifo midiFifo { 256 };
+    InputNote midiNotes[256] {};
     std::unique_ptr<PreviewAudio> preview;
     double prevPos = 0, prevPitch = 1.0;
     int prevStart = 0, prevEnd = 0;

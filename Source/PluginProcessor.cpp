@@ -188,11 +188,29 @@ juce::String PaulaProcessor::chordReport (const prv::Song& s) const
     return "CHORDS: THE SONG'S OWN - SLOTS " + prv::slotList (diff, 6) + " DIFFER FROM THE GLOBAL SET";
 }
 
-bool PaulaProcessor::popMidiNote (int& note)
+bool PaulaProcessor::popMidiNote (InputNote& n)
 {
     int got = 0;
-    midiFifo.read (1).forEach ([&] (int idx) { note = midiNotes[idx]; got = 1; });
+    midiFifo.read (1).forEach ([&] (int idx) { n = midiNotes[idx]; got = 1; });
+    if (got) logInput (n);
     return got != 0;
+}
+
+void PaulaProcessor::keyNoteInput (int note, bool on, int velocity)
+{
+    InputNote n;
+    n.timeMs = juce::Time::getMillisecondCounterHiRes();
+    n.note = note; n.on = on; n.velocity = velocity; n.fromMidi = false;
+    n.instrument = editorState.instrument;
+    withLock ([&] { n.pos = player.playPos(); });
+    logInput (n);
+}
+
+void PaulaProcessor::logInput (const InputNote& n)
+{
+    captureLog.push_back (n);
+    while (! captureLog.empty() && n.timeMs - captureLog.front().timeMs > 120000.0) captureLog.pop_front();
+    while (captureLog.size() > 20000) captureLog.pop_front();
 }
 
 std::unique_ptr<PaulaProcessor::PreviewAudio> PaulaProcessor::startPreview (std::unique_ptr<PreviewAudio> audio, int start, int end, bool loop,
@@ -318,6 +336,17 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
             done = end;
         }
     };
+    // (the block started when it's heard; a note's time is its place in the block after that)
+    const double blockMs = juce::Time::getMillisecondCounterHiRes();
+    auto pushMidiInput = [&] (int note, bool on, int vel, int at)
+    {
+        InputNote in;
+        in.timeMs = blockMs + 1000.0 * juce::jlimit (0, n, at) / std::max (1.0, currentRate);
+        in.note = note; in.on = on; in.velocity = vel; in.fromMidi = true;
+        in.instrument = jamInstrument.load();
+        in.pos = player.playPos();   // (rendered up to this message already)
+        midiFifo.write (1).forEach ([&] (int idx) { midiNotes[idx] = in; });
+    };
     for (const auto meta : midi)
     {
         const auto msg = meta.getMessage();
@@ -333,11 +362,13 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         {
             const int note = juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23); // MIDI 60 -> C-3
             player.jamNoteOn (note, jamInstrument.load(), msg.getVelocity(), jamRangeStart.load(), jamRangeEnd.load(), jamRangeLoop.load());
-            midiFifo.write (1).forEach ([&] (int idx) { midiNotes[idx] = note; });
+            pushMidiInput (note, true, msg.getVelocity(), meta.samplePosition);
         }
         else if (msg.isNoteOff())
         {
-            player.jamNoteOff (juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23));
+            const int note = juce::jlimit (1, (int) prv::kNoteMax, msg.getNoteNumber() - 23);
+            player.jamNoteOff (note);
+            pushMidiInput (note, false, 0, meta.samplePosition);
         }
         else if (msg.isAllNotesOff() || msg.isAllSoundOff())
         {

@@ -55,7 +55,7 @@ void ChordPicker::pick (int row)
 
 void ChordPicker::paint (juce::Graphics& g)
 {
-    Theme::panelBox (g, getLocalBounds().toFloat(), "CHORD - PICK A SLOT (0XY PLAYS SLOT XY)");
+    Theme::panelBox (g, getLocalBounds().toFloat(), "CHORD - PICK A SLOT (#XY PLAYS SLOT XY)");
 }
 
 void ChordPicker::resized()

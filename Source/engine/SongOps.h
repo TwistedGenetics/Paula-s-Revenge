@@ -48,7 +48,11 @@ namespace prv
 // ---- chords
 // A v0.11 song played 0xy on a CHORD instrument's note as two intervals (x and y semitones up).
 // This gives each different 0xy used that way a chord slot with those notes and writes the slot
-// numbers into the pattern, so the song sounds the same with the chord table. Returns the number
+// numbers into the pattern as #xy, so the song sounds the same with the chord table. Returns the number
 // of slots used, or -1 if the table had no room (nothing is changed then).
 int convertLegacyChords (Song& song);
+// A v0.13 song played 0xy on a CHORD instrument's note as chord slot xy. Chords are #xy now:
+// this turns those cells into #xy (0xy is an arpeggio again) and clears the CHORD flags.
+// Returns the number of cells changed.
+int convertChordFlags (Song& song);
 } // namespace prv

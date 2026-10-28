@@ -52,6 +52,14 @@ public:
     ChordPicker* chordMenu() { return chordPicker.get(); }
     std::function<void (int slot)> onEditChords;     // EDIT CHORDS...: the CHORDS page on that slot
 
+    // the track VU meters: one colour, chosen by right-clicking a meter (kept on this computer)
+    std::function<void()> onVuMenu;
+    static juce::StringArray vuColourNames();
+    static int  vuColourChoice();
+    static void setVuColourChoice (int);
+    juce::Colour vuColour (int track) const;
+    bool isOnVu (juce::Point<float>) const;
+
     // the view: the line shown at the top (fractional while following playback)
     float getViewTop() const { return viewTop; }
     int   fullRows() const;      // whole rows that fit
@@ -141,6 +149,7 @@ private:
     std::unique_ptr<CommandPicker> picker;
     std::unique_ptr<ChordPicker> chordPicker;
     int pickLine = 0, pickTrack = 0, pickGroup = 1;
+    bool chordFromCommandList = false;   // (the chord list opened by picking # CHORD in the command list)
     void placePicker (juce::Component&);
     void applyPickedChord (int slot);
 public:
@@ -153,6 +162,13 @@ private:
     void applyPickedCommand (const CommandInfo&);
 
     std::map<int, int> heldKeys;   // key code -> jam note
+    // notes recorded and still held: their release writes OFF (plug-in / MIDI-out instruments)
+    struct Held { int block = 0, line = 0, track = 0, instrument = 0; };
+    std::map<int, Held> held;
+    void noteRecorded (int note);
+public:
+    void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
+private:
     float vu[prv::kMaxTracks] {};
     int lastDrawnLine = -1, lastDrawnBlock = -1;
     int lastPlayLine = -1, lastPlayBlock = -1;   // (the play-line marker as last drawn)

@@ -46,6 +46,7 @@ public:
     void useGlobal();                           // the song gets the global set
     void convertLegacy();                       // a v0.11 song's 0xy intervals into slots
     void preview();                             // PLAY: the slot (or database chord) on the current instrument
+    void slotMenu (int slot);                   // right-click a slot: COPY, PASTE, CLEAR, PLAY
     juce::String slotRowText (int row) const;
     juce::String compareText() const;           // how the song's table compares with the global set
     ChoiceBox& question() { return ask; }

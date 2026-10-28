@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.14</span>
+  <span class="ver">MANUAL &middot; V0.15</span>
 </header>
 
 <div class="app">
@@ -188,12 +188,35 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
       <tr><td>Pattern</td><td>4 or 8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
-      <tr><td>Output strip</td><td>The machine you hear (A500, A1200, CLEAN, S950, S1000), its options, an L/R meter, stereo separation and volume.</td></tr>
-      <tr><td>Bottom row</td><td>4 or 8 tracks, <span class="b">BIG VIEW</span>, <span class="b">FOLLOW</span>, <span class="b">PANELS</span>, song <span class="b">NAME</span>, <span class="b">MIXER</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
+      <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, an L/R meter, stereo separation and volume.</td></tr>
+      <tr><td>Bottom row</td><td>4 or 8 tracks, <span class="b">BIG VIEW</span>, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>), <span class="b">PANELS</span>, song <span class="b">NAME</span>, <span class="b">MIXER</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
     </tbody>
   </table></div>
   <p>The app opens with the dark skin. <span class="b">DARK</span> switches to black on white, as in this manual. <span class="b">BIG VIEW</span> shows 4 tracks at a time with large text: <kbd>Tab</kbd> to track 5 and the view flips to tracks 5–8.</p>
   <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
+  <h3>Right-click menus</h3>
+  <p>Right-click almost anything for the things you can do to it. Everything they do can be undone.</p>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>RIGHT-CLICK</th><th>MENU</th></tr></thead>
+    <tbody>
+      <tr><td>A note in the pattern</td><td>Copy / cut / paste the track, clear the line, insert or delete a line, effect commands</td></tr>
+      <tr><td>An effect cell</td><td>The command list; on a <code>#xy</code>, the chord list</td></tr>
+      <tr><td>A highlight in the pattern</td><td>Bounce it to a new sample</td></tr>
+      <tr><td>An instrument</td><td>Copy, paste, duplicate to the next free slot, clear, rename, load a sample, play <code>C-3</code></td></tr>
+      <tr><td>A song position (sequence or ARRANGE)</td><td>Copy, cut, paste, repeat, delete, insert the block again, section label</td></tr>
+      <tr><td>The block panel</td><td>Copy / cut / paste / clear the block, duplicate, new, delete, double, halve</td></tr>
+      <tr><td>The sample's waveform</td><td>The sample editor's edits on the highlight</td></tr>
+      <tr><td>A mixer strip's name</td><td>Copy / paste / reset the strip, open the channel</td></tr>
+      <tr><td>A mixer effect slot</td><td>Copy / paste the effect, clear the slot, bypass, open</td></tr>
+      <tr><td>A CHORDS slot</td><td>Copy, paste, clear, play</td></tr>
+      <tr><td>The VU meters</td><td>Their colour: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
+      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, capture</td></tr>
+      <tr><td>A HELP page</td><td>Copy the chapter, or all of HELP</td></tr>
+    </tbody>
+  </table></div>
+  <h3>HELP and searching it</h3>
+  <p><span class="b">HELP</span> has this manual's text. Just type to search it: every match is highlighted and the chapter list shows only the chapters with matches. <kbd>Enter</kbd> (or <kbd>Cmd</kbd><kbd>G</kbd>) goes to the next match, <kbd>Shift</kbd><kbd>Enter</kbd> the one before. <kbd>Esc</kbd> clears the search, then closes HELP.</p>
+  <p>In the dark skin, the plug-in pages (an effect opened from the mixer, a plug-in instrument's page) and the parameter pages are dark too.</p>
 </section>
 
 <!-- ============================================================ 002 -->
@@ -205,8 +228,18 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <ul>
     <li>With <span class="b on">&#9679; EDIT</span> on, the bottom rows of keys play and enter notes from the octave in <span class="b">OCT</span>; the <kbd>Q</kbd> row is the octave above. <kbd>1</kbd> enters a note-off (<code>OFF</code>).</li>
     <li>In the instrument and command columns, type hex digits <kbd>0</kbd>–<kbd>9</kbd> <kbd>A</kbd>–<kbd>F</kbd>, or a letter <kbd>G</kbd>–<kbd>Z</kbd> for the extra commands.</li>
+    <li><kbd>Shift</kbd><kbd>3</kbd> in a command column types <code>#</code>, the chord command (see <a href="#chords">Chords</a>).</li>
     <li><kbd>Delete</kbd> clears the field under the cursor. <kbd>Shift</kbd><kbd>Delete</kbd> removes the line and pulls the track up; <kbd>Alt</kbd><kbd>Delete</kbd> inserts a blank line.</li>
     <li>A MIDI keyboard plays the current instrument and enters notes when EDIT is on. MIDI 60 = <code>C-3</code>.</li>
+  </ul>
+  <h3>Recording and note-offs</h3>
+  <p>With EDIT on (<kbd>Esc</kbd> or <kbd>\</kbd>), playing while the song or block plays records the notes where you play them. On a plug-in or MIDI-out instrument, letting go of a key writes an <code>OFF</code> on the line you let go, so the notes are as long as you held them. When stopped (step entry), note-offs go in only if you ask: right-click <span class="b">EDIT</span> and turn on <span class="b">STEP ENTRY NOTE-OFFS</span>.</p>
+  <h3>CAPTURE: keep what you just played</h3>
+  <p>The app is always listening to the MIDI keyboard and the laptop keys, even with EDIT off &mdash; the last two minutes. Noodle away; if you like what you played, press <kbd>Cmd</kbd><kbd>R</kbd> (or <span class="b">Capture What I Played</span> in the View menu, the <span class="b">CAPTURE</span> button on a wide window, or right-click <span class="b">EDIT</span>) and it is written into the pattern, one undo step.</p>
+  <ul>
+    <li>Played while the song or block was playing: the notes go where they were played, on the nearest line, with an <code>Mxx</code> for notes more than a third of a tick early or late.</li>
+    <li>Played while stopped: the notes since the last pause of more than 4 seconds go in from the cursor, at the song's tempo.</li>
+    <li>Notes start on the cursor's track; held notes and chords spread over the tracks to the right. Plug-in and MIDI-out instruments get note-offs.</li>
   </ul>
   <h3>Highlighting with the mouse</h3>
   <p>Drag across the pattern to highlight notes and effects; it snaps to whole fields and can cover several tracks. <kbd>Shift</kbd>-click highlights from the cursor to the click, and <kbd>Cmd</kbd><kbd>A</kbd> highlights the whole block.</p>
@@ -229,15 +262,17 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="accent t4"></div>
   <p><b>Right-click an effect cell</b> for a list of every command with what it does. Click one, or type its letter, and it goes into the cell with a useful starting value, the cursor ready on the value. Put the cursor on any command to see it explained in the help strip under the pattern.</p>
   <figure>
-    <div class="frame sunken"><img src="img/command_list.png" alt="The command list open over the pattern, each command with a short description." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/command_list.png" alt="The command list open over the pattern: # CHORD at the top, then each command with a short description." width="1440" height="900" loading="lazy"></div>
     <figcaption>Right-click an effect cell: the command list</figcaption>
   </figure>
+  <h3>The chord command (#)</h3>
+  <p><code>#xy</code> plays chord slot <code>xy</code> from the song's chord table, held, on a plug-in or MIDI-out instrument. It is at the top of the command list; clicking it opens the chord list. See <a href="#chords">Chords</a>.</p>
   <h3>Classic commands (0–F)</h3>
   <p>The same numbering as ProTracker, so MOD files load straight in.</p>
   <div class="tbl sunken"><table>
     <thead><tr><th>CMD</th><th>EFFECT</th></tr></thead>
     <tbody>
-      <tr><td><code>0xy</code></td><td>Arpeggio (+x, +y semitones). On a plug-in or MIDI-out instrument with CHORD on, chord slot <code>xy</code>, held (see <a href="#chords">Chords</a>).</td></tr>
+      <tr><td><code>0xy</code></td><td>Arpeggio (+x, +y semitones), as in ProTracker</td></tr>
       <tr><td><code>1xx</code> <code>2xx</code></td><td>Slide pitch up / down</td></tr>
       <tr><td><code>3xx</code></td><td>Slide to the note</td></tr>
       <tr><td><code>4xy</code></td><td>Vibrato (speed x, depth y)</td></tr>
@@ -445,13 +480,14 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>Pick an instrument, press <span class="b">PARAMS</span>, then <span class="b">PLUG-IN / MIDI OUT...</span> and <span class="b">A VST3 / AU INSTRUMENT</span>.</p>
   <div class="two">
     <div><figure><div class="frame sunken"><img src="img/source_choice.png" alt="The choice box: A VST3 / AU INSTRUMENT, MIDI OUT TO HARDWARE, CANCEL." width="1440" height="900" loading="lazy"></div><figcaption>Plug-in or MIDI out?</figcaption></figure></div>
-    <div><figure><div class="frame sunken"><img src="img/synth.png" alt="A plug-in instrument's page with OUTPUT, BEND, CHORD and ON, four learnable knobs and the track's automation knobs." width="1440" height="900" loading="lazy"></div><figcaption>A plug-in instrument's page</figcaption></figure></div>
+    <div><figure><div class="frame sunken"><img src="img/synth.png" alt="A plug-in instrument's page with OUTPUT, BEND and ON, four learnable knobs and the track's automation knobs." width="1440" height="900" loading="lazy"></div><figcaption>A plug-in instrument's page</figcaption></figure></div>
   </div>
   <ul>
     <li><span class="b">EDIT</span> opens the plug-in's own window. The laptop keys keep playing it while that window is in front.</li>
     <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the first track that plays it. <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
     <li>Notes play one at a time per track. <code>Cxx</code> is velocity, pitch commands become pitch bend, <code>Oxx</code> is the mod wheel, and <code>ECx</code> <code>EDx</code> <code>Nxx</code> <code>Kxx</code> <code>Mxx</code> <code>E9x</code> <code>Rxy</code> work. Sample-only commands are ignored.</li>
-    <li><span class="b">CHORD</span>: <code>0xy</code> on a note's line plays chord slot <code>xy</code> from the song's chord table, held. See <a href="#chords">Chords</a>.</li>
+    <li>Chords: <code>#xy</code> on a note's line plays chord slot <code>xy</code> from the song's chord table, held. See <a href="#chords">Chords</a>.</li>
+    <li>Letting go of a key while recording writes a note-off (see <a href="#pattern">Recording and note-offs</a>).</li>
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
 </section>
@@ -486,7 +522,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="accent t4"></div>
   <p>An instrument can play your hardware (an MPC, a microKORG, an NTS-1) over MIDI. Press <span class="b">PARAMS</span>, <span class="b">PLUG-IN / MIDI OUT...</span>, <span class="b">MIDI OUT TO HARDWARE</span>, then double-click a MIDI output.</p>
   <figure>
-    <div class="frame sunken"><img src="img/midi.png" alt="A MIDI-out instrument's page: device, CHANNEL, BEND, CHORD, ON, DELAY, SEND MIDI CLOCK, four CC knobs with SEND bars and LEARN CC, and the track's automation knobs." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/midi.png" alt="A MIDI-out instrument's page: device, CHANNEL, BEND, ON, DELAY, SEND MIDI CLOCK, four CC knobs with SEND bars and LEARN CC, and the track's automation knobs." width="1440" height="900" loading="lazy"></div>
     <figcaption>A MIDI-out instrument's page</figcaption>
   </figure>
   <div class="tbl sunken"><table>
@@ -494,7 +530,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <tbody>
       <tr><td><span class="b">CHANNEL</span></td><td>MIDI channel 1–16</td></tr>
       <tr><td><span class="b">BEND</span></td><td>The hardware's pitch bend range, so pitch commands land in tune</td></tr>
-      <tr><td><span class="b">CHORD</span> <span class="b">ON</span></td><td>As for plug-in instruments</td></tr>
+      <tr><td><span class="b">ON</span></td><td>As for plug-in instruments; <code>#xy</code> plays chords here too</td></tr>
       <tr><td><span class="b">DELAY</span></td><td>−50 to +200 ms to line the hardware up with the audio. Positive: the MIDI goes later. Negative: all the audio goes later instead.</td></tr>
       <tr><td><span class="b">SEND MIDI CLOCK</span></td><td>24-a-beat clock with start, stop, continue and song position (4 lines = a beat), so the hardware follows the song</td></tr>
       <tr><td>KNOB L Q H W</td><td>The CC each sends (74, 71, 73, 10 to start). <span class="b">LEARN CC</span> takes the number from the next knob you turn on a controller; the <span class="b">SEND</span> bar sends it now (and REC AUTO records it).</td></tr>
@@ -508,15 +544,16 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <section class="ch raised" id="chords">
   <h2>CHORDS</h2>
   <div class="accent t2"></div>
-  <p>A plug-in or MIDI-out instrument with <span class="b">CHORD</span> on plays a whole chord from one note. Put <code>0xy</code> on the note's line and it plays <span class="b">chord slot xy</span> from the song's chord table, held. The note you type is the chord's root: <code>C-3</code> with <code>001</code> (slot 01, MIN) plays C, D#, G.</p>
+  <p>A plug-in or MIDI-out instrument plays a whole chord from one note. Put <code>#xy</code> on the note's line and it plays <span class="b">chord slot xy</span> from the song's chord table, held. The note you type is the chord's root: <code>C-3</code> with <code>#01</code> (slot 01, MIN) plays C, D#, G.</p>
   <figure>
     <div class="frame sunken"><img src="img/chord_list.png" alt="The chord list open over the pattern: the song's chord slots 01, 02, 03... with their names and notes, EDIT CHORDS... and CANCEL." width="1440" height="900" loading="lazy"></div>
-    <figcaption>Right-click the effect cell on a chord instrument's note</figcaption>
+    <figcaption>Right-click a <code>#</code> cell: the chord list</figcaption>
   </figure>
   <ul>
-    <li><span class="b">Right-click</span> the effect cell on the note's line (empty, or with a <code>0xy</code> in it) for the song's chords. Click one, or use the arrows and Enter; typing a slot number jumps to it. <span class="b">EDIT CHORDS...</span> opens the CHORDS page on that slot, <span class="b">EFFECT COMMANDS...</span> the usual list.</li>
+    <li>Three ways in: type <kbd>Shift</kbd><kbd>3</kbd> (<code>#</code>) in the command column, then the slot number; or right-click an effect cell and click <span class="b"># CHORD</span> at the top of the list, then pick the chord; or right-click a cell that already has a <code>#</code> to change its chord.</li>
+    <li>In the chord list, click a chord, or use the arrows and Enter; typing a slot number jumps to it. <span class="b">EDIT CHORDS...</span> opens the CHORDS page on that slot, <span class="b">EFFECT COMMANDS...</span> the usual list. Cancelling leaves <code>#01</code>.</li>
     <li>A slot holds up to 8 notes, below the root as well as above it. An inversion doesn't put the root at the bottom: <code>C-3</code> with MAJ INV 1 plays E, G and the C above.</li>
-    <li>The chord ends like a note: the next note on the track, note-off, <code>ECx</code> or <code>Nxx</code>. Pitch commands bend the whole chord. On a line without a note, and on sample instruments, <code>0xy</code> is still an arpeggio.</li>
+    <li>The chord ends like a note: the next note on the track, note-off, <code>ECx</code> or <code>Nxx</code>. Pitch commands bend the whole chord. On a sample instrument <code>#xy</code> plays just the note, and saving a MOD leaves it out.</li>
   </ul>
   <h3>The CHORDS page</h3>
   <p>Press <kbd>Cmd</kbd><kbd>3</kbd>, or <span class="b">CHORDS...</span> on the instrument's page. The slots 01&ndash;FF are on the left, the chord database on the right.</p>
@@ -532,7 +569,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">ALL</span> <span class="b">MAJOR</span> <span class="b">MINOR</span> <span class="b">DOM</span> <span class="b">SUS</span> <span class="b">DIM</span> <span class="b">AUG</span> <span class="b">OTHER</span></td><td>Show one family of chords</td></tr>
       <tr><td>Typing</td><td>Searches: <code>MIN7</code>, <code>SUS4</code>, <code>DROP 2</code>, <code>7B9</code> for 7&#9837;9. Backspace and Esc clear it.</td></tr>
       <tr><td><span class="b">PLAY</span></td><td>Plays the chord on <code>C-3</code> with the current instrument (Space)</td></tr>
-      <tr><td><span class="b">CLEAR SLOT</span></td><td>Empties the slot (Delete): its <code>0xy</code> then plays just the note</td></tr>
+      <tr><td><span class="b">CLEAR SLOT</span></td><td>Empties the slot (Delete): its <code>#xy</code> then plays just the note</td></tr>
       <tr><td><span class="b">THIS SONG</span> <span class="b">GLOBAL SET</span></td><td>Which table you're editing</td></tr>
       <tr><td><span class="b">SAVE AS GLOBAL SET</span></td><td>The song's chords become the global set (it asks first)</td></tr>
       <tr><td><span class="b">USE GLOBAL SET</span></td><td>The song gets the global set (undo takes it back)</td></tr>
@@ -545,7 +582,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">Every song has its own table</span>, saved in the song. The <span class="b">global set</span> is kept on your Mac: every new song, and every MOD or older song without a table, starts with a copy of it.</li>
     <li>Changing a song's chords doesn't change the global set, and changing the global set doesn't change any song. A saved song always plays its own chords, whatever the global set has become.</li>
     <li>When you load a song, the status line says how its chords compare with the global set, for example <code>SLOTS 05 1F DIFFER FROM THE GLOBAL SET</code>. It plays its own either way.</li>
-    <li>Songs from v0.11 used <code>0xy</code> as two intervals. They still play that way; <span class="b">CONVERT OLD 0XY</span> gives each one a slot with the same notes and writes the slot numbers into the patterns, so the song sounds the same (one undo step).</li>
+    <li>Older songs are converted when they load: v0.12&ndash;v0.14 chords (<code>0xy</code> on a CHORD instrument) become <code>#xy</code>, and v0.11 chords (<code>0xy</code> as two intervals) each get a slot with the same notes. The song sounds the same.</li>
   </ul>
 </section>
 
@@ -614,7 +651,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd>…</td><td>Notes, upper octave</td></tr>
       <tr><td><kbd>1</kbd></td><td>Note off</td></tr>
       <tr><td><kbd>Space</kbd></td><td>Play / stop the block · with <kbd>Shift</kbd>, the song</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>Edit mode on / off</td></tr>
+      <tr><td><kbd>Esc</kbd> or <kbd>\</kbd></td><td>Edit mode on / off</td></tr>
+      <tr><td><kbd>Shift</kbd><kbd>3</kbd></td><td>In a command column: <code>#</code>, the chord command</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>Play block · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
       <tr><td>Arrows</td><td>Move · <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> 4 lines · <kbd>Shift</kbd> <kbd>&larr;</kbd><kbd>&rarr;</kbd> track</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous</td></tr>
@@ -630,12 +668,14 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>S</kbd></td><td>Save · with <kbd>Shift</kbd>, save as</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>2</kbd> / <kbd>1</kbd></td><td>Mixer / pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>3</kbd></td><td>CHORDS: the chord table</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
       <tr><td><kbd>Alt</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd></td><td>Move the selected song positions</td></tr>
     </tbody>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.14</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.15</footer>
 </main>
 </div>
 </body></html>

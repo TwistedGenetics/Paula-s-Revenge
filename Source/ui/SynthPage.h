@@ -53,7 +53,6 @@ private:
     PixButton learnA { "LEARN AUTO A (V)" }, learnB { "LEARN AUTO B (J)" };
     PixButton onBtn { "ON", true };   // the instrument switched on / off
     PixButton chordsBtn { "CHORDS..." };
-    PixButton chordBtn { "CHORD", true };   // 0xy plays a held chord
     ParamLearner learner;           // what: 0..3 instrument knobs, 10 + k track knobs
     std::map<int, int> heldKeys;
     juce::Rectangle<float> titleArea, infoArea, knobArea[kInstrumentKnobs], trackArea;

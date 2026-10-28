@@ -7,6 +7,7 @@ namespace { const char* kKnobLetters[kInstrumentKnobs] = { "L", "Q", "H", "W" };
 
 MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
 {
+    Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
 
@@ -38,12 +39,6 @@ MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
     delayBox.onChange = [this] (int v) { edit ("MIDI DELAY", [v] (Instrument& in) { in.midiDelayMs = v; }); };
     chordsBtn.onClick = [this] { if (onChords) onChords(); };
     addChildComponent (chordsBtn);
-    chordBtn.onClick = [this]
-    {
-        const bool on = chordBtn.getToggleState();
-        edit (on ? "CHORD ON" : "CHORD OFF", [on] (Instrument& in) { in.chord = on; }, false);
-        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS CHORD SLOT XY, HELD (RIGHT-CLICK IT IN THE PATTERN FOR THE LIST)" : "CHORD OFF: 0XY IS AN ARPEGGIO");
-    };
     clockBtn.onClick = [this]
     {
         const bool on = clockBtn.getToggleState();
@@ -80,7 +75,7 @@ MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
         addChildComponent (learnCcBtn[k]);
     }
     for (auto* c : std::initializer_list<juce::Component*> { &list, &rescanBtn, &cancelBtn, &changeBtn, &sampleBtn, &panicBtn, &closeBtn,
-                                                             &chanBox, &bendBox, &delayBox, &trackBox, &chordBtn, &onBtn, &clockBtn, &learnA, &learnB })
+                                                             &chanBox, &bendBox, &delayBox, &trackBox, &onBtn, &clockBtn, &learnA, &learnB })
         addChildComponent (c);
 }
 
@@ -220,7 +215,7 @@ void MidiOutPage::refresh()
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
     for (auto* c : std::initializer_list<juce::Component*> { &changeBtn, &sampleBtn, &panicBtn, &chanBox, &bendBox, &delayBox, &trackBox,
-                                                             &chordBtn, &onBtn, &clockBtn, &learnA, &learnB, &chordsBtn })
+                                                             &onBtn, &clockBtn, &learnA, &learnB, &chordsBtn })
         c->setVisible (midi);
     for (int k = 0; k < kInstrumentKnobs; ++k) { ccBox[k]->setVisible (midi); knobBar[k].setVisible (midi); learnCcBtn[k].setVisible (midi); }
     closeBtn.setVisible (true);
@@ -230,7 +225,6 @@ void MidiOutPage::refresh()
         chanBox.setValue (in.midiChannel);
         bendBox.setValue (in.bendRange);
         delayBox.setValue (in.midiDelayMs);
-        chordBtn.setToggleState (in.chord, juce::dontSendNotification);
         clockBtn.setToggleState (in.midiClock, juce::dontSendNotification);
         const bool on = proc.player.instrumentIsOn (proc.editorState.instrument);
         onBtn.setToggleState (on, juce::dontSendNotification);
@@ -318,6 +312,7 @@ bool MidiOutPage::keyPressed (const juce::KeyPress& k)
     {
         heldKeys[k.getKeyCode()] = note;
         proc.withLock ([&] { proc.player.jamNoteOn (note, proc.editorState.instrument); });
+        proc.keyNoteInput (note, true);   // (CAPTURE hears it)
     }
     return true;
 }
@@ -330,6 +325,7 @@ bool MidiOutPage::keyStateChanged (bool)
         {
             const int n = it->second;
             proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            proc.keyNoteInput (n, false);   // (CAPTURE hears it)
             it = heldKeys.erase (it);
         }
         else ++it;
@@ -340,18 +336,18 @@ bool MidiOutPage::keyStateChanged (bool)
 void MidiOutPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
-    g.fillAll (Theme::panel);
+    g.fillAll (Theme::palFor (*this).panel);
     const int i = proc.editorState.instrument;
     const juce::String title = "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2)
                              + (browsing ? juce::String (": PICK A MIDI OUTPUT") : juce::String (": MIDI OUT"));
-    PixelFont::drawLeft (g, title, titleArea, px, Theme::ink);
+    PixelFont::drawLeft (g, title, titleArea, px, Theme::palFor (*this).ink);
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
 
     if (browsing)
     {
         const juce::String t = devices.isEmpty() ? juce::String ("NO MIDI OUTPUTS - CONNECT ONE, THEN RESCAN")
                                                  : juce::String (devices.size()) + " OUTPUTS - DOUBLE-CLICK ONE";
-        PixelFont::drawLeft (g, fit (t, infoArea.getWidth()), infoArea, px, Theme::ink);
+        PixelFont::drawLeft (g, fit (t, infoArea.getWidth()), infoArea, px, Theme::palFor (*this).ink);
         return;
     }
     const auto& in = inst();
@@ -363,17 +359,17 @@ void MidiOutPage::paint (juce::Graphics& g)
                : ! proc.player.instrumentIsOn (i) ? juce::String ("SWITCHED OFF: SENDS NO NOTES UNTIL IT IS ON AGAIN")
                : juce::String ("NOT IN RENDERS - STOP TWICE FOR PANIC"));
     auto r = infoArea;
-    for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::ink); }
+    for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::palFor (*this).ink); }
 
     for (int k = 0; k < kInstrumentKnobs; ++k)
-        PixelFont::drawLeft (g, juce::String ("KNOB ") + kKnobLetters[k] + "XX", knobLabel[k], px, Theme::ink);
+        PixelFont::drawLeft (g, juce::String ("KNOB ") + kKnobLetters[k] + "XX", knobLabel[k], px, Theme::palFor (*this).ink);
     const int tr = trackBox.getValue() - 1;
     const auto& a = proc.song.mixer.trackAuto[tr][0];
     const auto& b = proc.song.mixer.trackAuto[tr][1];
     const int room = ((int) (trackArea.getWidth() / (px * PixelFont::kCellW)) - 21) / 2;
     const juce::String ta = "TRACK " + juce::String (tr + 1) + ":  A = " + (a.valid() ? shortTargetName (a.name, room) : juce::String ("-"))
                           + "   B = " + (b.valid() ? shortTargetName (b.name, room) : juce::String ("-"));
-    PixelFont::drawLeft (g, fit (ta, trackArea.getWidth()), trackArea, px, Theme::ink);
+    PixelFont::drawLeft (g, fit (ta, trackArea.getWidth()), trackArea, px, Theme::palFor (*this).ink);
 }
 
 void MidiOutPage::resized()
@@ -416,7 +412,6 @@ void MidiOutPage::resized()
     {
         auto row = r.removeFromTop (rowH);
         onBtn.setBounds (row.removeFromRight (charsW (4))); row.removeFromRight (gap);
-        chordBtn.setBounds (row.removeFromRight (charsW (5))); row.removeFromRight (gap * 3);
         chanBox.setBounds (row.removeFromLeft (chanBox.preferredWidth (px))); row.removeFromLeft (gap * 3);
         bendBox.setBounds (row.removeFromLeft (std::min (row.getWidth(), bendBox.preferredWidth (px))));
     }

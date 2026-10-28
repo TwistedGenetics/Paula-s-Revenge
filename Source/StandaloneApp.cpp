@@ -23,7 +23,8 @@ enum CommandIDs
 {
     cmdAudioSettings = 0x2001,
     cmdFullScreen    = 0x2002,
-    cmdFollowOutput  = 0x2003
+    cmdFollowOutput  = 0x2003,
+    cmdCapture       = 0x2004
 };
 
 // the real audio system for FOLLOW MAC OUTPUT
@@ -213,6 +214,8 @@ public:
     juce::PopupMenu getMenuForIndex (int, const juce::String&) override
     {
         juce::PopupMenu m;
+        m.addCommandItem (&commands, cmdCapture);
+        m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
         m.addCommandItem (&commands, cmdFollowOutput);
        #if ! JUCE_MAC
@@ -229,7 +232,7 @@ public:
     void getAllCommands (juce::Array<juce::CommandID>& c) override
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
-        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput });
+        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -244,6 +247,11 @@ public:
             info.setInfo ("Toggle Full Screen", "Switch the window in and out of full screen", "View", 0);
             info.addDefaultKeypress ('f', juce::ModifierKeys::commandModifier | juce::ModifierKeys::ctrlModifier);
         }
+        else if (id == cmdCapture)
+        {
+            info.setInfo ("Capture What I Played", "Put the notes you just played into the pattern", "General", 0);
+            info.addDefaultKeypress ('r', juce::ModifierKeys::commandModifier);
+        }
         else if (id == cmdFollowOutput)
         {
             info.setInfo ("Follow Mac Output (Headphones)", "Play through whatever output the Mac switches to", "General", 0);
@@ -256,6 +264,7 @@ public:
     {
         if (info.commandID == cmdAudioSettings) { if (holder != nullptr) holder->showAudioSettingsDialog(); return true; }
         if (info.commandID == cmdFullScreen)    { toggleFullScreen(); return true; }
+        if (info.commandID == cmdCapture)       { if (auto* ed = editor()) ed->captureNow(); return true; }
         if (info.commandID == cmdFollowOutput && follower != nullptr)
         {
             const bool on = ! follower->enabled;

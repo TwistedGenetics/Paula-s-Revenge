@@ -38,6 +38,7 @@ public:
     void deleteSelection();
     void insertBlock (int block);
     void setBlock (int block);
+    void showPositionMenu (int row);   // the right-click menu
     int selStart() const { return ops.selStart(); }
     int selEnd() const { return ops.selEnd(); }
 

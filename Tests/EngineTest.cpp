@@ -2,6 +2,7 @@
 // Build: c++ -std=c++20 -O1 -g -fsanitize=address,undefined -I Source Tests/EngineTest.cpp Source/engine/*.cpp
 #include <chrono>
 #include "engine/Player.h"
+#include "engine/Capture.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -1006,9 +1007,9 @@ static void testChords()
     song.chords[0x37] = { "MIN", { 0, 3, 7 }, 3 };
     song.chords[0x47] = { "MAJ", { 0, 4, 7 }, 3 };
     auto& b = song.blocks[0];
-    b.at (0, 0) = { 37, 1, 0x0, 0x37 };                                   // C-3 minor chord: C, D#, G
+    b.at (0, 0) = { 37, 1, kCmdChord, 0x37 };                             // C-3 minor chord: C, D#, G
     b.at (2, 0) = { kNoteOff, 0, 0, 0 };
-    b.at (4, 0) = { 39, 1, 0xE, 0xD2, 0x0, 0x47 };                        // delayed 2 ticks, 0xy in FX2: D, F#, A
+    b.at (4, 0) = { 39, 1, 0xE, 0xD2, kCmdChord, 0x47 };                  // delayed 2 ticks, #xy in FX2: D, F#, A
     b.at (6, 0) = { 0, 0, 0x0, 0x0C };                                    // no note: arpeggio (bends) as before
     b.at (8, 0) = { 41, 1, 0xE, 0xC2 };                                   // ECx cuts the whole chord
     std::vector<Ev> log; long long clock = 0;
@@ -1037,8 +1038,8 @@ static void testChords()
     CHECK (on (62) == 1 && on (66) == 1 && on (69) == 1 && std::abs ((int) (d3On - (lineLen * 4 + tickSamples() * 2))) <= 2);
     CHECK (line0Bends == 0 && arpBends >= 2);
     CHECK (on (64) == 1 && on (68) == 0);   // (F-3 with no 0xy: one note)
-    // CHORD off: 0xy is an arpeggio again, one note
-    song.instruments[0].chord = false;
+    // 0xy is an arpeggio again (whatever the old CHORD flag says), one note
+    b.at (0, 0) = { 37, 1, 0x0, 0x37 };
     log.clear(); clock = 0;
     p.playBlock (0);
     for (int done = 0; done < lineLen * 2; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
@@ -1077,10 +1078,10 @@ static void testChordTable()
     song.chords[0x06] = { "BIG", { -12, 0, 3, 7, 10, 14, 17, 21 }, 8 };    // eight notes
     song.chords[0x07] = {};                                               // an empty slot: just the note
     auto& b = song.blocks[0];
-    b.at (0, 0) = { 37, 1, 0x0, 0x05 };
-    b.at (2, 0) = { 37, 1, 0x0, 0x06 };
-    b.at (4, 0) = { 37, 1, 0x0, 0x07 };
-    b.at (6, 0) = { 37, 1, 0x0, 0x37 };                                   // legacy pass: +3 +7
+    b.at (0, 0) = { 37, 1, kCmdChord, 0x05 };
+    b.at (2, 0) = { 37, 1, kCmdChord, 0x06 };
+    b.at (4, 0) = { 37, 1, kCmdChord, 0x07 };
+    b.at (6, 0) = { 37, 1, kCmdChord, 0x37 };                             // (an empty slot: just the note)
     std::vector<Ev> log; long long clock = 0;
     Player p; p.setSampleRate (48000); p.setSong (&song);
     p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
@@ -1100,6 +1101,7 @@ static void testChordTable()
     CHECK (empty == std::vector<int> ({ 60 }) && slot37 == std::vector<int> ({ 60 }));
     CHECK (offs >= ons);   // every chord note is let go
     // a v0.11 song: 0xy is still x and y semitones up, whatever the table says
+    for (int l = 0; l < 8; l += 2) b.at (l, 0).cmd = 0x0;
     song.chordsLegacy = true;
     run (8);
     const auto legacy = onsIn (6), legacy5 = onsIn (0);
@@ -1115,8 +1117,22 @@ static void testChordTable()
     for (int l = 0; l < 8; l += 2) after.push_back (onsIn (l));
     std::printf ("converted: %d new slots; params now %02X %02X %02X %02X; legacy %d; same notes %d\n", added,
                  b.at (0, 0).param, b.at (2, 0).param, b.at (4, 0).param, b.at (6, 0).param, (int) song.chordsLegacy, (int) (before == after));
-    CHECK (added == 2 && ! song.chordsLegacy && before == after);
+    CHECK (added == 2 && ! song.chordsLegacy && before == after && ! song.instruments[0].chord);
     CHECK (b.at (6, 0).param == 0x01 && b.at (4, 0).param == 0x0F && song.chords[(size_t) b.at (0, 0).param].name == "OLD 05");
+    CHECK (b.at (0, 0).cmd == kCmdChord && b.at (6, 0).cmd == kCmdChord);
+    // a v0.13 song: 0xy on a CHORD instrument's notes played slot xy - now #xy, same notes; 0xy elsewhere stays
+    for (int l = 0; l < 8; l += 2) b.at (l, 0).cmd = 0x0;
+    b.at (7, 1) = { 0, 0, 0x0, 0x37 };                                     // (no note: an arpeggio, left alone)
+    song.instruments[0].chord = true;
+    const int changedCells = convertChordFlags (song);
+    std::vector<std::vector<int>> v13;
+    run (8);
+    for (int l = 0; l < 8; l += 2) v13.push_back (onsIn (l));
+    std::printf ("v0.13 chords: %d cells now #xy, same notes %d\n", changedCells, (int) (v13 == after));
+    CHECK (changedCells == 4 && v13 == after && b.at (2, 0).cmd == kCmdChord && b.at (7, 1).cmd == 0x0 && ! song.instruments[0].chord);
+    // # in the command list, first, with its description
+    CHECK (commandList()[0].cmd == kCmdChord && std::string (commandList()[0].code) == "#" && commandChar (kCmdChord) == '#' && commandFromChar ('#') == kCmdChord);
+    std::printf ("# command: %s\n", describeCommand (kCmdChord, 0x03).c_str());
 }
 
 static void testSampleOnOff()
@@ -1305,7 +1321,7 @@ static void testMidiOut()
     setMidi (1, "MPC", 4);          // same device: only one sends the clock
     song.instruments[0].midiClock = song.instruments[1].midiClock = true;
     auto& b = song.blocks[0];
-    b.at (0, 0) = { 37, 1, 0xC, 0x20, 0x0, 0x02 };                         // C-3, velocity 64, chord slot 02 (MAJ): C E G
+    b.at (0, 0) = { 37, 1, 0xC, 0x20, kCmdChord, 0x02 };                   // C-3, velocity 64, chord slot 02 (MAJ): C E G
     b.at (2, 0) = { 0, 0, cmdLetter ('L'), 0x80, cmdLetter ('O'), 0x40 };  // CC 74 = 64, mod wheel 32
     b.at (3, 0) = { 0, 0, 0x1, 0x02 };                                     // slide up: bend
     b.at (4, 0) = { kNoteOff, 0, 0, 0 };
@@ -2186,6 +2202,56 @@ static void testBlepCpu()
     CHECK (blep < lin * 6.0);   // (relative: the machine may be busy; an optimised build is about 4x faster than real time needs)
 }
 
+// CAPTURE: what was played, into pattern lines
+static void testCapture()
+{
+    Song song; song.numTracks = 4;
+    song.blocks[0].at (6, 0) = { 37, 1, 0, 0 };   // (a note already there: never written over)
+    std::vector<bool> offs (kMaxInstruments, false);
+    offs[1] = true;                                // instrument 02 is a plug-in: its releases get OFF
+    auto on = [] (double t, int note, int ins, bool playing = false, double line = 0, int block = 0)
+    { CapturedNote c; c.timeMs = t; c.note = note; c.instrument = ins; c.on = true; c.playing = playing; c.line = line; c.block = block; c.speed = 6; return c; };
+    auto off = [] (CapturedNote c, double t, double line) { c.on = false; c.timeMs = t; c.line = line; return c; };
+
+    // stopped: from the cursor (block 0, line 4, track 0) at 125 BPM / speed 6 = 120 ms a line
+    std::vector<CapturedNote> log;
+    log.push_back (on (500, 25, 0));                 // an old note, before a long gap: not this take
+    log.push_back (on (10000, 37, 0));               // line 4
+    log.push_back (on (10010, 41, 0));               // same time: a chord -> track 1
+    log.push_back (on (10240, 44, 0));               // line 6: track 0 has a note there -> track 1... (41 released?)
+    log.push_back (on (10250 + 120, 49, 1));         // line 7.08: 0.5 tick late -> M0B on line 7
+    log.push_back (off (on (10370, 49, 1), 10370 + 360, 0));   // released 3 lines later -> OFF on line 10
+    auto r = placeCapture (song, log, 0, 4, 0, 125, 6, offs);
+    std::string got;
+    for (auto& p : r.places) got += std::to_string (p.line) + ":" + std::to_string (p.track) + ":" + std::to_string (p.note) + ":" + std::to_string (p.micro) + " ";
+    std::printf ("capture (stopped): %s skipped %d\n", got.c_str(), r.skipped);
+    CHECK (! r.played && r.firstLine == 4 && r.skipped == 0);
+    CHECK (r.places.size() == 5);
+    if (r.places.size() == 5)
+    {
+        CHECK (r.places[0].line == 4 && r.places[0].track == 0 && r.places[0].note == 37 && r.places[0].micro == 0);
+        CHECK (r.places[1].line == 4 && r.places[1].track == 1 && r.places[1].note == 41);
+        CHECK (r.places[2].line == 6 && r.places[2].track != 0 && r.places[2].note == 44);
+        CHECK (r.places[3].line == 7 && r.places[3].micro == 0x0B && r.places[3].instr == 2);
+        CHECK (r.places[4].note == kNoteOff && r.places[4].line == 10 && r.places[4].track == r.places[3].track);
+    }
+    // while playing: where they were played, early and late
+    std::vector<CapturedNote> log2;
+    log2.push_back (on (100, 37, 0, true, 8.02, 0));    // on line 8
+    log2.push_back (on (200, 40, 0, true, 11.6, 0));    // 0.4 line early of line 12 -> M (0x80 + 51) on line 12
+    log2.push_back (on (300, 42, 0, true, 63.7, 0));    // rounds to line 64: past the block's end -> skipped
+    auto r2 = placeCapture (song, log2, 0, 0, 2, 125, 6, offs);
+    std::string got2;
+    for (auto& p : r2.places) got2 += std::to_string (p.line) + ":" + std::to_string (p.track) + ":" + std::to_string (p.micro) + " ";
+    std::printf ("capture (playing): %s skipped %d\n", got2.c_str(), r2.skipped);
+    CHECK (r2.played && r2.places.size() == 2 && r2.skipped == 1);
+    if (r2.places.size() == 2)
+    {
+        CHECK (r2.places[0].line == 8 && r2.places[0].track == 2 && r2.places[0].micro == 0);
+        CHECK (r2.places[1].line == 12 && r2.places[1].micro == 0x80 + 51);
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -2206,6 +2272,7 @@ int main()
     testOnOff();
     testChords();
     testChordTable();
+    testCapture();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

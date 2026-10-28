@@ -140,42 +140,51 @@ void sectionsRemoved (std::vector<SongSection>& s, int at, int count, int newLen
 
 namespace prv
 {
+namespace
+{
+    // the cells where a v0.11 / v0.13 song played a chord: 0xy (not 000) on a note line of an
+    // instrument with CHORD on (following the instrument down each track, along the song)
+    struct ChordHit { int block, line, track, column; uint8_t param; };
+    std::vector<ChordHit> oldChordCells (const Song& song)
+    {
+        std::vector<ChordHit> hits;
+        std::vector<bool> done (song.blocks.size(), false);
+        int carried[kMaxTracks];
+        for (int& c : carried) c = -1;
+        auto visit = [&] (int bi)
+        {
+            const auto& b = song.blocks[(size_t) bi];
+            for (int t = 0; t < kMaxTracks; ++t)
+            {
+                int ins = carried[t];
+                for (int l = 0; l < b.lines; ++l)
+                {
+                    const auto& c = b.at (l, t);
+                    if (c.instr > 0) ins = c.instr - 1;
+                    const bool note = c.note > 0 && c.note <= kNoteMax;
+                    if (! done[(size_t) bi] && note && ins >= 0 && ins < kMaxInstruments && song.instruments[(size_t) ins].chord)
+                    {
+                        if (c.cmd == 0 && c.param != 0) hits.push_back ({ bi, l, t, 1, c.param });
+                        else if (c.cmd2 == 0 && c.param2 != 0) hits.push_back ({ bi, l, t, 2, c.param2 });
+                    }
+                }
+                carried[t] = ins;
+            }
+            done[(size_t) bi] = true;
+        };
+        for (int sq : song.sequence) if (sq >= 0 && sq < (int) song.blocks.size()) visit (sq);
+        for (int bi = 0; bi < (int) song.blocks.size(); ++bi) if (! done[(size_t) bi]) { for (int& c : carried) c = -1; visit (bi); }
+        return hits;
+    }
+}
+
 int convertLegacyChords (Song& song)
 {
-    // which cells are chords: a note line on a CHORD instrument, 0xy in either column
-    struct Hit { int block, line, track, column; uint8_t param; };
-    std::vector<Hit> hits;
-    std::vector<bool> done (song.blocks.size(), false);
-    int carried[kMaxTracks];
-    for (int& c : carried) c = -1;
-    auto visit = [&] (int bi)
-    {
-        const auto& b = song.blocks[(size_t) bi];
-        for (int t = 0; t < kMaxTracks; ++t)
-        {
-            int ins = carried[t];
-            for (int l = 0; l < b.lines; ++l)
-            {
-                const auto& c = b.at (l, t);
-                if (c.instr > 0) ins = c.instr - 1;
-                const bool note = c.note > 0 && c.note <= kNoteMax;
-                if (! done[(size_t) bi] && note && ins >= 0 && ins < kMaxInstruments && song.instruments[(size_t) ins].chord)
-                {
-                    if (c.cmd == 0 && c.param != 0) hits.push_back ({ bi, l, t, 1, c.param });
-                    else if (c.cmd2 == 0 && c.param2 != 0) hits.push_back ({ bi, l, t, 2, c.param2 });
-                }
-            }
-            carried[t] = ins;
-        }
-        done[(size_t) bi] = true;
-    };
-    for (int s : song.sequence) if (s >= 0 && s < (int) song.blocks.size()) visit (s);
-    for (int bi = 0; bi < (int) song.blocks.size(); ++bi) if (! done[(size_t) bi]) { for (int& c : carried) c = -1; visit (bi); }
-
+    const auto hits = oldChordCells (song);
     // a slot for each different 0xy (one already holding the same notes is used again)
     ChordTable table = song.chords;
     int slotFor[256];
-    for (int& s : slotFor) s = -1;
+    for (int& sl : slotFor) sl = -1;
     int added = 0;
     for (const auto& h : hits)
     {
@@ -196,10 +205,24 @@ int convertLegacyChords (Song& song)
     for (const auto& h : hits)
     {
         auto& c = song.blocks[(size_t) h.block].at (h.line, h.track);
-        (h.column == 1 ? c.param : c.param2) = (uint8_t) slotFor[h.param];
+        if (h.column == 1) { c.cmd = kCmdChord; c.param = (uint8_t) slotFor[h.param]; }
+        else               { c.cmd2 = kCmdChord; c.param2 = (uint8_t) slotFor[h.param]; }
     }
     song.chords = table;
     song.chordsLegacy = false;
+    for (auto& in : song.instruments) in.chord = false;
     return added;
+}
+
+int convertChordFlags (Song& song)
+{
+    const auto hits = oldChordCells (song);
+    for (const auto& h : hits)
+    {
+        auto& c = song.blocks[(size_t) h.block].at (h.line, h.track);
+        if (h.column == 1) c.cmd = kCmdChord; else c.cmd2 = kCmdChord;
+    }
+    for (auto& in : song.instruments) in.chord = false;
+    return (int) hits.size();
 }
 } // namespace prv

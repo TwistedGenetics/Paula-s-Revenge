@@ -35,6 +35,17 @@ struct Theme
 
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title);
+
+    // The page colours. Most of the window keeps the light grey chrome in both skins; a page
+    // marked dark (the instrument, MIDI-out and mixer / effect pages) goes dark with light
+    // text in the dark skin. Widgets look theirs up from the page they're on.
+    struct Palette { juce::Colour paper, panel, light, shadow, ink, pressed, faint, hover, edge; };
+    static const Palette& lightPalette();
+    static const Palette& darkPalette();
+    static const Palette& palFor (const juce::Component& c);
+    static void markDarkPage (juce::Component& c) { c.getProperties().set ("prvDarkPage", true); }
+    static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette&);
+    static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette&);
 };
 
 class PixButton : public juce::Button
@@ -43,6 +54,17 @@ public:
     explicit PixButton (const juce::String& buttonText, bool toggle = false);
     void paintButton (juce::Graphics&, bool over, bool down) override;
     float textScale = 1.0f;
+    std::function<void()> onRightClick;   // set: a right-click opens this instead of clicking the button
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (onRightClick && e.mods.isPopupMenu()) { rightDown = true; onRightClick(); return; }
+        rightDown = false;
+        juce::Button::mouseDown (e);
+    }
+    void mouseUp (const juce::MouseEvent& e) override { if (rightDown) { rightDown = false; return; } juce::Button::mouseUp (e); }
+    void mouseDrag (const juce::MouseEvent& e) override { if (! rightDown) juce::Button::mouseDrag (e); }
+private:
+    bool rightDown = false;
 };
 
 // Value box: "LABEL  [-] 123 [+]" with drag-to-change on the number

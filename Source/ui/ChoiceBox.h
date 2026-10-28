@@ -79,4 +79,20 @@ private:
         if (f) f (answer);
     }
 };
+
+// ---- right-click menus: the window shows them as a ChoiceBox (the editor sets the hook)
+struct MenuItem { juce::String name; std::function<void()> action; };
+inline std::function<void (const juce::String&, const juce::StringArray&, std::function<void (int)>)>& menuHook()
+{
+    static std::function<void (const juce::String&, const juce::StringArray&, std::function<void (int)>)> hook;
+    return hook;
+}
+inline void showMenu (const juce::String& title, std::vector<MenuItem> items)
+{
+    if (! menuHook() || items.empty()) return;
+    juce::StringArray names;
+    for (auto& i : items) names.add (i.name);
+    auto shared = std::make_shared<std::vector<MenuItem>> (std::move (items));
+    menuHook() (title, names, [shared] (int a) { if (a >= 0 && a < (int) shared->size() && (*shared)[(size_t) a].action) (*shared)[(size_t) a].action(); });
+}
 } // namespace prv::ui

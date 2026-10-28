@@ -33,38 +33,64 @@ void Theme::setSkin (bool dark)
     skin = k;
 }
 
-void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t)
+void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t) { bevel (g, r, raised, t, lightPalette()); }
+void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title) { panelBox (g, r, title, lightPalette()); }
+
+const Theme::Palette& Theme::lightPalette()
 {
-    const auto tl = raised ? light : shadow;
-    const auto br = raised ? shadow : light;
+    static const Palette p { paper, panel, light, shadow, ink, pressed, faint, juce::Colour (0xfff4f4f4), ink };
+    return p;
+}
+
+const Theme::Palette& Theme::darkPalette()
+{
+    // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
+    static const Palette p { juce::Colour (0xff0b0f17), juce::Colour (0xff161c28), juce::Colour (0xff3c465c), juce::Colour (0xff020304),
+                             juce::Colour (0xfff4ecd6), juce::Colour (0xff33415e), juce::Colour (0xff7d8597), juce::Colour (0xff222a3a),
+                             juce::Colour (0xff6a7590) };
+    return p;
+}
+
+const Theme::Palette& Theme::palFor (const juce::Component& c)
+{
+    if (! skin.dark) return lightPalette();
+    for (auto* p = &c; p != nullptr; p = p->getParentComponent())
+        if (p->getProperties().contains ("prvDarkPage")) return darkPalette();
+    return lightPalette();
+}
+
+void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette& P)
+{
+    const auto tl = raised ? P.light : P.shadow;
+    const auto br = raised ? P.shadow : P.light;
     g.setColour (tl);
     g.fillRect (r.getX(), r.getY(), r.getWidth(), t);
     g.fillRect (r.getX(), r.getY(), t, r.getHeight());
     g.setColour (br);
     g.fillRect (r.getX(), r.getBottom() - t, r.getWidth(), t);
     g.fillRect (r.getRight() - t, r.getY(), t, r.getHeight());
-    g.setColour (ink);
+    g.setColour (P.edge);
     g.drawRect (r.expanded (1.0f), 1.0f);
 }
 
-void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title)
+void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
 {
-    g.setColour (panel);
+    g.setColour (P.panel);
     g.fillRect (r);
-    bevel (g, r, true, std::max (1.0f, px * 0.5f));
+    bevel (g, r, true, std::max (1.0f, px * 0.5f), P);
     if (title.isNotEmpty())
     {
         const float h = PixelFont::textHeight (px) + px * 2;
         auto bar = r.removeFromTop (h).reduced (px, px * 0.5f);
         // title strip: thin horizontal rules either side of the title (Amiga-era feel, drawn fresh)
         const float tw = PixelFont::textWidth (title, px) + px * 2;
-        g.setColour (ink);
+        g.setColour (P.ink);
         for (float yy = bar.getY() + px; yy < bar.getBottom() - px * 0.5f; yy += px * 2)
         {
             g.fillRect (bar.getX(), yy, bar.getWidth() * 0.5f - tw * 0.5f - px, std::max (1.0f, px * 0.5f));
             g.fillRect (bar.getCentreX() + tw * 0.5f + px, yy, bar.getWidth() * 0.5f - tw * 0.5f - px, std::max (1.0f, px * 0.5f));
         }
-        PixelFont::drawCentred (g, title, bar, px, ink);
+        PixelFont::drawCentred (g, title, bar, px, P.ink);
     }
 }
 
@@ -80,14 +106,15 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
 {
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const bool on = getToggleState() || down;
-    g.setColour (on ? Theme::pressed : (over ? juce::Colour (0xfff4f4f4) : Theme::panel));
+    const auto& P = Theme::palFor (*this);
+    g.setColour (on ? P.pressed : (over ? P.hover : P.panel));
     g.fillRect (r);
-    Theme::bevel (g, r, ! on, std::max (1.0f, Theme::px * 0.5f));
+    Theme::bevel (g, r, ! on, std::max (1.0f, Theme::px * 0.5f), P);
     const float px = Theme::px * textScale;
     auto label = getButtonText();
     float usePx = px;
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) > r.getWidth() - 4) usePx -= 0.5f;
-    PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? Theme::ink : Theme::faint);
+    PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? P.ink : P.faint);
 }
 
 // ---------------------------------------------------------------------------
@@ -132,11 +159,12 @@ void NumberBox::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
-    PixelFont::drawLeft (g, label, r.withWidth (px * PixelFont::kCellW * labelChars), px, Theme::ink);
-    g.setColour (Theme::paper);
+    const auto& P = Theme::palFor (*this);
+    PixelFont::drawLeft (g, label, r.withWidth (px * PixelFont::kCellW * labelChars), px, P.ink);
+    g.setColour (P.paper);
     g.fillRect (valueArea);
-    Theme::bevel (g, valueArea, false, std::max (1.0f, px * 0.5f));
-    PixelFont::drawCentred (g, format (value), valueArea, px, Theme::ink);
+    Theme::bevel (g, valueArea, false, std::max (1.0f, px * 0.5f), P);
+    PixelFont::drawCentred (g, format (value), valueArea, px, P.ink);
 }
 
 void NumberBox::mouseDown (const juce::MouseEvent& e) { dragStart = value; juce::ignoreUnused (e); }
@@ -204,15 +232,16 @@ void PixSlider::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
-    PixelFont::drawLeft (g, label, r, px, Theme::ink);
+    const auto& P = Theme::palFor (*this);
+    PixelFont::drawLeft (g, label, r, px, P.ink);
     auto t = trough();
-    g.setColour (Theme::paper);
+    g.setColour (P.paper);
     g.fillRect (t);
-    Theme::bevel (g, t, false, std::max (1.0f, px * 0.5f));
+    Theme::bevel (g, t, false, std::max (1.0f, px * 0.5f), P);
     auto fill = t.reduced (px).withWidth ((t.getWidth() - px * 2) * value);
-    g.setColour (Theme::ink);
+    g.setColour (P.ink);
     g.fillRect (fill);
-    PixelFont::drawLeft (g, format (value), r.withLeft (t.getRight() + px * 2), px, Theme::ink);
+    PixelFont::drawLeft (g, format (value), r.withLeft (t.getRight() + px * 2), px, P.ink);
 }
 
 void PixSlider::setFromX (float x)
@@ -257,7 +286,8 @@ void PixLabel::paint (juce::Graphics& g)
 {
     float px = Theme::px * textScale;
     while (px > 1.5f && PixelFont::textWidth (text, px) > (float) getWidth()) px -= 0.5f;
-    if (centre) PixelFont::drawCentred (g, text, getLocalBounds().toFloat(), px, colour);
-    else        PixelFont::drawLeft (g, text, getLocalBounds().toFloat(), px, colour);
+    const auto c = colour == Theme::ink ? Theme::palFor (*this).ink : colour;   // (the page's text colour)
+    if (centre) PixelFont::drawCentred (g, text, getLocalBounds().toFloat(), px, c);
+    else        PixelFont::drawLeft (g, text, getLocalBounds().toFloat(), px, c);
 }
 } // namespace prv::ui

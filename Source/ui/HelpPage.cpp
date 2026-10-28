@@ -1,5 +1,6 @@
 // Paula's Revenge - HELP: the README, built into the app
 #include "HelpPage.h"
+#include "ChoiceBox.h"
 #include <BinaryData.h>
 
 namespace prv::ui
@@ -103,17 +104,27 @@ HelpPage::HelpPage()
     for (int i = 0; i < (int) blocks.size(); ++i)
         if (blocks[(size_t) i].kind == HelpBlock::Kind::Chapter) chapters.push_back ({ blocks[(size_t) i].text, i, 0 });
 
-    list.getNumRows = [this] { return (int) chapters.size(); };
-    list.getRowText = [this] (int r)
+    for (int i = 0; i < (int) chapters.size(); ++i) listChapters.push_back (i);
+    list.getNumRows = [this] { return (int) listChapters.size(); };
+    list.getRowText = [this] (int lr)
     {
         // short enough to read whole: no (brackets), then whole words off the end
+        const int r = listChapters[(size_t) lr];
         juce::String n = chapters[(size_t) r].name;
         if (n.containsChar ('(')) n = n.upToFirstOccurrenceOf ("(", false, false).trim();
         const int room = std::max (8, (int) ((list.getWidth() - Theme::px * 16) / (Theme::px * PixelFont::kCellW)) - 3);
         while (n.length() > room && n.containsChar (' ')) n = n.upToLastOccurrenceOf (" ", false, false).trim();
         return juce::String (r).paddedLeft ('0', 2) + " " + n;
     };
-    list.onClick = [this] (int r, const juce::MouseEvent&) { showChapter (r); grabKeyboardFocus(); };
+    list.onClick = [this] (int lr, const juce::MouseEvent&)
+    {
+        const int r = listChapters[(size_t) lr];
+        // searching: the chapter's first match, else its start
+        for (int m = 0; m < (int) matchRows.size(); ++m)
+            if (rows[(size_t) matchRows[(size_t) m]].chapter == r) { matchIndex = m; scrollTo (matchRows[(size_t) m] - 3); searchStatus(); grabKeyboardFocus(); return; }
+        showChapter (r);
+        grabKeyboardFocus();
+    };
     addAndMakeVisible (list);
     pdfBtn.onClick = [this] { openPdf(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
@@ -223,7 +234,8 @@ void HelpPage::layout()
 void HelpPage::scrollTo (int row)
 {
     top = juce::jlimit (0, std::max (0, (int) rows.size() - visibleRows()), row);
-    list.selected = currentChapter();
+    list.selected = 0;
+    for (int i = 0; i < (int) listChapters.size(); ++i) if (listChapters[(size_t) i] <= currentChapter()) list.selected = i;
     list.ensureVisible (list.selected);
     list.repaint();
     repaint();
@@ -252,6 +264,75 @@ juce::File HelpPage::openPdf()
     return f;
 }
 
+juce::String HelpPage::copyText (int chapter)
+{
+    juce::StringArray out;
+    for (int i = 0; i < (int) rows.size(); ++i)
+    {
+        const auto& r = rows[(size_t) i];
+        if (chapter >= 0 && r.chapter != chapter) continue;
+        if (r.x < 0 && i + 1 < (int) rows.size()) { out.add (r.text + "  " + rows[(size_t) i + 1].text); ++i; continue; }
+        out.add (juce::String::repeatedString (" ", std::max (0, r.x)) + r.text);
+    }
+    const auto text = out.joinIntoString ("\n").replaceCharacter ('\x05', '*').replaceCharacter ('\x07', 'b').trim();
+    juce::SystemClipboard::copyTextToClipboard (text);
+    if (onStatus) onStatus (chapter >= 0 ? "CHAPTER COPIED - PASTE IT ANYWHERE" : "THE WHOLE MANUAL COPIED - PASTE IT ANYWHERE");
+    return text;
+}
+
+void HelpPage::findMatches()
+{
+    matchRows.clear();
+    listChapters.clear();
+    if (query.length() >= 2)
+    {
+        for (int i = 0; i < (int) rows.size(); ++i)
+            if (rows[(size_t) i].text.containsIgnoreCase (query))
+            {
+                matchRows.push_back (i);
+                const int c = rows[(size_t) i].chapter;
+                if (c >= 0 && (listChapters.empty() || listChapters.back() != c)) listChapters.push_back (c);
+            }
+    }
+    else for (int i = 0; i < (int) chapters.size(); ++i) listChapters.push_back (i);
+    list.repaint();
+}
+
+void HelpPage::setSearch (const juce::String& q)
+{
+    query = q.toUpperCase();
+    layout();
+    findMatches();
+    matchIndex = -1;
+    if (! matchRows.empty())
+    {
+        // the first match from where the page is
+        matchIndex = 0;
+        for (int m = 0; m < (int) matchRows.size(); ++m) if (matchRows[(size_t) m] >= top) { matchIndex = m; break; }
+        scrollTo (matchRows[(size_t) matchIndex] - 3);
+    }
+    else scrollTo (top);
+    searchStatus();
+    repaint();
+}
+
+void HelpPage::nextMatch (int dir)
+{
+    if (matchRows.empty()) return;
+    const int n = (int) matchRows.size();
+    matchIndex = ((matchIndex < 0 ? 0 : matchIndex + dir) % n + n) % n;
+    scrollTo (matchRows[(size_t) matchIndex] - 3);
+    searchStatus();
+}
+
+void HelpPage::searchStatus()
+{
+    if (! onStatus) return;
+    if (query.length() < 2) onStatus (query.isEmpty() ? juce::String ("HELP: TYPE TO SEARCH THE MANUAL") : juce::String ("KEEP TYPING..."));
+    else if (matchRows.empty()) onStatus ("NOT FOUND: " + query);
+    else onStatus (juce::String (matchIndex + 1) + " OF " + juce::String ((int) matchRows.size()) + " - ENTER: NEXT, SHIFT+ENTER: BACK, ESC: CLEAR");
+}
+
 void HelpPage::resized()
 {
     const float px = Theme::px;
@@ -260,7 +341,10 @@ void HelpPage::resized()
     auto r = getLocalBounds().reduced (gap);
     auto head = r.removeFromTop (rowHt);
     closeBtn.setBounds (head.removeFromRight (charsW (5))); head.removeFromRight (gap);
-    pdfBtn.setBounds (head.removeFromRight (charsW (15)));
+    pdfBtn.setBounds (head.removeFromRight (charsW (15))); head.removeFromRight (gap * 3);
+    // the search box: after the title when there's room, else the whole of the rest
+    const int titleW = charsW (22) + gap * 2;
+    searchArea = head.getWidth() - titleW >= charsW (24) ? head.withTrimmedLeft (titleW) : head;
     r.removeFromTop (gap);
     list.setBounds (r.removeFromLeft (std::min (charsW (30), r.getWidth() * 2 / 5)));
     r.removeFromLeft (gap * 2);
@@ -276,7 +360,19 @@ void HelpPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     g.fillAll (Theme::panel);
-    PixelFont::drawLeft (g, "HELP - PAULA'S REVENGE", getLocalBounds().reduced ((int) std::max (2.0f, px * 1.5f)).removeFromTop ((int) (px * 11)).toFloat(), px, Theme::ink);
+    const auto headRow = getLocalBounds().reduced ((int) std::max (2.0f, px * 1.5f)).removeFromTop ((int) (px * 11)).toFloat();
+    if (searchArea.getX() > (int) headRow.getX() + 2) PixelFont::drawLeft (g, "HELP - PAULA'S REVENGE", headRow, px, Theme::ink);
+    {
+        // the search box
+        g.setColour (Theme::paper);
+        g.fillRect (searchArea);
+        Theme::bevel (g, searchArea.toFloat(), false, std::max (1.0f, px * 0.5f));
+        juce::String t = query.isEmpty() ? juce::String ("TYPE TO SEARCH")
+                                         : "SEARCH: " + query + "_" + (query.length() >= 2 ? "  " + (matchRows.empty() ? juce::String ("NONE") : juce::String (matchIndex + 1) + "/" + juce::String ((int) matchRows.size())) : juce::String());
+        const int fit = (int) ((searchArea.getWidth() - px * 6) / (px * PixelFont::kCellW));
+        if (t.length() > fit) t = t.substring (0, std::max (0, fit));
+        PixelFont::drawLeft (g, t, searchArea.toFloat().reduced (px * 3, 0), px, query.isEmpty() ? Theme::faint : Theme::ink);
+    }
 
     // the text: black on white, like a page
     g.setColour (Theme::paper);
@@ -292,6 +388,32 @@ void HelpPage::paint (juce::Graphics& g)
     {
         const auto& row = rows[(size_t) i];
         const auto line = juce::Rectangle<float> (x0, y, (float) textArea.getWidth() - px * 8, rh);
+        // search matches: the words themselves where the row's text starts at a known place, else the line
+        if (query.length() >= 2)
+        {
+            auto mark = [&] (const Row& rr, int rowIndex, float startX)
+            {
+                if (! rr.text.containsIgnoreCase (query)) return;
+                const bool current = rowIndex == currentMatchRow();
+                g.setColour (current ? juce::Colour (0xffffb000) : juce::Colour (0xffffe58a));
+                int from = 0;
+                for (int at = rr.text.indexOfIgnoreCase (query); at >= 0; at = rr.text.indexOfIgnoreCase (from, query))
+                {
+                    g.fillRect (juce::Rectangle<float> (startX + cw * (float) at - px * 0.5f, line.getY(), cw * (float) query.length() + px, rh));
+                    from = at + query.length();
+                }
+            };
+            if (row.kind == HelpBlock::Kind::Chapter)
+            {
+                if (row.text.containsIgnoreCase (query)) { g.setColour (i == currentMatchRow() ? juce::Colour (0xffffb000) : juce::Colour (0xffffe58a)); g.fillRect (line); }
+            }
+            else if (row.x < 0)
+            {
+                mark (row, i, line.getX());
+                if (i + 1 < (int) rows.size()) mark (rows[(size_t) i + 1], i + 1, line.getX() + cw * (float) rows[(size_t) i + 1].x);
+            }
+            else mark (row, i, line.getX() + cw * (float) row.x);
+        }
         switch (row.kind)
         {
             case HelpBlock::Kind::Chapter:
@@ -358,7 +480,22 @@ void HelpPage::paint (juce::Graphics& g)
 bool HelpPage::keyPressed (const juce::KeyPress& k)
 {
     const int code = k.getKeyCode();
-    if (code == juce::KeyPress::escapeKey) { if (onClose) onClose(); return true; }
+    const auto mods = k.getModifiers();
+    if (code == juce::KeyPress::escapeKey)
+    {
+        if (query.isNotEmpty()) setSearch ({});
+        else if (onClose) onClose();
+        return true;
+    }
+    if (code == juce::KeyPress::returnKey) { nextMatch (mods.isShiftDown() ? -1 : 1); return true; }
+    if (mods.isCommandDown() && (code == 'G' || code == 'g')) { nextMatch (mods.isShiftDown() ? -1 : 1); return true; }
+    if (code == juce::KeyPress::backspaceKey) { if (query.isNotEmpty()) setSearch (query.dropLastCharacters (1)); return true; }
+    {
+        const auto ch = juce::CharacterFunctions::toUpperCase (k.getTextCharacter());
+        const bool typed = ! mods.isCommandDown() && ! mods.isCtrlDown()
+                        && ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || juce::String ("#+-./:'%&()").containsChar (ch) || (ch == ' ' && query.isNotEmpty()));
+        if (typed) { setSearch (query + juce::String::charToString (ch)); return true; }
+    }
     if (code == juce::KeyPress::upKey)       { scrollTo (top - 1); return true; }
     if (code == juce::KeyPress::downKey)     { scrollTo (top + 1); return true; }
     if (code == juce::KeyPress::pageUpKey)   { scrollTo (top - visibleRows() + 1); return true; }
@@ -379,6 +516,16 @@ void HelpPage::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDe
 void HelpPage::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    if (e.mods.isPopupMenu() && textArea.contains (e.getPosition()))
+    {
+        // right-click on the text: copy it (to paste into notes, a message...)
+        juce::Component::SafePointer<HelpPage> safe (this);
+        showMenu ("HELP", {
+            { "COPY THIS CHAPTER", [safe] { if (safe != nullptr) safe->copyText (safe->currentChapter()); } },
+            { "COPY ALL OF IT", [safe] { if (safe != nullptr) safe->copyText (-1); } },
+        });
+        return;
+    }
     dragFrom = -1;
     if (scrollBar.contains (e.getPosition()))
     {

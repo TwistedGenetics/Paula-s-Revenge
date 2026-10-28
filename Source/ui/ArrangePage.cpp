@@ -1,6 +1,7 @@
 // Paula's Revenge - full-size song arrangement page
 #include "ArrangePage.h"
 #include "Panels.h"
+#include "ChoiceBox.h"
 #include "../engine/SongOps.h"
 
 namespace prv::ui
@@ -233,6 +234,25 @@ void ArrangePage::paint (juce::Graphics& g)
 }
 
 // ------------------------------------------------------------------ mouse & keys
+void ArrangePage::showPositionMenu (int row)
+{
+    if (row < 0 || row >= (int) proc.song.sequence.size()) return;
+    // right-click: the usual edits on the highlighted positions (or this one)
+    if (row < selStart() || row > selEnd()) { ops.select (row, row); changed ({}); }
+    juce::Component::SafePointer<ArrangePage> safe (this);
+    auto act = [safe] (void (ArrangePage::*fn)()) { return [safe, fn] { if (safe != nullptr) (safe.getComponent()->*fn)(); }; };
+    const int blk = proc.song.sequence[(size_t) row];
+    showMenu ("SONG POSITION " + juce::String (row).paddedLeft ('0', 3), {
+        { "COPY",                  act (&ArrangePage::copySelection) },
+        { "CUT",                   act (&ArrangePage::cutSelection) },
+        { "PASTE",                 act (&ArrangePage::paste) },
+        { "REPEAT (DUPLICATE)",    act (&ArrangePage::repeatSelection) },
+        { "DELETE",                act (&ArrangePage::deleteSelection) },
+        { "INSERT BLOCK " + juce::String (blk).paddedLeft ('0', 3) + " AGAIN", [safe, blk] { if (safe != nullptr) safe->insertBlock (blk); } },
+        { "SECTION LABEL...",      [safe, row] { if (safe != nullptr) editSectionDialog (safe->proc, row, [safe] (const juce::String& m) { if (safe != nullptr) safe->changed (m); }); } },
+    });
+}
+
 void ArrangePage::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
@@ -240,6 +260,7 @@ void ArrangePage::mouseDown (const juce::MouseEvent& e)
     const int row = rowAt (e.position.y);
     const int n = (int) proc.song.sequence.size();
     if (row < 0 || row >= n) return;
+    if (e.mods.isPopupMenu()) { showPositionMenu (row); return; }
     if (e.position.x >= tagX())
     {
         // the label zone at the right: add / rename / remove a section here

@@ -46,6 +46,7 @@ public:
     void toggleHelp();                                // HELP (F1, Cmd+/)
     bool bounceSelection (bool withFx);               // the highlighted area to a new instrument
     void askBounce();                                 // DRY or WITH FX?
+    int  captureNow();                                // CAPTURE (Cmd+R): what was played into the pattern; notes written
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
@@ -85,6 +86,7 @@ private:
     PixButton playBlockBtn { juce::String::charToString ((juce::juce_wchar) 1) + " BLOCK" };
     PixButton stopBtn { juce::String::charToString ((juce::juce_wchar) 2) + " STOP" };
     PixButton editBtn { juce::String::charToString ((juce::juce_wchar) 5) + " EDIT", true };
+    PixButton captureBtn { "CAPTURE" };
     PixButton followBtn { "FOLLOW", true };
     PixButton loopBtn { "LOOP", true };
     PixButton panelsBtn { "PANELS", true };

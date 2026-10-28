@@ -7,6 +7,7 @@ namespace { const char* kKnobLetters[kInstrumentKnobs] = { "L", "Q", "H", "W" };
 
 SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
 {
+    Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
 
@@ -65,18 +66,11 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
     onBtn.onClick = [this] { toggleOn(); };
     chordsBtn.onClick = [this] { if (onChords) onChords(); };
     addChildComponent (chordsBtn);
-    chordBtn.onClick = [this]
-    {
-        const bool on = chordBtn.getToggleState();
-        proc.history.instrument (proc.editorState.instrument, on ? "CHORD ON" : "CHORD OFF");
-        proc.withLock ([&] { inst().chord = on; });
-        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS CHORD SLOT XY, HELD (RIGHT-CLICK IT IN THE PATTERN FOR THE LIST)" : "CHORD OFF: 0XY IS AN ARPEGGIO");
-    };
     learnA.onClick = [this] { learnTrackKnob (0); };
     learnB.onClick = [this] { learnTrackKnob (1); };
 
     for (auto* c : std::initializer_list<juce::Component*> { &list, &rescanBtn, &cancelBtn, &windowBtn, &changeBtn, &sampleBtn, &closeBtn,
-                                                             &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn })
+                                                             &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn })
         addChildComponent (c);
     for (int k = 0; k < kInstrumentKnobs; ++k) { addChildComponent (learnK[k]); addChildComponent (clearK[k]); }
 }
@@ -188,7 +182,7 @@ void SynthPage::refresh()
     list.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
-    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn, &chordsBtn })
+    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordsBtn })
         c->setVisible (plug);
     for (int k = 0; k < kInstrumentKnobs; ++k) { learnK[k].setVisible (plug); clearK[k].setVisible (plug); }
     closeBtn.setVisible (true);
@@ -199,7 +193,6 @@ void SynthPage::refresh()
         const bool on = proc.player.instrumentIsOn (proc.editorState.instrument);
         onBtn.setToggleState (on, juce::dontSendNotification);
         onBtn.setButtonText (on ? "ON" : "OFF");
-        chordBtn.setToggleState (inst().chord, juce::dontSendNotification);
         const bool loaded = proc.pluginLoadedInstrument (proc.editorState.instrument);
         windowBtn.setEnabled (loaded);
         for (auto& b : learnK) b.setEnabled (loaded);
@@ -307,6 +300,7 @@ bool SynthPage::keyPressed (const juce::KeyPress& k)
     {
         heldKeys[k.getKeyCode()] = note;
         proc.withLock ([&] { proc.player.jamNoteOn (note, proc.editorState.instrument); });
+        proc.keyNoteInput (note, true);   // (CAPTURE hears it)
     }
     return true;
 }
@@ -319,6 +313,7 @@ bool SynthPage::keyStateChanged (bool)
         {
             const int n = it->second;
             proc.withLock ([&] { proc.player.jamNoteOff (n); });
+            proc.keyNoteInput (n, false);   // (CAPTURE hears it)
             it = heldKeys.erase (it);
         }
         else ++it;
@@ -329,18 +324,18 @@ bool SynthPage::keyStateChanged (bool)
 void SynthPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
-    g.fillAll (Theme::panel);
+    g.fillAll (Theme::palFor (*this).panel);
     const int i = proc.editorState.instrument;
     const juce::String title = "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2)
                              + (browsing ? juce::String (": PICK A VST3 / AU INSTRUMENT") : juce::String (": PLUG-IN INSTRUMENT"));
-    PixelFont::drawLeft (g, title, titleArea, px, Theme::ink);
+    PixelFont::drawLeft (g, title, titleArea, px, Theme::palFor (*this).ink);
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
 
     if (browsing)
     {
         const auto s = proc.pluginHost.scanStatus();
         const juce::String t = proc.pluginHost.isScanning() ? s : juce::String ((int) choices.size()) + " INSTRUMENTS - DOUBLE-CLICK ONE TO LOAD IT";
-        PixelFont::drawLeft (g, fit (t, infoArea.getWidth()), infoArea, px, Theme::ink);
+        PixelFont::drawLeft (g, fit (t, infoArea.getWidth()), infoArea, px, Theme::palFor (*this).ink);
         return;
     }
     const auto& in = inst();
@@ -353,13 +348,13 @@ void SynthPage::paint (juce::Graphics& g)
                loaded ? "PLAYS INTO TRACK " + juce::String (proc.player.synthOutputTrack (i) + 1) + "'S MIXER STRIP" + (in.pluginOutput < 0 ? " (AUTO)" : "")
                       : "MISSING: " + proc.pluginHost.lastError (in.pluginKey) + " - SILENT, SETTINGS KEPT");
     auto r = infoArea;
-    for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::ink); }
+    for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::palFor (*this).ink); }
 
     for (int k = 0; k < kInstrumentKnobs; ++k)
     {
         const auto& t = in.knobs[k];
         const juce::String txt = juce::String ("KNOB ") + kKnobLetters[k] + "XX: " + (t.param >= 0 ? juce::String (t.name) : juce::String ("NOT SET"));
-        PixelFont::drawLeft (g, fit (txt, knobArea[k].getWidth()), knobArea[k], px, t.param >= 0 ? Theme::ink : Theme::faint);
+        PixelFont::drawLeft (g, fit (txt, knobArea[k].getWidth()), knobArea[k], px, t.param >= 0 ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
     }
     const int tr = trackBox.getValue() - 1;
     juce::String ta = "TRACK " + juce::String (tr + 1) + ":  A = ";
@@ -367,7 +362,7 @@ void SynthPage::paint (juce::Graphics& g)
     const auto& b = proc.song.mixer.trackAuto[tr][1];
     const int room = ((int) (trackArea.getWidth() / (px * PixelFont::kCellW)) - 21) / 2;
     ta += (a.valid() ? shortTargetName (a.name, room) : juce::String ("-")) + "   B = " + (b.valid() ? shortTargetName (b.name, room) : juce::String ("-"));
-    PixelFont::drawLeft (g, fit (ta, trackArea.getWidth()), trackArea, px, Theme::ink);
+    PixelFont::drawLeft (g, fit (ta, trackArea.getWidth()), trackArea, px, Theme::palFor (*this).ink);
 }
 
 void SynthPage::resized()
@@ -411,7 +406,6 @@ void SynthPage::resized()
         auto row = r.removeFromTop (rowH);
         outBox.setBounds (row.removeFromLeft (std::min (row.getWidth() / 2, outBox.preferredWidth (px) + charsW (2)))); row.removeFromLeft (gap * 3);
         onBtn.setBounds (row.removeFromRight (charsW (4))); row.removeFromRight (gap);
-        chordBtn.setBounds (row.removeFromRight (charsW (5))); row.removeFromRight (gap * 3);
         bendBox.setBounds (row.removeFromLeft (std::min (row.getWidth(), bendBox.preferredWidth (px))));
     }
     r.removeFromTop (gap * 3);

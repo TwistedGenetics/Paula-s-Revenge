@@ -125,6 +125,10 @@ private:
 public:
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> onDouble, onHalve;
+    std::function<void (bool cut)> onCopyBlock;   // right-click menu (the pattern's block clipboard)
+    std::function<void()> onPasteBlock;
+    void mouseDown (const juce::MouseEvent&) override;   // right-click: the block's menu
+    void showBlockMenu();
 };
 
 class WaveView : public juce::Component
@@ -165,6 +169,9 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
 
     template <typename Fn> void editInstrument (const juce::String& what, Fn&& fn);
+public:
+    void showInstrumentMenu (int row);   // right-click: COPY, PASTE, DUPLICATE, CLEAR, RENAME, LOAD, PLAY
+private:
 };
 
 } // namespace prv::ui

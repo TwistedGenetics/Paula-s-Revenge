@@ -47,6 +47,17 @@ public:
     juce::String rowText (int i) const { return i >= 0 && i < (int) rows.size() ? rows[(size_t) i].text : juce::String(); }
     juce::File openPdf();               // OPEN PDF MANUAL: the built-in PDF, written out and opened
 
+    // SEARCH: typing searches the manual (2 characters or more); Enter / Cmd+G the next match,
+    // Shift+Enter the one before; Esc clears it (Esc again closes HELP)
+    void setSearch (const juce::String&);
+    juce::String search() const { return query; }
+    int  matchCount() const { return (int) matchRows.size(); }
+    int  currentMatch() const { return matchIndex; }   // -1 = none
+    int  currentMatchRow() const { return matchIndex >= 0 ? matchRows[(size_t) matchIndex] : -1; }
+    void nextMatch (int dir);
+    int  listedChapters() const { return (int) listChapters.size(); }   // (chapters with a match while searching)
+    juce::String copyText (int chapter);   // right-click: a chapter (-1 = all) to the clipboard
+
 private:
     std::vector<HelpBlock> blocks;
     struct Chapter { juce::String name; int block = 0; int row = 0; };
@@ -60,6 +71,12 @@ private:
     juce::Rectangle<int> textArea, scrollBar;
     float dragFrom = -1; int dragTop = 0;
     WheelSteps wheel;
+    juce::String query;
+    std::vector<int> matchRows, listChapters;
+    int matchIndex = -1;
+    juce::Rectangle<int> searchArea;
+    void findMatches();
+    void searchStatus();
 
     void layout();
     int  visibleRows() const;
