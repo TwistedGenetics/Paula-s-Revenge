@@ -123,24 +123,22 @@ void Player::synthRelease (Voice& v)
     if (v.synthNote < 0) return;
     if (auto* s = rack.at (v.synthInstr))
     {
-        s->noteOff (v.synthNote, chunkPos);
+        if (v.synthRootOn) s->noteOff (v.synthNote, chunkPos);
         for (int& c : v.synthChord) if (c >= 0) s->noteOff (c, chunkPos);
     }
     v.synthNote = -1;
-    v.synthChord[0] = v.synthChord[1] = -1;
+    v.synthRootOn = true;
+    for (int& c : v.synthChord) c = -1;
 }
 
 namespace
 {
-    // 0xy on a line: the chord's two extra notes (x and y semitones up)
-    bool chordOf (const Cell& c, int& x, int& y)
+    // 0xy on a line: the chord slot it plays (0 = none)
+    int chordOf (const Cell& c)
     {
-        uint8_t p = 0;
-        if (c.cmd == 0 && c.param != 0) p = c.param;
-        else if (c.cmd2 == 0 && c.param2 != 0) p = c.param2;
-        if (p == 0) return false;
-        x = p >> 4; y = p & 15;
-        return true;
+        if (c.cmd == 0 && c.param != 0) return c.param;
+        if (c.cmd2 == 0 && c.param2 != 0) return c.param2;
+        return 0;
     }
 }
 
@@ -167,20 +165,40 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     if (v.lastBend != 8192) { s->pitchBend (8192, chunkPos); v.lastBend = 8192; }
     v.synthNote = midiNoteFor (v.note);
     v.synthInstr = v.instr;
-    s->noteOn (v.synthNote, v.synthVel, chunkPos);
-    // CHORD: 0xy plays the note with x and y semitones above it, held
-    int x = 0, y = 0;
-    if (in.chord && chordOf (chordSource != nullptr ? *chordSource : cell, x, y))
+    // CHORD: 0xy plays chord slot xy from the song's own table, held (the played note is its root)
+    const int slot = in.chord ? chordOf (chordSource != nullptr ? *chordSource : cell) : 0;
+    v.synthRootOn = true;
+    if (slot != 0)
     {
         int k = 0;
-        for (int iv : { x, y })
-            if (iv > 0 && v.synthNote + iv <= 127 && k < 2)
+        auto add = [&] (int n)
+        {
+            if (n == v.synthNote) return;    // (the root itself: synthNote)
+            if (n < 0 || n > 127 || k >= kMaxChordNotes) return;
+            for (int j = 0; j < k; ++j) if (v.synthChord[j] == n) return;
+            v.synthChord[k++] = n;
+        };
+        if (song->chordsLegacy)
+        {
+            // a v0.11 song: x and y semitones up, with the note
+            add (v.synthNote + (slot >> 4)); add (v.synthNote + (slot & 15));
+        }
+        else
+        {
+            const ChordDef& d = song->chords[(size_t) slot];
+            bool root = d.empty();
+            for (int i = 0; i < d.count; ++i)
             {
-                v.synthChord[k] = v.synthNote + iv;
-                s->noteOn (v.synthChord[k++], v.synthVel, chunkPos);
+                if (d.notes[(size_t) i] == 0) root = true;
+                add (v.synthNote + d.notes[(size_t) i]);
             }
+            v.synthRootOn = root;
+        }
         v.chordLine = true;
     }
+    if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
+    for (int j = 0; j < kMaxChordNotes; ++j)
+        if (v.synthChord[j] >= 0) s->noteOn (v.synthChord[j], v.synthVel, chunkPos);
     if (ch < kMaxTracks) synthTrack[v.instr] = std::min (synthTrack[v.instr], ch);
     synthBend (v);
 }
@@ -191,9 +209,9 @@ void Player::synthRetrigger (Voice& v, int velocityChange)
     auto* s = rack.at (v.synthInstr);
     if (s == nullptr) return;
     v.synthVel = std::clamp (v.synthVel + velocityChange, 1, 127);
-    s->noteOff (v.synthNote, chunkPos);
+    if (v.synthRootOn) s->noteOff (v.synthNote, chunkPos);
     for (int c : v.synthChord) if (c >= 0) s->noteOff (c, chunkPos);
-    s->noteOn (v.synthNote, v.synthVel, chunkPos);
+    if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int c : v.synthChord) if (c >= 0) s->noteOn (c, v.synthVel, chunkPos);
 }
 

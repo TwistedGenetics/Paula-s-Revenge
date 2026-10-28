@@ -15,7 +15,7 @@ public:
     explicit SynthPage (PaulaProcessor&);
     ~SynthPage() override;
 
-    std::function<void()> onClose, onChanged;
+    std::function<void()> onClose, onChanged, onChords;   // onChords: CHORDS... (the chord table page)
     std::function<void (const juce::String&)> onStatus;
 
     void opened (bool browse);      // browse = show the list of instrument plug-ins
@@ -52,6 +52,7 @@ private:
     PixButton clearK[kInstrumentKnobs] { PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR") };
     PixButton learnA { "LEARN AUTO A (V)" }, learnB { "LEARN AUTO B (J)" };
     PixButton onBtn { "ON", true };   // the instrument switched on / off
+    PixButton chordsBtn { "CHORDS..." };
     PixButton chordBtn { "CHORD", true };   // 0xy plays a held chord
     ParamLearner learner;           // what: 0..3 instrument knobs, 10 + k track knobs
     std::map<int, int> heldKeys;

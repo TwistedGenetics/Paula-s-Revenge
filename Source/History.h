@@ -54,8 +54,9 @@ private:
         int numTracks = 8, tempo = 125, speed = 6;
         bool led = false;
         int trackPan[prv::kMaxTracks] {};
+        prv::ChordTable chords; bool chordsLegacy = false;   // (the song's chord table)
     };
-    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; std::vector<prv::SongSection> sections; };
+    struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; std::vector<prv::SongSection> sections; prv::ChordTable chords; bool chordsLegacy = false; };
     struct Entry
     {
         Kind kind = Kind::Block;

@@ -8,10 +8,10 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 11;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 12;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
-                                  // v11: CHORD, MIDI out, sample instruments switched off
+                                  // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -228,6 +228,20 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeIntBigEndian (in.midiDelayMs);
         for (int c : in.midiCC) raw.writeIntBigEndian (c);
     }
+    // v12: the song's own chord table (so it plays the same whatever the global set becomes)
+    raw.writeByte (song.chordsLegacy ? 1 : 0);
+    int used = 0;
+    for (int i = 1; i < kChordSlots; ++i) if (! song.chords[(size_t) i].empty()) ++used;
+    raw.writeShortBigEndian ((short) used);
+    for (int i = 1; i < kChordSlots; ++i)
+    {
+        const auto& d = song.chords[(size_t) i];
+        if (d.empty()) continue;
+        raw.writeByte ((char) i);
+        writeLong (raw, d.name.data(), d.name.size());
+        raw.writeByte ((char) d.count);
+        for (int k = 0; k < d.count; ++k) raw.writeByte ((char) d.notes[(size_t) k]);
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -426,6 +440,34 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         }
         if (! ok) { error = "The instrument settings part of this song is damaged."; return false; }
     }
+    s.chordsSaved = false;
+    if (version >= 12 && ! in.isExhausted())
+    {
+        s.chordsLegacy = in.readByte() != 0;
+        const int used = (int) (uint16_t) in.readShortBigEndian();
+        bool ok = used < kChordSlots;
+        for (auto& d : s.chords) d = ChordDef {};
+        for (int n = 0; ok && n < used; ++n)
+        {
+            const int slot = (int) (uint8_t) in.readByte();
+            std::vector<uint8_t> name;
+            ok = slot > 0 && readLong (in, name, 256);
+            const int count = (int) (uint8_t) in.readByte();
+            ok = ok && count <= kMaxChordNotes && ! in.isExhausted();
+            if (! ok) break;
+            auto& d = s.chords[(size_t) slot];
+            d.name.assign (name.begin(), name.end());
+            d.count = count;
+            for (int k = 0; k < count; ++k) d.notes[(size_t) k] = (int8_t) in.readByte();
+        }
+        if (! ok) { error = "The chord table part of this song is damaged."; return false; }
+        s.chordsSaved = true;
+    }
+    else if (version == 11)
+    {
+        // v0.11 chords were two intervals in 0xy: keep playing them that way
+        for (const auto& ins : s.instruments) if (ins.chord) s.chordsLegacy = true;
+    }
     out = std::move (s);
     return true;
 }
@@ -451,6 +493,7 @@ bool loadSongFile (const juce::File& file, Song& out, juce::String& error, juce:
 
     std::vector<uint8_t> bytes (b, b + mb.getSize());
     auto r = loadModule (bytes, out);
+    out.chordsSaved = false;   // (a module: the global chord set)
     for (auto& w : r.warnings) notes.add (w);
     if (! r.ok) { error = r.error; return false; }
     if (out.name.empty() || out.name == "UNTITLED") out.name = file.getFileNameWithoutExtension().toStdString();

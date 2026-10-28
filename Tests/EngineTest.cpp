@@ -1002,6 +1002,8 @@ static void testChords()
     song.numTracks = 4;
     auto& in = song.instruments[0];
     in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH"; in.chord = true;
+    song.chords[0x37] = { "MIN", { 0, 3, 7 }, 3 };
+    song.chords[0x47] = { "MAJ", { 0, 4, 7 }, 3 };
     auto& b = song.blocks[0];
     b.at (0, 0) = { 37, 1, 0x0, 0x37 };                                   // C-3 minor chord: C, D#, G
     b.at (2, 0) = { kNoteOff, 0, 0, 0 };
@@ -1041,6 +1043,79 @@ static void testChords()
     for (int done = 0; done < lineLen * 2; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
     int bends = 0; for (auto& e : log) if (e.type == 'b' && e.a != 8192) ++bends;
     CHECK (on (60) == 1 && on (63) == 0 && bends >= 2);
+}
+
+// the chord table: slots from the song, inversions without the root, old songs' intervals, the database
+static void testChordTable()
+{
+    int n = 0;
+    const ChordEntry* db = chordDatabase (n);
+    bool sorted = true, cats = true;
+    const auto catList = chordCategories();
+    for (int i = 0; i < n; ++i)
+    {
+        for (int k = 1; k < db[i].count; ++k) if (db[i].notes[k] <= db[i].notes[k - 1]) sorted = false;
+        if (std::find (catList.begin(), catList.end(), std::string (db[i].category)) == catList.end()) cats = false;
+    }
+    const int d2 = findChord ("MAJ7", "DROP 2"), inv = findChord ("MIN7", "INV 3");
+    std::printf ("chord database: %d voicings; MAJ7 DROP 2 = %s; MIN7 INV 3 = %s; slot 01 = %s %s\n", n,
+                 d2 >= 0 ? notesText (chordFrom (db[d2])).c_str() : "?", inv >= 0 ? notesText (chordFrom (db[inv])).c_str() : "?",
+                 defaultChordTable()[1].name.c_str(), notesText (defaultChordTable()[1]).c_str());
+    CHECK (n >= 600 && sorted && cats);
+    CHECK (d2 >= 0 && notesText (chordFrom (db[d2])) == "-5 +0 +4 +11");
+    CHECK (inv >= 0 && notesText (chordFrom (db[inv])) == "+10 +12 +15 +19");
+    CHECK (defaultChordTable()[1].name == "MIN" && notesText (defaultChordTable()[1]) == "+0 +3 +7");
+    int filled = 0; for (int i = 1; i < kChordSlots; ++i) if (! defaultChordTable()[(size_t) i].empty()) ++filled;
+    CHECK (filled >= 30 && defaultChordTable()[0].empty());
+
+    Song song;
+    song.numTracks = 4;
+    auto& in = song.instruments[0];
+    in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH"; in.chord = true;
+    song.chords[0x05] = { "MAJ INV 2", { 7, 12, 16 }, 3 };                 // no +0: the played note doesn't sound
+    song.chords[0x06] = { "BIG", { -12, 0, 3, 7, 10, 14, 17, 21 }, 8 };    // eight notes
+    song.chords[0x07] = {};                                               // an empty slot: just the note
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 37, 1, 0x0, 0x05 };
+    b.at (2, 0) = { 37, 1, 0x0, 0x06 };
+    b.at (4, 0) = { 37, 1, 0x0, 0x07 };
+    b.at (6, 0) = { 37, 1, 0x0, 0x37 };                                   // legacy pass: +3 +7
+    std::vector<Ev> log; long long clock = 0;
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
+    p.synths().syncNow (song, 48000);
+    const int lineLen = tickSamples() * 6;
+    std::vector<float> L (512), R (512);
+    auto run = [&] (int lines) { log.clear(); clock = 0; p.playBlock (0); for (int done = 0; done < lineLen * lines; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; } p.stop(); };
+    auto onsIn = [&] (int line) { std::vector<int> v; for (auto& e : log) if (e.type == 'n' && e.when >= line * lineLen - 8 && e.when < (line + 1) * lineLen - 8) v.push_back (e.a); std::sort (v.begin(), v.end()); return v; };
+    auto text = [] (const std::vector<int>& v) { std::string s; for (int x : v) s += std::to_string (x) + " "; return s; };
+    run (8);
+    const auto inv2 = onsIn (0), big = onsIn (2), empty = onsIn (4), slot37 = onsIn (6);
+    int offs = 0, ons = 0; for (auto& e : log) { if (e.type == 'n') ++ons; if (e.type == 'f') ++offs; }
+    std::printf ("chord table: INV 2 on C-3 = %s; eight notes = %s; empty slot = %s; empty slot 37 = %s; %d ons, %d offs\n",
+                 text (inv2).c_str(), text (big).c_str(), text (empty).c_str(), text (slot37).c_str(), ons, offs);
+    CHECK (inv2 == std::vector<int> ({ 67, 72, 76 }));
+    CHECK (big == std::vector<int> ({ 48, 60, 63, 67, 70, 74, 77, 81 }));
+    CHECK (empty == std::vector<int> ({ 60 }) && slot37 == std::vector<int> ({ 60 }));
+    CHECK (offs >= ons);   // every chord note is let go
+    // a v0.11 song: 0xy is still x and y semitones up, whatever the table says
+    song.chordsLegacy = true;
+    run (8);
+    const auto legacy = onsIn (6), legacy5 = onsIn (0);
+    std::printf ("legacy: 037 = %s; 005 = %s\n", text (legacy).c_str(), text (legacy5).c_str());
+    CHECK (legacy == std::vector<int> ({ 60, 63, 67 }) && legacy5 == std::vector<int> ({ 60, 65 }));
+    std::vector<std::vector<int>> before;
+    for (int l = 0; l < 8; l += 2) before.push_back (onsIn (l));
+    // converting it: slots with the same notes (01 MIN and 0F power chord used again), same sound
+    song.chords = defaultChordTable();
+    const int added = convertLegacyChords (song);
+    std::vector<std::vector<int>> after;
+    run (8);
+    for (int l = 0; l < 8; l += 2) after.push_back (onsIn (l));
+    std::printf ("converted: %d new slots; params now %02X %02X %02X %02X; legacy %d; same notes %d\n", added,
+                 b.at (0, 0).param, b.at (2, 0).param, b.at (4, 0).param, b.at (6, 0).param, (int) song.chordsLegacy, (int) (before == after));
+    CHECK (added == 2 && ! song.chordsLegacy && before == after);
+    CHECK (b.at (6, 0).param == 0x01 && b.at (4, 0).param == 0x0F && song.chords[(size_t) b.at (0, 0).param].name == "OLD 05");
 }
 
 static void testSampleOnOff()
@@ -1229,7 +1304,7 @@ static void testMidiOut()
     setMidi (1, "MPC", 4);          // same device: only one sends the clock
     song.instruments[0].midiClock = song.instruments[1].midiClock = true;
     auto& b = song.blocks[0];
-    b.at (0, 0) = { 37, 1, 0xC, 0x20, 0x0, 0x47 };                         // C-3, velocity 64, chord C E G
+    b.at (0, 0) = { 37, 1, 0xC, 0x20, 0x0, 0x02 };                         // C-3, velocity 64, chord slot 02 (MAJ): C E G
     b.at (2, 0) = { 0, 0, cmdLetter ('L'), 0x80, cmdLetter ('O'), 0x40 };  // CC 74 = 64, mod wheel 32
     b.at (3, 0) = { 0, 0, 0x1, 0x02 };                                     // slide up: bend
     b.at (4, 0) = { kNoteOff, 0, 0, 0 };
@@ -1963,6 +2038,7 @@ int main()
     testPluginInstruments();
     testOnOff();
     testChords();
+    testChordTable();
     testSampleOnOff();
     testLatency();
     testMidiOut();

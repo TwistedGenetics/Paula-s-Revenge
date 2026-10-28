@@ -42,3 +42,13 @@ void tidySections (std::vector<SongSection>& sections, int length);
 void sectionsInserted (std::vector<SongSection>& sections, int at, int count, int newLength);
 void sectionsRemoved (std::vector<SongSection>& sections, int at, int count, int newLength);
 } // namespace prv
+
+namespace prv
+{
+// ---- chords
+// A v0.11 song played 0xy on a CHORD instrument's note as two intervals (x and y semitones up).
+// This gives each different 0xy used that way a chord slot with those notes and writes the slot
+// numbers into the pattern, so the song sounds the same with the chord table. Returns the number
+// of slots used, or -1 if the table had no room (nothing is changed then).
+int convertLegacyChords (Song& song);
+} // namespace prv

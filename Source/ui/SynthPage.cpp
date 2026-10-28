@@ -63,12 +63,14 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
         };
     }
     onBtn.onClick = [this] { toggleOn(); };
+    chordsBtn.onClick = [this] { if (onChords) onChords(); };
+    addChildComponent (chordsBtn);
     chordBtn.onClick = [this]
     {
         const bool on = chordBtn.getToggleState();
         proc.history.instrument (proc.editorState.instrument, on ? "CHORD ON" : "CHORD OFF");
         proc.withLock ([&] { inst().chord = on; });
-        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS THE NOTE WITH X AND Y SEMITONES ABOVE IT, HELD" : "CHORD OFF: 0XY IS AN ARPEGGIO");
+        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS CHORD SLOT XY, HELD (RIGHT-CLICK IT IN THE PATTERN FOR THE LIST)" : "CHORD OFF: 0XY IS AN ARPEGGIO");
     };
     learnA.onClick = [this] { learnTrackKnob (0); };
     learnB.onClick = [this] { learnTrackKnob (1); };
@@ -186,7 +188,7 @@ void SynthPage::refresh()
     list.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
-    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn })
+    for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordBtn, &chordsBtn })
         c->setVisible (plug);
     for (int k = 0; k < kInstrumentKnobs; ++k) { learnK[k].setVisible (plug); clearK[k].setVisible (plug); }
     closeBtn.setVisible (true);
@@ -397,7 +399,12 @@ void SynthPage::resized()
         windowBtn.setBounds (row.removeFromLeft (charsW (19))); row.removeFromLeft (gap);
         changeBtn.setBounds (row.removeFromLeft (charsW (17)));
     }
-    sampleBtn.setBounds (r.removeFromBottom (rowH).removeFromLeft (charsW (16)));
+    {
+        // the bottom row: back to a sample, and the chord table (for CHORD)
+        auto row = r.removeFromBottom (rowH);
+        sampleBtn.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap * 3);
+        chordsBtn.setBounds (row.getWidth() >= charsW (9) ? row.removeFromLeft (charsW (9)) : juce::Rectangle<int>());
+    }
     r.removeFromBottom (gap);
     r.removeFromTop (gap);
     {

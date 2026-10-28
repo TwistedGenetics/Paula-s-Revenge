@@ -19,7 +19,7 @@ History::Entry History::capture (Kind kind, int index) const
             e.bytes = sizeof (prv::Cell) * prv::kMaxTracks * (size_t) prv::kMaxLines;
             break;
         case Kind::Structure:
-            e.structure = std::make_shared<Structure> (Structure { song.blocks, song.sequence, song.sections });
+            e.structure = std::make_shared<Structure> (Structure { song.blocks, song.sequence, song.sections, song.chords, song.chordsLegacy });   // (chords: converting old ones changes both)
             e.bytes = sizeof (prv::Cell) * prv::kMaxTracks * (size_t) prv::kMaxLines * song.blocks.size();
             break;
         case Kind::Instrument:
@@ -37,6 +37,7 @@ History::Entry History::capture (Kind kind, int index) const
             s->name = song.name; s->numTracks = song.numTracks; s->tempo = song.tempo; s->speed = song.speed;
             s->led = song.ledFilterAtStart;
             std::copy (std::begin (song.trackPan), std::end (song.trackPan), s->trackPan);
+            s->chords = song.chords; s->chordsLegacy = song.chordsLegacy;
             e.settings = s;
             e.bytes = sizeof (Settings);
             break;
@@ -115,6 +116,8 @@ void History::apply (Entry& e)
                 std::swap (song.blocks, e.structure->blocks);
                 std::swap (song.sequence, e.structure->sequence);
                 std::swap (song.sections, e.structure->sections);
+                std::swap (song.chords, e.structure->chords);
+                std::swap (song.chordsLegacy, e.structure->chordsLegacy);
                 if (proc.player.isPlaying()) proc.player.stop();
             });
             st.seqPos = juce::jlimit (0, (int) song.sequence.size() - 1, e.seqPos);
@@ -136,6 +139,7 @@ void History::apply (Entry& e)
                 song.name = s.name; song.numTracks = s.numTracks; song.tempo = s.tempo; song.speed = s.speed;
                 song.ledFilterAtStart = s.led;
                 std::copy (std::begin (s.trackPan), std::end (s.trackPan), song.trackPan);
+                song.chords = s.chords; song.chordsLegacy = s.chordsLegacy;
                 if (! proc.player.isPlaying()) proc.player.setLed (s.led);
             });
             break;

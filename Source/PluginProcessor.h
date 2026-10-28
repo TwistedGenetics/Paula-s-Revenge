@@ -7,6 +7,7 @@
 #include "History.h"
 #include "PluginHost.h"
 #include "MidiOutHost.h"
+#include "ChordPrefs.h"
 
 class PaulaProcessor : public juce::AudioProcessor
 {
@@ -78,7 +79,9 @@ public:
     void reloadInstrumentPlugin (int instrument);
 
     // Replace the whole song (loading). Stops playback.
-    void replaceSong (prv::Song&& newSong);
+    void replaceSong (prv::Song&& newSong);   // (a song without its own chord table gets the global set)
+    prv::ChordTable globalChords = prv::loadGlobalChords();   // CHORDS: every new song starts with a copy
+    juce::String chordReport (const prv::Song&) const;          // after loading: how its chords compare with the global set
     bool isRunningStandalone() const { return true; }   // v0.8: the app is standalone only
 
     // editor state that should survive closing the window / reloading the set
@@ -96,7 +99,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)

@@ -137,3 +137,69 @@ void sectionsRemoved (std::vector<SongSection>& s, int at, int count, int newLen
     tidySections (s, newLength);
 }
 } // namespace prv
+
+namespace prv
+{
+int convertLegacyChords (Song& song)
+{
+    // which cells are chords: a note line on a CHORD instrument, 0xy in either column
+    struct Hit { int block, line, track, column; uint8_t param; };
+    std::vector<Hit> hits;
+    std::vector<bool> done (song.blocks.size(), false);
+    int carried[kMaxTracks];
+    for (int& c : carried) c = -1;
+    auto visit = [&] (int bi)
+    {
+        const auto& b = song.blocks[(size_t) bi];
+        for (int t = 0; t < kMaxTracks; ++t)
+        {
+            int ins = carried[t];
+            for (int l = 0; l < b.lines; ++l)
+            {
+                const auto& c = b.at (l, t);
+                if (c.instr > 0) ins = c.instr - 1;
+                const bool note = c.note > 0 && c.note <= kNoteMax;
+                if (! done[(size_t) bi] && note && ins >= 0 && ins < kMaxInstruments && song.instruments[(size_t) ins].chord)
+                {
+                    if (c.cmd == 0 && c.param != 0) hits.push_back ({ bi, l, t, 1, c.param });
+                    else if (c.cmd2 == 0 && c.param2 != 0) hits.push_back ({ bi, l, t, 2, c.param2 });
+                }
+            }
+            carried[t] = ins;
+        }
+        done[(size_t) bi] = true;
+    };
+    for (int s : song.sequence) if (s >= 0 && s < (int) song.blocks.size()) visit (s);
+    for (int bi = 0; bi < (int) song.blocks.size(); ++bi) if (! done[(size_t) bi]) { for (int& c : carried) c = -1; visit (bi); }
+
+    // a slot for each different 0xy (one already holding the same notes is used again)
+    ChordTable table = song.chords;
+    int slotFor[256];
+    for (int& s : slotFor) s = -1;
+    int added = 0;
+    for (const auto& h : hits)
+    {
+        if (slotFor[h.param] >= 0) continue;
+        ChordDef d;
+        std::vector<int> notes { 0 };
+        for (int iv : { h.param >> 4, h.param & 15 }) if (iv > 0 && std::find (notes.begin(), notes.end(), iv) == notes.end()) notes.push_back (iv);
+        std::sort (notes.begin(), notes.end());
+        d.count = (int) notes.size();
+        for (int i = 0; i < d.count; ++i) d.notes[(size_t) i] = (int8_t) notes[(size_t) i];
+        d.name = "OLD " + std::string (1, "0123456789ABCDEF"[h.param >> 4]) + std::string (1, "0123456789ABCDEF"[h.param & 15]);
+        int slot = -1;
+        for (int i = 1; i < kChordSlots && slot < 0; ++i) if (table[(size_t) i].sameNotes (d)) slot = i;
+        for (int i = 1; i < kChordSlots && slot < 0; ++i) if (table[(size_t) i].empty()) { slot = i; table[(size_t) i] = d; ++added; }
+        if (slot < 0) return -1;
+        slotFor[h.param] = slot;
+    }
+    for (const auto& h : hits)
+    {
+        auto& c = song.blocks[(size_t) h.block].at (h.line, h.track);
+        (h.column == 1 ? c.param : c.param2) = (uint8_t) slotFor[h.param];
+    }
+    song.chords = table;
+    song.chordsLegacy = false;
+    return added;
+}
+} // namespace prv

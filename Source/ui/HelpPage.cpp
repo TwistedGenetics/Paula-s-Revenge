@@ -25,6 +25,7 @@ juce::String helpText (const juce::String& in)
         { "\xe2\x96\xb2", "\x03" }, { "\xe2\x96\xbc", "\x04" }, { "\xe2\x96\xb6", "\x01" },    // triangles
         { "\xe2\x97\x8f", "\x05" }, { "\xc3\x97", "X" }, { "\xc2\xbd", "1/2" }, { "\xc2\xb1", "+/-" },
         { "\xe2\x80\xa6", "..." }, { "\xe2\x80\x98", "'" }, { "\xe2\x80\x99", "'" }, { "\xe2\x80\x9c", "\"" }, { "\xe2\x80\x9d", "\"" },
+        { "\xe2\x99\xad", "\x07" },                                                        // flat sign
         { "\xe2\x82\x82", "2" }, { "\xe2\x89\x88", "ABOUT " }, { "\xe2\x8c\xab", "" }, { "\xc2\xb7", "-" },
         { ";", "," }, { "~", "-" }, { "\\", "/" }, { "{", "(" }, { "}", ")" }, { "@", "AT" }, { "$", "S" },
     };
@@ -32,7 +33,7 @@ juce::String helpText (const juce::String& in)
     // anything else the font doesn't have goes
     juce::String out;
     for (auto c : s)
-        if ((c >= 32 && c < 127) || (c >= 1 && c <= 6)) out << juce::String::charToString (c);
+        if ((c >= 32 && c < 127) || (c >= 1 && c <= 7)) out << juce::String::charToString (c);
     return out.toUpperCase();
 }
 

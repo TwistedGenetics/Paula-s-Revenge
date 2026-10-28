@@ -36,11 +36,13 @@ MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
     delayBox.labelChars = 6; delayBox.valueChars = 7;
     delayBox.format = [] (int v) { return (v > 0 ? "+" : "") + juce::String (v) + " MS"; };
     delayBox.onChange = [this] (int v) { edit ("MIDI DELAY", [v] (Instrument& in) { in.midiDelayMs = v; }); };
+    chordsBtn.onClick = [this] { if (onChords) onChords(); };
+    addChildComponent (chordsBtn);
     chordBtn.onClick = [this]
     {
         const bool on = chordBtn.getToggleState();
         edit (on ? "CHORD ON" : "CHORD OFF", [on] (Instrument& in) { in.chord = on; }, false);
-        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS THE NOTE WITH X AND Y SEMITONES ABOVE IT, HELD" : "CHORD OFF: 0XY IS AN ARPEGGIO");
+        if (onStatus) onStatus (on ? "CHORD ON: 0XY ON A NOTE'S LINE PLAYS CHORD SLOT XY, HELD (RIGHT-CLICK IT IN THE PATTERN FOR THE LIST)" : "CHORD OFF: 0XY IS AN ARPEGGIO");
     };
     clockBtn.onClick = [this]
     {
@@ -218,7 +220,7 @@ void MidiOutPage::refresh()
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
     for (auto* c : std::initializer_list<juce::Component*> { &changeBtn, &sampleBtn, &panicBtn, &chanBox, &bendBox, &delayBox, &trackBox,
-                                                             &chordBtn, &onBtn, &clockBtn, &learnA, &learnB })
+                                                             &chordBtn, &onBtn, &clockBtn, &learnA, &learnB, &chordsBtn })
         c->setVisible (midi);
     for (int k = 0; k < kInstrumentKnobs; ++k) { ccBox[k]->setVisible (midi); knobBar[k].setVisible (midi); learnCcBtn[k].setVisible (midi); }
     closeBtn.setVisible (true);
@@ -396,7 +398,12 @@ void MidiOutPage::resized()
         list.setBounds (r);
         return;
     }
-    sampleBtn.setBounds (r.removeFromBottom (rowH).removeFromLeft (charsW (16)));
+    {
+        // the bottom row: back to a sample, and the chord table (for CHORD)
+        auto row = r.removeFromBottom (rowH);
+        sampleBtn.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap * 3);
+        chordsBtn.setBounds (row.getWidth() >= charsW (9) ? row.removeFromLeft (charsW (9)) : juce::Rectangle<int>());
+    }
     r.removeFromBottom (gap);
     infoArea = r.removeFromTop (rowH * 2).toFloat();
     r.removeFromTop (gap);

@@ -204,7 +204,8 @@ private:
         Cell   microCell; long long microDelay = -1; bool earlyDone = false;  // Mxx
         // a plug-in instrument's note on this track
         int    synthNote = -1, synthInstr = -1, synthVel = 100, lastBend = 8192;
-        int    synthChord[2] { -1, -1 };          // CHORD: the extra notes of 0xy
+        int    synthChord[kMaxChordNotes] { -1, -1, -1, -1, -1, -1, -1, -1 };   // CHORD: the notes of slot xy
+        bool   synthRootOn = true;                 // (a chord without +0 doesn't sound the played note)
         bool   chordLine = false;                  // 0xy on this line made a chord (no arpeggio)
         // switched off while sounding: fades out
         int    fadeOut = 0, fadeLen = 1;

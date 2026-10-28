@@ -5,6 +5,7 @@
 #include "../PluginProcessor.h"
 #include "Widgets.h"
 #include "CommandPicker.h"
+#include "ChordPicker.h"
 
 namespace prv::ui
 {
@@ -25,14 +26,31 @@ public:
 
     // called ~30x a second by the main editor
     void tick();
-    void resized() override { updateView (false); if (picker != nullptr && picker->isVisible()) placePicker(); }
-    void visibilityChanged() override { if (! isVisible() && picker != nullptr) picker->setVisible (false); }
+    void resized() override
+    {
+        updateView (false);
+        if (picker != nullptr && picker->isVisible()) placePicker (*picker);
+        if (chordPicker != nullptr && chordPicker->isVisible()) placePicker (*chordPicker);
+    }
+    void visibilityChanged() override
+    {
+        if (isVisible()) return;
+        if (picker != nullptr) picker->setVisible (false);
+        if (chordPicker != nullptr) chordPicker->setVisible (false);
+    }
 
     // right-click an effect cell: a list of the commands to pick from (also used by tests)
     void openCommandMenu (int line, int track, int group);   // group 1 = FX1, 2 = FX2
     bool isCommandMenuOpen() const { return picker != nullptr && picker->isVisible(); }
     CommandPicker* commandMenu() { return picker.get(); }
     void closeCommandMenu();
+
+    // right-click a chord (0xy on a CHORD instrument's note line): the song's chord slots
+    bool isChordCell (int line, int track, int group) const;
+    void openChordMenu (int line, int track, int group);
+    bool isChordMenuOpen() const { return chordPicker != nullptr && chordPicker->isVisible(); }
+    ChordPicker* chordMenu() { return chordPicker.get(); }
+    std::function<void (int slot)> onEditChords;     // EDIT CHORDS...: the CHORDS page on that slot
 
     // the view: the line shown at the top (fractional while following playback)
     float getViewTop() const { return viewTop; }
@@ -121,8 +139,10 @@ private:
     void applyDrag (juce::Point<float>);
     WheelSteps wheel;
     std::unique_ptr<CommandPicker> picker;
+    std::unique_ptr<ChordPicker> chordPicker;
     int pickLine = 0, pickTrack = 0, pickGroup = 1;
-    void placePicker();
+    void placePicker (juce::Component&);
+    void applyPickedChord (int slot);
 public:
     // what a command does on this cell: knob names for V / J, a plug-in instrument's knobs
     juce::String contextDescribe (int line, int track, uint8_t cmd, uint8_t param) const;

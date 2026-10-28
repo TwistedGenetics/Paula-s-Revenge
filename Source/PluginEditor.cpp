@@ -15,7 +15,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -36,6 +36,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     help.onClose = [this] { setView (helpReturn == View::Help ? View::Pattern : helpReturn); };
     help.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (help);
+    chords.onClose = [this] { setView (chordsReturn == View::Chords || chordsReturn == View::Help ? View::Pattern : chordsReturn); };
+    chords.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    chords.onChanged = [this] { refreshAll(); };
+    addChildComponent (chords);
+    pattern.onEditChords = [this] (int slot) { openChords (slot); };
     for (auto& a : recSeenTrack) for (auto& v : a) v = -1.0f;
     for (auto& a : recSeenInst) for (auto& v : a) v = -1.0f;
     for (auto& a : recLastTrack) for (auto& v : a) v = -1;
@@ -155,6 +160,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::Arrange:    arrange.grabKeyboardFocus(); break;
             case View::Mixer:      mixer.grabKeyboardFocus(); break;
             case View::Help:       help.grabKeyboardFocus(); break;
+            case View::Chords:     chords.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
         }
     };
@@ -182,6 +188,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     };
     params.onStatus = [this] (const juce::String& m) { setStatus (m); };
     midiPage.onClose = [this] { setView (View::Pattern); };
+    midiPage.onChords = [this] { openChords(); };
+    synthPage.onChords = [this] { openChords(); };
     midiPage.onChanged = [this] { refreshAll(); };
     midiPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (midiPage);
@@ -290,7 +298,8 @@ void PaulaEditor::setView (View v)
     if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
-    const bool layoutChange = (st.view == View::Mixer || st.view == View::Help) != (v == View::Mixer || v == View::Help);
+    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords; };
+    const bool layoutChange = wide (st.view) != wide (v);
     st.view = v;
     if (layoutChange) resized();
     pattern.setVisible (v == View::Pattern);
@@ -302,6 +311,7 @@ void PaulaEditor::setView (View v)
     arrange.setVisible (v == View::Arrange);
     mixer.setVisible (v == View::Mixer);
     help.setVisible (v == View::Help);
+    chords.setVisible (v == View::Chords);
     helpBtn.setToggleState (v == View::Help, juce::dontSendNotification);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
@@ -312,6 +322,7 @@ void PaulaEditor::setView (View v)
     else if (v == View::Browser) browser.opened();
     else if (v == View::Mixer) mixer.opened();
     else if (v == View::Help) help.opened();
+    else if (v == View::Chords) chords.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -341,6 +352,7 @@ void PaulaEditor::refreshAll()
     st.track = juce::jlimit (0, song.numTracks - 1, st.track);
     // block play: picking another block carries playback over to it, in time
     proc.withLock ([&] { proc.player.switchBlock (st.block); });
+    if (chords.isVisible()) chords.refresh();
 
     const auto& o = proc.player.options;
     a500Btn.setToggleState (o.model == prv::PaulaOptions::Model::A500, juce::dontSendNotification);
@@ -581,7 +593,9 @@ void PaulaEditor::resized()
     // the mixer and HELP use the whole width
     if (st.view == View::Mixer) mixer.setBounds (main);
     help.setBounds (main);
-    const bool panels = showPanels && st.view != View::Mixer && st.view != View::Help;
+    chords.setBounds (main);
+    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords;
+    const bool panels = showPanels && ! wideView;
     sequence.setVisible (panels);
     blockPanel.setVisible (panels);
     instruments.setVisible (panels);
@@ -596,7 +610,7 @@ void PaulaEditor::resized()
         left.removeFromTop (gap);
         instruments.setBounds (left);
     }
-    spectrum.setVisible (st.showSpectrum && st.view != View::Mixer && st.view != View::Help);
+    spectrum.setVisible (st.showSpectrum && ! wideView);
     if (st.showSpectrum)
     {
         spectrum.setBounds (main.removeFromBottom ((int) (px * 22)));
@@ -609,6 +623,14 @@ void PaulaEditor::resized()
     synthPage.setBounds (main);
     midiPage.setBounds (main);
     arrange.setBounds (main);
+}
+
+void PaulaEditor::openChords (int slot)
+{
+    auto& st = proc.editorState;
+    if (st.view != View::Chords) chordsReturn = st.view == View::Browser ? View::Pattern : st.view;
+    setView (View::Chords);
+    if (slot > 0) chords.opened (slot);
 }
 
 void PaulaEditor::toggleHelp()
@@ -638,6 +660,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 'y') { redoBtn.onClick(); return true; }
         if (ch == '2') { mixerBtn.onClick(); return true; }
         if (ch == '1') { setView (View::Pattern); return true; }
+        if (ch == '3') { if (proc.editorState.view == View::Chords) chords.onClose(); else openChords(); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
     switch (proc.editorState.view)
@@ -650,6 +673,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Arrange:    return arrange.keyPressed (k);
         case View::Mixer:      return mixer.keyPressed (k);
         case View::Help:       return help.keyPressed (k);
+        case View::Chords:     return chords.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }
@@ -666,6 +690,7 @@ void PaulaEditor::newSong()
             prv::Song s;
             // keep the instruments so a fresh tune can start straight away
             s.instruments = safe->proc.song.instruments;
+            s.chordsSaved = false;   // (the global chord set)
             safe->proc.replaceSong (std::move (s));
             auto& st = safe->proc.editorState;
             st.block = 0; st.line = 0; st.seqPos = 0; st.track = 0;
@@ -693,6 +718,7 @@ void PaulaEditor::loadSong()
         juce::String err;
         juce::StringArray notes;
         if (! prv::loadSongFile (file, s, err, notes)) { self.setStatus ("ERROR: " + err); return; }
+        if (s.chordsLegacy || s.chordsSaved) notes.add (self.proc.chordReport (s));
         self.proc.replaceSong (std::move (s));
         auto& st2 = self.proc.editorState;
         st2.block = self.proc.song.safeBlock (self.proc.song.sequence[0]); st2.line = 0; st2.seqPos = 0; st2.track = 0;

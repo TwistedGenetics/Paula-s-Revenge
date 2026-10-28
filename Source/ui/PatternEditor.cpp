@@ -452,7 +452,7 @@ void PatternEditor::openCommandMenu (int line, int track, int group)
     st.line = pickLine; st.track = pickTrack; st.column = group == 2 ? 6 : 3;
     changed();
     const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
-    placePicker();
+    placePicker (*picker);
     const int L = pickLine, T = pickTrack;
     picker->nameFor = [this, L, T] (const CommandInfo& ci) { return contextName (L, T, ci.cmd); };
     picker->overviewFor = [this, L, T] (const CommandInfo& ci) { return contextOverview (L, T, ci.cmd); };
@@ -508,7 +508,8 @@ juce::String PatternEditor::contextOverview (int line, int track, uint8_t cmd) c
             return t.param >= 0 ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT ON THE INSTRUMENT'S PAGE (PARAMS)");
         }
         if (cmd == cmdLetter ('O')) return "SENDS THE MOD WHEEL (CC1), 00-FF";
-        if (cmd == 0x0 && proc.song.instruments[(size_t) ins].chord) return "ON A NOTE: + X AND + Y SEMITONES, HELD (NO NOTE: ARPEGGIO)";
+        if (cmd == 0x0 && proc.song.instruments[(size_t) ins].chord)
+            return proc.song.chordsLegacy ? "ON A NOTE: + X AND + Y SEMITONES, HELD (AN OLD SONG)" : "ON A NOTE: CHORD SLOT XY, HELD (RIGHT-CLICK IT: THE LIST)";
         if (sampleOnly (cmd)) return "NOT USED BY PLUG-IN INSTRUMENTS";
     }
     return {};
@@ -532,7 +533,13 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
     {
         const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)];
         const bool note = line >= 0 && line < b.lines && track >= 0 && track < kMaxTracks && b.at (line, track).note > 0 && b.at (line, track).note <= kNoteMax;
-        if (note) return head + "CHORD: THE NOTE +" + juce::String (param >> 4) + " AND +" + juce::String (param & 15) + " SEMITONES, HELD";
+        if (note && proc.song.chordsLegacy) return head + "CHORD: THE NOTE +" + juce::String (param >> 4) + " AND +" + juce::String (param & 15) + " SEMITONES, HELD (AN OLD SONG)";
+        if (note)
+        {
+            const auto& d = proc.song.chords[param];
+            return head + "CHORD " + (d.empty() ? juce::String ("SLOT IS EMPTY - JUST THE NOTE (SET IT ON THE CHORDS PAGE)")
+                                                : juce::String (d.name) + "  " + juce::String (notesText (d)) + ", HELD");
+        }
     }
     if (plug)
     {
@@ -550,21 +557,83 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
     return juce::String (describeCommand (cmd, param));
 }
 
-void PatternEditor::placePicker()
+bool PatternEditor::isChordCell (int line, int track, int group) const
+{
+    const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
+    if (line < 0 || line >= b.lines || track < 0 || track >= proc.song.numTracks) return false;
+    const int ins = instrumentAt (line, track);
+    if (ins < 0 || ! proc.song.instruments[(size_t) ins].isPlugin() || ! proc.song.instruments[(size_t) ins].chord) return false;
+    const auto& c = b.at (line, track);
+    const uint8_t cmd = group == 2 ? c.cmd2 : c.cmd, param = group == 2 ? c.param2 : c.param;
+    const bool note = c.note > 0 && c.note <= kNoteMax;
+    return cmd == 0 && (param != 0 || note);
+}
+
+void PatternEditor::openChordMenu (int line, int track, int group)
+{
+    if (picker != nullptr) picker->setVisible (false);
+    if (chordPicker == nullptr)
+    {
+        chordPicker = std::make_unique<ChordPicker>();
+        chordPicker->onPick = [this] (int slot) { applyPickedChord (slot); };
+        chordPicker->onCancel = [this] { closeCommandMenu(); };
+        chordPicker->onCommands = [this] { const int l = pickLine, t = pickTrack, g = pickGroup; closeCommandMenu(); openCommandMenu (l, t, g); };
+        chordPicker->onEdit = [this]
+        {
+            const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
+            const int slot = pickGroup == 2 ? c.param2 : c.param;
+            closeCommandMenu();
+            if (onEditChords) onEditChords (slot);
+        };
+        if (auto* top = getParentComponent()) top->addChildComponent (*chordPicker);
+        else addChildComponent (*chordPicker);
+    }
+    if (group == 2 && ! st.showFx2) group = 1;
+    pickLine = juce::jlimit (0, blockLines() - 1, line);
+    pickTrack = juce::jlimit (0, proc.song.numTracks - 1, track);
+    pickGroup = group;
+    st.line = pickLine; st.track = pickTrack; st.column = group == 2 ? 6 : 3;
+    changed();
+    const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (pickLine, pickTrack);
+    placePicker (*chordPicker);
+    chordPicker->open (proc.song.chords, group == 2 ? c.param2 : c.param);
+    if (onStatus) onStatus (proc.song.chordsLegacy ? juce::String ("AN OLD SONG: 0XY ARE INTERVALS - CONVERT ON THE CHORDS PAGE")
+                                                   : juce::String ("PICK A CHORD (TYPE ITS SLOT TO JUMP) - ESC CANCELS"));
+}
+
+void PatternEditor::applyPickedChord (int slot)
+{
+    const int blk = proc.song.safeBlock (st.block);
+    pushUndo (blk, "CHORD " + juce::String::toHexString (slot).toUpperCase().paddedLeft ('0', 2));
+    proc.withLock ([&]
+    {
+        auto& c = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
+        if (pickGroup == 2) { c.cmd2 = 0; c.param2 = (uint8_t) slot; }
+        else { c.cmd = 0; c.param = (uint8_t) slot; }
+    });
+    closeCommandMenu();
+    st.line = pickLine; st.track = pickTrack;
+    st.column = pickGroup == 2 ? 7 : 4;
+    changed();
+    if (onStatus) onStatus (contextDescribe (pickLine, pickTrack, 0, (uint8_t) slot));
+}
+
+void PatternEditor::placePicker (juce::Component& pk)
 {
     // across the window, from the top of the pattern down
     const float px = Theme::px;
-    auto* parent = picker->getParentComponent();
+    auto* parent = pk.getParentComponent();
     juce::Rectangle<int> r = parent == this ? getLocalBounds() : parent->getLocalBounds().withTop (getY()).withBottom (getBottom());
     r = r.reduced ((int) (px * 3));
     const int want = (int) (px * PixelFont::kCellW * 78 + px * 16);
     r = r.withSizeKeepingCentre (std::min (r.getWidth(), want), r.getHeight());
-    picker->setBounds (r);
+    pk.setBounds (r);
 }
 
 void PatternEditor::closeCommandMenu()
 {
     if (picker != nullptr) picker->setVisible (false);
+    if (chordPicker != nullptr) chordPicker->setVisible (false);
     grabKeyboardFocus();
     repaint();
 }
@@ -663,8 +732,10 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
             onSelectionMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
             return;
         }
-        // right-click: pick an effect command from a list (FX2 when clicked there)
-        openCommandMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
+        // right-click: a chord from the song's table (a chord cell), else an effect command from a list (FX2 when clicked there)
+        const int group = groupOfColumn (column) == 2 ? 2 : 1;
+        if (groupOfColumn (column) > 0 && isChordCell (line, track, group)) openChordMenu (line, track, group);
+        else openCommandMenu (line, track, group);
         return;
     }
     if (e.mods.isShiftDown())

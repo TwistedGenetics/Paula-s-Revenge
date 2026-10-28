@@ -38,6 +38,7 @@ PaulaProcessor::PaulaProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     addStarterInstruments (song);
+    song.chords = globalChords;
     player.setSong (&song);
     player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
@@ -158,6 +159,7 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
 {
     std::vector<std::unique_ptr<prv::Effect>> oldEffects;   // declared first: freed after the lock is released
     std::vector<std::unique_ptr<prv::PluginSynth>> oldSynths;
+    if (! newSong.chordsSaved) { newSong.chords = globalChords; newSong.chordsSaved = true; }
     // make the new song's effects (and load its plug-ins) before taking the lock
     auto changes = player.mixer().plan (newSong.mixer, true);
     auto synthChanges = player.synths().plan (newSong, currentRate, true);
@@ -175,6 +177,15 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     player.resetSwitches();
     player.mixer().apply (changes, oldEffects);
     player.synths().apply (synthChanges, oldSynths);
+}
+
+juce::String PaulaProcessor::chordReport (const prv::Song& s) const
+{
+    if (s.chordsLegacy) return "CHORDS: OLD 0XY INTERVALS - CONVERT THEM ON THE CHORDS PAGE";
+    if (! s.chordsSaved) return "CHORDS: THE GLOBAL SET";
+    const auto diff = prv::differingSlots (s.chords, globalChords);
+    if (diff.empty()) return "CHORDS: SAME AS THE GLOBAL SET";
+    return "CHORDS: THE SONG'S OWN - SLOTS " + prv::slotList (diff, 6) + " DIFFER FROM THE GLOBAL SET";
 }
 
 bool PaulaProcessor::popMidiNote (int& note)

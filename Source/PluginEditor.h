@@ -14,6 +14,7 @@
 #include "ui/MidiOutPage.h"
 #include "ui/ChoiceBox.h"
 #include "ui/HelpPage.h"
+#include "ui/ChordsPage.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 
@@ -38,6 +39,8 @@ public:
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }
     prv::ui::HelpPage& getHelp() { return help; }
+    prv::ui::ChordsPage& getChords() { return chords; }
+    void openChords (int slot = -1);                  // CHORDS (Cmd+3; EDIT CHORDS... in the chord list)
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
     void toggleHelp();                                // HELP (F1, Cmd+/)
@@ -113,6 +116,8 @@ private:
     prv::ui::MidiOutPage midiPage;
     prv::ui::ChoiceBox choice;
     prv::ui::HelpPage help;
+    prv::ui::ChordsPage chords;
+    PaulaProcessor::EditorState::View chordsReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View helpReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::ArrangePage arrange;
     prv::ui::MixerPage mixer;

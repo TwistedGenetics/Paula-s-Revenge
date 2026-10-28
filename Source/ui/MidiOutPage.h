@@ -15,7 +15,7 @@ public:
     explicit MidiOutPage (PaulaProcessor&);
     ~MidiOutPage() override;
 
-    std::function<void()> onClose, onChanged;
+    std::function<void()> onClose, onChanged, onChords;   // onChords: CHORDS... (the chord table page)
     std::function<void (const juce::String&)> onStatus;
 
     void opened (bool browse);      // browse = show the list of MIDI outputs
@@ -47,6 +47,7 @@ private:
     PixButton rescanBtn { "RESCAN" }, cancelBtn { "CANCEL" };
     PixButton changeBtn { "CHANGE DEVICE..." }, sampleBtn { "BACK TO A SAMPLE" }, panicBtn { "PANIC" }, closeBtn { "CLOSE" };
     NumberBox chanBox { "CHANNEL", 1, 16, 1 }, bendBox { "BEND", 1, 48, 2 }, delayBox { "DELAY", -50, 200, 0 }, trackBox { "TRACK", 1, 8, 1 };
+    PixButton chordsBtn { "CHORDS..." };
     PixButton chordBtn { "CHORD", true }, onBtn { "ON", true }, clockBtn { "SEND MIDI CLOCK", true };
     std::unique_ptr<NumberBox> ccBox[kInstrumentKnobs];
     PixSlider knobBar[kInstrumentKnobs] { PixSlider ("SEND"), PixSlider ("SEND"), PixSlider ("SEND"), PixSlider ("SEND") };

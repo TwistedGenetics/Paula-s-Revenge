@@ -9,6 +9,7 @@
 #include <cmath>
 #include <algorithm>
 #include "MixerTypes.h"
+#include "Chords.h"
 
 namespace prv
 {
@@ -136,7 +137,7 @@ struct Instrument
     int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
-    bool chord = false;                     // 0xy on a note's line plays a held chord (plug-in / MIDI out)
+    bool chord = false;                     // 0xy on a note's line plays chord slot xy, held (plug-in / MIDI out)
     bool isPlugin() const { return plugin; }   // (also true for MIDI out: both play through the synth rack)
 
     // MIDI out to hardware instead of a sample (plugin is true as well; pluginKey = "MIDI:" + device)
@@ -177,6 +178,9 @@ struct Song
     std::vector<SongSection> sections; // sorted by pos, at most one per position
     MixerSettings mixer;               // flat by default: plays exactly as without a mixer
     std::array<Instrument, kMaxInstruments> instruments;
+    ChordTable chords;                 // 0xy on a CHORD instrument's note plays slot xy; saved in the song
+    bool chordsLegacy = false;         // (a v0.11 song: 0xy = two intervals, x and y semitones up)
+    bool chordsSaved = true;           // (loading: false when the file had no chord table - it gets the global set)
 
     Song() { reset(); }
 
@@ -190,6 +194,9 @@ struct Song
         sections.clear();
         mixer = MixerSettings {};
         for (auto& i : instruments) i.clear();
+        chords = defaultChordTable();
+        chordsLegacy = false;
+        chordsSaved = true;
     }
 
     int safeBlock (int b) const { return std::clamp (b, 0, (int) blocks.size() - 1); }
