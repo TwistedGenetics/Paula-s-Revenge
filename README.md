@@ -52,7 +52,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS |
 | Pattern, effect columns | the command list (a `#xy` chord cell: the chord list); inside a highlight: BOUNCE |
 | Pattern, VU meters | the meters' colour |
-| EDIT button | STEP ENTRY NOTE-OFFS, CAPTURE |
+| EDIT button | STEP ENTRY NOTE-OFFS, DETECT CHORDS, CAPTURE |
 | Sample editor waveform | CUT, COPY, PASTE, DELETE, CROP, SILENCE, MAX VOL, REVERSE, FADE IN / OUT, SET LOOP, SELECT ALL |
 | Mixer: a strip's name | COPY STRIP, PASTE STRIP, RESET STRIP, OPEN CHANNEL (the returns and master: RESET) |
 | Mixer: an insert slot | COPY EFFECT, PASTE EFFECT, CLEAR SLOT, BYPASS ON / OFF, OPEN |
@@ -319,8 +319,9 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 * **CAPTURE** (like Ableton's Capture MIDI): the app always listens to what you play, even with EDIT off, and keeps the last two minutes. Liked what you just noodled? Press **CAPTURE** on the transport row (or `Cmd+R`, or right-click EDIT, or the View menu) and it goes into the pattern as one undo step:
   * played while the song or block was playing: each note on the line where you played it, in the block that was playing, with `Mxx` micro-moves for notes that were well off the beat;
   * played while stopped: from the cursor, at the song's BPM and speed, the first note on the cursor line (the notes since your last pause of more than 4 seconds).
-  * Notes go on the cursor's track; chords spread across the next free tracks. It never writes over a note (it moves along, or skips and says how many). Plug-in and MIDI-out notes get their note-offs. After a capture it starts listening afresh.
+  * Notes go on the cursor's track; chords that match the chord table go in as one note + `#xy` (see below), other notes played together spread across the next free tracks. It never writes over a note (it moves along, or skips and says how many). Plug-in and MIDI-out notes get their note-offs. After a capture it starts listening afresh.
   * In a small window the CAPTURE button may not fit on the transport row; `Cmd+R` and the menus still do it.
+* **Chords you play** (DETECT CHORDS, on to start with): on a plug-in or MIDI-out instrument, notes pressed together (within 60 ms) that match a slot in the song's chord table go in as **one note, the root, with `#xy`** on one track — when recording with EDIT on, and when CAPTURE writes them in. See Chords.
 
 ## Effect commands
 
@@ -475,6 +476,12 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 A plug-in or MIDI-out instrument plays a whole chord from one note: put **`#xy`** on the note's line and it plays **chord slot `xy`** from the song's **chord table**, held. The note you type is the chord's root: `C-3` with `#01` (slot 01 = MIN) plays C, D#, G. A slot can hold up to 8 notes, below the root as well as above it, and an inversion doesn't play the root at the bottom (`C-3` with MAJ INV 1 plays E, G, C above). The chord ends like a note does: the next note on the track, note-off, `ECx` or `Nxx`. Pitch commands bend the whole chord. On a sample instrument `#xy` plays just the note. `0xy` is the ordinary arpeggio everywhere.
 
 * **Putting a chord in:** right-click the effect cell and click **`#  CHORD`** at the top of the list (it says what it does): `#` goes in and the song's chord list opens straight away — click a chord (or arrows and Enter; type a slot number to jump) and `#xy` is set. Cancel it and the cell keeps `#01` (the first filled slot). Or type `#` (Shift+3, the same key on a UK keyboard where it shows £) and then the slot number.
+* **Playing one in:** with EDIT on (or for CAPTURE), play the chord on a MIDI keyboard or the laptop keys. If the notes match a slot in the song's table, they go in as the root note plus `#xy` on one track, and the status line says which (`CHORD MIN7 (#03) ON A-2`).
+  * Inversions and spread voicings match their own slots (MAJ INV 1, MIN7 DROP 2...). If no slot has exactly the notes you played, a slot with the same note names in another octave is used, and the status line says the voicing may differ.
+  * When two slots have the same notes (C6 and Am7), the one whose root is your lowest note wins, then the one starting on the first key you pressed, then the lower slot.
+  * The notes go in as you play them; the moment they make a chord they're rewritten as one, still one undo step. The cursor moves on once for the chord in step entry. The chord's OFF goes on the line where you let go of its last key.
+  * `#` goes in the first effect column, or the second if the first already has a command. If both are taken, the notes go in one by one and the status line says so.
+  * Only plug-in and MIDI-out instruments (a sample plays just the root). Notes rolled slower than 60 ms stay separate notes. Turn it off with right-click **EDIT** → **DETECT CHORDS**; it's remembered.
 * **Changing one:** right-click a `#xy` cell for the chord list. **EDIT CHORDS...** opens the CHORDS page on that slot, **EFFECT COMMANDS...** the usual list.
 * **The CHORDS page** (`Cmd+3`, or **CHORDS...** on the instrument's page): the slots 01–FF on the left, the chord database on the right. Click a slot, then double-click a chord (or Enter) to put it in the slot. The category buttons (MAJOR, MINOR, DOM, SUS, DIM, AUG, OTHER) narrow the list, and typing searches it (`MIN7`, `SUS4`, `DROP 2`, `7B9` for 7♭9; Backspace and Esc clear it). **PLAY** (or Space) plays the chord on `C-3` with the current instrument, **CLEAR SLOT** (Delete) empties a slot (its `#xy` then plays just the note). Right-click a slot for COPY, PASTE, CLEAR and PLAY. Shift+↑/↓ moves through the slots.
 * **The database**: 116 chord types — major, minor, dominant, suspended, diminished, augmented and more, from the tonal music library's list (which comes from Wikibooks' complete list of chord patterns) — each as written (ROOT), in every inversion (INV 1, INV 2...), as DROP 2 and DROP 3 voicings for four-note chords and OPEN for triads: 638 voicings. The flat sign is drawn as ♭ (MIN7♭5).

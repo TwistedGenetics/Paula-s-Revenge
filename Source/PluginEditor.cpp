@@ -72,6 +72,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
         choice.show (*this, "RECORDING", { st.recNoteOffs ? "STEP ENTRY NOTE-OFFS: ON (TURN OFF)" : "STEP ENTRY NOTE-OFFS: OFF (TURN ON)",
+                                           prv::ui::PatternEditor::detectChords() ? "DETECT CHORDS: ON (TURN OFF)" : "DETECT CHORDS: OFF (TURN ON)",
                                            "CAPTURE WHAT I PLAYED (CMD+R)" }, [safe] (int a)
         {
             if (safe == nullptr) return;
@@ -82,7 +83,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                 safe->setStatus (s2.recNoteOffs ? "STEP ENTRY: LETTING GO OF A KEY WRITES OFF (PLUG-IN / MIDI-OUT INSTRUMENTS)"
                                                 : "STEP ENTRY: NO NOTE-OFFS (WHILE PLAYING THEY'RE STILL RECORDED)");
             }
-            else if (a == 1) safe->captureNow();
+            else if (a == 1)
+            {
+                const bool on = ! prv::ui::PatternEditor::detectChords();
+                prv::ui::PatternEditor::setDetectChords (on);
+                safe->setStatus (on ? "DETECT CHORDS: NOTES PLAYED TOGETHER THAT MATCH THE CHORD TABLE GO IN AS ONE NOTE + #XY"
+                                    : "DETECT CHORDS OFF: EVERY NOTE GOES IN AS PLAYED");
+            }
+            else if (a == 2) safe->captureNow();
         });
     };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
@@ -702,7 +710,8 @@ int PaulaEditor::captureNow()
     if (log.empty()) { setStatus ("CAPTURE: NOTHING PLAYED YET - PLAY SOMETHING, THEN CAPTURE"); return 0; }
     std::vector<bool> offs ((size_t) prv::kMaxInstruments, false);
     for (int i = 0; i < prv::kMaxInstruments; ++i) offs[(size_t) i] = proc.song.instruments[(size_t) i].isPlugin();
-    const auto res = prv::placeCapture (proc.song, log, st.block, st.line, st.track, proc.song.tempo, proc.song.speed, offs);
+    const auto res = prv::placeCapture (proc.song, log, st.block, st.line, st.track, proc.song.tempo, proc.song.speed, offs,
+                                        prv::ui::PatternEditor::detectChords());
     int notes = 0;
     for (const auto& p : res.places) if (p.note != prv::kNoteOff) ++notes;
     if (res.places.empty())
@@ -717,6 +726,11 @@ int PaulaEditor::captureNow()
         {
             auto& c = proc.song.blocks[(size_t) p.block].at (p.line, p.track);
             c.note = p.note; c.instr = p.instr;
+            if (p.chordSlot != 0)
+            {
+                if (c.fx1Empty()) { c.cmd = prv::kCmdChord; c.param = p.chordSlot; }
+                else if (c.fx2Empty()) { c.cmd2 = prv::kCmdChord; c.param2 = p.chordSlot; }
+            }
             if (p.micro != 0)
             {
                 const uint8_t m = prv::cmdLetter ('M');
@@ -727,7 +741,11 @@ int PaulaEditor::captureNow()
     });
     proc.captureLog.clear();
     st.block = res.firstBlock; st.line = res.firstLine;
-    setStatus ("CAPTURED " + juce::String (notes) + (notes == 1 ? " NOTE" : " NOTES") + " INTO BLOCK " + juce::String (res.firstBlock).paddedLeft ('0', 3)
+    const int singles = notes - res.chords;
+    juce::String what;
+    if (singles > 0 || res.chords == 0) what << singles << (singles == 1 ? " NOTE" : " NOTES");
+    if (res.chords > 0) what << (what.isEmpty() ? "" : " AND ") << res.chords << (res.chords == 1 ? " CHORD (#)" : " CHORDS (#)");
+    setStatus ("CAPTURED " + what + " INTO BLOCK " + juce::String (res.firstBlock).paddedLeft ('0', 3)
                + " FROM LINE " + juce::String (res.firstLine).paddedLeft ('0', 3) + (res.played ? " (WHERE THEY WERE PLAYED)" : " (FROM THE CURSOR)")
                + (res.skipped > 0 ? " - " + juce::String (res.skipped) + " SKIPPED (NO FREE CELL)" : juce::String()));
     refreshAll();

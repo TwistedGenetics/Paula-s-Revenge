@@ -10,7 +10,7 @@ namespace prv
 {
 CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& log,
                             int cursorBlock, int cursorLine, int cursorTrack, int bpm, int speed,
-                            const std::vector<bool>& offsFor)
+                            const std::vector<bool>& offsFor, bool detectChords)
 {
     CaptureResult res;
     if (log.empty() || song.blocks.empty()) return res;
@@ -55,15 +55,52 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
 
     const int nt = std::clamp (song.numTracks, 1, kMaxTracks);
     bool first = true;
+    std::vector<bool> consumed (take.size(), false);   // (the other notes of a chord already written)
+    auto releaseOf = [&] (size_t i, size_t& offIdx) -> double
+    {
+        for (size_t j = i + 1; j < take.size(); ++j)
+            if (! take[j].on && take[j].note == take[i].note) { offIdx = j; return take[j].timeMs; }
+        return -1;
+    };
+    auto plugIn = [&] (int ins) { return ins >= 0 && ins < (int) offsFor.size() && offsFor[(size_t) ins]; };
     for (size_t i = 0; i < take.size(); ++i)
     {
         const auto& n = take[i];
-        if (! n.on) continue;
+        if (! n.on || consumed[i]) continue;
         // its release, if it has one in the take
-        double offMs = -1;
         size_t offIdx = 0;
-        for (size_t j = i + 1; j < take.size(); ++j)
-            if (! take[j].on && take[j].note == n.note) { offMs = take[j].timeMs; offIdx = j; break; }
+        double offMs = releaseOf (i, offIdx);
+
+        // a chord: the next notes on the same plug-in / MIDI-out instrument pressed within the window
+        ChordMatch chord;
+        std::vector<size_t> group { i };
+        if (detectChords && plugIn (n.instrument))
+        {
+            for (size_t j = i + 1; j < take.size(); ++j)
+            {
+                if (take[j].timeMs - n.timeMs > kChordWindowMs) break;
+                if (! take[j].on) break;   // (a key let go in between: not played together)
+                if (take[j].instrument == n.instrument && ! consumed[j]) group.push_back (j);
+            }
+            if (group.size() >= 2)
+            {
+                std::vector<int> notes;
+                for (auto g : group) notes.push_back (take[g].note);
+                chord = matchChord (song.chords, notes);
+                if (chord.root < 1 || chord.root > (int) kNoteMax) chord = {};
+            }
+            if (chord)
+            {
+                // the chord ends when its last key is let go (no OFF if one is still held)
+                for (auto g : group)
+                {
+                    size_t oi = 0;
+                    const double t = releaseOf (g, oi);
+                    if (t < 0) { offMs = -1; offIdx = 0; break; }
+                    if (t >= offMs) { offMs = t; offIdx = oi; }
+                }
+            }
+        }
 
         const Pos p = where (n);
         int line = (int) std::lround (p.line);
@@ -78,23 +115,40 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         if (line >= blk.lines) { ++res.skipped; continue; }
 
         // the cursor's track, else the next free one (a chord spreads across tracks)
+        // (a chord's #xy needs a free effect column in its cell)
+        auto fxFree = [&] (int t) { const auto& c = blk.at (line, t); return c.fx1Empty() || c.fx2Empty(); };
         int track = -1;
         for (int t = std::clamp (cursorTrack, 0, nt - 1); t < nt && track < 0; ++t)
-            if (busyUntil[t] <= n.timeMs && freeCell (p.block, line, t)) track = t;
+            if (busyUntil[t] <= n.timeMs && freeCell (p.block, line, t) && (! chord || fxFree (t))) track = t;
+        if (track < 0 && chord)
+        {
+            // no room for the #: the notes go in one by one after all
+            chord = {};
+            offMs = releaseOf (i, offIdx);
+            for (int t = std::clamp (cursorTrack, 0, nt - 1); t < nt && track < 0; ++t)
+                if (busyUntil[t] <= n.timeMs && freeCell (p.block, line, t)) track = t;
+        }
         if (track < 0) { ++res.skipped; continue; }
 
         CapturePlace pl;
         pl.block = p.block; pl.line = line; pl.track = track;
-        pl.note = (uint8_t) std::clamp (n.note, 1, (int) kNoteMax);
+        pl.note = (uint8_t) std::clamp (chord ? chord.root : n.note, 1, (int) kNoteMax);
         pl.instr = (uint8_t) std::clamp (n.instrument + 1, 1, kMaxInstruments);
         pl.micro = micro;
+        if (chord)
+        {
+            pl.chordSlot = (uint8_t) chord.slot;
+            pl.chordExact = chord.exact;
+            for (auto g : group) consumed[g] = true;
+            ++res.chords;
+        }
         res.places.push_back (pl);
         used.insert ({ p.block, line, track });
         busyUntil[track] = offMs >= 0 ? offMs : 1e300;
         if (first) { res.firstBlock = p.block; res.firstLine = line; first = false; }
 
         // its release: OFF on the line it was let go (plug-in / MIDI-out instruments)
-        const bool wantsOff = n.instrument >= 0 && n.instrument < (int) offsFor.size() && offsFor[(size_t) n.instrument];
+        const bool wantsOff = plugIn (n.instrument);
         if (wantsOff && offMs >= 0)
         {
             const Pos q = where (take[offIdx]);
@@ -103,7 +157,7 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
             if (q.block == p.block && freeCell (q.block, offLine, track))
             {
                 CapturePlace off = pl;
-                off.line = offLine; off.note = kNoteOff; off.instr = 0; off.micro = 0;
+                off.line = offLine; off.note = kNoteOff; off.instr = 0; off.micro = 0; off.chordSlot = 0;
                 res.places.push_back (off);
                 used.insert ({ q.block, offLine, track });
             }

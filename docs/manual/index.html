@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.15</span>
+  <span class="ver">MANUAL &middot; V0.16</span>
 </header>
 
 <div class="app">
@@ -210,7 +210,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>A mixer effect slot</td><td>Copy / paste the effect, clear the slot, bypass, open</td></tr>
       <tr><td>A CHORDS slot</td><td>Copy, paste, clear, play</td></tr>
       <tr><td>The VU meters</td><td>Their colour: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
-      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, capture</td></tr>
+      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture</td></tr>
       <tr><td>A HELP page</td><td>Copy the chapter, or all of HELP</td></tr>
     </tbody>
   </table></div>
@@ -239,7 +239,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <ul>
     <li>Played while the song or block was playing: the notes go where they were played, on the nearest line, with an <code>Mxx</code> for notes more than a third of a tick early or late.</li>
     <li>Played while stopped: the notes since the last pause of more than 4 seconds go in from the cursor, at the song's tempo.</li>
-    <li>Notes start on the cursor's track; held notes and chords spread over the tracks to the right. Plug-in and MIDI-out instruments get note-offs.</li>
+    <li>Notes start on the cursor's track; held notes spread over the tracks to the right. Chords that match the chord table go in as one note + <code>#xy</code> (see <a href="#chords">Playing chords in</a>). Plug-in and MIDI-out instruments get note-offs.</li>
   </ul>
   <h3>Highlighting with the mouse</h3>
   <p>Drag across the pattern to highlight notes and effects; it snaps to whole fields and can cover several tracks. <kbd>Shift</kbd>-click highlights from the cursor to the click, and <kbd>Cmd</kbd><kbd>A</kbd> highlights the whole block.</p>
@@ -555,6 +555,19 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>A slot holds up to 8 notes, below the root as well as above it. An inversion doesn't put the root at the bottom: <code>C-3</code> with MAJ INV 1 plays E, G and the C above.</li>
     <li>The chord ends like a note: the next note on the track, note-off, <code>ECx</code> or <code>Nxx</code>. Pitch commands bend the whole chord. On a sample instrument <code>#xy</code> plays just the note, and saving a MOD leaves it out.</li>
   </ul>
+  <h3>Playing chords in</h3>
+  <p>With EDIT on, or for CAPTURE, just play the chord on a MIDI keyboard or the laptop keys. On a plug-in or MIDI-out instrument, notes pressed together (within 60&nbsp;ms) that match a slot in the song's chord table go in as <span class="b">one note, the root, with <code>#xy</code></span> on one track. The status line says what it found, for example <code>CHORD MIN7 (#03) ON A-2</code>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/live_chord.png" alt="The pattern while playing: C-3 01 #02 on track 2, and the status line CHORD MAJ (#02) ON C-3." width="1440" height="900" loading="lazy"></div>
+    <figcaption>C, E and G played together: one note, <code>#02</code> (MAJ)</figcaption>
+  </figure>
+  <ul>
+    <li>Inversions and spread voicings match their own slots (MAJ INV 1, MIN7 DROP 2&hellip;). If no slot has exactly the notes you played, a slot with the same note names in another octave is used, and the status line says the voicing may differ.</li>
+    <li>When two slots have the same notes (C6 and Am7), the one whose root is your lowest note wins, then the one starting on the first key you pressed, then the lower slot.</li>
+    <li>The notes go in as you play them; the moment they make a chord they're rewritten as one, still one undo step. In step entry the cursor moves on once for the chord. Its <code>OFF</code> goes on the line where you let go of the last key.</li>
+    <li><code>#</code> goes in the first effect column, or the second if the first already has a command. If both are taken, the notes go in one by one and the status line says so.</li>
+    <li>Notes rolled slower than 60&nbsp;ms stay separate notes, and sample instruments always get the notes as played. Right-click <span class="b">EDIT</span> &rarr; <span class="b">DETECT CHORDS</span> turns it off; it's remembered.</li>
+  </ul>
   <h3>The CHORDS page</h3>
   <p>Press <kbd>Cmd</kbd><kbd>3</kbd>, or <span class="b">CHORDS...</span> on the instrument's page. The slots 01&ndash;FF are on the left, the chord database on the right.</p>
   <figure>
@@ -675,7 +688,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.15</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.16</footer>
 </main>
 </div>
 </body></html>

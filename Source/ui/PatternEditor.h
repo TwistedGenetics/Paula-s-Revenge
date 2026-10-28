@@ -163,11 +163,28 @@ private:
 
     std::map<int, int> heldKeys;   // key code -> jam note
     // notes recorded and still held: their release writes OFF (plug-in / MIDI-out instruments)
-    struct Held { int block = 0, line = 0, track = 0, instrument = 0; };
+    struct Held { int block = 0, line = 0, track = 0, instrument = 0, group = 0; };
     std::map<int, Held> held;
-    void noteRecorded (int note);
+    void noteRecorded (int note, int group = 0);
+    // notes pressed together (kChordWindowMs) on a plug-in / MIDI-out instrument: when they match
+    // the chord table they're rewritten as the root + #xy (DETECT CHORDS)
+    struct ChordGroup
+    {
+        bool active = false;
+        double firstMs = 0;
+        int instrument = 0, id = 0;
+        int block = 0, line = 0, track = 0;                      // the cursor before the first note
+        std::vector<int> notes;
+        struct Touched { int line, track; Cell before; };
+        std::vector<Touched> touched;                            // cells written, in order
+    } chordGroup;
+    int nextGroupId = 1;
+    void applyChordGroup();
 public:
+    void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
+    static bool detectChords();                                  // DETECT CHORDS (prefs, on by default)
+    static void setDetectChords (bool);
 private:
     float vu[prv::kMaxTracks] {};
     int lastDrawnLine = -1, lastDrawnBlock = -1;

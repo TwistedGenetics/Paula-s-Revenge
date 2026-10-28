@@ -1,6 +1,7 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
 #include "ChoiceBox.h"
+#include "../engine/ChordDetect.h"
 #include "../Prefs.h"
 #include "../engine/Commands.h"
 #include "../engine/SongOps.h"
@@ -475,12 +476,7 @@ void PatternEditor::tick()
     {
         if (! in.on) { recordRelease (in.note, in.pos); continue; }
         if (! st.editMode) continue;
-        pushUndo (st.block, "MIDI NOTE");
-        proc.withLock ([&] {
-            auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
-            c.note = (uint8_t) in.note; c.instr = (uint8_t) (st.instrument + 1); });
-        noteRecorded (in.note);
-        advance(); changed();
+        recordNote (in.note, in.timeMs);
     }
 
     const float oldTop = viewTop;
@@ -1163,15 +1159,94 @@ void PatternEditor::enterNote (int note)
     proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
     proc.keyNoteInput (note, true);
     if (! st.editMode) return;
+    recordNote (note, juce::Time::getMillisecondCounterHiRes());
+}
+
+bool PatternEditor::detectChords()        { return prv::prefs().getBoolValue ("detectChords", true); }
+void PatternEditor::setDetectChords (bool on) { prv::prefs().setValue ("detectChords", on); }
+
+void PatternEditor::recordNote (int note, double timeMs)
+{
+    note = juce::jlimit (1, (int) kNoteMax, note);
+    const int blk = proc.song.safeBlock (st.block);
+    const bool plugIn = st.instrument >= 0 && st.instrument < kMaxInstruments && proc.song.instruments[(size_t) st.instrument].isPlugin();
+    auto& g = chordGroup;
+    // another note of a chord being played?
+    if (g.active && detectChords() && plugIn && g.instrument == st.instrument && g.block == blk
+        && timeMs - g.firstMs <= kChordWindowMs && std::find (g.notes.begin(), g.notes.end(), note) == g.notes.end())
+    {
+        g.notes.push_back (note);
+        applyChordGroup();   // (the undo step from its first note covers it)
+        changed();
+        return;
+    }
     pushUndo (st.block, "NOTE " + juce::String (noteName ((uint8_t) note)));
+    g = {};
+    if (detectChords() && plugIn)
+    {
+        g.active = true; g.firstMs = timeMs; g.instrument = st.instrument; g.id = nextGroupId++;
+        g.block = blk; g.line = st.line; g.track = st.track;
+        g.notes = { note };
+        applyChordGroup();
+        changed();
+        return;
+    }
     proc.withLock ([&] {
-        auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+        auto& c = proc.song.blocks[(size_t) blk].at (st.line, st.track);
         c.note = (uint8_t) note;
         c.instr = (uint8_t) (st.instrument + 1);
     });
     noteRecorded (note);
     advance();
     changed();
+}
+
+void PatternEditor::applyChordGroup()
+{
+    // (re)write the group from scratch: put back what was there, then the chord - or the notes
+    auto& g = chordGroup;
+    auto& block = proc.song.blocks[(size_t) proc.song.safeBlock (g.block)];
+    proc.withLock ([&] {
+        for (auto it = g.touched.rbegin(); it != g.touched.rend(); ++it) block.at (it->line, it->track) = it->before;
+    });
+    g.touched.clear();
+    for (int n : g.notes) held.erase (n);
+    st.block = g.block; st.line = g.line; st.track = g.track;
+    const uint8_t ins = (uint8_t) (g.instrument + 1);
+
+    const auto match = g.notes.size() >= 2 ? matchChord (proc.song.chords, g.notes) : ChordMatch {};
+    const Cell here = block.at (st.line, st.track);
+    if (match && match.root >= 1 && match.root <= (int) kNoteMax && (here.fx1Empty() || here.fx2Empty()))
+    {
+        g.touched.push_back ({ st.line, st.track, here });
+        proc.withLock ([&] {
+            auto& c = block.at (st.line, st.track);
+            c.note = (uint8_t) match.root; c.instr = ins;
+            if (c.fx1Empty()) { c.cmd = kCmdChord; c.param = (uint8_t) match.slot; }
+            else { c.cmd2 = kCmdChord; c.param2 = (uint8_t) match.slot; }
+        });
+        for (int n : g.notes) noteRecorded (n, g.id);
+        advance();
+        if (onStatus)
+        {
+            const auto& d = proc.song.chords[(size_t) match.slot];
+            onStatus ("CHORD " + juce::String (d.name) + " (#" + juce::String::toHexString (match.slot).toUpperCase().paddedLeft ('0', 2) + ") ON "
+                      + juce::String (noteName ((uint8_t) match.root))
+                      + (match.exact ? juce::String() : juce::String (" - MATCHED BY NOTE NAMES, THE VOICING MAY DIFFER")));
+        }
+        return;
+    }
+    if (match && onStatus) onStatus ("CHORD FOUND, BUT NO FREE EFFECT COLUMN FOR THE # - THE NOTES WENT IN ONE BY ONE");
+    for (int n : g.notes)
+    {
+        g.touched.push_back ({ st.line, st.track, block.at (st.line, st.track) });
+        proc.withLock ([&] {
+            auto& c = block.at (st.line, st.track);
+            c.note = (uint8_t) n; c.instr = ins;
+        });
+        noteRecorded (n);
+        advance();
+    }
 }
 
 void PatternEditor::enterHex (int v)
@@ -1522,9 +1597,9 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     return false;
 }
 
-void PatternEditor::noteRecorded (int note)
+void PatternEditor::noteRecorded (int note, int group)
 {
-    held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument };
+    held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument, group };
 }
 
 void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
@@ -1534,6 +1609,12 @@ void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
     if (it == held.end()) return;
     const Held h = it->second;
     held.erase (it);
+    // a key of the chord being played let go: the chord is complete
+    if (chordGroup.active && std::find (chordGroup.notes.begin(), chordGroup.notes.end(), note) != chordGroup.notes.end())
+        chordGroup.active = false;
+    // a chord ends when its last key is let go
+    if (h.group != 0)
+        for (const auto& kv : held) if (kv.second.group == h.group) return;
     if (! st.editMode || h.instrument < 0 || h.instrument >= kMaxInstruments) return;
     if (! proc.song.instruments[(size_t) h.instrument].isPlugin()) return;   // (samples play out by themselves)
     int blk = h.block, line = -1;

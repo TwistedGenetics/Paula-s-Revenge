@@ -3,6 +3,7 @@
 #include <chrono>
 #include "engine/Player.h"
 #include "engine/Capture.h"
+#include "engine/ChordDetect.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -2252,6 +2253,96 @@ static void testCapture()
     }
 }
 
+static void testChordDetect()
+{
+    const auto& t = defaultChordTable();
+    auto m = [&] (std::vector<int> n, const ChordTable* tab = nullptr) { return matchChord (tab != nullptr ? *tab : t, n); };
+    // root position, any octave
+    auto a = m ({ 60, 64, 67 });
+    CHECK (a.slot == 0x02 && a.root == 60 && a.exact);
+    a = m ({ 67, 60, 64 });                       // (pressed in any order)
+    CHECK (a.slot == 0x02 && a.root == 60);
+    // inversions and spread voicings: their own slots, the root as the slot measures it
+    a = m ({ 64, 67, 72 });                       // E G C: MAJ INV 1 on C
+    CHECK (a.slot == 0x17 && a.root == 60 && a.exact);
+    a = m ({ 55, 60, 63, 70 });                   // G C D# A#: MIN7 DROP 2 on C
+    CHECK (a.slot == 0x1B && a.root == 60 && a.exact);
+    a = m ({ 48, 55, 60 });                       // 5 OCT
+    CHECK (a.slot == 0x1F && a.root == 48);
+    a = m ({ 48, 55 });                           // two notes: a power chord
+    CHECK (a.slot == 0x0F && a.root == 48);
+    // C6 and Am7 are the same notes: C at the bottom -> C6, A at the bottom -> Am7
+    a = m ({ 60, 64, 67, 69 });
+    CHECK (a.slot == 0x0B && a.root == 60);
+    a = m ({ 57, 60, 64, 67 });
+    CHECK (a.slot == 0x03 && a.root == 57);
+    // no exact voicing: by note names, flagged
+    a = m ({ 48, 64, 67, 69 });                   // C low, E G A high: C6 by name
+    std::printf ("chord detect by name: slot %02X root %d exact %d\n", a.slot, a.root, (int) a.exact);
+    CHECK (a.slot == 0x0B && ! a.exact && a.root % 12 == 0 && std::abs (a.root - 48) <= 6);
+    a = m ({ 60, 76, 79 });                       // C, then E G an octave up: MAJ by name
+    CHECK (a.slot == 0x02 && ! a.exact && a.root == 60);
+    // nothing in the table: no chord
+    CHECK (! m ({ 60, 61, 62 }));
+    CHECK (! m ({ 60 }));
+    CHECK (! m ({ 60, 60 }));                     // (the same note twice is one note)
+    // an emptied slot isn't matched
+    ChordTable t2 = t;
+    t2[0x02] = {};
+    a = m ({ 60, 64, 67 }, &t2);
+    CHECK (a.slot != 0x02);
+    ChordTable none {};
+    CHECK (! m ({ 60, 64, 67 }, &none));
+
+    // CAPTURE: notes on a plug-in played together -> one note + #xy, OFF when the last key goes
+    Song song; song.numTracks = 4;
+    std::vector<bool> offs (kMaxInstruments, false);
+    offs[1] = true;
+    auto on = [] (double tm, int note, int ins) { CapturedNote c; c.timeMs = tm; c.note = note; c.instrument = ins; c.on = true; c.speed = 6; return c; };
+    auto off = [] (double tm, int note, int ins) { CapturedNote c; c.timeMs = tm; c.note = note; c.instrument = ins; c.on = false; c.speed = 6; return c; };
+    std::vector<CapturedNote> log;
+    log.push_back (on (1000, 60, 1)); log.push_back (on (1015, 64, 1)); log.push_back (on (1040, 67, 1));   // C major, 40 ms spread
+    log.push_back (on (1240, 72, 1));                                                               // line 2: a single note
+    log.push_back (off (1250, 72, 1));
+    log.push_back (off (1300, 60, 1)); log.push_back (off (1310, 67, 1)); log.push_back (off (1480, 64, 1));   // last key at line 4
+    log.push_back (on (1720, 60, 1)); log.push_back (on (1800, 64, 1)); log.push_back (on (1880, 67, 1));   // rolled, 80 ms apart: notes
+    auto r = placeCapture (song, log, 0, 0, 0, 125, 6, offs, true);
+    std::string got;
+    for (auto& p : r.places) got += std::to_string (p.line) + ":" + std::to_string (p.track) + ":" + std::to_string (p.note) + ":" + std::to_string (p.chordSlot) + " ";
+    std::printf ("capture chords: %s (chords %d)\n", got.c_str(), r.chords);
+    CHECK (r.chords == 1);
+    if (r.places.size() >= 2)
+    {
+        CHECK (r.places[0].line == 0 && r.places[0].track == 0 && r.places[0].note == 60 && r.places[0].chordSlot == 0x02);
+        int chordOff = -1, single = -1, rolled = 0;
+        for (auto& p : r.places)
+        {
+            if (p.note == kNoteOff && p.track == 0) chordOff = p.line;
+            if (p.note == 72) single = p.track;
+            if (p.line >= 6 && p.note != kNoteOff && p.chordSlot == 0) ++rolled;
+        }
+        CHECK (chordOff == 4);          // (1480 ms: line 4)
+        CHECK (single == 1);            // (track 0 is held by the chord until line 4)
+        CHECK (rolled == 3);
+    }
+    // detection off: the same notes go in one by one
+    auto r3 = placeCapture (song, log, 0, 0, 0, 125, 6, offs, false);
+    CHECK (r3.chords == 0);
+    // a sample instrument: no detection
+    for (auto& c : log) c.instrument = 0;
+    auto r4 = placeCapture (song, log, 0, 0, 0, 125, 6, offs, true);
+    CHECK (r4.chords == 0);
+    // no free effect column on the chord's cell: notes one by one
+    song.blocks[0].at (0, 0) = { 0, 0, 1, 0x10 };
+    song.blocks[0].at (0, 0).cmd2 = 2; song.blocks[0].at (0, 0).param2 = 0x10;
+    for (auto& c : log) c.instrument = 1;
+    auto r5 = placeCapture (song, log, 0, 0, 0, 125, 6, offs, true);
+    std::string got5;
+    for (auto& p : r5.places) got5 += std::to_string (p.line) + ":" + std::to_string (p.track) + ":" + std::to_string (p.note) + ":" + std::to_string (p.chordSlot) + " ";
+    std::printf ("capture chord, fx full: %s\n", got5.c_str());
+    CHECK (r5.chords == 1 && r5.places[0].track == 1 && r5.places[0].chordSlot == 0x02);
+}
+
 int main()
 {
     testDoubleHalve();
@@ -2273,6 +2364,7 @@ int main()
     testChords();
     testChordTable();
     testCapture();
+    testChordDetect();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();
