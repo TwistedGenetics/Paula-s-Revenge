@@ -13,7 +13,12 @@ public:
     static constexpr int kCellW = 6;
     static constexpr int kCellH = 8;
 
-    static float textWidth (const juce::String& text, float px) { return (float) text.length() * kCellW * px; }
+    static float textWidth (const juce::String& text, float px) { return (float) forScreen (text).length() * kCellW * px; }
+
+    // On a PC the Cmd key is Ctrl: the word CMD is shown as CTRL (on by default on Windows;
+    // tests can switch it on elsewhere)
+    static bool& ctrlKeyNames();
+    static juce::String forScreen (const juce::String& text);
     static float textHeight (float px) { return kCellH * px; }
 
     // Adds the text's pixels to a rectangle list (fast for big blocks of text)

@@ -115,9 +115,41 @@ namespace
     const Table& table() { static Table t; return t; }
 }
 
-void PixelFont::addText (juce::RectangleList<float>& list, const juce::String& text, float x, float y, float px)
+bool& PixelFont::ctrlKeyNames()
+{
+   #if JUCE_WINDOWS
+    static bool on = true;
+   #else
+    static bool on = false;
+   #endif
+    return on;
+}
+
+juce::String PixelFont::forScreen (const juce::String& text)
+{
+    if (! ctrlKeyNames() || ! text.containsIgnoreCase ("cmd")) return text;
+    // the word CMD (any case) on its own - CMD+Z, CMD-CLICK, (CMD) - not inside other words
+    juce::String out;
+    const int n = text.length();
+    auto letter = [] (juce::juce_wchar c) { return juce::CharacterFunctions::isLetter (c); };
+    for (int i = 0; i < n;)
+    {
+        if (i + 3 <= n && text.substring (i, i + 3).equalsIgnoreCase ("cmd")
+            && (i == 0 || ! letter (text[i - 1])) && (i + 3 == n || ! letter (text[i + 3])))
+        {
+            const bool lower = text[i + 1] == 'm';
+            out << (lower ? "Ctrl" : "CTRL");
+            i += 3;
+        }
+        else out << juce::String::charToString (text[i++]);
+    }
+    return out;
+}
+
+void PixelFont::addText (juce::RectangleList<float>& list, const juce::String& rawText, float x, float y, float px)
 {
     const auto& t = table();
+    const auto text = forScreen (rawText);
     for (auto ch : text)
     {
         juce::juce_wchar c = ch;

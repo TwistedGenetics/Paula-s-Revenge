@@ -1,6 +1,6 @@
 # PAULA'S REVENGE
 
-An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses), VST3 / AU instruments, MIDI out to your hardware, effect automation from the pattern (or recorded by hand) and stem renders. Big pixel text, keyboard-driven.
+An 8-track, Amiga-style sample tracker for jungle, drum & bass and anything that wants that crunchy 8-bit Paula sound. A **standalone app** for macOS and Windows, with a built-in mixer (EQ, insert effects — built-in or your own VST3 / AU plug-ins — and two send buses), VST3 / AU instruments, MIDI out to your hardware, effect automation from the pattern (or recorded by hand) and stem renders. Big pixel text, keyboard-driven.
 
 It's an original program inspired by the classic Amiga trackers of the early 90s. It loads and saves ProTracker-style `.MOD` files and imports MED/OctaMED `MMD0`/`MMD1` modules.
 
@@ -10,12 +10,14 @@ It's an original program inspired by the classic Amiga trackers of the early 90s
 
 ## Install (no building needed)
 
-Every green build publishes a release. Open **Releases** on the right of the
-repo page, download **PaulasRevenge-macOS.zip** from the newest one, and
-follow the `INSTALL.txt` inside: copy the app into Applications and clear
-macOS quarantine. Builds are universal (Apple Silicon + Intel).
+Every green build publishes one release with both versions, always the same version number. Open **Releases** on the right of the repo page and download from the newest one:
 
-Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
+* **Mac:** **PaulasRevenge-macOS.zip**, then follow the `INSTALL.txt` inside: copy the app into Applications and clear macOS quarantine. Universal (Apple Silicon + Intel).
+* **Windows 10 / 11 (64-bit):** **PaulasRevenge-Windows.zip**. Unzip it anywhere and run `Paula's Revenge.exe` (nothing else to install). The app isn't code-signed yet, so the first time Windows says *"Windows protected your PC"*: click **More info**, then **Run anyway**.
+
+**On a PC:** every `Cmd` shortcut in this help is `Ctrl` (`Ctrl+S` saves, `Ctrl+Z` undoes, `Ctrl+R` captures...), and the app shows CTRL where the Mac shows CMD. Full screen is `F11`. The menus (**File**: Audio/MIDI Settings, Follow System Output, Quit; **View**: Capture, Full Screen) are in the window. Plug-ins are VST3 (Audio Units are Mac-only), and audio is **Windows Audio** (WASAPI) or DirectSound. Settings and the global chord set are kept in `%APPDATA%\Paula's Revenge`.
+
+Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Revenge itself).
 
 ---
 
@@ -60,7 +62,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | CHORDS page slots | COPY, PASTE, CLEAR, PLAY, RECORD CHORD, NOTE |
 | HELP text | COPY THIS CHAPTER, COPY ALL OF IT |
 
-Copied instruments, strips, effects and chords stay in the app (paste them into another slot or another song); HELP text goes to the Mac's clipboard.
+Copied instruments, strips, effects and chords stay in the app (paste them into another slot or another song); HELP text goes to the system clipboard.
 
 ## Panning and left/right balance
 
@@ -194,7 +196,7 @@ Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, ste
 
 The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The menus have **Audio/MIDI Settings…** (`Cmd+,`), **Toggle Full Screen** (`Ctrl+Cmd+F`) and **Quit** (`Cmd+Q`). The app remembers its window size and position.
 
-**Headphones (FOLLOW MAC OUTPUT):** the app plays through whatever output your Mac is using, and moves with it: plug in headphones, connect AirPods or another Bluetooth set, or plug in a USB interface that the Mac switches to, and the sound goes there straight away (with a quick fade, so no click); unplug them and it goes back. The status line says where the sound went (`OUTPUT: EXTERNAL HEADPHONES`). It keeps your sample rate and buffer size when the new output can do them. **Follow Mac Output (Headphones)** in the app menu (next to Audio/MIDI Settings) turns it on and off; it's on to start with. Choosing a different device by hand in Audio/MIDI Settings (an audio interface you always want, say) turns it off, so your choice stays — the status line says so.
+**Headphones (FOLLOW SYSTEM OUTPUT):** the app plays through whatever output your Mac (or PC) is using, and moves with it: plug in headphones, connect AirPods or another Bluetooth set, or plug in a USB interface that the computer switches to, and the sound goes there straight away (with a quick fade, so no click); unplug them and it goes back. The status line says where the sound went (`OUTPUT: EXTERNAL HEADPHONES`). It keeps your sample rate and buffer size when the new output can do them. **Follow System Output (Headphones)** in the app menu (next to Audio/MIDI Settings; on a PC in the File menu) turns it on and off; it's on to start with. Choosing a different device by hand in Audio/MIDI Settings (an audio interface you always want, say) turns it off, so your choice stays — the status line says so.
 
 ## Sample browser
 
@@ -435,6 +437,8 @@ Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time.
 
 ## Plug-in effects (VST3 / AU)
 
+(On a PC: VST3 only.)
+
 Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
 
 * On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your Mac in the background (only effects are listed here; instruments are chosen from PARAMS); **RESCAN** looks again after you install more. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
@@ -457,6 +461,8 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 * Knobs are saved in the song and are undo steps. Built-in effects go back to their slider settings when automation stops. On/off switching starts again from the BYPASS and ON buttons each time the song or block starts or stops, and clicking BYPASS (or ON) takes back control from the pattern.
 
 ## Plug-in instruments (VST3 / AU)
+
+(On a PC: VST3 only.)
 
 Any instrument slot can play one of your instrument plug-ins instead of a sample:
 
