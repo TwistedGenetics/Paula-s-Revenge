@@ -143,6 +143,7 @@ public:
     // CAPTURE: the last 2 minutes of notes played (message thread)
     std::deque<InputNote> captureLog;
     void logInput (const InputNote& n);
+    std::atomic<int> lastPlayedNote { -1 };    // the last key played (MIDI or laptop keys): CHORDS auditions on it
 
     // ---- audition player for the sample browser and the sample editor ----
     struct PreviewAudio

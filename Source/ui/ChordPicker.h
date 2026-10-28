@@ -8,7 +8,7 @@
 
 namespace prv::ui
 {
-class ChordPicker : public juce::Component
+class ChordPicker : public juce::Component, private juce::Timer
 {
 public:
     ChordPicker();
@@ -16,6 +16,9 @@ public:
     std::function<void()> onEdit;                 // EDIT CHORDS...
     std::function<void()> onCommands;             // EFFECT COMMANDS...
     std::function<void()> onCancel;
+    // AUDITION: moving through the list (keys or mouse) plays the chord; 0 = stop
+    std::function<void (int slot)> onAudition;
+    bool audition = true;
 
     // shows the song's filled slots, the current one highlighted
     void open (const ChordTable& table, int currentSlot);
@@ -29,6 +32,7 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
     void inputAttemptWhenModal() override { if (onCancel) onCancel(); }
+    void visibilityChanged() override { if (! isVisible()) { stopTimer(); if (auditioned >= 0 && onAudition) onAudition (0); auditioned = -1; } }
 
 private:
     PixList list;
@@ -36,5 +40,9 @@ private:
     std::vector<int> slotRows;
     std::vector<juce::String> texts;
     juce::String typed;                            // two hex digits typed jump to that slot
+    std::vector<int> colours;                      // each row's group colour
+    int auditioned = -1;
+    void hear (int row);                           // play the chord under the mouse / keys, briefly
+    void timerCallback() override;
 };
 } // namespace prv::ui

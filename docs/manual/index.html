@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.18</span>
+  <span class="ver">MANUAL &middot; V0.19</span>
 </header>
 
 <div class="app">
@@ -209,7 +209,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>The sample's waveform</td><td>The sample editor's edits on the highlight</td></tr>
       <tr><td>A mixer strip's name</td><td>Copy / paste / reset the strip, open the channel</td></tr>
       <tr><td>A mixer effect slot</td><td>Copy / paste the effect, clear the slot, bypass, open</td></tr>
-      <tr><td>A CHORDS slot</td><td>Copy, paste, clear, play, record chord, note</td></tr>
+      <tr><td>A CHORDS slot</td><td>Copy, paste, clear (all the picked slots), colour, play, record chords, note</td></tr>
       <tr><td>Any level meter: the bar at the right of each track, the L / R meter, the mixer's meters</td><td>Their colour, one for all of them: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
       <tr><td>The spectrum strip</td><td>Its colour: the same choices, or rainbow (the track colours, as it starts)</td></tr>
       <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture</td></tr>
@@ -240,6 +240,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>The app is always listening to the MIDI keyboard and the laptop keys, even with EDIT off &mdash; the last two minutes. Noodle away; if you like what you played, press <kbd>Cmd</kbd><kbd>R</kbd> (or <span class="b">Capture What I Played</span> in the View menu, the <span class="b">CAPTURE</span> button on a wide window, or right-click <span class="b">EDIT</span>) and it is written into the pattern, one undo step.</p>
   <ul>
     <li>Played while the song or block was playing: the notes go where they were played, on the nearest line, with an <code>Mxx</code> for notes more than a third of a tick early or late.</li>
+    <li><b>One take is one time round.</b> Each time playback goes back to the start (the end of the song, a looping block, the loop lines) a new take begins, so loops never pile up. CAPTURE takes the latest time round that had notes in it: play on the 2nd time round, let it go round 5 more times, and it still writes the 2nd. A note held over the wrap gets its <code>OFF</code> where you let go, early in the block, so it rings over the loop as played.</li>
     <li>Played while stopped: the notes since the last pause of more than 4 seconds go in from the cursor, at the song's tempo.</li>
     <li>Notes start on the cursor's track; held notes spread over the tracks to the right. Chords that match the chord table go in as one note + <code>#xy</code> (see <a href="#chords">Playing chords in</a>). Plug-in and MIDI-out instruments get note-offs.</li>
   </ul>
@@ -579,32 +580,43 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
-      <tr><td>Slot list</td><td>Click a slot to fill it. <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> moves through the slots. A <code>*</code> marks a slot that isn't the same in the global set. A slot's note shows after its chord.</td></tr>
-      <tr><td><span class="b">RECORD CHORD</span></td><td>Play a chord into the slot: see below</td></tr>
-      <tr><td><span class="b">NOTE...</span></td><td>A note of your own on the slot, up to 24 characters</td></tr>
+      <tr><td>Slot list</td><td>Fixed columns: <code>#</code>, NAME (a long one ends in <code>..</code>) and NOTE, so the notes line up. Click a slot to fill it; drag, <kbd>Shift</kbd>-click or <kbd>Cmd</kbd>-click to pick several. <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> moves through the slots. A <code>*</code> marks a slot that isn't the same in the global set; a coloured stripe, its group colour.</td></tr>
+      <tr><td>Double-click NOTE</td><td>Type the slot's note right there (Enter keeps it, Esc doesn't)</td></tr>
+      <tr><td><span class="b">RECORD CHORD</span></td><td>Stays on: play chord after chord into the slots (see below)</td></tr>
+      <tr><td><span class="b">COLOUR</span></td><td>A group colour for the picked slots: 8 colours or none</td></tr>
+      <tr><td><span class="b">AUDITION</span></td><td>Clicking a chord plays it, on the last key you played</td></tr>
       <tr><td>Database</td><td>Double-click a chord (or press Enter, or <span class="b">SET SLOT</span>) to put it in the slot. <kbd>&uarr;</kbd><kbd>&darr;</kbd> move through it.</td></tr>
       <tr><td><span class="b">ALL</span> <span class="b">MAJOR</span> <span class="b">MINOR</span> <span class="b">DOM</span> <span class="b">SUS</span> <span class="b">DIM</span> <span class="b">AUG</span> <span class="b">OTHER</span></td><td>Show one family of chords</td></tr>
       <tr><td>Typing</td><td>Searches: <code>MIN7</code>, <code>SUS4</code>, <code>DROP 2</code>, <code>7B9</code> for 7&#9837;9. Backspace and Esc clear it.</td></tr>
-      <tr><td><span class="b">PLAY</span></td><td>Plays the chord on <code>C-3</code> with the current instrument (Space)</td></tr>
-      <tr><td><span class="b">CLEAR SLOT</span></td><td>Empties the slot (Delete): its <code>#xy</code> then plays just the note</td></tr>
+      <tr><td><span class="b">PLAY</span></td><td>Plays the chord with the current instrument, on the last key you played (Space)</td></tr>
+      <tr><td><span class="b">CLEAR SLOT</span></td><td>Empties the slot, or all the picked ones (Delete): their <code>#xy</code> then plays just the note</td></tr>
       <tr><td><span class="b">THIS SONG</span> <span class="b">GLOBAL SET</span></td><td>Which table you're editing</td></tr>
       <tr><td><span class="b">SAVE AS GLOBAL SET</span></td><td>The song's chords become the global set (it asks first)</td></tr>
       <tr><td><span class="b">USE GLOBAL SET</span></td><td>The song gets the global set (undo takes it back)</td></tr>
     </tbody>
   </table></div>
   <h3>Recording your own chords</h3>
-  <p>Click a slot (an empty one, or one to replace), press <span class="b">RECORD CHORD</span> above the slot list, then play the chord on a MIDI keyboard or the laptop keys and let go. The notes you held become the slot's chord.</p>
+  <p>Click the slot to start at and press <span class="b">RECORD CHORD</span> above the slot list: it stays down. Play chord after chord on a MIDI keyboard or the laptop keys, letting go between them. Each chord goes into the selected slot, then the selection moves on to the <b>next empty slot</b>, so nothing is written over; the status line counts them. Click RECORD CHORD again (or <kbd>Esc</kbd>) to stop.</p>
   <figure>
-    <div class="frame sunken"><img src="img/record_chord.png" alt="The CHORDS page recording into slot 40: RECORD CHORD is down and the line under the lists reads RECORDING INTO SLOT 40: C-3 E-3 G-3." width="1440" height="900" loading="lazy"></div>
-    <figcaption>Recording into slot 40: the notes so far are on the line under the lists</figcaption>
+    <div class="frame sunken"><img src="img/record_chord.png" alt="The CHORDS page recording: RECORD CHORD is down, slots 40, 41 and 43 hold the chords just played (42 was taken), and the line under the lists reads RECORDING INTO SLOT 44 (3 DONE)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Three chords recorded: 40, 41, then 43 (42 already had one); 44 is next</figcaption>
   </figure>
   <ul>
     <li>If the notes are one of the database's chords, the slot takes that name and root: E G C becomes MAJ INV 1, so <code>C-3</code> with it plays your E G C. Anything else is called USER and is measured from your lowest note.</li>
-    <li>Up to 8 notes (with more, the lowest 8). One note on its own isn't a chord: play again. <kbd>Esc</kbd>, or RECORD CHORD again, cancels.</li>
-    <li>While it records, the MIDI keyboard doesn't write into the pattern and the laptop keys don't type into the search. It's an undo step.</li>
+    <li>Up to 8 notes (with more, the lowest 8). One note on its own isn't a chord and is ignored.</li>
+    <li>While it records, the MIDI keyboard doesn't write into the pattern and the laptop keys don't type into the search. Each chord is an undo step.</li>
   </ul>
   <h3>Notes on slots</h3>
-  <p><span class="b">NOTE...</span> (or right-click a slot &rarr; NOTE...) gives the slot a note of your own, such as <code>VERSE PROG 1</code>, up to 24 characters. It shows after the chord in the slot list, in the chord list over the pattern and in the help line for a <code>#xy</code>, and it stays with the slot when you change its chord. Notes are saved in the song and in the global set.</p>
+  <p><b>Double-click a slot's NOTE column</b> (or right-click &rarr; NOTE...) and type a note of your own right there, such as <code>VERSE PROG 1</code>, up to 24 characters; Enter keeps it, Esc doesn't. It shows in the slot list's NOTE column, in the chord list over the pattern and in the help line for a <code>#xy</code>, and it stays with the slot when you change its chord. Notes are saved in the song and in the global set.</p>
+  <h3>Colour groups</h3>
+  <p>Pick several slots (drag down the list, <kbd>Shift</kbd>-click a range, <kbd>Cmd</kbd>-click one at a time), then <span class="b">COLOUR</span> (or right-click &rarr; COLOUR...): red, orange, yellow, green, cyan, blue, purple, pink, or none. The colour shows as a stripe left of the slot number, in the chord list over the pattern, and on the <code>#xy</code> in the pattern itself, so a progression stands out while you write.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/chord_colours.png" alt="The pattern with C-3 01 #40 in red on track 1 and E-3 01 #05 in blue on track 2; an ordinary #02 on track 3 stays white." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Chord groups in the pattern: <code>#40</code> red, <code>#05</code> blue</figcaption>
+  </figure>
+  <p>COPY, PASTE and CLEAR work on all the picked slots. Colours are saved in the song and in the global set.</p>
+  <h3>Hearing chords (AUDITION)</h3>
+  <p>With <span class="b">AUDITION</span> on (top right of the CHORDS page; on to start with), clicking a slot or a chord in the database plays it with the current instrument while you hold the mouse, on <b>the last key you played</b> (C of the octave before you've played any). The arrow keys play each chord briefly as you move. In the chord list over the pattern, moving with the arrow keys or the mouse plays each chord on that cell's note with that track's instrument; clicking still picks it.</p>
   <h3>The database</h3>
   <p>116 chord types &mdash; major, minor, dominant, suspended, diminished, augmented and more &mdash; from the tonal music library's list, which comes from Wikibooks' complete list of chord patterns. Each one is there as written (ROOT), in every inversion (INV 1, INV 2&hellip;), as DROP 2 and DROP 3 voicings for four-note chords and OPEN for triads: 638 voicings in all.</p>
   <h3>The song's chords and the global set</h3>
@@ -705,7 +717,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.18</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.19</footer>
 </main>
 </div>
 </body></html>

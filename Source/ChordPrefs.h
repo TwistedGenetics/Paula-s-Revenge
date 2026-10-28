@@ -10,7 +10,7 @@ namespace prv
 inline juce::String encodeChords (const ChordTable& t)
 {
     juce::MemoryOutputStream o;
-    o.writeByte (2);   // (format; 2: with the slots' notes)
+    o.writeByte (3);   // (format; 2: with the slots' notes, 3: and their colours)
     for (int i = 1; i < kChordSlots; ++i)
     {
         const auto& d = t[(size_t) i];
@@ -22,6 +22,7 @@ inline juce::String encodeChords (const ChordTable& t)
         for (int k = 0; k < d.count; ++k) o.writeByte ((char) d.notes[(size_t) k]);
         o.writeByte ((char) std::min ((int) d.note.size(), 255));
         o.write (d.note.data(), std::min (d.note.size(), (size_t) 255));
+        o.writeByte ((char) d.colour);
     }
     return o.getMemoryBlock().toBase64Encoding();
 }
@@ -32,7 +33,7 @@ inline bool decodeChords (const juce::String& text, ChordTable& out)
     if (text.isEmpty() || ! mb.fromBase64Encoding (text) || mb.getSize() < 1) return false;
     juce::MemoryInputStream in (mb, false);
     const int format = in.readByte();
-    if (format != 1 && format != 2) return false;
+    if (format < 1 || format > 3) return false;
     ChordTable t;
     while (! in.isExhausted())
     {
@@ -52,6 +53,11 @@ inline bool decodeChords (const juce::String& text, ChordTable& out)
             if (in.getNumBytesRemaining() < nlen) return false;
             d.note.assign ((size_t) nlen, ' ');
             in.read (d.note.data(), nlen);
+        }
+        if (format >= 3)
+        {
+            if (in.getNumBytesRemaining() < 1) return false;
+            d.colour = std::clamp ((int) (uint8_t) in.readByte(), 0, kChordColours);
         }
     }
     out = t;

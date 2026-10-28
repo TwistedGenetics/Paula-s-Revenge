@@ -11,6 +11,7 @@ namespace prv
 constexpr int kChordSlots    = 256;   // slots 01-FF (00 = no chord)
 constexpr int kMaxChordNotes = 8;
 constexpr int kChordNoteLen  = 24;   // a slot's note, in characters
+constexpr int kChordColours  = 8;    // group colours a slot can have (1-8; 0 = none)
 
 // one voicing in the built-in chord database (generated: ChordDatabase.cpp)
 struct ChordEntry
@@ -34,11 +35,12 @@ struct ChordDef
     std::array<int8_t, kMaxChordNotes> notes {};
     int count = 0;
     std::string note;                           // the user's own note on the slot ("VERSE PROG 2"), up to kChordNoteLen
+    int colour = 0;                             // its group colour: 0 = none, 1-8 (kChordColours)
 
     bool empty() const { return count <= 0; }
     bool operator== (const ChordDef& o) const
     {
-        if (count != o.count || name != o.name || note != o.note) return false;
+        if (count != o.count || name != o.name || note != o.note || colour != o.colour) return false;
         for (int i = 0; i < count; ++i) if (notes[(size_t) i] != o.notes[(size_t) i]) return false;
         return true;
     }

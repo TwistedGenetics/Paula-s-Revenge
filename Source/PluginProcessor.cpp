@@ -208,6 +208,7 @@ void PaulaProcessor::keyNoteInput (int note, bool on, int velocity)
 
 void PaulaProcessor::logInput (const InputNote& n)
 {
+    if (n.on) lastPlayedNote = n.note;
     captureLog.push_back (n);
     while (! captureLog.empty() && n.timeMs - captureLog.front().timeMs > 120000.0) captureLog.pop_front();
     while (captureLog.size() > 20000) captureLog.pop_front();

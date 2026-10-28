@@ -27,7 +27,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
-    void visibilityChanged() override { if (! isVisible()) { stopPreview(); cancelRecording(); } }
+    void visibilityChanged() override { if (! isVisible()) { stopPreview(); stopRecording(); closeNoteEditor (true); } }
     bool keyStateChanged (bool) override;
 
     // actions (buttons and keys; tests call them too)
@@ -44,21 +44,40 @@ public:
     int  selectedDatabaseRow() const { return db.selected; }
     bool selectDatabaseChord (const juce::String& symbol, const juce::String& voicing);
     void setSlotFromDatabase();                 // SET SLOT: the database's chord into the selected slot
-    void clearSlot();
+    void clearSlot();                           // the picked slots (or the selected one)
     void saveAsGlobal (bool confirmed = false); // the song's table becomes the global set
     void useGlobal();                           // the song gets the global set
     void convertLegacy();                       // a v0.11 song's 0xy intervals into slots
     void preview();                             // PLAY: the slot (or database chord) on the current instrument
-    void slotMenu (int slot);                   // right-click a slot: COPY, PASTE, CLEAR, PLAY
+    void slotMenu (int slot);                   // right-click a slot: COPY, PASTE, CLEAR, COLOUR, PLAY, RECORD, NOTE
+    // picking several slots (click-drag, Shift+click, Cmd/Ctrl+click) - for COLOUR, COPY, CLEAR
+    void pickSlots (int from, int to);          // a range (the selected slot stays `from`)
+    void togglePicked (int slot);
+    std::vector<int> pickedSlots() const;       // in order; at least the selected slot
+    void setColour (int colour);                // 0 = none, 1-8: the picked slots
+    void colourMenu();                          // COLOUR: the 8 colours + NONE
+    // AUDITION: clicking a chord plays it with the current instrument, on the last key played
+    static bool auditionOn();
+    static void setAuditionOn (bool);
+    void audition (const ChordDef&, bool held);  // held: until the mouse is let go; else briefly
+    int  auditionRoot() const;                   // the last key played (MIDI or laptop), else C of the octave
     juce::String slotRowText (int row) const;
-    // RECORD CHORD: play a chord (MIDI keyboard or the laptop keys) into the selected slot
+    // RECORD CHORD: on until it's switched off - each chord played goes into the selected slot,
+    // then the selection moves on to the next empty slot
     void startRecording();
-    void cancelRecording();
+    void stopRecording();
+    void cancelRecording() { stopRecording(); }
     bool isRecording() const { return recording; }
+    int  recordedCount() const { return recordedThisTime; }
     void inputNote (int note, bool on);         // a key down / up while recording (MIDI notes come here too)
     // the slot's own note ("VERSE PROG 2")
     void setSlotNote (int slot, const juce::String& text);
-    void askSlotNote (int slot);                // NOTE...: a text box
+    void askSlotNote (int slot);                // double-click the NOTE column: type it there
+    bool isEditingNote() const { return noteEditor != nullptr; }
+    juce::TextEditor* noteEditorBox() { return noteEditor.get(); }
+    void closeNoteEditor (bool keep);
+    static constexpr int kNameChars = 12;       // the slot list's NAME column
+    static constexpr int kNoteColumn = 17;      // where its NOTE column starts (characters)
     juce::String compareText() const;           // how the song's table compares with the global set
     ChoiceBox& question() { return ask; }
 
@@ -70,13 +89,19 @@ private:
     PixButton setBtn { "SET SLOT" }, playBtn { "PLAY" }, clearBtn { "CLEAR SLOT" },
               saveGlobalBtn { "SAVE AS GLOBAL SET" }, useGlobalBtn { "USE GLOBAL SET" },
               convertBtn { "CONVERT OLD 0XY" }, closeBtn { "CLOSE" },
-              recordBtn { "RECORD CHORD", true }, noteBtn { "NOTE..." };
+              recordBtn { "RECORD CHORD", true }, colourBtn { "COLOUR" }, auditionBtn { "AUDITION", true };
     ChoiceBox ask;
     bool global = false;
     int  category = -1;
     juce::String filter;
     std::vector<int> shown;                     // database entries after the category and search
-    juce::Rectangle<int> titleArea, slotHead, searchArea, infoArea, compareArea;
+    juce::Rectangle<int> titleArea, slotHead, colHead, searchArea, infoArea, compareArea;
+    std::set<int> picked;                       // slots picked together (besides the selected one)
+    int pickAnchor = 1;
+    std::unique_ptr<juce::TextEditor> noteEditor;
+    int noteEditorSlot = 0;
+    int recordedThisTime = 0;
+    bool heldAudition = false;
     std::vector<int> previewNotes;
     bool recording = false;
     std::vector<int> recNotes;                  // every note pressed in this take

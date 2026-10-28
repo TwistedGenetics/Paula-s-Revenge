@@ -165,6 +165,7 @@ private:
     void applyPickedCommand (const CommandInfo&);
 
     std::map<int, int> heldKeys;   // key code -> jam note
+    std::vector<int> pickerNotes;  // the chord list's audition, sounding
     // notes recorded and still held: their release writes OFF (plug-in / MIDI-out instruments)
     struct Held { int block = 0, line = 0, track = 0, instrument = 0, group = 0; };
     std::map<int, Held> held;

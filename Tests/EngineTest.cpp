@@ -2253,6 +2253,45 @@ static void testCapture()
     }
 }
 
+static void testCapturePasses()
+{
+    // while playing, a take is one pass round the block: loops don't pile up on each other
+    Song song; song.numTracks = 4;
+    std::vector<bool> offs (kMaxInstruments, false);
+    offs[1] = true;   // instrument 02: a plug-in (OFFs)
+    auto ev = [] (double t, int note, bool on, double line, int pass, int ins = 0)
+    { CapturedNote c; c.timeMs = t; c.note = note; c.on = on; c.instrument = ins; c.playing = true; c.line = line; c.block = 0; c.speed = 6; c.pass = pass; return c; };
+    auto lines = [] (const CaptureResult& r) { std::string t; for (auto& p : r.places) t += std::to_string (p.line) + ":" + std::to_string (p.note) + " "; return t; };
+
+    std::vector<CapturedNote> log;
+    log.push_back (ev (100, 37, true, 4.0, 1));  log.push_back (ev (150, 37, false, 4.5, 1));   // pass 1: line 4
+    log.push_back (ev (900, 41, true, 10.0, 2)); log.push_back (ev (950, 41, false, 10.5, 2));  // pass 2: line 10
+    log.push_back (ev (1000, 44, true, 20.0, 2)); log.push_back (ev (1050, 44, false, 20.5, 2)); // pass 2: line 20
+    // passes 3, 4, 5... nothing played: CAPTURE still takes pass 2
+    auto r = placeCapture (song, log, 0, 0, 0, 125, 6, offs);
+    std::printf ("capture passes: %s\n", lines (r).c_str());
+    CHECK (r.played && r.places.size() == 2 && r.places[0].line == 10 && r.places[0].note == 41 && r.places[1].line == 20);
+
+    // something played in a later pass: just that pass
+    log.push_back (ev (5000, 49, true, 33.0, 6)); log.push_back (ev (5050, 49, false, 33.5, 6));
+    r = placeCapture (song, log, 0, 0, 0, 125, 6, offs);
+    CHECK (r.places.size() == 1 && r.places[0].line == 33 && r.places[0].note == 49);
+
+    // a plug-in note held over the wrap: the OFF goes where it was let go, early in the block
+    std::vector<CapturedNote> log2;
+    log2.push_back (ev (100, 37, true, 60.0, 2, 1));
+    log2.push_back (ev (400, 37, false, 2.0, 3, 1));
+    r = placeCapture (song, log2, 0, 0, 0, 125, 6, offs);
+    std::printf ("capture held over the wrap: %s\n", lines (r).c_str());
+    CHECK (r.places.size() == 2 && r.places[0].line == 60 && r.places[1].note == kNoteOff && r.places[1].line == 2);
+
+    // a release alone after the take doesn't start a new one
+    std::vector<CapturedNote> log3 = log;
+    log3.push_back (ev (9000, 49, false, 1.0, 9));
+    r = placeCapture (song, log3, 0, 0, 0, 125, 6, offs);
+    CHECK (r.places.size() == 1 && r.places[0].line == 33);
+}
+
 static void testChordDetect()
 {
     const auto& t = defaultChordTable();
@@ -2293,6 +2332,19 @@ static void testChordDetect()
     CHECK (a.slot != 0x02);
     ChordTable none {};
     CHECK (! m ({ 60, 64, 67 }, &none));
+
+    // pass counter: the player counts each time playback goes back to the start
+    {
+        Song ps; ps.numTracks = 4; ps.blocks[0].lines = 4; ps.speed = 1;
+        Player pl; pl.setSampleRate (48000); pl.setSong (&ps);
+        pl.playBlock (0);
+        const int p0 = pl.playPos().pass;
+        std::vector<float> L (480), R (480);
+        int maxPass = p0;
+        for (int i = 0; i < 200; ++i) { pl.render (L.data(), R.data(), 480); maxPass = std::max (maxPass, pl.playPos().pass); }
+        std::printf ("player passes over 2 s of a 4-line block: %d\n", maxPass - p0);
+        CHECK (maxPass - p0 >= 3);
+    }
 
     // RECORD CHORD: a slot from played notes - the database's name and root when it's one of its voicings
     auto notesOf = [] (const ChordDef& d) { std::string t; for (int i = 0; i < d.count; ++i) t += std::to_string (d.notes[(size_t) i]) + " "; return t; };
@@ -2391,6 +2443,7 @@ int main()
     testChordTable();
     testCapture();
     testChordDetect();
+    testCapturePasses();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

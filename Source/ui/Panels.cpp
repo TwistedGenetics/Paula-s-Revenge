@@ -48,6 +48,12 @@ void PixList::paint (juce::Graphics& g)
             g.setColour (Theme::skin.text);
             g.drawRect (rr.reduced (1.0f), std::max (1.0f, px * 0.5f));
         }
+        if (getRowStripe)
+            if (auto c = getRowStripe (row); ! c.isTransparent())
+            {
+                g.setColour (c);
+                g.fillRect (rr.getX() + px * 0.5f, rr.getY() + 1.0f, px * 4.0f, rh - 2.0f);
+            }
         const float ty = std::round (rr.getY() + (rh - 7 * px) * 0.5f);
         if (row == playing) PixelFont::addText (text, juce::String::charToString ((juce::juce_wchar) 1), px * 1.0f, ty, px);
         PixelFont::addText (isRowDim (row) ? dim : text, getRowText (row), px * 8.0f, ty, px);
@@ -179,6 +185,7 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
 
 void PixList::mouseUp (const juce::MouseEvent&)
 {
+    if (onRelease && thumbGrab < 0 && repeatDir == 0) onRelease();
     if (reordering && ! rangeDragging && dropRow >= 0 && dropRow != dragRow && onMove) onMove (dragRow, dropRow);
     edgeScroll.stop();
     reordering = rangeDragging = false; dragRow = dropRow = -1;
@@ -205,7 +212,11 @@ void PixList::mouseDoubleClick (const juce::MouseEvent& e)
 {
     if (barArea().contains (e.position)) return;
     const int row = rowAt (e.position.y);
-    if (getNumRows && row >= 0 && row < getNumRows() && onDoubleClick) onDoubleClick (row);
+    if (getNumRows && row >= 0 && row < getNumRows())
+    {
+        if (onDoubleClickAt) onDoubleClickAt (row, e.position.x);
+        else if (onDoubleClick) onDoubleClick (row);
+    }
 }
 
 void PixList::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)

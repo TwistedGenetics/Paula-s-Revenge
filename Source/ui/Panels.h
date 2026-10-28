@@ -24,6 +24,11 @@ public:
     std::function<bool (int)> dragMoves;
     std::function<void (int row)> onDragSelect;
     std::function<void (int row)> onHover;           // the row under the mouse (-1 = none)
+    std::function<juce::Colour (int)> getRowStripe;   // a coloured stripe at the row's left edge (transparent = none)
+    std::function<void()> onRelease;                  // the mouse let go (after a click on a row)
+    std::function<void (int, float)> onDoubleClickAt; // a double-click and its x (if set, instead of onDoubleClick)
+    float textX() const { return Theme::px * 8.0f; } // where the rows' text starts
+    float rowY (int row) const { return (float) (row - scroll) * rowHeight(); }   // (may be off the list)
     int selected = 0;
     int playing = -1;   // row marked with a play arrow
 

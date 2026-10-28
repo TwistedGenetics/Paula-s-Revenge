@@ -2,6 +2,7 @@
 #include "PatternEditor.h"
 #include "ChoiceBox.h"
 #include "MeterColours.h"
+#include "ChordColours.h"
 #include "../engine/ChordDetect.h"
 #include "../Prefs.h"
 #include "../engine/Commands.h"
@@ -265,6 +266,7 @@ void PatternEditor::paint (juce::Graphics& g)
     const int playLine  = proc.player.uiLine.load();
 
     juce::RectangleList<float> text, dimText;
+    juce::RectangleList<float> chordText[kChordColours];   // #xy drawn in its slot's group colour
     for (int r = 0; r < visRows; ++r)
     {
         const int l = firstRow + r;
@@ -305,8 +307,16 @@ void PatternEditor::paint (juce::Graphics& g)
             auto fx = [] (uint8_t cm, uint8_t pa) { return (cm == 0 && pa == 0) ? juce::String ("---") : juce::String::charToString ((juce::juce_wchar) commandChar (cm)) + hex2 (pa); };
             PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
             PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
-            PixelFont::addText (c.fx1Empty() ? dimText : text, fx (c.cmd, c.param), x + 7 * cw, ty, px);
-            if (st.showFx2) PixelFont::addText (c.fx2Empty() ? dimText : text, fx (c.cmd2, c.param2), x + 11 * cw, ty, px);
+            // a #xy in its chord group's colour
+            auto fxList = [&] (uint8_t cm, uint8_t pa, bool empty) -> juce::RectangleList<float>&
+            {
+                if (empty) return dimText;
+                if (cm == kCmdChord && pa > 0)
+                    if (const int col = proc.song.chords[(size_t) pa].colour; col >= 1 && col <= kChordColours) return chordText[col - 1];
+                return text;
+            };
+            PixelFont::addText (fxList (c.cmd, c.param, c.fx1Empty()), fx (c.cmd, c.param), x + 7 * cw, ty, px);
+            if (st.showFx2) PixelFont::addText (fxList (c.cmd2, c.param2, c.fx2Empty()), fx (c.cmd2, c.param2), x + 11 * cw, ty, px);
         }
 
         if (cursorRow && st.track >= first && st.track < first + nVis)
@@ -350,6 +360,8 @@ void PatternEditor::paint (juce::Graphics& g)
     g.fillRectList (dimText);
     g.setColour (sk.text);
     g.fillRectList (text);
+    for (int k = 0; k < kChordColours; ++k)
+        if (! chordText[k].isEmpty()) { g.setColour (chordColours::colour (k + 1)); g.fillRectList (chordText[k]); }
     g.restoreState();
 
     // ---- per-track VU bars: a segmented column at the right edge of each track
@@ -621,9 +633,28 @@ void PatternEditor::openChordMenu (int line, int track, int group)
             closeCommandMenu();
             if (onEditChords) onEditChords (slot);
         };
+        // AUDITION: the chord under the mouse / keys, on this cell's note, with the track's instrument
+        chordPicker->onAudition = [this] (int slot)
+        {
+            proc.withLock ([&] { for (int n : pickerNotes) proc.player.jamNoteOff (n); });
+            pickerNotes.clear();
+            if (slot <= 0) return;
+            const auto& blk = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
+            int root = 0;
+            for (int l = pickLine; l >= 0 && root == 0; --l)   // (the cell's note, or the last one above it)
+                if (const int n = blk.at (l, pickTrack).note; n >= 1 && n <= (int) kNoteMax) root = n;
+            if (root == 0) root = 37;   // C-3
+            int ins = instrumentAt (pickLine, pickTrack);
+            if (ins < 0) ins = st.instrument;
+            const auto& d = proc.song.chords[(size_t) slot];
+            for (int i = 0; i < d.count; ++i)
+                if (const int n = root + d.notes[(size_t) i]; n >= 1 && n <= (int) kNoteMax) pickerNotes.push_back (n);
+            proc.withLock ([&] { for (int n : pickerNotes) proc.player.jamNoteOn (n, ins); });
+        };
         if (auto* top = getParentComponent()) top->addChildComponent (*chordPicker);
         else addChildComponent (*chordPicker);
     }
+    chordPicker->audition = prv::prefs().getBoolValue ("chordAudition", true);
     if (group == 2 && ! st.showFx2) group = 1;
     pickLine = juce::jlimit (0, blockLines() - 1, line);
     pickTrack = juce::jlimit (0, proc.song.numTracks - 1, track);

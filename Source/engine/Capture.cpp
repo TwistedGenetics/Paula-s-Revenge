@@ -15,20 +15,33 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
     CaptureResult res;
     if (log.empty() || song.blocks.empty()) return res;
 
-    // the take: the latest stretch of playback, or (stopped) the notes since the last long gap
-    const bool played = log.back().playing;
+    // the take: (playing) the latest pass of playback with a note played in it - a pass is one
+    // time round before playback goes back to the start, so loops don't pile up on each other;
+    // (stopped) the notes since the last long gap
+    size_t last = log.size() - 1;
+    if (log.back().playing)
+    {
+        // the latest note-on (releases alone don't make a take)
+        size_t on = log.size();
+        while (on > 0 && ! log[on - 1].on) --on;
+        if (on > 0 && log[on - 1].playing) last = on - 1;
+    }
+    const bool played = log[last].playing;
     res.played = played;
-    size_t from = log.size() - 1;
+    size_t from = last;
     while (from > 0)
     {
         const auto& prev = log[from - 1];
         const auto& cur = log[from];
         if (prev.playing != played) break;
         if (! played && cur.timeMs - prev.timeMs > 4000.0) break;
-        if (played && prev.timeMs > cur.timeMs) break;
+        if (played && (prev.pass != log[last].pass || prev.timeMs > cur.timeMs)) break;
         --from;
     }
-    std::vector<CapturedNote> take (log.begin() + (long) from, log.end());
+    // the take's notes, plus the releases that came after (a note held across the wrap)
+    std::vector<CapturedNote> take (log.begin() + (long) from, log.begin() + (long) last + 1);
+    for (size_t i = last + 1; i < log.size(); ++i)
+        if (! log[i].on && log[i].playing == played) take.push_back (log[i]);
 
     bpm = std::max (32, bpm); speed = std::max (1, speed);
     const double msPerLine = 2500.0 / bpm * speed;
@@ -153,7 +166,10 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
         {
             const Pos q = where (take[offIdx]);
             int offLine = (int) std::lround (q.line);
-            if (q.block == p.block && offLine <= line) offLine = line + 1;
+            // let go after playback went round again: the OFF goes where it was let go, earlier in
+            // the block, so the note rings over the wrap when the block loops - as played
+            const bool wrapped = played && take[offIdx].pass != n.pass;
+            if (q.block == p.block && offLine <= line && ! (wrapped && offLine < line)) offLine = line + 1;
             if (q.block == p.block && freeCell (q.block, offLine, track))
             {
                 CapturePlace off = pl;

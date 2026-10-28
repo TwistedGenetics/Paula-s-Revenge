@@ -3,6 +3,8 @@
 #include "ChoiceBox.h"
 #include "../engine/SongOps.h"
 #include "../engine/ChordDetect.h"
+#include "ChordColours.h"
+#include "../Prefs.h"
 
 namespace prv::ui
 {
@@ -25,17 +27,53 @@ ChordsPage::ChordsPage (PaulaProcessor& p) : proc (p)
     slots.getNumRows = [] { return kChordSlots - 1; };
     slots.getRowText = [this] (int r) { return slotRowText (r); };
     slots.isRowDim = [this] (int r) { return table()[(size_t) r + 1].empty(); };
+    slots.getRowStripe = [this] (int r) { return chordColours::colour (table()[(size_t) r + 1].colour); };
+    // picking several: drag down the list, Shift+click, Cmd/Ctrl+click
+    slots.isRowInRange = [this] (int r) { return picked.count (r + 1) > 0; };
+    slots.dragMoves = [] (int) { return false; };
+    slots.onDragSelect = [this] (int r) { pickSlots (pickAnchor, r + 1); };
     slots.onClick = [this] (int r, const juce::MouseEvent& e)
     {
-        selectSlot (r + 1); previewFromDb = false; grabKeyboardFocus();
-        if (e.mods.isPopupMenu()) slotMenu (r + 1);
+        closeNoteEditor (true);
+        const int slot = r + 1;
+        grabKeyboardFocus();
+        previewFromDb = false;
+        if (e.mods.isPopupMenu())
+        {
+            if (picked.count (slot) == 0 && slot != selectedSlot()) { picked.clear(); selectSlot (slot); pickAnchor = slot; }
+            slotMenu (slot);
+            return;
+        }
+        if (e.mods.isShiftDown()) { pickSlots (pickAnchor, slot); return; }
+        if (e.mods.isCommandDown()) { togglePicked (slot); return; }
+        picked.clear();
+        pickAnchor = slot;
+        selectSlot (slot);
+        if (auditionOn() && ! recording && ! table()[(size_t) slot].empty()) audition (table()[(size_t) slot], true);
     };
-    slots.onDoubleClick = [this] (int) { previewFromDb = false; preview(); };
+    slots.onRelease = [this] { if (heldAudition) stopPreview(); };
+    slots.onDoubleClickAt = [this] (int r, float x)
+    {
+        // the NOTE column: type the note there; elsewhere: play the chord
+        const float noteX = slots.textX() + (kNoteColumn - 1) * Theme::px * PixelFont::kCellW;
+        if (x >= noteX) askSlotNote (r + 1);
+        else { previewFromDb = false; preview(); }
+    };
     addAndMakeVisible (slots);
 
     db.getNumRows = [this] { return (int) shown.size(); };
     db.getRowText = [this] (int r) { return databaseRowText (r); };
-    db.onClick = [this] (int r, const juce::MouseEvent&) { selectDatabaseRow (r); previewFromDb = true; grabKeyboardFocus(); };
+    db.onClick = [this] (int r, const juce::MouseEvent&)
+    {
+        closeNoteEditor (true);
+        selectDatabaseRow (r); previewFromDb = true; grabKeyboardFocus();
+        if (auditionOn() && ! recording && r >= 0 && r < (int) shown.size())
+        {
+            int n = 0;
+            audition (chordFrom (chordDatabase (n)[shown[(size_t) r]]), true);
+        }
+    };
+    db.onRelease = [this] { if (heldAudition) stopPreview(); };
     db.onDoubleClick = [this] (int r) { selectDatabaseRow (r); setSlotFromDatabase(); };
     addAndMakeVisible (db);
 
@@ -57,9 +95,16 @@ ChordsPage::ChordsPage (PaulaProcessor& p) : proc (p)
     useGlobalBtn.onClick = [this] { useGlobal(); };
     convertBtn.onClick = [this] { convertLegacy(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
-    recordBtn.onClick = [this] { if (recording) cancelRecording(); else startRecording(); };
-    noteBtn.onClick = [this] { askSlotNote (selectedSlot()); };
-    for (auto* b : { &setBtn, &playBtn, &clearBtn, &saveGlobalBtn, &useGlobalBtn, &convertBtn, &closeBtn, &recordBtn, &noteBtn })
+    recordBtn.onClick = [this] { if (recording) stopRecording(); else startRecording(); };
+    colourBtn.onClick = [this] { colourMenu(); };
+    auditionBtn.setToggleState (auditionOn(), juce::dontSendNotification);
+    auditionBtn.onClick = [this]
+    {
+        setAuditionOn (auditionBtn.getToggleState());
+        if (! auditionOn()) stopPreview();
+        status (auditionOn() ? "AUDITION ON: CLICKING A CHORD PLAYS IT (ON THE LAST KEY YOU PLAYED)" : "AUDITION OFF");
+    };
+    for (auto* b : { &setBtn, &playBtn, &clearBtn, &saveGlobalBtn, &useGlobalBtn, &convertBtn, &closeBtn, &recordBtn, &colourBtn, &auditionBtn })
         addAndMakeVisible (*b);
     addChildComponent (ask);
     refilter (false);
@@ -103,15 +148,15 @@ void ChordsPage::opened (int slot)
 // ---------------------------------------------------------------- lists
 juce::String ChordsPage::slotRowText (int row) const
 {
-    // "03*MIN7 INV 1      +3 +7 +10 +12"  (* = not the same as the other table)
+    // "40* MIN7 DROP 2  VERSE PROG 1": fixed columns (SLOT, NAME, NOTE); * = not the same as the
+    // other table. The intervals are on the line under the lists.
     const int slot = row + 1;
     const auto& d = table()[(size_t) slot];
     const auto& other = global ? proc.song.chords : proc.globalChords;
     const bool differs = ! d.sameNotes (other[(size_t) slot]);
-    juce::String s = hex2 (slot) + (differs ? "*" : " ");
-    if (d.empty()) return s + "---" + (d.note.empty() ? juce::String() : "  " + juce::String (d.note));
-    const juce::String text = s + juce::String (d.name).paddedRight (' ', 11) + " " + juce::String (notesText (d));
-    return d.note.empty() ? text : text + "  " + juce::String (d.note);   // (all of it on the line under the lists)
+    juce::String name = d.empty() ? juce::String ("---") : juce::String (d.name);
+    if (name.length() > kNameChars) name = name.substring (0, kNameChars - 2) + "..";
+    return hex2 (slot) + (differs ? "* " : "  ") + name.paddedRight (' ', kNameChars) + " " + juce::String (d.note);
 }
 
 juce::String ChordsPage::databaseRowText (int row) const
@@ -218,19 +263,22 @@ void ChordsPage::setSlotFromDatabase()
     const ChordEntry& e = chordDatabase (n)[shown[(size_t) db.selected]];
     const int slot = selectedSlot();
     ChordDef d = chordFrom (e);
-    d.note = table()[(size_t) slot].note;   // (the slot keeps its note)
+    d.note = table()[(size_t) slot].note;       // (the slot keeps its note and colour)
+    d.colour = table()[(size_t) slot].colour;
     editTable ("CHORD " + hex2 (slot), [&] (ChordTable& t) { t[(size_t) slot] = d; });
     previewFromDb = false;
-    status ((global ? "GLOBAL " : "SLOT ") + hex2 (slot) + " = " + juce::String (d.name) + "  " + notesText (d)
-            );
+    status ((global ? "GLOBAL " : "SLOT ") + hex2 (slot) + " = " + juce::String (d.name) + "  " + notesText (d));
 }
 
 void ChordsPage::clearSlot()
 {
-    const int slot = selectedSlot();
-    if (table()[(size_t) slot].empty()) return;
-    editTable ("CLEAR CHORD " + hex2 (slot), [slot] (ChordTable& t) { t[(size_t) slot] = ChordDef {}; });
-    status ("SLOT " + hex2 (slot) + " CLEARED");
+    const auto slotsToClear = pickedSlots();
+    bool any = false;
+    for (int sl : slotsToClear) any = any || ! table()[(size_t) sl].empty() || ! table()[(size_t) sl].note.empty() || table()[(size_t) sl].colour != 0;
+    if (! any) return;
+    editTable (slotsToClear.size() == 1 ? "CLEAR CHORD " + hex2 (slotsToClear[0]) : juce::String ("CLEAR CHORDS"),
+               [&] (ChordTable& t) { for (int sl : slotsToClear) t[(size_t) sl] = ChordDef {}; });
+    status (slotsToClear.size() == 1 ? "SLOT " + hex2 (slotsToClear[0]) + " CLEARED" : juce::String ((int) slotsToClear.size()) + " SLOTS CLEARED");
 }
 
 void ChordsPage::saveAsGlobal (bool confirmed)
@@ -292,7 +340,6 @@ void ChordsPage::convertLegacy()
 
 void ChordsPage::preview()
 {
-    stopPreview();
     ChordDef d;
     if (previewFromDb && db.selected >= 0 && db.selected < (int) shown.size())
     {
@@ -300,38 +347,123 @@ void ChordsPage::preview()
         d = chordFrom (chordDatabase (n)[shown[(size_t) db.selected]]);
     }
     else d = table()[(size_t) selectedSlot()];
-    if (d.empty()) { status ("AN EMPTY SLOT: NOTHING TO PLAY"); return; }
-    const int ins = proc.editorState.instrument;
-    for (int i = 0; i < d.count; ++i)
-    {
-        const int note = 37 + d.notes[(size_t) i];   // on C-3
-        if (note >= 1 && note <= kNoteMax) previewNotes.push_back (note);
-    }
-    proc.withLock ([&] { for (int nt : previewNotes) proc.player.jamNoteOn (nt, ins); });
-    startTimer (1400);
-    status ("PLAYING " + juce::String (d.name) + " ON C-3 (INSTRUMENT " + hex2 (ins + 1) + ")");
+    if (d.empty()) { stopPreview(); status ("AN EMPTY SLOT: NOTHING TO PLAY"); return; }
+    audition (d, false);
+    status ("PLAYING " + juce::String (d.name) + " ON " + juce::String (noteName ((uint8_t) juce::jlimit (1, (int) kNoteMax, auditionRoot())))
+            + " (INSTRUMENT " + hex2 (proc.editorState.instrument + 1) + ")");
 }
 
-namespace { ChordDef chordClip; bool haveChordClip = false; }
+bool ChordsPage::auditionOn()           { return prv::prefs().getBoolValue ("chordAudition", true); }
+void ChordsPage::setAuditionOn (bool on) { prv::prefs().setValue ("chordAudition", on); }
+
+int ChordsPage::auditionRoot() const
+{
+    // the last key played on the MIDI keyboard or the laptop keys; before any, C of the octave
+    const int last = proc.lastPlayedNote.load();
+    if (last >= 1 && last <= (int) kNoteMax) return last;
+    return juce::jlimit (1, (int) kNoteMax, proc.editorState.octave * 12 + 1);
+}
+
+void ChordsPage::audition (const ChordDef& d, bool held)
+{
+    stopPreview();
+    if (d.empty()) return;
+    const int ins = proc.editorState.instrument;
+    const int root = auditionRoot();
+    for (int i = 0; i < d.count; ++i)
+    {
+        const int note = root + d.notes[(size_t) i];
+        if (note >= 1 && note <= (int) kNoteMax) previewNotes.push_back (note);
+    }
+    proc.withLock ([&] { for (int nt : previewNotes) proc.player.jamNoteOn (nt, ins); });
+    heldAudition = held;
+    startTimer (held ? 6000 : 1400);   // (held: until the mouse is let go - this is just in case)
+}
+
+namespace { std::vector<ChordDef> chordClip; }
 
 void ChordsPage::slotMenu (int slot)
 {
     juce::Component::SafePointer<ChordsPage> safe (this);
-    const juce::String hx = juce::String::toHexString (slot).toUpperCase().paddedLeft ('0', 2);
-    showMenu ((global ? "GLOBAL SLOT " : "SLOT ") + hx, {
-        { "COPY", [safe, slot, hx] { if (safe == nullptr) return; chordClip = safe->table()[(size_t) slot]; haveChordClip = true; safe->status ("SLOT " + hx + " COPIED"); } },
+    const auto sel = pickedSlots();
+    const bool many = sel.size() > 1;
+    const juce::String hx = hex2 (slot);
+    const juce::String title = many ? juce::String ((int) sel.size()) + " SLOTS (" + hex2 (sel.front()) + "-" + hex2 (sel.back()) + ")"
+                                    : (global ? "GLOBAL SLOT " : "SLOT ") + hx;
+    showMenu (title, {
+        { many ? "COPY THE SLOTS" : "COPY", [safe, sel]
+            {
+                if (safe == nullptr) return;
+                chordClip.clear();
+                for (int s2 : sel) chordClip.push_back (safe->table()[(size_t) s2]);
+                safe->status (juce::String ((int) sel.size()) + (sel.size() == 1 ? " SLOT COPIED" : " SLOTS COPIED"));
+            } },
         { "PASTE", [safe, slot, hx]
             {
                 if (safe == nullptr) return;
-                if (! haveChordClip) { safe->status ("NOTHING COPIED YET"); return; }
-                safe->editTable ("PASTE CHORD " + hx, [slot] (ChordTable& t) { t[(size_t) slot] = chordClip; });
-                safe->status ("PASTED INTO SLOT " + hx);
+                if (chordClip.empty()) { safe->status ("NOTHING COPIED YET"); return; }
+                const auto clip = chordClip;
+                safe->editTable ("PASTE CHORDS " + hx, [slot, clip] (ChordTable& t)
+                {
+                    for (size_t i = 0; i < clip.size() && slot + (int) i < kChordSlots; ++i) t[(size_t) slot + i] = clip[i];
+                });
+                safe->status ("PASTED " + juce::String ((int) clip.size()) + (clip.size() == 1 ? " SLOT INTO " : " SLOTS FROM ") + hx);
             } },
-        { "CLEAR", [safe] { if (safe != nullptr) safe->clearSlot(); } },
+        { many ? "CLEAR THE SLOTS" : "CLEAR", [safe] { if (safe != nullptr) safe->clearSlot(); } },
+        { "COLOUR...", [safe] { if (safe != nullptr) safe->colourMenu(); } },
         { "PLAY", [safe] { if (safe != nullptr) { safe->previewFromDb = false; safe->preview(); } } },
-        { "RECORD CHORD (PLAY IT IN)", [safe, slot] { if (safe != nullptr) { safe->selectSlot (slot); safe->startRecording(); } } },
+        { "RECORD CHORDS (PLAY THEM IN)", [safe, slot] { if (safe != nullptr) { safe->picked.clear(); safe->selectSlot (slot); safe->startRecording(); } } },
         { "NOTE...", [safe, slot] { if (safe != nullptr) safe->askSlotNote (slot); } },
     });
+}
+
+void ChordsPage::pickSlots (int from, int to)
+{
+    from = juce::jlimit (1, kChordSlots - 1, from);
+    to = juce::jlimit (1, kChordSlots - 1, to);
+    picked.clear();
+    for (int sl = std::min (from, to); sl <= std::max (from, to); ++sl) picked.insert (sl);
+    pickAnchor = from;
+    selectSlot (from);
+    slots.repaint();
+    if (picked.size() > 1) status (juce::String ((int) picked.size()) + " SLOTS PICKED - RIGHT-CLICK OR COLOUR TO GIVE THEM A COLOUR");
+}
+
+void ChordsPage::togglePicked (int slot)
+{
+    slot = juce::jlimit (1, kChordSlots - 1, slot);
+    if (picked.empty()) picked.insert (selectedSlot());
+    if (picked.count (slot) > 0 && picked.size() > 1) picked.erase (slot);
+    else picked.insert (slot);
+    if (picked.count (selectedSlot()) == 0) selectSlot (*picked.begin());
+    slots.repaint();
+    repaint (infoArea);
+}
+
+std::vector<int> ChordsPage::pickedSlots() const
+{
+    std::set<int> all (picked);
+    all.insert (selectedSlot());
+    return { all.begin(), all.end() };
+}
+
+void ChordsPage::setColour (int colour)
+{
+    colour = juce::jlimit (0, kChordColours, colour);
+    const auto sel = pickedSlots();
+    editTable ("CHORD COLOUR", [&] (ChordTable& t) { for (int sl : sel) t[(size_t) sl].colour = colour; });
+    status ((sel.size() == 1 ? "SLOT " + hex2 (sel[0]) : juce::String ((int) sel.size()) + " SLOTS") + ": "
+            + (colour == 0 ? juce::String ("NO COLOUR") : chordColours::name (colour)));
+}
+
+void ChordsPage::colourMenu()
+{
+    juce::Component::SafePointer<ChordsPage> safe (this);
+    const auto sel = pickedSlots();
+    std::vector<MenuItem> items;
+    for (int c = 1; c <= kChordColours; ++c) items.push_back ({ chordColours::name (c), [safe, c] { if (safe != nullptr) safe->setColour (c); } });
+    items.push_back ({ "NONE", [safe] { if (safe != nullptr) safe->setColour (0); } });
+    showMenu (sel.size() == 1 ? "COLOUR FOR SLOT " + hex2 (sel[0]) : "COLOUR FOR " + juce::String ((int) sel.size()) + " SLOTS", items);
 }
 
 // ---------------------------------------------------------------- RECORD CHORD
@@ -349,18 +481,21 @@ namespace
 
 void ChordsPage::startRecording()
 {
+    closeNoteEditor (true);
     stopPreview();
     recording = true;
+    recordedThisTime = 0;
     recNotes.clear();
     recHeld.clear();
+    picked.clear();
     recordBtn.setToggleState (true, juce::dontSendNotification);
     grabKeyboardFocus();
     repaint();
-    status ("RECORD INTO " + juce::String (global ? "GLOBAL " : "") + "SLOT " + hex2 (selectedSlot())
-            + ": PLAY THE CHORD (MIDI KEYBOARD OR THE LAPTOP KEYS) AND LET GO - ESC CANCELS");
+    status ("RECORDING CHORDS FROM " + juce::String (global ? "GLOBAL " : "") + "SLOT " + hex2 (selectedSlot())
+            + ": PLAY EACH CHORD AND LET GO - CLICK RECORD CHORD (OR ESC) TO STOP");
 }
 
-void ChordsPage::cancelRecording()
+void ChordsPage::stopRecording()
 {
     if (! recording) return;
     recording = false;
@@ -370,7 +505,7 @@ void ChordsPage::cancelRecording()
     recHeld.clear();
     recordBtn.setToggleState (false, juce::dontSendNotification);
     repaint();
-    if (isVisible()) status ("RECORD CHORD CANCELLED");
+    if (isVisible()) status ("RECORD CHORD OFF - " + juce::String (recordedThisTime) + (recordedThisTime == 1 ? " CHORD RECORDED" : " CHORDS RECORDED"));
 }
 
 void ChordsPage::inputNote (int note, bool on)
@@ -385,26 +520,37 @@ void ChordsPage::inputNote (int note, bool on)
     }
     recHeld.erase (note);
     if (! recHeld.empty() || recNotes.empty()) return;
-    // every key let go: that's the chord
+    // every key let go: that's a chord (a single note isn't one - it's ignored)
     if (recNotes.size() < 2)
     {
         recNotes.clear();
         repaint (infoArea);
-        status ("ONLY ONE NOTE - PLAY TWO OR MORE TOGETHER (ESC CANCELS)");
+        status ("ONLY ONE NOTE - PLAY TWO OR MORE TOGETHER (RECORD CHORD IS STILL ON)");
         return;
     }
     const int slot = selectedSlot();
     ChordDef d = chordFromNotes (recNotes);
     d.note = table()[(size_t) slot].note;
+    d.colour = table()[(size_t) slot].colour;
     const bool tooMany = recNotes.size() > (size_t) kMaxChordNotes;
     const auto played = noteList (recNotes);
-    recording = false;
     recNotes.clear();
-    recordBtn.setToggleState (false, juce::dontSendNotification);
     editTable ("RECORD CHORD " + hex2 (slot), [&] (ChordTable& t) { t[(size_t) slot] = d; });
+    ++recordedThisTime;
     previewFromDb = false;
-    status ((global ? "GLOBAL " : "SLOT ") + hex2 (slot) + " = " + juce::String (d.name) + "  " + notesText (d)
-            + "  (PLAYED " + played + (tooMany ? ": THE LOWEST 8 KEPT)" : ")"));
+    const juce::String what = (global ? "GLOBAL " : "SLOT ") + hex2 (slot) + " = " + juce::String (d.name)
+                            + "  (PLAYED " + played + (tooMany ? ": THE LOWEST 8 KEPT)" : ")");
+    // on to the next empty slot, so nothing gets written over
+    int next = -1;
+    for (int sl = slot + 1; sl < kChordSlots && next < 0; ++sl) if (table()[(size_t) sl].empty()) next = sl;
+    if (next < 0)
+    {
+        stopRecording();
+        status (what + " - NO EMPTY SLOTS LEFT, RECORDING STOPPED");
+        return;
+    }
+    selectSlot (next);
+    status (what + " - " + juce::String (recordedThisTime) + " RECORDED, SLOT " + hex2 (next) + " NEXT");
 }
 
 bool ChordsPage::keyStateChanged (bool)
@@ -439,18 +585,59 @@ void ChordsPage::setSlotNote (int slot, const juce::String& text)
 
 void ChordsPage::askSlotNote (int slot)
 {
+    // a text box right on the slot's NOTE column
+    closeNoteEditor (true);
+    slot = juce::jlimit (1, kChordSlots - 1, slot);
+    picked.clear();
     selectSlot (slot);
-    auto* w = new juce::AlertWindow ("SLOT " + hex2 (slot) + " NOTE",
-                                     "A NOTE OF YOUR OWN FOR THIS SLOT, E.G. VERSE PROG 2 (UP TO " + juce::String (kChordNoteLen) + " CHARACTERS)",
-                                     juce::MessageBoxIconType::NoIcon, this);
-    w->addTextEditor ("note", juce::String (table()[(size_t) slot].note));
-    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
-    w->addButton ("CANCEL", 0, juce::KeyPress (juce::KeyPress::escapeKey));
-    juce::Component::SafePointer<ChordsPage> safe (this);
-    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w, slot] (int r)
+    noteEditorSlot = slot;
+    noteEditor = std::make_unique<juce::TextEditor>();
+    auto& ed = *noteEditor;
+    const float px = Theme::px;
+    ed.setFont (juce::Font (juce::FontOptions (px * 10.0f, juce::Font::bold)));
+    ed.setColour (juce::TextEditor::backgroundColourId, juce::Colours::white);
+    ed.setColour (juce::TextEditor::textColourId, juce::Colours::black);
+    ed.setColour (juce::TextEditor::highlightColourId, juce::Colour (0xffffd24a));
+    ed.setColour (juce::TextEditor::highlightedTextColourId, juce::Colours::black);
+    ed.setColour (juce::TextEditor::outlineColourId, juce::Colours::black);
+    ed.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colours::black);
+    ed.setColour (juce::CaretComponent::caretColourId, juce::Colours::black);
+    // capitals as you type (like everything else in the app), up to kChordNoteLen
+    struct Caps final : public juce::TextEditor::InputFilter
     {
-        if (r == 1 && safe != nullptr) safe->setSlotNote (slot, w->getTextEditorContents ("note"));
-    }), true);
+        juce::String filterNewText (juce::TextEditor& e, const juce::String& t) override
+        {
+            const int room = kChordNoteLen - (e.getTotalNumChars() - e.getHighlightedRegion().getLength());
+            return t.toUpperCase().substring (0, std::max (0, room));
+        }
+    };
+    ed.setInputFilter (new Caps(), true);
+    ed.setIndents (2, 0);
+    ed.setText (juce::String (table()[(size_t) slot].note), false);
+    ed.onReturnKey = [this] { closeNoteEditor (true); };
+    ed.onEscapeKey = [this] { closeNoteEditor (false); };
+    ed.onFocusLost = [this] { closeNoteEditor (true); };
+    const float cw = px * PixelFont::kCellW;
+    const float x = (float) slots.getX() + slots.textX() + kNoteColumn * cw - px * 2;
+    const float y = (float) slots.getY() + slots.rowY (slot - 1);
+    const float right = (float) slots.getRight() - px * 10;
+    ed.setBounds (juce::Rectangle<float> (x, y, std::max (px * 40, right - x), slots.rowHeight()).toNearestInt());
+    addAndMakeVisible (ed);
+    ed.grabKeyboardFocus();
+    ed.selectAll();
+    status ("SLOT " + hex2 (slot) + " NOTE: TYPE IT, ENTER KEEPS IT, ESC CANCELS");
+}
+
+void ChordsPage::closeNoteEditor (bool keep)
+{
+    if (noteEditor == nullptr) return;
+    // (deleted later: this can be called from the box's own Enter / Esc / focus callbacks)
+    std::shared_ptr<juce::TextEditor> ed (noteEditor.release());
+    const auto text = ed->getText();
+    removeChildComponent (ed.get());
+    juce::MessageManager::callAsync ([ed] {});
+    if (keep) setSlotNote (noteEditorSlot, text);
+    if (isShowing()) grabKeyboardFocus();
 }
 
 void ChordsPage::stopPreview()
@@ -482,6 +669,13 @@ void ChordsPage::paint (juce::Graphics& g)
         const juce::String head = global ? "GLOBAL SET (NEW SONGS)" : "THIS SONG'S CHORDS";
         const int fitHead = (int) (slotHead.getWidth() / (px * PixelFont::kCellW));
         PixelFont::drawLeft (g, head.length() > fitHead ? head.substring (0, fitHead) : head, slotHead.toFloat(), px, Theme::ink);
+        // the list's columns, over them
+        const float cw = px * PixelFont::kCellW;
+        const float x0 = (float) slots.getX() + slots.textX();
+        auto ch = colHead.toFloat();
+        PixelFont::drawLeft (g, "#",    ch.withX (x0).withWidth (cw * 3), px, Theme::faint);
+        PixelFont::drawLeft (g, "NAME", ch.withX (x0 + 4 * cw).withWidth (cw * kNameChars), px, Theme::faint);
+        PixelFont::drawLeft (g, "NOTE (DOUBLE-CLICK)", ch.withX (x0 + kNoteColumn * cw).withRight ((float) slots.getRight()), px, Theme::faint);
     }
 
     // search box
@@ -498,10 +692,14 @@ void ChordsPage::paint (juce::Graphics& g)
     const int slot = selectedSlot();
     const auto& d = table()[(size_t) slot];
     juce::String line1 = (global ? "GLOBAL " : "SLOT ") + hex2 (slot) + ": " + (d.empty() ? juce::String ("EMPTY") : juce::String (d.name) + "  " + notesText (d))
-                       + (global ? juce::String() : "   (#" + hex2 (slot) + " PLAYS IT)")
-                       + (d.note.empty() ? juce::String() : "   NOTE: " + juce::String (d.note));
+                       + (global ? juce::String() : "  (#" + hex2 (slot) + ")")
+                       + (d.colour != 0 ? "  " + chordColours::name (d.colour) : juce::String())
+                       + (d.note.empty() ? juce::String() : "  NOTE: " + juce::String (d.note));
+    if (picked.size() > 1)
+        line1 = juce::String ((int) pickedSlots().size()) + " SLOTS PICKED (" + hex2 (pickedSlots().front()) + "-" + hex2 (pickedSlots().back()) + ") - COLOUR, COPY OR CLEAR THEM TOGETHER";
     if (recording)
-        line1 = "RECORDING INTO SLOT " + hex2 (slot) + ": " + (recNotes.empty() ? juce::String ("PLAY A CHORD AND LET GO...") : noteList (recNotes));
+        line1 = "RECORDING INTO SLOT " + hex2 (slot) + " (" + juce::String (recordedThisTime) + " DONE): "
+              + (recNotes.empty() ? juce::String ("PLAY A CHORD AND LET GO...") : noteList (recNotes));
     juce::String line2;
     if (db.selected >= 0 && db.selected < (int) shown.size())
     {
@@ -531,7 +729,8 @@ void ChordsPage::resized()
     auto head = r.removeFromTop (rowH);
     closeBtn.setBounds (head.removeFromRight (charsW (5))); head.removeFromRight (gap * 3);
     globalBtn.setBounds (head.removeFromRight (charsW (10))); head.removeFromRight (gap);
-    songBtn.setBounds (head.removeFromRight (charsW (9)));
+    songBtn.setBounds (head.removeFromRight (charsW (9))); head.removeFromRight (gap * 3);
+    auditionBtn.setBounds (head.removeFromRight (charsW (8)));
     titleArea = head;
     r.removeFromTop (gap);
 
@@ -555,10 +754,12 @@ void ChordsPage::resized()
     auto left = r.removeFromLeft (std::min (charsW (44), r.getWidth() / 2));
     r.removeFromLeft (gap * 2);
     slotHead = left.removeFromTop (rowH);
-    noteBtn.setBounds (slotHead.removeFromRight (charsW (7))); slotHead.removeFromRight (gap);
+    colourBtn.setBounds (slotHead.removeFromRight (charsW (6))); slotHead.removeFromRight (gap);
     recordBtn.setBounds (slotHead.removeFromRight (charsW (12))); slotHead.removeFromRight (gap);
     left.removeFromTop (gap);
+    colHead = left.removeFromTop (rowH);
     slots.setBounds (left);
+    if (noteEditor != nullptr) closeNoteEditor (true);
 
     // category buttons (a second row when they don't fit)
     int need = 0;
@@ -588,7 +789,7 @@ bool ChordsPage::keyPressed (const juce::KeyPress& k)
     if (recording)
     {
         // the laptop keys play the chord; Esc cancels
-        if (code == juce::KeyPress::escapeKey) { cancelRecording(); return true; }
+        if (code == juce::KeyPress::escapeKey) { stopRecording(); return true; }
         static const char* lower = "zsxdcvgbhnjm,l.;/";
         static const char* upper = "q2w3er5t6y7ui9o0p";
         const auto c = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());
@@ -600,6 +801,7 @@ bool ChordsPage::keyPressed (const juce::KeyPress& k)
             note = juce::jlimit (1, (int) kNoteMax, note);
             heldKeys[code] = note;
             proc.withLock ([&] { proc.player.jamNoteOn (note, proc.editorState.instrument); });
+            proc.lastPlayedNote = note;
             inputNote (note, true);
         }
         return true;
@@ -615,8 +817,16 @@ bool ChordsPage::keyPressed (const juce::KeyPress& k)
     {
         const int step = (code == juce::KeyPress::upKey ? -1 : code == juce::KeyPress::downKey ? 1 : code == juce::KeyPress::pageUpKey ? -10 : 10);
         // shift: the slots; else the database
-        if (m.isShiftDown()) { selectSlot (selectedSlot() + step); previewFromDb = false; }
+        if (m.isShiftDown()) { picked.clear(); selectSlot (selectedSlot() + step); pickAnchor = selectedSlot(); previewFromDb = false; }
         else { selectDatabaseRow (db.selected + step); previewFromDb = true; }
+        // AUDITION: a short play of each chord as you go
+        if (auditionOn())
+        {
+            int n = 0;
+            const ChordDef d = previewFromDb ? (shown.empty() ? ChordDef {} : chordFrom (chordDatabase (n)[shown[(size_t) db.selected]]))
+                                             : table()[(size_t) selectedSlot()];
+            if (! d.empty()) audition (d, false); else stopPreview();
+        }
         return true;
     }
     if (code == juce::KeyPress::backspaceKey)

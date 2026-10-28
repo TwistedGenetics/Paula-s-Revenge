@@ -18,6 +18,7 @@ struct CapturedNote
     int seqPos = 0, block = 0;   // where (when playing)
     double line = 0;             // the line, with its fraction
     int speed = 6;
+    int pass = 0;                // playback's pass (+1 at every wrap back to the start): one take each
 };
 
 struct CapturePlace
@@ -39,7 +40,8 @@ struct CaptureResult
 };
 
 // Which notes to write: the latest take - the notes since the last gap of more than 4 s while
-// stopped, or the notes from the latest stretch of playback. `offsFor` says which instruments
+// stopped, or, while playing, the latest pass of playback that had notes in it (silent passes
+// after it don't count; a held note's release can fall in a later pass). `offsFor` says which instruments
 // get note-offs (plug-ins / MIDI out: their notes would hang on otherwise). With `detectChords`,
 // notes those instruments played together (kChordWindowMs) that match the song's chord table
 // go in as the root + #xy on one track.

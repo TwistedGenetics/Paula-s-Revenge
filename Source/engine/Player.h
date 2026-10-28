@@ -124,7 +124,8 @@ public:
     bool isPlaying() const { return mode != Mode::Stopped; }
     // where playback is right now, to the fraction of a line (call under the lock / on the audio thread):
     // the row that's sounding (it can be before the line the UI shows, which moves on a tick early)
-    struct PlayPos { bool playing = false; int seqPos = 0, block = 0; double line = 0; int speed = 6; };
+    struct PlayPos { bool playing = false; int seqPos = 0, block = 0; double line = 0; int speed = 6;
+                     int pass = 0; };   // pass: +1 each time playback goes back (the song's end, a looping block, loop lines)
     PlayPos playPos() const;
 
     // Live note preview (keyboard / MIDI). Uses its own voices. start/end
@@ -325,6 +326,7 @@ private:
 
     int seqPos = 0, block = 0, line = 0, tick = 0;
     int rowSeq = 0, rowBlock = 0, rowLine = 0, rowTicks = 0;   // the row being heard, ticks done in it
+    int pass = 0; long lastRowOrder = -1;                       // (PlayPos::pass)
     int speed = 6, tempo = 125;
     double tickRemain = 0;
     double tempoOverride = 0;

@@ -379,6 +379,7 @@ void Player::playSong (int pos, int startLine)
     breakLine = jumpPos = loopJumpLine = -1; rowDelayCount = 0; firstTickOfRow = true;
     rng = 0x9E3779B9u;
     mode = Mode::Song;
+    ++pass; lastRowOrder = -1;   // (a fresh start is a new take)
     uiSeqPos = seqPos; uiBlock = block; uiLine = line;
     ppq = positionInBeats (seqPos, line);
     clockStartPending = true;
@@ -402,6 +403,7 @@ void Player::playBlock (int b, int startLine)
     breakLine = jumpPos = loopJumpLine = -1; rowDelayCount = 0; firstTickOfRow = true;
     rng = 0x9E3779B9u;
     mode = Mode::Block;
+    ++pass; lastRowOrder = -1;   // (a fresh start is a new take)
     uiBlock = block; uiLine = line;
     ppq = line / 4.0;
     clockStartPending = true;
@@ -537,7 +539,14 @@ void Player::doTick()
     block = song->safeBlock (block);
     if (line >= song->blocks[(size_t) block].lines) line = 0;
 
-    if (tick == 0 && firstTickOfRow) { processRow(); rowSeq = seqPos; rowBlock = block; rowLine = line; rowTicks = 0; }
+    if (tick == 0 && firstTickOfRow)
+    {
+        processRow(); rowSeq = seqPos; rowBlock = block; rowLine = line; rowTicks = 0;
+        // back to an earlier row (the end of the song or block, loop lines, a jump back): a new pass
+        const long order = (long) rowSeq * 4096L + rowLine;
+        if (lastRowOrder >= 0 && order < lastRowOrder) ++pass;
+        lastRowOrder = order;
+    }
     else for (int ch = 0; ch < kMaxTracks; ++ch) tickEffects (ch);
     ++rowTicks;
     advanceAutomation();
@@ -561,6 +570,7 @@ Player::PlayPos Player::playPos() const
     const double into = std::clamp ((double) rowTicks - std::max (0.0, tickRemain) / spt, 0.0, (double) p.speed);
     p.seqPos = rowSeq; p.block = rowBlock;
     p.line = rowLine + into / p.speed;
+    p.pass = pass;
     return p;
 }
 

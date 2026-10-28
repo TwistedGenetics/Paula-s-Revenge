@@ -705,7 +705,7 @@ int PaulaEditor::captureNow()
     {
         prv::CapturedNote c;
         c.timeMs = n.timeMs; c.note = n.note; c.velocity = n.velocity; c.on = n.on; c.instrument = n.instrument;
-        c.playing = n.pos.playing; c.seqPos = n.pos.seqPos; c.block = n.pos.block; c.line = n.pos.line; c.speed = n.pos.speed;
+        c.playing = n.pos.playing; c.seqPos = n.pos.seqPos; c.block = n.pos.block; c.line = n.pos.line; c.speed = n.pos.speed; c.pass = n.pos.pass;
         log.push_back (c);
     }
     if (log.empty()) { setStatus ("CAPTURE: NOTHING PLAYED YET - PLAY SOMETHING, THEN CAPTURE"); return 0; }

@@ -1,5 +1,6 @@
 // Paula's Revenge - right-click chord list for the pattern
 #include "ChordPicker.h"
+#include "ChordColours.h"
 
 namespace prv::ui
 {
@@ -10,7 +11,8 @@ ChordPicker::ChordPicker()
     list.getRowText = [this] (int r) { return rowText (r); };
     list.isRowDim = [this] (int r) { return r >= (int) slotRows.size(); };
     list.onClick = [this] (int r, const juce::MouseEvent&) { pick (r); };
-    list.onHover = [this] (int r) { if (r >= 0 && r != list.selected) { list.selected = r; list.repaint(); } };
+    list.onHover = [this] (int r) { if (r >= 0 && r != list.selected) { list.selected = r; list.repaint(); hear (r); } };
+    list.getRowStripe = [this] (int r) { return r >= 0 && r < (int) colours.size() ? chordColours::colour (colours[(size_t) r]) : juce::Colours::transparentBlack; };
     addAndMakeVisible (list);
     editBtn.onClick = [this] { if (onEdit) onEdit(); };
     cancelBtn.onClick = [this] { if (onCancel) onCancel(); };
@@ -22,13 +24,19 @@ void ChordPicker::open (const ChordTable& table, int currentSlot)
 {
     slotRows.clear();
     texts.clear();
+    colours.clear();
     for (int i = 1; i < kChordSlots; ++i)
     {
         const auto& d = table[(size_t) i];
         if (d.empty()) continue;
         slotRows.push_back (i);
-        const juce::String row = juce::String::toHexString (i).toUpperCase().paddedLeft ('0', 2) + "  " + juce::String (d.name).paddedRight (' ', 16) + juce::String (notesText (d));
-        texts.push_back (d.note.empty() ? row : row.paddedRight (' ', 46) + "  " + juce::String (d.note));
+        colours.push_back (d.colour);
+        // fixed columns: SLOT, NAME (shortened with ..), the intervals, NOTE
+        juce::String nm (d.name);
+        if (nm.length() > 14) nm = nm.substring (0, 12) + "..";
+        juce::String iv (notesText (d));
+        if (iv.length() > 26) iv = iv.substring (0, 24) + "..";
+        texts.push_back (juce::String::toHexString (i).toUpperCase().paddedLeft ('0', 2) + "  " + nm.paddedRight (' ', 15) + iv.paddedRight (' ', 27) + juce::String (d.note));
     }
     list.selected = 0;
     for (int r = 0; r < (int) slotRows.size(); ++r) if (slotRows[(size_t) r] == currentSlot) list.selected = r;
@@ -84,6 +92,7 @@ bool ChordPicker::keyPressed (const juce::KeyPress& k)
         list.selected = juce::jlimit (0, n - 1, list.selected + (code == juce::KeyPress::upKey ? -1 : 1));
         list.ensureVisible (list.selected);
         list.repaint();
+        hear (list.selected);
         return true;
     }
     // two hex digits jump to that slot
@@ -94,9 +103,25 @@ bool ChordPicker::keyPressed (const juce::KeyPress& k)
         const int want = typed.getHexValue32();
         for (int r = 0; r < (int) slotRows.size(); ++r)
             if (slotRows[(size_t) r] == want || (typed.length() == 1 && (slotRows[(size_t) r] >> 4) == want))
-            { list.selected = r; list.ensureVisible (r); list.repaint(); break; }
+            { list.selected = r; list.ensureVisible (r); list.repaint(); hear (r); break; }
         return true;
     }
     return true;   // (the list keeps the keyboard while it's open)
+}
+
+void ChordPicker::hear (int row)
+{
+    const int slot = slotAt (row);
+    if (! audition || ! onAudition || slot == auditioned) return;
+    auditioned = slot;
+    onAudition (slot > 0 ? slot : 0);
+    if (slot > 0) startTimer (900); else stopTimer();
+}
+
+void ChordPicker::timerCallback()
+{
+    stopTimer();
+    if (onAudition) onAudition (0);
+    auditioned = -1;
 }
 } // namespace prv::ui
