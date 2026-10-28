@@ -1,0 +1,397 @@
+// Paula's Revenge - HELP: the README, built into the app
+#include "HelpPage.h"
+#include <BinaryData.h>
+
+namespace prv::ui
+{
+juce::String helpText (const juce::String& in)
+{
+    juce::String s = in;
+    // links: keep the words
+    while (s.contains ("]("))
+    {
+        const int a = s.indexOf ("](");
+        const int open = s.substring (0, a).lastIndexOfChar ('[');
+        const int close = s.indexOfChar (a, ')');
+        if (open < 0 || close < 0) break;
+        s = s.substring (0, open) + s.substring (open + 1, a) + s.substring (close + 1);
+    }
+    s = s.replace ("**", "").replace ("`", "").replace ("<br>", " ");
+    struct Swap { const char* from; const char* to; };
+    static const Swap swaps[] = {
+        { "\xe2\x80\x94", "-" }, { "\xe2\x80\x93", "-" }, { "\xe2\x88\x92", "-" },          // dashes, minus
+        { "\xe2\x86\x92", "->" }, { "\xe2\x86\x90", "<-" },                                   // arrows
+        { "\xe2\x86\x91", "\x03" }, { "\xe2\x86\x93", "\x04" },
+        { "\xe2\x96\xb2", "\x03" }, { "\xe2\x96\xbc", "\x04" }, { "\xe2\x96\xb6", "\x01" },    // triangles
+        { "\xe2\x97\x8f", "\x05" }, { "\xc3\x97", "X" }, { "\xc2\xbd", "1/2" }, { "\xc2\xb1", "+/-" },
+        { "\xe2\x80\xa6", "..." }, { "\xe2\x80\x98", "'" }, { "\xe2\x80\x99", "'" }, { "\xe2\x80\x9c", "\"" }, { "\xe2\x80\x9d", "\"" },
+        { "\xe2\x82\x82", "2" }, { "\xe2\x89\x88", "ABOUT " }, { "\xe2\x8c\xab", "" }, { "\xc2\xb7", "-" },
+        { ";", "," }, { "~", "-" }, { "\\", "/" }, { "{", "(" }, { "}", ")" }, { "@", "AT" }, { "$", "S" },
+    };
+    for (auto& w : swaps) s = s.replace (juce::String::fromUTF8 (w.from), juce::String::fromUTF8 (w.to));
+    // anything else the font doesn't have goes
+    juce::String out;
+    for (auto c : s)
+        if ((c >= 32 && c < 127) || (c >= 1 && c <= 6)) out << juce::String::charToString (c);
+    return out.toUpperCase();
+}
+
+std::vector<HelpBlock> parseHelp (const juce::String& md)
+{
+    std::vector<HelpBlock> out;
+    auto lines = juce::StringArray::fromLines (md);
+    bool skipping = false, inCode = false;
+    juce::String para;
+    auto flush = [&] { if (para.trim().isNotEmpty()) out.push_back ({ HelpBlock::Kind::Text, helpText (para.trim()) }); para.clear(); };
+    for (auto raw : lines)
+    {
+        const auto line = raw.trimEnd();
+        if (line.startsWith ("```")) { inCode = ! inCode; continue; }
+        if (line.startsWith ("## "))
+        {
+            flush();
+            const auto name = line.substring (3).trim();
+            skipping = name.startsWithIgnoreCase ("Install") || name.startsWithIgnoreCase ("Building");
+            if (! skipping) out.push_back ({ HelpBlock::Kind::Chapter, helpText (name) });
+            continue;
+        }
+        if (skipping || inCode) continue;
+        if (line.startsWith ("# ") || line.startsWith ("![") || line == "---" || line.startsWith ("**Manual:**")) continue;
+        if (line.startsWith ("### ")) { flush(); out.push_back ({ HelpBlock::Kind::Heading, helpText (line.substring (4)) }); continue; }
+        if (line.trim().isEmpty()) { flush(); if (! out.empty() && out.back().kind != HelpBlock::Kind::Gap) out.push_back ({ HelpBlock::Kind::Gap }); continue; }
+        const auto t = line.trimStart();
+        const int indent = (line.length() - t.length()) / 2;
+        if (t.startsWith ("* ") || t.startsWith ("- ") || (t.length() > 2 && juce::CharacterFunctions::isDigit (t[0]) && t.substring (1, 3) == ". "))
+        {
+            flush();
+            const bool numbered = juce::CharacterFunctions::isDigit (t[0]);
+            out.push_back ({ HelpBlock::Kind::Bullet, (numbered ? t.upToFirstOccurrenceOf (".", true, false) + " " : juce::String()) + helpText (t.fromFirstOccurrenceOf (" ", false, false)), {}, indent });
+            continue;
+        }
+        if (t.startsWith ("|"))
+        {
+            flush();
+            juce::StringArray cells;
+            cells.addTokens (t.substring (1, t.endsWithChar ('|') ? t.length() - 1 : t.length()), "|", "`");
+            for (auto& c : cells) c = c.trim();
+            if (cells.size() > 0 && cells[0].containsOnly ("-: ")) continue;   // the |---| line
+            const bool header = out.empty() || (out.back().kind != HelpBlock::Kind::Row && out.back().kind != HelpBlock::Kind::HeaderRow);
+            juce::StringArray rest;
+            for (int i = 1; i < cells.size(); ++i) rest.add (helpText (cells[i]));
+            out.push_back ({ header ? HelpBlock::Kind::HeaderRow : HelpBlock::Kind::Row, helpText (cells[0]), rest.joinIntoString (" - ") });
+            continue;
+        }
+        // bullet continued on the next line, or a paragraph
+        if (indent > 0 && ! out.empty() && out.back().kind == HelpBlock::Kind::Bullet && para.isEmpty())
+        {
+            out.back().text << " " << helpText (t);
+            continue;
+        }
+        para << (para.isEmpty() ? "" : " ") << t;
+    }
+    flush();
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+HelpPage::HelpPage()
+{
+    setWantsKeyboardFocus (true);
+    setOpaque (true);
+    blocks = parseHelp (juce::String::fromUTF8 (PrvDocs::README_md, PrvDocs::README_mdSize));
+    for (int i = 0; i < (int) blocks.size(); ++i)
+        if (blocks[(size_t) i].kind == HelpBlock::Kind::Chapter) chapters.push_back ({ blocks[(size_t) i].text, i, 0 });
+
+    list.getNumRows = [this] { return (int) chapters.size(); };
+    list.getRowText = [this] (int r)
+    {
+        // short enough to read whole: no (brackets), then whole words off the end
+        juce::String n = chapters[(size_t) r].name;
+        if (n.containsChar ('(')) n = n.upToFirstOccurrenceOf ("(", false, false).trim();
+        const int room = std::max (8, (int) ((list.getWidth() - Theme::px * 16) / (Theme::px * PixelFont::kCellW)) - 3);
+        while (n.length() > room && n.containsChar (' ')) n = n.upToLastOccurrenceOf (" ", false, false).trim();
+        return juce::String (r).paddedLeft ('0', 2) + " " + n;
+    };
+    list.onClick = [this] (int r, const juce::MouseEvent&) { showChapter (r); grabKeyboardFocus(); };
+    addAndMakeVisible (list);
+    pdfBtn.onClick = [this] { openPdf(); };
+    closeBtn.onClick = [this] { if (onClose) onClose(); };
+    addAndMakeVisible (pdfBtn);
+    addAndMakeVisible (closeBtn);
+}
+
+void HelpPage::opened()
+{
+    laidOutChars = -1;
+    layout();
+    grabKeyboardFocus();
+    repaint();
+}
+
+float HelpPage::rowH() const { return Theme::px * 11.0f; }
+int HelpPage::visibleRows() const { return std::max (1, (int) (textArea.getHeight() / rowH())); }
+
+void HelpPage::layout()
+{
+    const float px = Theme::px;
+    const int chars = std::max (20, (int) ((textArea.getWidth() - px * 8) / (px * PixelFont::kCellW)));
+    if (chars == laidOutChars) return;
+    laidOutChars = chars;
+    rows.clear();
+    auto wrap = [&] (const juce::String& text, int x, int width, HelpBlock::Kind kind, int chapter, int hangX)
+    {
+        juce::StringArray words;
+        words.addTokens (text, " ", "");
+        juce::String cur;
+        int curX = x;
+        bool first = true;
+        auto push = [&]
+        {
+            rows.push_back ({ cur, curX, kind, chapter, first });
+            first = false; cur.clear(); curX = hangX; width = chars - hangX;
+        };
+        for (auto w : words)
+        {
+            if (w.isEmpty()) continue;
+            while (w.length() > width) { if (cur.isNotEmpty()) push(); cur = w.substring (0, width); w = w.substring (width); push(); }
+            if (cur.isEmpty()) cur = w;
+            else if (cur.length() + 1 + w.length() <= width) cur << " " << w;
+            else { push(); cur = w; }
+        }
+        if (cur.isNotEmpty() || first) push();
+    };
+    int chapter = -1;
+    for (int i = 0; i < (int) blocks.size(); ++i)
+    {
+        const auto& b = blocks[(size_t) i];
+        switch (b.kind)
+        {
+            case HelpBlock::Kind::Chapter:
+                ++chapter;
+                if (! rows.empty()) rows.push_back ({ {}, 0, HelpBlock::Kind::Gap, chapter });
+                chapters[(size_t) chapter].row = (int) rows.size();
+                rows.push_back ({ b.text, 0, HelpBlock::Kind::Chapter, chapter, true });
+                rows.push_back ({ {}, 0, HelpBlock::Kind::Gap, chapter });
+                break;
+            case HelpBlock::Kind::Heading:
+                rows.push_back ({ b.text, 0, HelpBlock::Kind::Heading, chapter, true });
+                break;
+            case HelpBlock::Kind::Text:
+                wrap (b.text, 0, chars, HelpBlock::Kind::Text, chapter, 0);
+                break;
+            case HelpBlock::Kind::Bullet:
+            {
+                const int x = 2 + b.indent * 2;
+                const bool numbered = juce::CharacterFunctions::isDigit (b.text[0]);
+                wrap ((numbered ? juce::String() : juce::String::charToString ((juce::juce_wchar) 5) + " ") + b.text, x - 2 + (numbered ? 0 : 0), chars - x + 2, HelpBlock::Kind::Bullet, chapter, x + (numbered ? 1 : 0));
+                break;
+            }
+            case HelpBlock::Kind::Row:
+            case HelpBlock::Kind::HeaderRow:
+            {
+                // the first column on its own line when it's long, else beside the rest
+                const int col = std::min (16, chars / 3);
+                if (b.text.length() <= col - 1)
+                {
+                    const int start = (int) rows.size();
+                    wrap (b.text2, col, chars - col, b.kind, chapter, col);
+                    rows[(size_t) start].text = rows[(size_t) start].text;   // (the first column is drawn separately)
+                    rows[(size_t) start].x = col;
+                    rows.insert (rows.begin() + start, { b.text, 0, b.kind, chapter, true });
+                    // the first column shares the first row: mark it
+                    rows[(size_t) start].first = true;
+                    rows[(size_t) start + 1].first = false;
+                    // (drawn on the same line: see paint)
+                    rows[(size_t) start].x = -1 - col;   // negative x = "draw with the next row"
+                }
+                else
+                {
+                    rows.push_back ({ b.text, 0, b.kind, chapter, true });
+                    wrap (b.text2, 2, chars - 2, b.kind, chapter, 2);
+                }
+                break;
+            }
+            case HelpBlock::Kind::Gap:
+                if (! rows.empty() && rows.back().kind != HelpBlock::Kind::Gap) rows.push_back ({ {}, 0, HelpBlock::Kind::Gap, chapter });
+                break;
+        }
+    }
+    top = juce::jlimit (0, std::max (0, (int) rows.size() - 1), top);
+}
+
+void HelpPage::scrollTo (int row)
+{
+    top = juce::jlimit (0, std::max (0, (int) rows.size() - visibleRows()), row);
+    list.selected = currentChapter();
+    list.ensureVisible (list.selected);
+    list.repaint();
+    repaint();
+}
+
+void HelpPage::showChapter (int i)
+{
+    if (i < 0 || i >= (int) chapters.size()) return;
+    layout();
+    scrollTo (chapters[(size_t) i].row);
+}
+
+int HelpPage::currentChapter() const
+{
+    int c = 0;
+    for (int i = 0; i < (int) chapters.size(); ++i) if (chapters[(size_t) i].row <= top + 1) c = i;
+    return c;
+}
+
+juce::File HelpPage::openPdf()
+{
+    auto f = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Paulas Revenge Manual.pdf");
+    f.replaceWithData (PrvDocs::Paulas_Revenge_Manual_pdf, (size_t) PrvDocs::Paulas_Revenge_Manual_pdfSize);
+    if (launchPdf) f.startAsProcess();
+    if (onStatus) onStatus ("OPENING THE PDF MANUAL");
+    return f;
+}
+
+void HelpPage::resized()
+{
+    const float px = Theme::px;
+    const int rowHt = (int) (px * 11), gap = (int) std::max (2.0f, px * 1.5f);
+    auto charsW = [px] (int c) { return (int) (px * 6 * c + px * 4); };
+    auto r = getLocalBounds().reduced (gap);
+    auto head = r.removeFromTop (rowHt);
+    closeBtn.setBounds (head.removeFromRight (charsW (5))); head.removeFromRight (gap);
+    pdfBtn.setBounds (head.removeFromRight (charsW (15)));
+    r.removeFromTop (gap);
+    list.setBounds (r.removeFromLeft (std::min (charsW (30), r.getWidth() * 2 / 5)));
+    r.removeFromLeft (gap * 2);
+    scrollBar = r.removeFromRight ((int) (px * 6));
+    r.removeFromRight (gap);
+    textArea = r;
+    laidOutChars = -1;
+    layout();
+    scrollTo (top);
+}
+
+void HelpPage::paint (juce::Graphics& g)
+{
+    const float px = Theme::px;
+    g.fillAll (Theme::panel);
+    PixelFont::drawLeft (g, "HELP - PAULA'S REVENGE", getLocalBounds().reduced ((int) std::max (2.0f, px * 1.5f)).removeFromTop ((int) (px * 11)).toFloat(), px, Theme::ink);
+
+    // the text: black on white, like a page
+    g.setColour (Theme::paper);
+    g.fillRect (textArea);
+    Theme::bevel (g, textArea.toFloat(), false, std::max (1.0f, px * 0.5f));
+    const float rh = rowH();
+    const float x0 = (float) textArea.getX() + px * 4;
+    const float cw = px * PixelFont::kCellW;
+    juce::Graphics::ScopedSaveState ss (g);
+    g.reduceClipRegion (textArea.reduced (2));
+    float y = (float) textArea.getY() + px * 2;
+    for (int i = top; i < (int) rows.size() && y < (float) textArea.getBottom(); ++i)
+    {
+        const auto& row = rows[(size_t) i];
+        const auto line = juce::Rectangle<float> (x0, y, (float) textArea.getWidth() - px * 8, rh);
+        switch (row.kind)
+        {
+            case HelpBlock::Kind::Chapter:
+            {
+                // a striped title strip, like the panels' titles
+                const float tw = PixelFont::textWidth (row.text, px) + px * 6;
+                const auto mid = line.withSizeKeepingCentre (tw, rh);
+                g.setColour (Theme::ink);
+                for (float sy = line.getY() + px * 2; sy < line.getBottom() - px * 2; sy += px * 2)
+                {
+                    g.fillRect (line.getX(), sy, mid.getX() - line.getX(), std::max (1.0f, px * 0.5f));
+                    g.fillRect (mid.getRight(), sy, line.getRight() - mid.getRight(), std::max (1.0f, px * 0.5f));
+                }
+                PixelFont::drawCentred (g, row.text, mid, px, Theme::ink);
+                break;
+            }
+            case HelpBlock::Kind::Heading:
+                g.setColour (Theme::ink);
+                g.fillRect (line.getX(), line.getBottom() - px * 1.5f, PixelFont::textWidth (row.text, px), std::max (1.0f, px * 0.5f));
+                PixelFont::drawLeft (g, row.text, line, px, Theme::ink);
+                break;
+            case HelpBlock::Kind::HeaderRow:
+            case HelpBlock::Kind::Row:
+            {
+                if (row.kind == HelpBlock::Kind::HeaderRow) { g.setColour (Theme::panel); g.fillRect (line.withTrimmedLeft (-px * 2)); }
+                if (row.x < 0)
+                {
+                    // the first column, with the rest of the row beside it on the same line
+                    PixelFont::drawLeft (g, row.text, line, px, Theme::ink);
+                    if (i + 1 < (int) rows.size())
+                    {
+                        const auto& next = rows[(size_t) i + 1];
+                        PixelFont::drawLeft (g, next.text, line.withTrimmedLeft (cw * (float) next.x), px, Theme::ink);
+                        ++i;
+                    }
+                }
+                else PixelFont::drawLeft (g, row.text, line.withTrimmedLeft (cw * (float) row.x), px, row.first ? Theme::ink : Theme::ink);
+                g.setColour (Theme::band);
+                g.fillRect (line.getX(), line.getBottom() - 1.0f, line.getWidth(), 1.0f);
+                break;
+            }
+            case HelpBlock::Kind::Gap:
+                break;
+            default:
+                PixelFont::drawLeft (g, row.text, line.withTrimmedLeft (cw * (float) row.x), px, Theme::ink);
+                break;
+        }
+        y += rh;
+    }
+
+    // the scroll bar
+    g.setColour (Theme::paper);
+    g.fillRect (scrollBar);
+    Theme::bevel (g, scrollBar.toFloat(), false, 1.0f);
+    const int total = std::max (1, (int) rows.size());
+    const float h = (float) scrollBar.getHeight();
+    const float thumbH = std::max (px * 8, h * (float) visibleRows() / (float) total);
+    const float thumbY = (float) scrollBar.getY() + (h - thumbH) * (float) top / (float) std::max (1, total - visibleRows());
+    g.setColour (Theme::pressed);
+    g.fillRect (juce::Rectangle<float> ((float) scrollBar.getX() + 1, thumbY, (float) scrollBar.getWidth() - 2, thumbH));
+    Theme::bevel (g, { (float) scrollBar.getX() + 1, thumbY, (float) scrollBar.getWidth() - 2, thumbH }, true, 1.0f);
+}
+
+bool HelpPage::keyPressed (const juce::KeyPress& k)
+{
+    const int code = k.getKeyCode();
+    if (code == juce::KeyPress::escapeKey) { if (onClose) onClose(); return true; }
+    if (code == juce::KeyPress::upKey)       { scrollTo (top - 1); return true; }
+    if (code == juce::KeyPress::downKey)     { scrollTo (top + 1); return true; }
+    if (code == juce::KeyPress::pageUpKey)   { scrollTo (top - visibleRows() + 1); return true; }
+    if (code == juce::KeyPress::pageDownKey || code == juce::KeyPress::spaceKey) { scrollTo (top + visibleRows() - 1); return true; }
+    if (code == juce::KeyPress::homeKey)     { scrollTo (0); return true; }
+    if (code == juce::KeyPress::endKey)      { scrollTo ((int) rows.size()); return true; }
+    if (code == juce::KeyPress::leftKey)     { showChapter (std::max (0, currentChapter() - (chapters[(size_t) currentChapter()].row < top ? 0 : 1))); return true; }
+    if (code == juce::KeyPress::rightKey)    { showChapter (currentChapter() + 1); return true; }
+    return false;
+}
+
+void HelpPage::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
+{
+    const int steps = wheel (w);
+    if (steps != 0) scrollTo (top + steps * 3);
+}
+
+void HelpPage::mouseDown (const juce::MouseEvent& e)
+{
+    grabKeyboardFocus();
+    dragFrom = -1;
+    if (scrollBar.contains (e.getPosition()))
+    {
+        // jump the thumb there, then drag
+        const float f = (float) (e.y - scrollBar.getY()) / (float) std::max (1, scrollBar.getHeight());
+        scrollTo ((int) (f * (float) rows.size()) - visibleRows() / 2);
+        dragFrom = (float) e.y; dragTop = top;
+    }
+}
+
+void HelpPage::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragFrom < 0) return;
+    const float perPx = (float) rows.size() / (float) std::max (1, scrollBar.getHeight());
+    scrollTo (dragTop + (int) std::lround (((float) e.y - dragFrom) * perPx));
+}
+} // namespace prv::ui

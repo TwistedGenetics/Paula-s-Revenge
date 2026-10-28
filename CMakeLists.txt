@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.12.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.12.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -80,6 +80,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/CommandPicker.cpp
     Source/ui/SynthPage.cpp
     Source/ui/MidiOutPage.cpp
+    Source/ui/HelpPage.cpp
     Source/PluginHost.cpp
     Source/MidiOutHost.cpp
     Source/StandaloneApp.cpp)
@@ -98,9 +99,15 @@ target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=1)
 
+# the README and the PDF manual, built in (the HELP page)
+juce_add_binary_data(PaulasRevengeDocs
+    NAMESPACE PrvDocs
+    SOURCES README.md "docs/manual/Paulas Revenge Manual.pdf")
+
 target_link_libraries(PaulasRevenge
     PRIVATE
         prv_engine
+        PaulasRevengeDocs
         juce::juce_audio_utils
         juce::juce_audio_formats
         juce::juce_dsp

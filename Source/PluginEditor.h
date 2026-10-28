@@ -13,6 +13,7 @@
 #include "ui/SynthPage.h"
 #include "ui/MidiOutPage.h"
 #include "ui/ChoiceBox.h"
+#include "ui/HelpPage.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 
@@ -36,8 +37,10 @@ public:
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }
+    prv::ui::HelpPage& getHelp() { return help; }
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
+    void toggleHelp();                                // HELP (F1, Cmd+/)
     bool bounceSelection (bool withFx);               // the highlighted area to a new instrument
     void askBounce();                                 // DRY or WITH FX?
     prv::ui::PatternEditor& getPattern() { return pattern; }
@@ -71,7 +74,7 @@ private:
 
     // title bar
     PixButton newBtn { "NEW" }, loadBtn { "LOAD" }, saveBtn { "SAVE" }, saveAsBtn { "SAVE AS" }, modBtn { "SAVE MOD" }, wavBtn { "RENDER WAV" }, smpBtn { "EXPORT SAMPLES" };
-    PixButton undoBtn { "UNDO" }, redoBtn { "REDO" };
+    PixButton undoBtn { "UNDO" }, redoBtn { "REDO" }, helpBtn { "HELP", true };
     PixButton zoomOut { "A-" }, zoomIn { "A+" };
 
     // transport
@@ -109,6 +112,8 @@ private:
     prv::ui::SynthPage synthPage;
     prv::ui::MidiOutPage midiPage;
     prv::ui::ChoiceBox choice;
+    prv::ui::HelpPage help;
+    PaulaProcessor::EditorState::View helpReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::ArrangePage arrange;
     prv::ui::MixerPage mixer;
     prv::ui::OutputMeter outMeter;

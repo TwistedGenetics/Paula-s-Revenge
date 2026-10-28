@@ -96,7 +96,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool showSpectrum = true;
         bool showFx2 = false;         // second effect column (FX2 button)

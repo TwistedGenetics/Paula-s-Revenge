@@ -6,7 +6,7 @@ It's an original program inspired by the classic Amiga trackers of the early 90s
 
 ![Paula's Revenge](docs/screenshot.png)
 
-**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser), or as an A4 PDF: [`Paulas Revenge Manual v0.12.pdf`](<docs/manual/Paulas Revenge Manual v0.12.pdf>).
+**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser), or as an A4 PDF: [`Paulas Revenge Manual.pdf`](<docs/manual/Paulas Revenge Manual.pdf>).
 
 ## Install (no building needed)
 
@@ -19,11 +19,15 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions).
 
 ---
 
+## Help inside the app
+
+**HELP** (top left of the title bar, or `F1`, or `Cmd+/`) shows this README inside the app, in the same big pixel text, with the chapters listed on the left: click one to go there. The wheel, the arrow keys, `PgUp` / `PgDn` / `Space`, `Home` / `End` and the scroll bar move through it; `←` `→` go to the previous / next chapter; `Esc` (or HELP again) goes back to where you were. **OPEN PDF MANUAL** opens the illustrated PDF manual, which is built into the app too. Both always match the version you're running.
+
 ## The screen
 
 | Area | What it does |
 |---|---|
-| Title bar | NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
+| Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, SAVE MOD, RENDER WAV, EXPORT SAMPLES, text size `A-` / `A+` |
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
 | Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
@@ -274,6 +278,7 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
 | `Cmd+S` / `Cmd+Shift+S` | Save / save as |
 | `Cmd+2` / `Cmd+1` | Mixer / pattern |
+| `F1` / `Cmd+/` | HELP: this manual, inside the app |
 
 A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = `C-3`.
 
