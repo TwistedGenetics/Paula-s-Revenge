@@ -79,17 +79,21 @@ jobs:
           path: build/_deps
           key: juce-8.0.4-${{ runner.os }}
 
+      # the Visual Studio compiler, driven by Ninja (MSBuild trips over the ' in "Paula's Revenge")
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Configure
-        # the newest Visual Studio on the runner; the C++ runtime built in (MultiThreaded):
-        # no Visual C++ redistributable needed on the PC
+        # the C++ runtime built in (MultiThreaded): no Visual C++ redistributable needed on the PC
         run: |
           set -o pipefail
-          cmake -B build -S . -A x64 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded 2>&1 | tee configure.log
+          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded 2>&1 | tee configure.log
 
       - name: Build
         run: |
           set -o pipefail
-          cmake --build build --config Release -- -m:4 -v:m 2>&1 | tee build.log
+          cmake --build build -j 4 2>&1 | tee build.log
 
       - name: Show compiler errors
         if: failure()
@@ -101,7 +105,7 @@ jobs:
           exit 0
 
       - name: Engine tests
-        run: ./build/Release/prv_engine_test.exe
+        run: ./build/prv_engine_test.exe
 
       - name: Package
         run: |
