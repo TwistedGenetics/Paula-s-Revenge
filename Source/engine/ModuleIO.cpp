@@ -436,6 +436,15 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
         const double ratio = in.rate / kAmigaC3Rate;          // >1: the sample is denser than the Amiga rate
         o.looped = in.isLooped();
         o.loopStart = in.loopStart; o.loopLength = in.loopLength;
+        if (in.hasRange())
+        {
+            // START / END: just that part goes in the MOD (the loop cut to it)
+            const int a = in.rangeStart(), b = in.rangeEnd();
+            mono = std::vector<int16_t> (mono.begin() + a, mono.begin() + b);
+            const int ls = std::clamp (o.loopStart - a, 0, b - a), le = std::clamp (o.loopStart + o.loopLength - a, 0, b - a);
+            o.loopStart = ls; o.loopLength = le - ls;
+            o.looped = o.looped && o.loopLength >= 4;
+        }
         if (! mono.empty() && std::abs (ratio - 1.0) > 1e-6)
         {
             rateChanged = true;

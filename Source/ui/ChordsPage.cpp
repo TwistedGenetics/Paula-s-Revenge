@@ -835,6 +835,7 @@ bool ChordsPage::keyPressed (const juce::KeyPress& k)
         return true;
     }
     if (code == juce::KeyPress::deleteKey) { clearSlot(); return true; }
+    if (code == juce::KeyPress::spaceKey && filter.isEmpty() && proc.player.isPlaying()) { if (onStopSong) onStopSong(); return true; }   // (Space stops playback everywhere)
     if (code == juce::KeyPress::spaceKey && filter.isEmpty()) { preview(); return true; }
     const auto ch = juce::CharacterFunctions::toUpperCase (k.getTextCharacter());
     if ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '#' || ch == ' ' || ch == '+')

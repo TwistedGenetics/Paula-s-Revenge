@@ -231,17 +231,24 @@ bool takeToInstrument (const std::vector<float>& left, const std::vector<float>&
         if (! R.empty()) R = std::vector<float> (R.begin() + a, R.begin() + b);
     }
     if (o.normalise) normalise (L, R);
+    if (o.bits > 0 && o.bits < 16)
+    {
+        // a vintage take: back on the sampler's grid after normalising
+        for (auto& v : L) v = VintageAdc::quantise (v, o.bits);
+        for (auto& v : R) v = VintageAdc::quantise (v, o.bits);
+    }
     double playRate = rate;
-    if (o.amigaRate > 0)
+    if (o.amigaRate > 0 && o.bits == 0)
     {
         L = resample (L, rate, o.amigaRate);
         if (! R.empty()) { R = resample (R, rate, o.amigaRate); R.resize (L.size(), 0.0f); }
         playRate = o.amigaRate;
     }
-    auto to16 = [] (const std::vector<float>& v)
+    const float scale = o.bits > 0 && o.bits < 16 ? 32768.0f : 32767.0f;   // (a vintage take: exactly on its bits)
+    auto to16 = [scale] (const std::vector<float>& v)
     {
         std::vector<int16_t> d (v.size());
-        for (size_t i = 0; i < v.size(); ++i) d[i] = (int16_t) std::clamp ((int) std::lround (v[i] * 32767.0f), -32768, 32767);
+        for (size_t i = 0; i < v.size(); ++i) d[i] = (int16_t) std::clamp ((int) std::lround (v[i] * scale), -32768, 32767);
         return d;
     };
     out.clear();
@@ -251,5 +258,101 @@ bool takeToInstrument (const std::vector<float>& left, const std::vector<float>&
     out.rate = std::clamp (playRate, 500.0, 192000.0);
     out.natRate = out.rate;
     return ! out.data.empty();
+}
+
+// ------------------------------------------------------------------ vintage sampling
+const double kAmigaSampleRates[4] = { 8363, 16726, 22050, 28867 };
+const double kS950SampleRates[8] = { 7500, 10000, 15000, 22050, 24000, 32000, 40000, 48000 };
+
+float VintageAdc::Biquad::run (float x)
+{
+    const double y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+    return (float) y;
+}
+
+void VintageAdc::Biquad::lowpass (double fc, double fs, double q)
+{
+    const double w = 2.0 * 3.14159265358979323846 * std::clamp (fc, 20.0, fs * 0.49) / fs;
+    const double alpha = std::sin (w) / (2.0 * q), c = std::cos (w), a0 = 1.0 + alpha;
+    b0 = (1.0 - c) / 2.0 / a0; b1 = (1.0 - c) / a0; b2 = b0; a1 = -2.0 * c / a0; a2 = (1.0 - alpha) / a0;
+}
+
+void VintageAdc::prepare (double hostRate, int)
+{
+    host = hostRate > 0 ? hostRate : 48000.0;
+    set (cfg);
+}
+
+void VintageAdc::reset()
+{
+    phase = 1.0; heldL = heldR = 0;
+    for (auto* f : { aaL, aaR, outL, outR }) for (int k = 0; k < 3; ++k) f[k].z1 = f[k].z2 = 0;
+}
+
+void VintageAdc::set (const VintageSettings& s)
+{
+    cfg = s;
+    cfg.bits = std::clamp (cfg.bits, 4, 16);
+    cfg.driveDb = std::clamp (cfg.driveDb, 0.0f, 24.0f);
+    gain = std::pow (10.0f, cfg.driveDb / 20.0f);
+    // the S950's 6-pole Butterworth: three sections, the corner just under half the rate
+    filtered = cfg.model == SamplerModel::S950 && cfg.rate > 0;
+    if (filtered)
+    {
+        const double fc = std::min (cfg.rate * 0.45, host * 0.45);
+        const double qs[3] = { 0.5176, 0.7071, 1.9319 };
+        for (int k = 0; k < 3; ++k) { aaL[k].lowpass (fc, host, qs[k]); aaR[k] = aaL[k]; outL[k] = aaL[k]; outR[k] = aaL[k]; }
+    }
+    reset();
+}
+
+float VintageAdc::inputStage (float x, SamplerModel m, float g)
+{
+    x *= g;
+    if (m == SamplerModel::S950)
+    {
+        // the input amplifier goes soft above about -4 dB, then the converter's rails
+        const float a = std::abs (x);
+        if (a > 0.6f) x = std::copysign (0.6f + 0.4f * std::tanh ((a - 0.6f) / 0.4f), x);
+    }
+    return std::clamp (x, -1.0f, 1.0f);   // (the converter: hard at full scale)
+}
+
+float VintageAdc::quantise (float x, int bits)
+{
+    if (bits >= 16) return x;
+    const float levels = (float) (1 << (std::clamp (bits, 2, 16) - 1));
+    return std::clamp (std::round (x * levels), -levels, levels - 1.0f) / levels;
+}
+
+int VintageAdc::process (const float* l, const float* r, int n, float* monL, float* monR, float* decL, float* decR)
+{
+    if (! active())
+    {
+        std::copy (l, l + n, monL); std::copy (r, r + n, monR);
+        std::copy (l, l + n, decL); std::copy (r, r + n, decR);
+        return n;
+    }
+    const double step = cfg.rate / host;
+    int k = 0;
+    for (int i = 0; i < n; ++i)
+    {
+        float xl = inputStage (l[i], cfg.model, gain), xr = inputStage (r[i], cfg.model, gain);
+        if (filtered) for (int s = 0; s < 3; ++s) { xl = aaL[s].run (xl); xr = aaR[s].run (xr); }
+        phase += step;
+        while (phase >= 1.0)
+        {
+            phase -= 1.0;
+            heldL = quantise (xl, cfg.bits);
+            heldR = quantise (xr, cfg.bits);
+            decL[k] = heldL; decR[k] = heldR; ++k;
+        }
+        float ml = heldL, mr = heldR;
+        if (filtered) for (int s = 0; s < 3; ++s) { ml = outL[s].run (ml); mr = outR[s].run (mr); }
+        monL[i] = ml; monR[i] = mr;
+    }
+    return k;
 }
 } // namespace prv

@@ -1,5 +1,6 @@
 // Paula's Revenge - instrument parameters page (envelopes, filter, pan)
 #include "ParamsPage.h"
+#include "../engine/SampleTools.h"
 
 namespace prv::ui
 {
@@ -97,6 +98,17 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
         refresh();
     };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
+    // tuning, BEAT SYNC
+    for (auto* nb : { &pitchBox, &fineBox, &linesBox }) nb->compact = true;
+    pitchBox.valueChars = 3; fineBox.valueChars = 4; linesBox.valueChars = 3;
+    pitchBox.format = [] (int v) { return (v > 0 ? "+" : "") + juce::String (v); };
+    fineBox.format = [] (int v) { return (v > 0 ? "+" : "") + juce::String (v) + "C"; };
+    pitchBox.onChange = [this] (int v) { setPitch (v); };
+    fineBox.onChange = [this] (int v) { setFine (v); };
+    linesBox.onChange = [this] (int v) { setSyncLines (v); };
+    tuneBtn.onClick = [this] { tuneToC(); };
+    syncBtn.onClick = [this] { setBeatSync (syncBtn.getToggleState()); };
+    fitBtn.onClick = [this] { if (onFitStretch) onFitStretch (linesBox.getValue()); };
     pluginBtn.onClick = [this] { if (onUsePlugin) onUsePlugin(); };
     onBtn.onClick = [this] { toggleOn(); };
     learnA.onClick = [this] { armLearn (0); };
@@ -106,7 +118,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 
     for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk,
                                                              &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn,
-                                                             &onBtn, &learnA, &learnB, &trackBox })
+                                                             &onBtn, &learnA, &learnB, &trackBox, &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn })
         addAndMakeVisible (c);
     refresh();
 }
@@ -127,6 +139,64 @@ template <typename Fn> void ParamsPage::edit (Fn&& fn)
     proc.withLock ([&] { fn (inst()); });
     repaint();
     if (onChanged) onChanged();
+}
+
+void ParamsPage::setPitch (int v)
+{
+    v = juce::jlimit (-48, 48, v);
+    edit ([v] (Instrument& in) { in.transpose = v; });
+    if (onStatus) onStatus ("PITCH " + juce::String (v > 0 ? "+" : "") + juce::String (v) + " SEMITONES");
+    refresh();
+}
+
+void ParamsPage::setFine (int c)
+{
+    c = juce::jlimit (-100, 100, c);
+    edit ([c] (Instrument& in) { in.cents = c; });
+    if (onStatus) onStatus ("FINE " + juce::String (c > 0 ? "+" : "") + juce::String (c) + " CENTS");
+    refresh();
+}
+
+bool ParamsPage::tuneToC()
+{
+    const auto& in = inst();
+    if (! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return false; }
+    const double hz = detectPitch (in.data, in.rangeStart(), in.rangeEnd(), in.rate);
+    int st = 0, ct = 0;
+    if (! prv::tuneToC (hz, st, ct)) { if (onStatus) onStatus ("NO CLEAR PITCH FOUND (A DRUM? TUNE IT BY EAR WITH PITCH AND FINE)"); return false; }
+    proc.history.instrument (proc.editorState.instrument, "TUNE TO C");   // (its own undo step)
+    proc.withLock ([&] { inst().transpose = st; inst().cents = ct; });
+    if (onChanged) onChanged();
+    if (onStatus) onStatus ("FOUND " + juce::String (hz, 1) + " HZ - PITCH " + juce::String (st > 0 ? "+" : "") + juce::String (st)
+                            + ", FINE " + juce::String (ct > 0 ? "+" : "") + juce::String (ct) + " CENTS: C-3 NOW PLAYS A C");
+    refresh();
+    return true;
+}
+
+void ParamsPage::setBeatSync (bool on)
+{
+    const auto& in = inst();
+    if (on && ! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); refresh(); return; }
+    int lines = 0;
+    if (on)
+    {
+        // a sensible number of lines for its length at the song's tempo, to start with
+        const double lineSec = 2.5 / std::max (1, proc.song.tempo) * std::max (1, proc.song.speed);
+        lines = suggestSyncLines ((in.rangeEnd() - in.rangeStart()) / std::max (1.0, in.rate), lineSec);
+    }
+    edit ([lines] (Instrument& i) { i.syncLines = lines; });
+    if (onStatus) onStatus (on ? "BEAT SYNC: C-3 PLAYS IT OVER " + juce::String (lines) + " LINES AT ANY TEMPO (REPITCHED) - CHANGE LINES TO FIT"
+                               : juce::String ("BEAT SYNC OFF"));
+    refresh();
+}
+
+void ParamsPage::setSyncLines (int lines)
+{
+    lines = juce::jlimit (1, 512, lines);
+    if (inst().syncLines == 0) { linesBox.setValue (lines); return; }   // (off: just the number for STRETCH TO FIT)
+    edit ([lines] (Instrument& i) { i.syncLines = lines; });
+    if (onStatus) onStatus ("BEAT SYNC: " + juce::String (lines) + " LINES");
+    refresh();
 }
 
 void ParamsPage::toggleOn()
@@ -189,6 +259,11 @@ void ParamsPage::refresh()
     const bool fOn = in.filter != FilterType::Off;
     for (auto* s : { &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel }) s->setAlpha (fOn ? 1.0f : 0.45f);
 
+    pitchBox.setValue (in.transpose);
+    fineBox.setValue (in.cents);
+    syncBtn.setToggleState (in.syncLines > 0, juce::dontSendNotification);
+    if (in.syncLines > 0) linesBox.setValue (in.syncLines);
+    linesBox.setAlpha (in.syncLines > 0 ? 1.0f : 0.6f);
     amigaBtn.setToggleState (in.amigaPan, juce::dontSendNotification);
     pan.setValue (in.pan / 255.0f);
     pan.setAlpha (in.amigaPan ? 0.45f : 1.0f);
@@ -252,9 +327,21 @@ void ParamsPage::resized()
         return area;
     };
 
-    // the instrument's own effects: under the volume envelope (its graph has the room)
+    // the instrument's own effects, tuning and BEAT SYNC: under the volume envelope (its graph has the room)
     fxRow.setBounds (left.removeFromBottom (rowH));
     left.removeFromBottom (gap * 2);
+    {
+        auto row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
+        linesBox.setBounds (row.removeFromLeft (linesBox.preferredWidth (px))); row.removeFromLeft (gap);
+        fitBtn.setBounds (row);
+        row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
+        const int hw = (row.getWidth() - gap) / 2;
+        tuneBtn.setBounds (row.removeFromLeft (hw)); row.removeFromLeft (gap);
+        syncBtn.setBounds (row);
+        row = left.removeFromBottom (rowH); left.removeFromBottom (gap * 2);
+        pitchBox.setBounds (row.removeFromLeft (pitchBox.preferredWidth (px))); row.removeFromLeft (gap * 2);
+        fineBox.setBounds (row.removeFromLeft (std::min (row.getWidth(), fineBox.preferredWidth (px))));
+    }
     // volume envelope (left)
     envBox = left.toFloat();
     {

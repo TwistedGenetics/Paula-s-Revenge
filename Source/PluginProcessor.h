@@ -88,6 +88,9 @@ public:
 
     // SAMPLE: recording the input (or the app's own output) into an instrument
     prv::TakeRecorder recorder;
+    prv::VintageAdc vintage;                    // SAMPLE's AMIGA / S950 modes (CLEAN: off)
+    void setVintage (const prv::VintageSettings&);
+    void allocateVintage (int n);
     enum RecSource { SourceInput = 0, SourceResample = 1 };
     std::atomic<int>   recSource { SourceInput };
     std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
@@ -185,6 +188,7 @@ private:
     double currentRate = 44100.0;
     juce::HeapBlock<float> scratchL, scratchR;
     juce::HeapBlock<float> inL, inR;   // the input (SAMPLE)
+    juce::HeapBlock<float> vMonL, vMonR, vDecL, vDecR;   // SAMPLE through a vintage sampler: heard / recorded
     int scratchSize = 0;
     juce::AbstractFifo midiFifo { 256 };
     InputNote midiNotes[256] {};

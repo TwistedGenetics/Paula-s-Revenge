@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.22</span>
+  <span class="ver">MANUAL &middot; V0.23</span>
 </header>
 
 <div class="app">
@@ -375,6 +375,9 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <ul>
     <li>Drag to select; grab either end of a selection to move just that end. The note keys and MIDI play the sample through the full instrument sound; <span class="b">SEL KEYS</span> plays just the selection.</li>
     <li><span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DELETE</span> <span class="b">CROP</span> <span class="b">SILENCE</span> <span class="b">REVERSE</span> <span class="b">MAX VOL</span> <span class="b">VOL -</span> <span class="b">VOL +</span> <span class="b">FADE IN</span> <span class="b">FADE OUT</span> <span class="b">TO MONO</span>, and <span class="b">DRAW</span> to draw the wave.</li>
+    <li><span class="b">TOOLS...</span>: GAIN, NORMALISE, REMOVE DC, TRIM SILENCE, INSERT SILENCE, CROSSFADE LOOP (a smooth jump back), PITCH (semitones, resampled), SWAP LEFT / RIGHT, START / END from the selection, SAVE SAMPLE. <span class="b">SAVE...</span> writes the sample to a WAV wherever you choose.</li>
+    <li><b>START / END:</b> drag the green <span class="b">[</span> and <span class="b">]</span> handles at the middle of the wave: only the part between them plays, the rest is shaded but kept. They're separate from the loop (which is cut at END); <code>9xx</code> counts from START.</li>
+    <li><kbd>Space</kbd> stops whatever plays, the song too; when nothing does, it plays the sample.</li>
     <li><b>Loop:</b> drag the <span class="b">S</span> and <span class="b">E</span> handles at the top of the wave; you hear the loop while you drag. <span class="b">PING-PONG</span> plays it forwards then backwards.</li>
   </ul>
   <h3>Rates</h3>
@@ -386,8 +389,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>Sampling: recording audio</h3>
   <p>Record straight into the selected instrument, from an audio interface, the mic or line-in, or from the app's own output. Open the <span class="b">SAMPLE</span> page with <kbd>Cmd</kbd><kbd>4</kbd>, <b>Sample Audio…</b> in the View menu, right-click an instrument &rarr; <b>SAMPLE (RECORD AUDIO)…</b>, or click an empty instrument's <b>NO SAMPLE - CLICK TO RECORD</b>.</p>
   <figure>
-    <div class="frame sunken"><img src="img/sample.png" alt="The SAMPLE page: SOURCE INPUT / RESAMPLE / MONITOR, CHANNELS, TRIGGER, INPUT GAIN and THRESHOLD, a big L/R meter with CLIP lights, RECORD and STOP with the clock TAKE 0:00.8, the take's waveform, KEEP, AGAIN, TRIM SILENCE, NORMALISE and the AMIGA RATE buttons." width="1440" height="900" loading="lazy"></div>
-    <figcaption>The SAMPLE page with a take waiting: KEEP puts it in the instrument</figcaption>
+    <div class="frame sunken"><img src="img/sample.png" alt="The SAMPLE page set to the S950 sampler at 32K and 12 bit with INPUT DRIVE: SOURCE, SAMPLER, CHANNELS, TRIGGER, INPUT GAIN, INPUT DRIVE and THRESHOLD, the big L/R meter with both CLIP lights lit, RECORD and STOP, and the S950 rate buttons." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Sampling through the S950, its input driven into the CLIP lights</figcaption>
   </figure>
   <div class="tbl sunken"><table>
     <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
@@ -402,7 +405,10 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">RECORD</span> <span class="b">STOP</span></td><td>Start (or arm) and end it (<kbd>R</kbd>). Up to 5 minutes. It carries on if you go to another page</td></tr>
       <tr><td><span class="b">KEEP</span> <span class="b">AGAIN</span></td><td>The take into the instrument, one undo step (<kbd>Enter</kbd>), or thrown away and recorded again (<kbd>Backspace</kbd>)</td></tr>
       <tr><td><span class="b">TRIM SILENCE</span> <span class="b">NORMALISE</span></td><td>Cut quiet at both ends; bring the loudest point to full level. Both on to start with</td></tr>
-      <tr><td><span class="b">AMIGA RATE</span></td><td>NONE keeps the recording's rate; 8363, 16726, 22050 or 28867&nbsp;Hz resamples it as you keep it, for the crunchy sound, at the same pitch</td></tr>
+      <tr><td><span class="b">CLEAN</span> <span class="b">AMIGA</span> <span class="b">S950</span></td><td>How the sound gets in. CLEAN (the default): the interface as it is. AMIGA: 8-bit at 8363 / 16726 / 22050 / 28867&nbsp;Hz with no anti-alias filter (the aliasing grit). S950: 12-bit at 7.5K–48K through its filter, which follows the rate. You hear it as you sample, with MONITOR on</td></tr>
+      <tr><td><span class="b">8 BIT</span> <span class="b">12 BIT</span></td><td>The bits, for either sampler (an S950 at 8 bits, an Amiga at 12)</td></tr>
+      <tr><td><span class="b">INPUT DRIVE</span></td><td>0 to +24&nbsp;dB into the sampler's input: the S950 goes soft and fat then hits the ceiling (the CLIP lights), like the classic overloaded records; an Amiga sampler just clips</td></tr>
+      <tr><td><span class="b">AMIGA RATE</span></td><td>CLEAN only: NONE keeps the recording's rate; 8363, 16726, 22050 or 28867&nbsp;Hz resamples it as you keep it, at the same pitch</td></tr>
     </tbody>
   </table></div>
   <p>The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or the input is silent (System Settings &rarr; Privacy &amp; Security &rarr; Microphone changes it later). After KEEP it's a sample like any other: EDIT to slice or loop it, and it's saved in the song.</p>
@@ -423,6 +429,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Volume envelope:</b> <span class="b">VOL ENVELOPE</span> on, then ATK, DEC, SUS, REL (1 ms – 10 s). With it on, a note-off starts the release instead of cutting the note.</li>
     <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL.</li>
     <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
+    <li><b>Tuning:</b> <span class="b">PITCH</span> (±48 semitones) and <span class="b">FINE</span> (±100 cents). <span class="b">TUNE TO C</span> listens to the sample and sets them so <code>C-3</code> plays a C.</li>
+    <li><b>BEAT SYNC</b> (like Renoise): the sample lasts <span class="b">LINES</span> lines at <code>C-3</code> at any tempo, repitched live to fit. <span class="b">STRETCH...</span> opens the time stretch set to those lines, to fit it at its own pitch instead.</li>
     <li><span class="b">&#9654; HOLD TO PLAY</span> or the keys to hear it; <span class="b">RESET ALL</span> puts everything back; double-click any slider for its default.</li>
     <li><span class="b">ON</span> switches the instrument off and on. To switch it from the pattern, pick a track, press <span class="b">LEARN A (V)</span> or <span class="b">LEARN B (J)</span>, then click ON: that track's <code>V00</code> switches it off and <code>V01</code>–<code>VFF</code> on.</li>
     <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
@@ -737,7 +745,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Z</kbd> <kbd>S</kbd> <kbd>X</kbd> <kbd>D</kbd> <kbd>C</kbd>…</td><td>Notes, lower octave (<kbd>,</kbd> <kbd>L</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>/</kbd> carry on up)</td></tr>
       <tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd>…</td><td>Notes, upper octave</td></tr>
       <tr><td><kbd>1</kbd></td><td>Note off</td></tr>
-      <tr><td><kbd>Space</kbd></td><td>Play / stop the block · with <kbd>Shift</kbd>, the song</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Play / stop the block · with <kbd>Shift</kbd>, the song. On every page: Space stops the song</td></tr>
       <tr><td><kbd>Esc</kbd> or <kbd>\</kbd></td><td>Edit mode on / off</td></tr>
       <tr><td><kbd>Shift</kbd><kbd>3</kbd></td><td>In a command column: <code>#</code>, the chord command</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>Play block · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
@@ -764,7 +772,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.22</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.23</footer>
 </main>
 </div>
 </body></html>

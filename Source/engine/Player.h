@@ -152,6 +152,7 @@ public:
     SynthRack& synths() { return rack; }
     // which track's mixer strip a plug-in instrument plays into right now
     int synthOutputTrack (int instrument) const;
+    double rateFactor (const Instrument&) const;   // how fast a sample plays at C-3 (its rate, cents, BEAT SYNC)
     // an instrument switched on/off: by its ON button, or by an automation knob while playing
     bool instrumentIsOn (int instrument) const;
     void setInstrumentOn (int instrument, int state);   // (audio lock) 0 = off, 1 = on, -1 = back to its ON button

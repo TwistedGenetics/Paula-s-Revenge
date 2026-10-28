@@ -485,6 +485,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
         v.regionLoop = loopRegion && v.regionEnd - v.regionStart >= 4;
         v.pos = start;
     }
+    else v.pos = in.rangeStart();   // (START / END)
     v.active = true;
     startShaping (v);
     uiJamInstr[slot] = instrIndex;
@@ -670,20 +671,22 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     }
     v.note = std::clamp (note, 1, (int) kNoteMax);
     v.period = v.outPeriod = v.targetPeriod = periodFor (v.note, v.finetune);
-    v.pos = 0;
+    // START / END: what plays (offsets count from START)
+    const double lo = in.rangeStart(), hi = in.rangeEnd();
+    v.pos = lo;
 
     if (cell.cmd == 0x9 || cell.cmd2 == 0x9)
     {
         const uint8_t off = cell.cmd == 0x9 ? cell.param : cell.param2;
         if (off) v.offsetMem = off;
-        v.pos = v.offsetMem * 256.0;
-        if (v.pos >= len)
+        v.pos = lo + v.offsetMem * 256.0;
+        if (v.pos >= hi)
         {
-            if (in.isLooped()) v.pos = in.loopStart;
+            if (in.isLooped() && in.loopStart < hi) v.pos = in.loopStart;
             else { v.active = false; return; }
         }
     }
-    if (cell.has (C_P, p)) v.pos = std::floor (p / 256.0 * len);
+    if (cell.has (C_P, p)) v.pos = lo + std::floor (p / 256.0 * (hi - lo));
     if (keySlice >= 0)
     {
         int a = 0, b = 0;
@@ -702,20 +705,20 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
         else
         {
             const int sl = p & 15;
-            v.regionStart = std::floor (sl * len / 16.0);
-            v.regionEnd = std::floor ((sl + 1) * len / 16.0);
+            v.regionStart = lo + std::floor (sl * (hi - lo) / 16.0);
+            v.regionEnd = lo + std::floor ((sl + 1) * (hi - lo) / 16.0);
         }
         v.pos = v.regionStart;
     }
     if (cell.has (C_X, p) && (p >> 4) == 3 && (p & 15))
-        v.pos = std::floor ((nextRandom() % 1000u) / 1000.0 * (p & 15) / 16.0 * len);
+        v.pos = lo + std::floor ((nextRandom() % 1000u) / 1000.0 * (p & 15) / 16.0 * (hi - lo));
     if (cell.has (C_U, p) && (p & 1))
     {
         // play backwards from the end of the slice/sample (an offset counts from the end)
         v.reverse = true;
-        const double hi = v.regionEnd > 0 ? v.regionEnd : len;
-        const double lo = v.regionStart > 0 ? v.regionStart : 0.0;
-        v.pos = std::clamp (hi - 1.0 - (v.pos - lo), lo, hi - 1.0);
+        const double rhi = v.regionEnd > 0 ? v.regionEnd : hi;
+        const double rlo = v.regionStart > 0 ? v.regionStart : lo;
+        v.pos = std::clamp (rhi - 1.0 - (v.pos - rlo), rlo, rhi - 1.0);
     }
     if (v.vibWave < 4)  v.vibPos = 0;
     if (v.tremWave < 4) v.tremPos = 0;
@@ -724,6 +727,21 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
 }
 
 // ---------------------------------------------------------------------------
+double Player::rateFactor (const Instrument& in) const
+{
+    // the sample's rate, FINE in cents, and BEAT SYNC: START to END lasting syncLines lines at C-3
+    double f = in.rate / kAmigaC3Rate;
+    if (in.cents != 0) f *= std::pow (2.0, std::clamp (in.cents, -100, 100) / 1200.0);
+    if (in.syncLines > 0 && in.rate > 0)
+    {
+        const double bpm = tempoOverride > 0 ? tempoOverride : (double) tempo;
+        const double lineSec = 2.5 / std::max (1.0, bpm) * std::max (1, speed);
+        const double natural = (double) (in.rangeEnd() - in.rangeStart()) / in.rate;   // seconds at C-3 as it is
+        if (natural > 0) f *= natural / (in.syncLines * lineSec);
+    }
+    return f;
+}
+
 void Player::startShaping (Voice& v)
 {
     v.ampEnv = {}; v.fltEnv = {};
@@ -1042,8 +1060,8 @@ void Player::tickEffects (int ch)
         synthRetrigger (v, v.rollVolStep * 2);
     if (v.rollEvery > 0 && tick > 0 && tick % v.rollEvery == 0 && v.instr >= 0 && song->instruments[(size_t) v.instr].hasData())
     {
-        const double len = (double) song->instruments[(size_t) v.instr].data.size();
-        v.pos = v.reverse ? (v.regionEnd > 0 ? v.regionEnd : len) - 1.0 : (v.regionStart > 0 ? v.regionStart : 0.0);
+        const auto& ri = song->instruments[(size_t) v.instr];
+        v.pos = v.reverse ? (v.regionEnd > 0 ? v.regionEnd : (double) ri.rangeEnd()) - 1.0 : (v.regionStart > 0 ? v.regionStart : (double) ri.rangeStart());
         v.volume = std::clamp (v.volume + v.rollVolStep, 0, 64);
         v.active = true;
         startShaping (v);
@@ -1141,9 +1159,12 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR, int ch
     const int drop = options.dropBits();
 
     // playback window: a slice/selection region, or the instrument's loop
-    bool looped = in.isLooped();
-    double loopStart = in.loopStart, end = looped ? (double) (in.loopStart + in.loopLength) : (double) d.size();
-    double begin = 0.0;
+    // START / END: the part that plays; a loop is cut at END
+    const double rs = in.rangeStart(), re = in.rangeEnd();
+    bool looped = in.isLooped() && in.loopStart < re - 4;
+    double loopStart = looped ? std::max ((double) in.loopStart, rs) : 0.0;
+    double end = looped ? std::min ((double) (in.loopStart + in.loopLength), re) : re;
+    double begin = rs;
     if (v.regionStart >= 0 && v.regionEnd > v.regionStart)
     {
         begin = v.regionStart;
@@ -1492,7 +1513,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                     }
                     continue;
                 }
-                const double rateMul = v.instr >= 0 ? song->instruments[(size_t) v.instr].rate / kAmigaC3Rate : 1.0;
+                const double rateMul = v.instr >= 0 ? rateFactor (song->instruments[(size_t) v.instr]) : 1.0;
                 const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate * rateMul * v.pitchMul;
                 float sl, sr;
                 renderVoice (v, inc, sl, sr, ch);

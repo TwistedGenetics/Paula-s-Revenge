@@ -36,6 +36,8 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
                       std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory = nullptr,
                       std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory = nullptr,
                       bool stems = false, juce::StringArray* leftOut = nullptr);
+// an instrument's sample as a 16-bit WAV (stereo kept) at the rate C-3 plays it at
+bool writeInstrumentWav (const Instrument&, const juce::File&, juce::String& error);
 juce::File stemFolderFor (const juce::File& file);
 juce::String stemFileName (int stem);          // "01 TRACK 1.wav", "09 SEND A.wav", "11 MASTER.wav"
 std::vector<bool> usedTracks (const Song&);     // tracks with notes (or a plug-in instrument's output)

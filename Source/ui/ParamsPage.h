@@ -17,6 +17,14 @@ public:
     std::function<void()> onClose, onChanged, onUsePlugin;   // onUsePlugin: PLUG-IN / MIDI OUT...
     std::function<void (const juce::String&)> onStatus;
     std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
+    std::function<void (int lines)> onFitStretch;   // STRETCH TO FIT...: the sample editor's stretch, set to that many lines
+
+    // tuning and BEAT SYNC (buttons; tests call them too)
+    void setPitch (int semitones);
+    void setFine (int cents);
+    bool tuneToC();                          // detects the pitch, sets PITCH and FINE so C-3 plays a C
+    void setBeatSync (bool on);
+    void setSyncLines (int lines);
 
     void refresh();     // load the current instrument's values into the controls
     void tick();
@@ -44,6 +52,8 @@ private:
     PixSlider cutoff { "CUT" }, reso { "RES" }, envAmt { "AMT" }, keyTrk { "KEY" };
     PixSlider fAtk { "ATK" }, fDec { "DEC" }, fSus { "SUS" }, fRel { "REL" };
 
+    NumberBox pitchBox { "PITCH", -48, 48, 0 }, fineBox { "FINE", -100, 100, 0 }, linesBox { "LINES", 1, 512, 16 };
+    PixButton tuneBtn { "TUNE TO C" }, syncBtn { "BEAT SYNC", true }, fitBtn { "STRETCH..." };
     PixButton amigaBtn { "AMIGA L/R", true };
     PixSlider pan { "PAN" };
 

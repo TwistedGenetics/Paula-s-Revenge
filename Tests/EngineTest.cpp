@@ -5,6 +5,7 @@
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
 #include "engine/Recorder.h"
+#include "engine/SampleTools.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -2352,6 +2353,211 @@ static void testCapture()
     }
 }
 
+static void testSampleTools()
+{
+    std::vector<int16_t> d (1000, 1000);
+    sampleGain (d, 0, 500, 6.0206);
+    CHECK (d[0] == 2000 && d[499] == 2000 && d[500] == 1000);
+    sampleGain (d, 0, 1000, 40);                       // clipped, not wrapped
+    CHECK (d[0] == 32767 && d[999] == 32767);
+    std::vector<int16_t> dc (1000);
+    for (int i = 0; i < 1000; ++i) dc[(size_t) i] = (int16_t) (3000 + (i % 2 ? 500 : -500));
+    removeDc (dc, 0, 1000);
+    long sum = 0; for (auto v : dc) sum += v;
+    CHECK (std::abs (sum) < 1000 && dc[0] == -500 && dc[1] == 500);
+
+    Instrument in;
+    in.data.assign (10000, 0);
+    for (int i = 2000; i < 7000; ++i) in.data[(size_t) i] = (int16_t) (8000 * std::sin (i * 0.05));
+    int a = 0, b = 0;
+    CHECK (findSoundBounds (in, -60, a, b) && a >= 2000 && a < 2010 && b <= 7000 && b > 6990);
+    Instrument silent; silent.data.assign (100, 0);
+    CHECK (! findSoundBounds (silent, -60, a, b));
+
+    // edits move the loop, START / END and the slices
+    in.loopStart = 6000; in.loopLength = 2000; in.playStart = 1000; in.playEnd = 9000; in.slices = { 0, 3000, 8000 };
+    removeFrames (in, 2000, 3000);
+    CHECK (in.data.size() == 9000 && in.loopStart == 5000 && in.loopLength == 2000 && in.playStart == 1000 && in.playEnd == 8000);
+    CHECK (in.slices.size() == 3 && in.slices[1] == 2000 && in.slices[2] == 7000);
+    insertSilence (in, 500, 250);
+    CHECK (in.data.size() == 9250 && in.data[500] == 0 && in.loopStart == 5250 && in.playStart == 1250 && in.playEnd == 8250 && in.slices[1] == 2250);
+    cropTo (in, 1250, 8250);
+    CHECK (in.data.size() == 7000 && in.playStart == 0 && in.playEnd == 0 && in.loopStart == 4000);   // (END at the new end: no END)
+
+    // crossfade: the frame before the loop end becomes the frame before the loop start
+    Instrument lp; lp.data.resize (4000);
+    for (int i = 0; i < 4000; ++i) lp.data[(size_t) i] = (int16_t) (10000 * std::sin (i * 0.013) + (i > 3000 ? 9000 : 0));
+    lp.loopStart = 1000; lp.loopLength = 2500;
+    const int jumpBefore = std::abs (lp.data[3499] - lp.data[999]);
+    CHECK (crossfadeLoop (lp, 400));
+    const int jumpAfter = std::abs (lp.data[3499] - lp.data[999]);
+    std::printf ("crossfade loop: the step at the jump %d -> %d\n", jumpBefore, jumpAfter);
+    CHECK (jumpAfter < 10 && jumpBefore > 5000);
+    Instrument nl; nl.data.assign (100, 1);
+    CHECK (! crossfadeLoop (nl, 50));
+
+    // pitch: +12 = an octave up, half as long, twice the frequency
+    Instrument ps; ps.data.resize (8000);
+    for (int i = 0; i < 8000; ++i) ps.data[(size_t) i] = (int16_t) (10000 * std::sin (2 * kPi * i / 100.0));
+    ps.loopStart = 2000; ps.loopLength = 4000;
+    pitchBy (ps, 12);
+    int cross = 0; for (size_t i = 1; i < ps.data.size(); ++i) if ((ps.data[i - 1] < 0) != (ps.data[i] < 0)) ++cross;
+    std::printf ("pitch +12: %zu frames, %d zero crossings (was 160)\n", ps.data.size(), cross);
+    CHECK (std::abs ((int) ps.data.size() - 4000) <= 2 && std::abs (cross - 160) <= 4 && ps.loopStart == 1000 && ps.loopLength == 2000);
+    // pitch detection: a sine and a sawtooth, at two rates
+    {
+        std::vector<int16_t> sn (44100);
+        for (int i = 0; i < 44100; ++i) sn[(size_t) i] = (int16_t) (12000 * std::sin (2 * kPi * 440.0 * i / 44100.0));
+        const double p1 = detectPitch (sn, 0, 44100, 44100);
+        std::vector<int16_t> sw2 (16574);
+        for (int i = 0; i < 16574; ++i) { const double ph = std::fmod (i * 98.0 / 16574.0, 1.0); sw2[(size_t) i] = (int16_t) (16000 * (2 * ph - 1)); }
+        const double p2 = detectPitch (sw2, 0, 16574, 16574);
+        std::vector<int16_t> none (8000, 0);
+        std::printf ("pitch detect: sine %.2f Hz (440), saw %.2f Hz (98), silence %.1f\n", p1, p2, detectPitch (none, 0, 8000, 44100));
+        CHECK (std::abs (p1 - 440) < 1.0 && std::abs (p2 - 98) < 0.5 && detectPitch (none, 0, 8000, 44100) == 0);
+        int st = 0, ct = 0;
+        CHECK (tuneToC (440, st, ct) && st == 3 && ct == 0);           // A -> C: up 3
+        CHECK (tuneToC (261.63, st, ct) && st == 0 && std::abs (ct) <= 1);
+        CHECK (tuneToC (98, st, ct) && st == 5 && std::abs (ct) <= 1); // G -> C: up 5
+        CHECK (tuneToC (450, st, ct) && st == 3 && ct < -30 && ct > -45);
+        CHECK (suggestSyncLines (1.92, 0.12) == 16 && suggestSyncLines (2.0, 0.12) == 16 && suggestSyncLines (3.8, 0.12) == 32);
+    }
+    // swap sides
+    Instrument sw; sw.data = { 1, 2 }; sw.dataR = { 3, 4 };
+    swapSides (sw);
+    CHECK (sw.data[0] == 3 && sw.dataR[1] == 2);
+}
+
+static void testRangeCentsSync()
+{
+    // START / END: what's outside doesn't play; 9xx counts from START; the loop is cut at END
+    auto make = [] ()
+    {
+        Instrument in;
+        std::mt19937 rng (5);
+        in.data.assign (20000, 0);
+        for (int i = 0; i < 5000; ++i) in.data[(size_t) i] = (int16_t) ((int) (rng() % 40000) - 20000);
+        for (int i = 15000; i < 16000; ++i) in.data[(size_t) i] = (int16_t) ((int) (rng() % 40000) - 20000);
+        in.volume = 64;
+        return in;
+    };
+    auto energy = [] (Song& s, int n = 48000)
+    {
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.playBlock (0);
+        std::vector<float> L ((size_t) n), R ((size_t) n);
+        p.render (L.data(), R.data(), n);
+        double e = 0; for (int i = 0; i < n; ++i) e += L[(size_t) i] * L[(size_t) i];
+        return e;
+    };
+    Song s; s.numTracks = 8; s.instruments[0] = make(); s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 }; s.sequence = { 0 };
+    const double whole = energy (s);
+    s.instruments[0].playStart = 5000; s.instruments[0].playEnd = 15000;
+    const double inside = energy (s);
+    std::printf ("START / END: whole sample %.2f, only the quiet middle %.6f\n", whole, inside);
+    CHECK (whole > 10.0 && inside < 1e-6);
+    // 9xx from START: 5000 + 0x28 * 256 = 15240 - past END: nothing
+    s.blocks[0].at (0, 0) = Cell { 37, 1, 0x9, 0x28 };
+    CHECK (energy (s) < 1e-6);
+    s.instruments[0].playEnd = 0;           // (END at the end again: 15240 is in the loud part's tail... none, 16000 ends it)
+    s.blocks[0].at (0, 0) = Cell { 37, 1, 0x9, 0x27 };   // 5000 + 9984 = 14984: just before the loud part
+    CHECK (energy (s) > 1.0);
+    // the loop is cut at END: loop 14000-17000 holds the loud part, END at 15000 keeps it out
+    s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 };
+    s.instruments[0].loopStart = 14000; s.instruments[0].loopLength = 3000;
+    s.instruments[0].playStart = 5000; s.instruments[0].playEnd = 15000;
+    const double cut = energy (s, 96000);
+    s.instruments[0].playEnd = 0;
+    const double full = energy (s, 96000);
+    std::printf ("a loop past END: cut %.6f, without END %.2f\n", cut, full);
+    CHECK (cut < 1e-6 && full > 10.0);
+    CHECK (s.instruments[0].rangeStart() == 5000 && s.instruments[0].rangeEnd() == 20000 && s.instruments[0].hasRange());
+
+    // FINE in cents, BEAT SYNC
+    Song t; t.numTracks = 8; t.tempo = 125; t.speed = 6;
+    auto& in = t.instruments[0]; in.data.assign (33148, 100); in.rate = 16574;   // 2 seconds at C-3
+    t.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 }; t.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&t); p.playBlock (0);
+    CHECK (std::abs (p.rateFactor (in) - 16574.0 / kAmigaC3Rate) < 1e-9);
+    in.cents = 100;
+    CHECK (std::abs (p.rateFactor (in) / (16574.0 / kAmigaC3Rate) - std::pow (2.0, 1.0 / 12.0)) < 1e-9);
+    in.cents = 0; in.syncLines = 16;          // 16 lines at 125 BPM, speed 6 = 1.92 s
+    const double f = p.rateFactor (in) / (16574.0 / kAmigaC3Rate);
+    std::printf ("BEAT SYNC 16 lines: %.4f x (expect %.4f)\n", f, 2.0 / 1.92);
+    CHECK (std::abs (f - 2.0 / 1.92) < 1e-6);
+    // the sync counts START to END: half the sample in 16 lines is half the speed
+    in.playEnd = 33148 / 2;
+    CHECK (std::abs (p.rateFactor (in) / (16574.0 / kAmigaC3Rate) - 1.0 / 1.92) < 1e-4);
+    // and it follows the tempo
+    t.tempo = 250; p.playBlock (0);
+    CHECK (std::abs (p.rateFactor (in) / (16574.0 / kAmigaC3Rate) - 2.0 / 1.92) < 1e-4);
+}
+
+static void testVintageSampling()
+{
+    // the bits
+    CHECK (VintageAdc::quantise (0.3f, 8) == std::round (0.3f * 128) / 128 && VintageAdc::quantise (0.3001f, 12) == std::round (0.3001f * 2048) / 2048);
+    CHECK (VintageAdc::quantise (1.0f, 8) == 127.0f / 128.0f && VintageAdc::quantise (-1.0f, 8) == -1.0f);
+    // the input stages: the S950's goes soft before the rails, an Amiga sampler's just clips
+    CHECK (VintageAdc::inputStage (0.5f, SamplerModel::S950, 1) == 0.5f);
+    const float s8 = VintageAdc::inputStage (0.8f, SamplerModel::S950, 1);
+    CHECK (s8 > 0.6f && s8 < 0.8f && VintageAdc::inputStage (0.8f, SamplerModel::Amiga, 1) == 0.8f);
+    CHECK (VintageAdc::inputStage (3.0f, SamplerModel::S950, 1) <= 1.0f && VintageAdc::inputStage (3.0f, SamplerModel::Amiga, 1) == 1.0f);
+    CHECK (VintageAdc::inputStage (0.25f, SamplerModel::Amiga, std::pow (10.0f, 12.0f / 20.0f)) > 0.99f);   // +12 dB: 0.25 -> full scale
+
+    const int n = 48000;
+    auto sine = [&] (double hz, float amp) { std::vector<float> v ((size_t) n); for (int i = 0; i < n; ++i) v[(size_t) i] = amp * (float) std::sin (2 * kPi * hz * i / 48000.0); return v; };
+    auto run = [&] (const VintageSettings& vs, const std::vector<float>& in, std::vector<float>& mon, std::vector<float>& dec)
+    {
+        VintageAdc a; a.prepare (48000, 512); a.set (vs);
+        mon.assign ((size_t) n, 0); dec.assign ((size_t) a.maxOut (n), 0);
+        std::vector<float> monR ((size_t) n), decR (dec.size());
+        const int k = a.process (in.data(), in.data(), n, mon.data(), monR.data(), dec.data(), decR.data());
+        dec.resize ((size_t) k);
+    };
+    auto rms = [] (const std::vector<float>& v, size_t from = 0) { double e = 0; for (size_t i = from; i < v.size(); ++i) e += v[i] * v[i]; return std::sqrt (e / std::max<double> (1, (double) (v.size() - from))); };
+    std::vector<float> mon, dec;
+    // AMIGA at 16726 Hz, 8-bit: that many samples a second, every one on the 8-bit grid, the monitor in steps
+    VintageSettings am; am.model = SamplerModel::Amiga; am.bits = 8; am.rate = 16726;
+    run (am, sine (440, 0.5f), mon, dec);
+    bool onGrid = true; for (float v : dec) onGrid = onGrid && std::abs (v * 128 - std::round (v * 128)) < 1e-4f;
+    int changes = 0; for (int i = 1; i < n; ++i) if (mon[(size_t) i] != mon[(size_t) i - 1]) ++changes;
+    std::printf ("AMIGA 16726 Hz 8-bit: %zu samples from 1 s, on the grid %d, the monitor changes %d times\n", dec.size(), (int) onGrid, changes);
+    CHECK (std::abs ((int) dec.size() - 16726) <= 2 && onGrid && changes <= 16727);
+    // 12-bit: on its own (finer) grid
+    am.bits = 12; run (am, sine (440, 0.5f), mon, dec);
+    onGrid = true; bool coarse = true;
+    for (float v : dec) { onGrid = onGrid && std::abs (v * 2048 - std::round (v * 2048)) < 1e-3f; coarse = coarse && std::abs (v * 128 - std::round (v * 128)) < 1e-4f; }
+    CHECK (onGrid && ! coarse);
+    // aliasing: a 10 kHz tone sampled at 15 kHz - the Amiga sampler lets the 5 kHz alias through, the S950's filter stops it
+    VintageSettings a15 = am; a15.bits = 12; a15.rate = 15000;
+    VintageSettings s15; s15.model = SamplerModel::S950; s15.bits = 12; s15.rate = 15000;
+    std::vector<float> decA, decS;
+    run (a15, sine (10000, 0.5f), mon, decA);
+    run (s15, sine (10000, 0.5f), mon, decS);
+    std::printf ("10 kHz into a 15 kHz sampler: AMIGA rms %.3f, S950 rms %.4f\n", rms (decA, 1000), rms (decS, 1000));
+    CHECK (rms (decA, 1000) > 0.25 && rms (decS, 1000) < 0.02);
+    // a 1 kHz tone passes the S950's filter
+    run (s15, sine (1000, 0.5f), mon, decS);
+    CHECK (rms (decS, 1000) > 0.33);
+    // INPUT DRIVE: +18 dB on the S950 - loud, saturated, never past full scale, the CLIP level reached
+    VintageSettings sd = s15; sd.rate = 32000; sd.driveDb = 18;
+    run (sd, sine (200, 0.5f), mon, decS);
+    float pk = 0; for (float v : decS) pk = std::max (pk, std::abs (v));
+    std::printf ("S950 +18 dB drive: peak %.4f, rms %.3f\n", pk, rms (decS, 1000));
+    CHECK (pk <= 1.0f && pk > 0.99f && rms (decS, 1000) > 0.6);
+    // CLEAN: untouched
+    VintageSettings cl; std::vector<float> in = sine (440, 0.5f);
+    run (cl, in, mon, dec);
+    CHECK (dec.size() == (size_t) n && mon == in);
+    // a vintage take keeps its bits after normalising
+    TakeOptions o; o.bits = 12; o.trimSilence = false; o.normalise = true; o.channels = RecChannels::Mono;
+    Instrument ins;
+    run (am, sine (440, 0.3f), mon, dec);
+    CHECK (takeToInstrument (dec, dec, 16726, o, ins) && ins.rate == 16726);
+    bool step16 = true; for (auto v : ins.data) step16 = step16 && (v % 16) == 0;
+    CHECK (step16);
+}
+
 static void testRecorder()
 {
     const double sr = 48000;
@@ -2689,6 +2895,9 @@ int main()
     testChordDetect();
     testCapturePasses();
     testRecorder();
+    testVintageSampling();
+    testRangeCentsSync();
+    testSampleTools();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

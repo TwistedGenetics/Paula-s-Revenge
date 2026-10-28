@@ -8,13 +8,13 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 17;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 18;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
-                                  // v17: block names
+                                  // v17: block names, v18: START / END, cents, BEAT SYNC
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -274,6 +274,20 @@ juce::MemoryBlock writeSong (const Song& song)
     // v17: the blocks' names
     raw.writeShortBigEndian ((short) song.blocks.size());
     for (const auto& b : song.blocks) writeStr (raw, b.name);
+    // v18: the instruments' START / END, FINE in cents and BEAT SYNC (only the ones that use them)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.playStart || in.playEnd || in.cents || in.syncLines) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (! (in.playStart || in.playEnd || in.cents || in.syncLines)) continue;
+            raw.writeByte ((char) i);
+            raw.writeInt (in.playStart); raw.writeInt (in.playEnd);
+            raw.writeShort ((short) in.cents); raw.writeShort ((short) in.syncLines);
+        }
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -539,6 +553,23 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             {
                 auto name = readStr (in);
                 if (b < (int) s.blocks.size()) s.blocks[(size_t) b].name = name.substr (0, 40);
+            }
+        }
+        if (version >= 18 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int a = in.readInt(), b = in.readInt();
+                const int c = in.readShort(), l = in.readShort();
+                if (i >= kMaxInstruments) continue;
+                auto& ins = s.instruments[(size_t) i];
+                const int len = (int) ins.data.size();
+                ins.playStart = std::clamp (a, 0, std::max (0, len - 1));
+                ins.playEnd = std::clamp (b, 0, len);
+                ins.cents = std::clamp (c, -100, 100);
+                ins.syncLines = std::clamp (l, 0, 512);
             }
         }
     }
@@ -834,5 +865,24 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
     }
     p.stemTap = nullptr;
     return true;
+}
+bool writeInstrumentWav (const Instrument& in, const juce::File& f, juce::String& error)
+{
+    if (! in.hasData()) { error = "No sample"; return false; }
+    f.deleteFile();
+    std::unique_ptr<juce::FileOutputStream> os (f.createOutputStream());
+    if (os == nullptr) { error = "Couldn't write " + f.getFullPathName(); return false; }
+    const int chans = in.isStereo() ? 2 : 1;
+    const double rate = juce::jlimit (1000.0, 192000.0, in.rate > 0 ? in.rate : kSampleRateAtC3);
+    std::unique_ptr<juce::AudioFormatWriter> w (juce::WavAudioFormat().createWriterFor (os.get(), rate, (unsigned) chans, 16, {}, 0));
+    if (w == nullptr) { error = "Couldn't write " + f.getFileName(); return false; }
+    os.release();
+    juce::AudioBuffer<float> buf (chans, (int) in.data.size());
+    for (int k = 0; k < (int) in.data.size(); ++k)
+    {
+        buf.setSample (0, k, in.data[(size_t) k] / 32768.0f);
+        if (chans == 2) buf.setSample (1, k, in.dataR[(size_t) k] / 32768.0f);
+    }
+    return w->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples());
 }
 } // namespace prv

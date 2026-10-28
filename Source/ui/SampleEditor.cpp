@@ -4,6 +4,8 @@
 #include "../SongFile.h"
 #include "../engine/TimeStretch.h"
 #include "../engine/Slicer.h"
+#include "../engine/SampleTools.h"
+#include "../Prefs.h"
 
 namespace prv::ui
 {
@@ -33,6 +35,18 @@ namespace
     }
 
     int16_t clip16 (double v) { return (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (v)); }
+
+    // START / END after [a, b) became newLen long (remove: newLen 0; insert at p: a == b == p)
+    void mapRange (Instrument& in, int a, int b, int newLen)
+    {
+        auto m = [&] (int p) { if (p <= a) return p; if (p >= b) return p + newLen - (b - a); return b > a ? a + (int) std::lround ((double) (p - a) * newLen / (b - a)) : p; };
+        const bool hadEnd = in.playEnd > 0;
+        in.playStart = m (in.playStart);
+        if (hadEnd) in.playEnd = m (in.playEnd);
+        const int n = (int) in.data.size();
+        in.playStart = juce::jlimit (0, std::max (0, n - 1), in.playStart);
+        if (in.playEnd >= n || in.playEnd <= in.playStart) in.playEnd = 0;
+    }
 
     // move slice points after the range [a, b) became newLen samples long
     // (remove: newLen 0, insert at p: a == b == p)
@@ -121,7 +135,10 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
         else setLoop (in.loopStart, in.loopStart + in.loopLength, false);
     };
     pingBtn.onClick = [this] { setPingPong (pingBtn.getToggleState()); };
-    for (auto* nb : { &loopStartBox, &loopEndBox }) { nb->labelChars = 5; nb->valueChars = 6; }
+    toolsBtn.onClick = [this] { showTools(); };
+    saveBtn.onClick = [this] { saveSample(); };
+    loopStartBox.labelChars = 5; loopEndBox.labelChars = 3;
+    for (auto* nb : { &loopStartBox, &loopEndBox }) nb->valueChars = 6;
     loopStartBox.onChange = [this] (int v) { const auto& in = inst(); if (in.isLooped()) setLoop (v, in.loopStart + in.loopLength, true); };
     loopEndBox.onChange   = [this] (int v) { const auto& in = inst(); if (in.isLooped()) setLoop (in.loopStart, v, true); };
 
@@ -184,7 +201,7 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     for (auto* b : { &playBtn, &playSelBtn, &loopBtn, &stopBtn, &zoomInBtn, &zoomOutBtn, &showAllBtn, &zoomSelBtn, &selAllBtn, &drawBtn,
                      &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn, &silenceBtn, &reverseBtn, &normBtn, &fadeInBtn, &fadeOutBtn,
                      &gainDownBtn, &gainUpBtn, &loopSelBtn, &monoBtn, &undoBtn, &redoBtn, &closeBtn,
-                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn, &loopOnBtn, &pingBtn, &sliceBtn })
+                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn, &loopOnBtn, &pingBtn, &sliceBtn, &toolsBtn, &saveBtn })
         addAndMakeVisible (b);
     addAndMakeVisible (rateBox);
     addAndMakeVisible (toBox);
@@ -323,6 +340,7 @@ void SampleEditor::apply (Op op)
             forEachChan ([&] (std::vector<int16_t>& d) { d.erase (d.begin() + a, d.begin() + b); });
             loopAfterRemove (e, a, b);
             mapSlices (e, a, b, 0);
+            mapRange (e, a, b, 0);
             cursor = a; selA = selB = 0;
             msg = (op == Op::Cut ? "CUT " : "DELETED ") + fmt (b - a) + " SAMPLES";
             break;
@@ -341,6 +359,9 @@ void SampleEditor::apply (Op op)
             }
             for (auto& p : e.slices) p -= a;
             tidySlices (e.slices, b - a);
+            e.playStart = juce::jlimit (0, b - a - 1, e.playStart - a);
+            if (e.playEnd > 0) e.playEnd = juce::jlimit (0, b - a, e.playEnd - a);
+            if (e.playEnd >= b - a || e.playEnd <= e.playStart) e.playEnd = 0;
             if (e.slices.size() <= 1) e.slices.clear();
             selA = 0; selB = b - a; cursor = 0; viewStart = 0; viewLen = b - a;
             msg = "CROPPED TO " + fmt (b - a) + " SAMPLES";
@@ -361,11 +382,13 @@ void SampleEditor::apply (Op op)
                 forEachChan ([&] (std::vector<int16_t>& d) { d.erase (d.begin() + a, d.begin() + b); });
                 loopAfterRemove (e, a, b);
                 mapSlices (e, a, b, 0);
+                mapRange (e, a, b, 0);
             }
             e.data.insert (e.data.begin() + at, cl.begin(), cl.end());
             if (wantStereo) e.dataR.insert (e.dataR.begin() + at, cr.begin(), cr.end());
             loopAfterInsert (e, at, (int) cl.size());
             mapSlices (e, at, at, (int) cl.size());
+            mapRange (e, at, at, (int) cl.size());
             selA = at; selB = at + (int) cl.size(); cursor = selB;
             if (len == 0) { viewStart = 0; viewLen = (double) cl.size(); }
             msg = "PASTED " + fmt ((int) cl.size()) + " SAMPLES";
@@ -497,7 +520,7 @@ std::vector<juce::Component*> SampleEditor::mainControls()
              &fadeInBtn, &fadeOutBtn, &loopSelBtn, &monoBtn, &drawBtn,
              &stretchBtn, &undoBtn, &redoBtn, &closeBtn,
              &rateBox, &presetBtn, &toBox, &rawBtn, &resampleBtn,
-             &loopOnBtn, &pingBtn, &loopStartBox, &loopEndBox, &sliceBtn };
+             &loopOnBtn, &pingBtn, &loopStartBox, &loopEndBox, &sliceBtn, &toolsBtn, &saveBtn };
 }
 
 std::vector<juce::Component*> SampleEditor::slicerControls()
@@ -565,9 +588,9 @@ void SampleEditor::resized()
     layoutRow (rows[2], { &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn });
     layoutRow (rows[3], { &silenceBtn, &reverseBtn, &normBtn, &gainDownBtn, &gainUpBtn });
     layoutRow (rows[4], { &fadeInBtn, &fadeOutBtn, &monoBtn, &drawBtn, &sliceBtn });
-    layoutRow (rows[5], { &loopOnBtn, &pingBtn, &loopSelBtn });          // loop: on/off, mode, from selection
+    layoutRow (rows[5], { &loopOnBtn, &pingBtn, &loopSelBtn, &toolsBtn });   // loop: on/off, mode, from selection; more tools
     layoutRow (rows[6], { &loopStartBox, &loopEndBox });                  // loop points
-    layoutRow (rows[7], { &stretchBtn, &undoBtn, &redoBtn, &closeBtn });
+    layoutRow (rows[7], { &stretchBtn, &saveBtn, &undoBtn, &redoBtn, &closeBtn });
     {
         auto row = rows[8];
         const float unit = (row.getWidth() - gap * 4) / 8.0f;
@@ -622,6 +645,16 @@ juce::Rectangle<float> SampleEditor::loopHandle (int which) const
     const float w = px * 10, h = px * 11;
     const float x = sampleToX (pos);
     return juce::Rectangle<float> (which == 1 ? x : x - w, waveArea.getY(), w, h);
+}
+
+juce::Rectangle<float> SampleEditor::playHandle (int which) const
+{
+    const auto& in = inst();
+    const float px = Theme::px;
+    const int pos = which == 1 ? in.rangeStart() : in.rangeEnd();
+    const float w = px * 10, h = px * 11;
+    const float x = sampleToX (pos);
+    return juce::Rectangle<float> (which == 1 ? x : x - w, waveArea.getCentreY() - h * 0.5f, w, h);
 }
 
 juce::Rectangle<float> SampleEditor::sliceHandle (int i) const
@@ -767,6 +800,24 @@ void SampleEditor::paint (juce::Graphics& g)
                 g.fillRect (tab);
                 PixelFont::drawCentred (g, juce::String (i + 1), tab, px, sk.bg);
                 lastRight = tab.getRight() + px;
+            }
+        }
+        // START / END: what's outside is shaded, the markers have handles at the middle
+        if (in.hasData() && ! drawMode)
+        {
+            const float xs = sampleToX (in.rangeStart()), xe = sampleToX (in.rangeEnd());
+            g.setColour (sk.bg.withAlpha (0.6f));
+            if (xs > waveArea.getX()) g.fillRect (juce::Rectangle<float>::leftTopRightBottom (waveArea.getX(), waveArea.getY(), std::min (xs, waveArea.getRight()), waveArea.getBottom()));
+            if (xe < waveArea.getRight()) g.fillRect (juce::Rectangle<float>::leftTopRightBottom (std::max (xe, waveArea.getX()), waveArea.getY(), waveArea.getRight(), waveArea.getBottom()));
+            const auto mc = sk.track[2];
+            for (int which : { 1, 2 })
+            {
+                const float x = which == 1 ? xs : xe;
+                g.setColour (mc);
+                if (in.hasRange()) g.fillRect (x - 1.0f, waveArea.getY(), 2.0f, waveArea.getHeight());
+                auto hnd = playHandle (which);
+                g.fillRect (hnd);
+                PixelFont::drawCentred (g, which == 1 ? "[" : "]", hnd, px, sk.bg);
             }
         }
         // loop markers with grab handles at the top
@@ -945,6 +996,16 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    // START / END handles (middle)
+    dragPlayMarker = 0;
+    if (inst().hasData() && length() >= 8 && ! drawMode)
+        for (int which : { 2, 1 })
+            if (playHandle (which).expanded (Theme::px).contains (e.position))
+            {
+                dragPlayMarker = which;
+                proc.history.instrument (proc.editorState.instrument, "START / END");
+                return;
+            }
     // loop handles (top) and slice tabs (bottom)
     dragLoopMarker = 0; dragSlice = -1;
     if (inst().hasData() && length() >= 8 && ! drawMode)
@@ -1029,6 +1090,19 @@ void SampleEditor::mouseDrag (const juce::MouseEvent& e)
         clampView(); repaint();
         return;
     }
+    if (dragPlayMarker != 0)
+    {
+        const int s = juce::jlimit (0, length(), (int) std::lround (xToSample (juce::jlimit (waveArea.getX(), waveArea.getRight(), e.position.x))));
+        proc.withLock ([&] {
+            auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+            const int n = (int) in.data.size();
+            int a = in.rangeStart(), b = in.rangeEnd();
+            if (dragPlayMarker == 1) a = juce::jlimit (0, b - 4, s); else b = juce::jlimit (a + 4, n, s);
+            in.playStart = a; in.playEnd = b >= n ? 0 : b;
+        });
+        repaint();
+        return;
+    }
     if (dragLoopMarker != 0)
     {
         const int s = juce::jlimit (0, length(), (int) std::lround (xToSample (juce::jlimit (waveArea.getX(), waveArea.getRight(), e.position.x))));
@@ -1089,6 +1163,17 @@ void SampleEditor::mouseDrag (const juce::MouseEvent& e)
 
 void SampleEditor::mouseUp (const juce::MouseEvent& e)
 {
+    if (dragPlayMarker != 0)
+    {
+        dragPlayMarker = 0;
+        const auto& in = inst();
+        proc.history.relabelLast ("START / END " + juce::String (in.rangeStart()) + "-" + juce::String (in.rangeEnd()));
+        if (onStatus) onStatus ("PLAYS " + juce::String (in.rangeStart()) + " - " + juce::String (in.rangeEnd())
+                                + (in.hasRange() ? " (START / END)" : " (ALL OF IT)"));
+        if (onChanged) onChanged();
+        repaint();
+        return;
+    }
     if (dragLoopMarker != 0)
     {
         dragLoopMarker = 0;
@@ -1189,7 +1274,13 @@ bool SampleEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 'a') { selectAll(); return true; }
         return false;
     }
-    if (code == juce::KeyPress::spaceKey) { if (previewing) stop(); else play (hasSel()); return true; }
+    if (code == juce::KeyPress::spaceKey)
+    {
+        // Space stops whatever plays (the song too); when nothing does, it plays the sample
+        if (proc.player.isPlaying()) { stop(); if (onStopSong) onStopSong(); return true; }
+        if (previewing) stop(); else play (hasSel());
+        return true;
+    }
     if (code == juce::KeyPress::escapeKey) { if (previewing) stop(); else if (onClose) onClose(); return true; }
     if (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey) { apply (Op::Delete); return true; }
     if (code == juce::KeyPress::leftKey)  { viewStart -= viewLen * 0.1; clampView(); repaint(); return true; }
@@ -1317,6 +1408,9 @@ void SampleEditor::resampleTo (double hz, bool raw)
     if (! e.isLooped()) e.loopStart = e.loopLength = 0;
     for (auto& p : e.slices) p = (int) std::lround (p / ratio);
     tidySlices (e.slices, (int) e.data.size());
+    e.playStart = (int) std::lround (cur.playStart / ratio);
+    e.playEnd = cur.playEnd > 0 ? (int) std::lround (cur.playEnd / ratio) : 0;
+    mapRange (e, 0, 0, 0);
     if (e.natRate > 0) e.natRate *= hz / cur.rate;   // the pitch doesn't change
     e.rate = hz;
     selA = (int) std::lround (selA / ratio); selB = (int) std::lround (selB / ratio); cursor = (int) std::lround (cursor / ratio);
@@ -1406,6 +1500,7 @@ void SampleEditor::applyStretch (const StretchSettings& st)
     }
     if (! e.isLooped()) e.loopStart = e.loopLength = 0;
     mapSlices (e, a, b, newLen);
+    mapRange (e, a, b, newLen);
     if (hasSel()) { selB = selA + newLen; }
     else { viewStart = 0; viewLen = newLen; }
     stop();
@@ -1443,6 +1538,163 @@ void SampleEditor::setPingPong (bool on)
     editInPlace (on ? "PING-PONG ON" : "PING-PONG OFF", false, [on] (Instrument& in) { in.pingPong = on; });
     if (onStatus) onStatus (on ? (inst().isLooped() ? "PING-PONG LOOP: PLAYS THE LOOP BACK AND FORTH" : "PING-PONG ON - TURN LOOP ON TO HEAR IT")
                                : juce::String ("FORWARD LOOP"));
+}
+
+// --------------------------------------------------------------- START / END, TOOLS..., SAVE...
+void SampleEditor::openFit (int lines)
+{
+    instrumentSelected();
+    const auto& in = inst();
+    if (! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
+    if (in.hasRange()) setSelection (in.rangeStart(), in.rangeEnd()); else setSelection (0, 0);
+    showStretch (true);
+    stLines.setValue (juce::jlimit (1, 256, lines));
+    stFit.onClick();
+    if (onStatus) onStatus ("STRETCH TO FIT " + juce::String (lines) + " LINES (THE PITCH STAYS) - PREVIEW, THEN APPLY (BEAT SYNC CAN STAY ON: IT THEN PLAYS AS IT IS)");
+}
+
+void SampleEditor::setPlayRange (int start, int end)
+{
+    const int n = length();
+    if (n < 8) return;
+    start = juce::jlimit (0, n - 4, start);
+    end = juce::jlimit (start + 4, n, end <= 0 ? n : end);
+    editInPlace ("START / END", false, [&] (Instrument& in) { in.playStart = start; in.playEnd = end >= n ? 0 : end; });
+    if (onStatus) onStatus (start == 0 && end == n ? juce::String ("START / END: ALL OF IT PLAYS")
+                                                   : "START / END: PLAYS " + juce::String (start) + " - " + juce::String (end) + " (THE REST STAYS)");
+}
+
+void SampleEditor::askValue (const juce::String& title, const juce::String& prompt, double def, std::function<void (double)> then)
+{
+    auto* w = new juce::AlertWindow (title, prompt, juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor ("v", juce::String (def));
+    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    juce::Component::SafePointer<SampleEditor> safe (this);
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w, then] (int r)
+    {
+        if (r != 1 || safe == nullptr) return;
+        const auto t = w->getTextEditorContents ("v").trim();
+        if (t.containsAnyOf ("0123456789")) then (t.getDoubleValue());
+    }), true);
+}
+
+void SampleEditor::showTools()
+{
+    juce::Component::SafePointer<SampleEditor> safe (this);
+    auto tool = [safe] (Tool t, double v = 0) { return [safe, t, v] { if (safe != nullptr) safe->applyTool (t, v); }; };
+    const juce::String where = hasSel() ? " (THE SELECTION)" : "";
+    showMenu ("SAMPLE TOOLS" + where, {
+        { "GAIN... (DB)", [safe] { if (safe != nullptr) safe->askValue ("Gain", "Gain in dB (-48 to +48)", 3.0, [safe] (double v) { if (safe != nullptr) safe->applyTool (Tool::Gain, v); }); } },
+        { "NORMALISE (MAX VOL)", [safe] { if (safe != nullptr) safe->apply (Op::Normalise); } },
+        { "REMOVE DC", tool (Tool::RemoveDc) },
+        { "TRIM SILENCE (BOTH ENDS)", tool (Tool::TrimSilence) },
+        { "INSERT SILENCE... (MS, AT THE CURSOR)", [safe] { if (safe != nullptr) safe->askValue ("Insert silence", "Milliseconds of silence at the cursor", 100.0, [safe] (double v) { if (safe != nullptr) safe->applyTool (Tool::InsertSilence, v); }); } },
+        { "CROSSFADE LOOP... (MS)", [safe] { if (safe != nullptr) safe->askValue ("Crossfade loop", "Crossfade length in milliseconds", 20.0, [safe] (double v) { if (safe != nullptr) safe->applyTool (Tool::CrossfadeLoop, v); }); } },
+        { "PITCH... (SEMITONES, RESAMPLED)", [safe] { if (safe != nullptr) safe->askValue ("Pitch", "Semitones up (+) or down (-)", 12.0, [safe] (double v) { if (safe != nullptr) safe->applyTool (Tool::Pitch, v); }); } },
+        { "SWAP LEFT / RIGHT", tool (Tool::SwapSides) },
+        { "START / END = THE SELECTION", tool (Tool::RangeFromSelection) },
+        { "START / END = ALL OF IT", tool (Tool::RangeReset) },
+        { "SAVE SAMPLE...", [safe] { if (safe != nullptr) safe->saveSample(); } },
+    });
+}
+
+void SampleEditor::applyTool (Tool t, double v)
+{
+    const auto& cur = inst();
+    if (! cur.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
+    const int len = length();
+    const bool sel = hasSel();
+    const int a = sel ? selA : 0, b = sel ? selB : len;
+    if (t == Tool::RangeFromSelection) { if (! sel) { if (onStatus) onStatus ("SELECT SOMETHING FIRST (DRAG IN THE WAVEFORM)"); return; } setPlayRange (a, b); return; }
+    if (t == Tool::RangeReset) { setPlayRange (0, len); return; }
+    Instrument e = cur;
+    juce::String msg;
+    switch (t)
+    {
+        case Tool::Gain:
+            v = juce::jlimit (-48.0, 48.0, v);
+            sampleGain (e.data, a, b, v);
+            if (e.isStereo()) sampleGain (e.dataR, a, b, v);
+            msg = "GAIN " + juce::String (v > 0 ? "+" : "") + juce::String (v, 1) + " DB";
+            break;
+        case Tool::RemoveDc:
+            removeDc (e.data, a, b);
+            if (e.isStereo()) removeDc (e.dataR, a, b);
+            msg = "DC REMOVED";
+            break;
+        case Tool::TrimSilence:
+        {
+            int s0 = 0, s1 = 0;
+            if (! findSoundBounds (e, -60.0, s0, s1)) { if (onStatus) onStatus ("IT'S ALL SILENCE"); return; }
+            if (s0 == 0 && s1 == len) { if (onStatus) onStatus ("NO SILENCE AT THE ENDS"); return; }
+            cropTo (e, s0, s1);
+            selA = selB = 0; cursor = 0; viewStart = 0; viewLen = s1 - s0;
+            msg = "TRIMMED " + fmt (len - (s1 - s0)) + " SAMPLES OF SILENCE";
+            break;
+        }
+        case Tool::InsertSilence:
+        {
+            const int frames = (int) std::lround (juce::jlimit (1.0, 60000.0, v) / 1000.0 * e.rate);
+            const int at = sel ? selA : cursor;
+            insertSilence (e, at, frames);
+            selA = at; selB = at + frames;
+            msg = "INSERTED " + juce::String (v, 0) + " MS OF SILENCE";
+            break;
+        }
+        case Tool::CrossfadeLoop:
+        {
+            const int frames = (int) std::lround (juce::jlimit (1.0, 5000.0, v) / 1000.0 * e.rate);
+            if (! crossfadeLoop (e, frames)) { if (onStatus) onStatus (e.isLooped() ? "NO ROOM: THE LOOP NEEDS SOUND BEFORE IT" : "TURN THE LOOP ON FIRST"); return; }
+            msg = "LOOP CROSSFADED (" + juce::String (v, 0) + " MS)";
+            break;
+        }
+        case Tool::Pitch:
+            v = juce::jlimit (-48.0, 48.0, v);
+            if (std::abs (v) < 0.01) return;
+            pitchBy (e, v, a, b);
+            if (sel) selB = selA + (int) std::lround ((b - a) / std::pow (2.0, v / 12.0));
+            else { viewStart = 0; viewLen = (double) e.data.size(); }
+            msg = "PITCH " + juce::String (v > 0 ? "+" : "") + juce::String (v, 2) + " ST (RESAMPLED)";
+            break;
+        case Tool::SwapSides:
+            if (! e.isStereo()) { if (onStatus) onStatus ("IT'S MONO - NOTHING TO SWAP"); return; }
+            swapSides (e);
+            msg = "LEFT AND RIGHT SWAPPED";
+            break;
+        default: return;
+    }
+    pushUndo();
+    commit (std::move (e), msg);
+}
+
+bool SampleEditor::saveSampleTo (const juce::File& f, juce::String& error)
+{
+    Instrument copy;
+    proc.withLock ([&] { copy = inst(); });
+    return prv::writeInstrumentWav (copy, f, error);
+}
+
+void SampleEditor::saveSample()
+{
+    const auto& in = inst();
+    if (! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
+    auto& st = proc.editorState;
+    const juce::String name = juce::File::createLegalFileName (in.name.empty() ? juce::String ("SAMPLE") : juce::String (in.name)) + ".wav";
+    const juce::File start = prv::startFolder (st.lastFolder, "sampleSaveFolder").getChildFile (name);
+    chooser = std::make_unique<juce::FileChooser> ("Save the sample as a WAV", start, "*.wav");
+    juce::Component::SafePointer<SampleEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting, [safe] (const juce::FileChooser& fc)
+    {
+        if (safe == nullptr) return;
+        auto f = fc.getResult();
+        if (f == juce::File()) return;
+        if (! f.hasFileExtension ("wav")) f = f.withFileExtension ("wav");
+        prv::rememberFolder (safe->proc.editorState.lastFolder, "sampleSaveFolder", f.getParentDirectory());
+        juce::String err;
+        if (safe->saveSampleTo (f, err)) { if (safe->onStatus) safe->onStatus ("SAVED " + f.getFileName() + " IN " + f.getParentDirectory().getFullPathName()); }
+        else if (safe->onStatus) safe->onStatus ("ERROR: " + err);
+    });
 }
 
 // --------------------------------------------------------------- slicing

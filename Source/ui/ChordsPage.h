@@ -19,6 +19,7 @@ public:
     ~ChordsPage() override;
 
     std::function<void()> onClose;
+    std::function<void()> onStopSong;   // Space while the song plays: stop it
     std::function<void (const juce::String&)> onStatus;
     std::function<void()> onChanged;            // the song's table changed (the pattern shows names)
 

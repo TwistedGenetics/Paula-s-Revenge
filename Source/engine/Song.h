@@ -101,10 +101,14 @@ struct Instrument
     std::vector<int16_t> dataR;  // right channel; empty for mono samples
     int loopStart  = 0;          // in samples
     int loopLength = 0;          // in samples, < 4 = no loop
+    int playStart  = 0;          // START / END: the part of the sample that plays (not destructive);
+    int playEnd    = 0;          //   playEnd 0 = to the end. The loop is cut at END.
     bool pingPong  = false;      // loop back and forth instead of jumping to the start
     int volume     = 64;         // 0..64
     int finetune   = 0;          // -8..7 (1/8 semitone steps)
     int transpose  = 0;          // semitones
+    int cents      = 0;          // FINE on PARAMS: -100..+100 cents (on top of finetune)
+    int syncLines  = 0;          // BEAT SYNC: the sample (START to END) lasts this many lines at C-3, repitched (0 = off)
     double rate    = kAmigaC3Rate; // Hz the sample plays at on C-3
     double natRate = 0;            // rate at which it sounds as recorded (0 = same as rate); RATE changes move away from it
     double pitchShift() const { return natRate > 0 ? 12.0 * std::log2 (rate / natRate) : 0.0; }   // semitones
@@ -158,6 +162,9 @@ struct Instrument
     bool switchedOff = false;
 
     bool hasData() const { return ! data.empty(); }
+    int  rangeStart() const { return std::clamp (playStart, 0, std::max (0, (int) data.size() - 1)); }
+    int  rangeEnd() const   { const int n = (int) data.size(); return playEnd > rangeStart() && playEnd < n ? playEnd : n; }
+    bool hasRange() const   { return rangeStart() > 0 || rangeEnd() < (int) data.size(); }
     bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }
     bool isLooped() const { return loopLength >= 4 && loopStart >= 0 && loopStart + loopLength <= (int) data.size(); }
     void clear() { *this = Instrument{}; }

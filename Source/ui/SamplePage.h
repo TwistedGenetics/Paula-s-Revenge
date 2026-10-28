@@ -37,6 +37,12 @@ public:
     void setAmigaRate (int index);     // 0 = none, 1-4 = 8363 / 16726 / 22050 / 28867
     void setThresholdDb (float db);
     void setGainDb (float db);
+    void setModel (SamplerModel m);    // CLEAN (the default) / AMIGA / S950
+    void setBits (int bits);           // 8 / 12
+    void setRateIndex (int i);         // CLEAN: the AMIGA RATE on KEEP (0 = none); AMIGA / S950: the sampler's rate
+    void setDriveDb (float db);        // INPUT DRIVE, 0..+24 dB (AMIGA / S950)
+    SamplerModel model() const { return samplerModel; }
+    VintageSettings vintageSettings() const;
     bool hasTake() const { return ! takeL.empty(); }
     double takeSeconds() const { return takeRate > 0 ? (double) takeL.size() / takeRate : 0.0; }
     juce::String clockText() const;
@@ -49,6 +55,8 @@ private:
     PaulaProcessor& proc;
     PixButton closeBtn { "CLOSE" }, settingsBtn { "AUDIO/MIDI SETTINGS..." };
     PixButton inputBtn { "INPUT", true }, resampleBtn { "RESAMPLE", true }, monitorBtn { "MONITOR", true };
+    PixButton cleanBtn { "CLEAN", true }, amigaBtn { "AMIGA", true }, s950Btn { "S950", true }, bits8Btn { "8 BIT", true }, bits12Btn { "12 BIT", true };
+    PixSlider driveSlider { "INPUT DRIVE" };
     PixButton stereoBtn { "STEREO", true }, monoBtn { "MONO", true }, leftBtn { "LEFT", true }, rightBtn { "RIGHT", true };
     PixButton manualBtn { "MANUAL", true }, thresholdBtn { "THRESHOLD", true }, playbackBtn { "WITH PLAYBACK", true };
     PixButton recordBtn { "RECORD", true }, stopBtn { "STOP" };
@@ -56,7 +64,7 @@ private:
     std::vector<std::unique_ptr<PixButton>> rateBtns;
     PixSlider gainSlider { "INPUT GAIN" }, threshSlider { "THRESHOLD" };
 
-    juce::Rectangle<int> titleArea, sourceLabel, channelsLabel, triggerLabel, rateLabel, meterArea, clockArea, waveArea, infoArea;
+    juce::Rectangle<int> titleArea, sourceLabel, samplerLabel, channelsLabel, triggerLabel, rateLabel, meterArea, clockArea, waveArea, infoArea;
     float meterL = 0, meterR = 0, holdL = 0, holdR = 0;
     int holdCount = 0, clipCount = 0;
     std::vector<float> takeL, takeR, live;
@@ -64,10 +72,16 @@ private:
     bool takeHitLimit = false;
     RecChannels channels = RecChannels::Stereo;
     RecTrigger trigger = RecTrigger::Manual;
-    int amigaIndex = 0;
+    int amigaIndex = 0;                // CLEAN: AMIGA RATE on KEEP
+    SamplerModel samplerModel = SamplerModel::Clean;
+    int bits = 8, amigaRateIdx = 1, s950RateIdx = 3;
+    float driveDb = 0.0f;
+    void makeRateButtons();
+    void applyVintage();
     float thresholdDb = -30.0f, gainDb = 0.0f;
 
     void refreshButtons();
+    bool busy() const;
     void loadPrefs();
     void savePrefs();
     void status (const juce::String& m) { if (onStatus) onStatus (m); }

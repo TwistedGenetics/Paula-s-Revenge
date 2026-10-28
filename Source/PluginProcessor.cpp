@@ -149,6 +149,19 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     inL.allocate ((size_t) scratchSize, true);
     inR.allocate ((size_t) scratchSize, true);
     scratchR.allocate ((size_t) scratchSize, true);
+    allocateVintage (scratchSize);
+    vintage.prepare (sampleRate, scratchSize);
+}
+
+void PaulaProcessor::allocateVintage (int n)
+{
+    vMonL.allocate ((size_t) n, true); vMonR.allocate ((size_t) n, true);
+    vDecL.allocate ((size_t) n * 4 + 16, true); vDecR.allocate ((size_t) n * 4 + 16, true);   // (up to 48 kHz from 12 kHz)
+}
+
+void PaulaProcessor::setVintage (const prv::VintageSettings& v)
+{
+    withLock ([&] { vintage.prepare (currentRate > 0 ? currentRate : 48000.0, scratchSize); vintage.set (v); });
 }
 
 void PaulaProcessor::updateMixerEffects()
@@ -319,6 +332,7 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         scratchR.allocate ((size_t) n, true);
         inL.allocate ((size_t) n, true);
         inR.allocate ((size_t) n, true);
+        allocateVintage (n);
     }
     // the input (SAMPLE), before the buffer becomes the output: mono goes to both sides
     {
@@ -432,14 +446,33 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     // SAMPLE: the monitor (the input, heard through the app), then what the recorder takes -
     // the input, or everything the app plays (RESAMPLE)
     {
+        // (AMIGA / S950: through the vintage sampler - heard like that, recorded at its rate and bits)
         const bool resampling = recSource.load (std::memory_order_relaxed) == SourceResample;
-        if (! resampling) recorder.process (inL.get(), inR.get(), n, player.isPlaying());
+        const bool old = vintage.active();
+        if (! resampling)
+        {
+            if (old)
+            {
+                const int k = vintage.process (inL.get(), inR.get(), n, vMonL.get(), vMonR.get(), vDecL.get(), vDecR.get());
+                recorder.process (vDecL.get(), vDecR.get(), k, player.isPlaying());
+            }
+            else recorder.process (inL.get(), inR.get(), n, player.isPlaying());
+        }
         if (monitorInput.load (std::memory_order_relaxed))
         {
-            juce::FloatVectorOperations::add (scratchL.get(), inL.get(), n);
-            juce::FloatVectorOperations::add (scratchR.get(), inR.get(), n);
+            const bool through = old && ! resampling;
+            juce::FloatVectorOperations::add (scratchL.get(), through ? vMonL.get() : inL.get(), n);
+            juce::FloatVectorOperations::add (scratchR.get(), through ? vMonR.get() : inR.get(), n);
         }
-        if (resampling) recorder.process (scratchL.get(), scratchR.get(), n, player.isPlaying());
+        if (resampling)
+        {
+            if (old)
+            {
+                const int k = vintage.process (scratchL.get(), scratchR.get(), n, vMonL.get(), vMonR.get(), vDecL.get(), vDecR.get());
+                recorder.process (vDecL.get(), vDecR.get(), k, player.isPlaying());
+            }
+            else recorder.process (scratchL.get(), scratchR.get(), n, player.isPlaying());
+        }
     }
 
     if (buffer.getNumChannels() >= 2)

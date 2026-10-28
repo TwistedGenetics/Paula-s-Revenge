@@ -15,6 +15,7 @@ public:
 
     std::function<void()> onChanged;   // instrument data changed
     std::function<void()> onClose;
+    std::function<void()> onStopSong;   // Space while the song plays: stop it (and the preview)
     std::function<void (const juce::String&)> onStatus;
 
     void tick();                       // ~30 Hz: playhead
@@ -52,10 +53,19 @@ public:
     void applyStretch (const StretchSettings&);
     void previewStretch (const StretchSettings&);
     void showStretch (bool show);
+    void openFit (int lines);                 // STRETCH TO FIT (PARAMS): the stretch, START to END to that many lines
     bool isStretchOpen() const { return stretchOpen; }
 
     // loop points (also used by tests); end is exclusive
     void setLoop (int start, int end, bool on);
+    // START / END: the part that plays (not destructive; end exclusive; 0, length = all of it)
+    void setPlayRange (int start, int end);
+    // TOOLS... (also used by tests): value = dB / ms / semitones where the tool needs one
+    enum class Tool { Gain, RemoveDc, TrimSilence, InsertSilence, CrossfadeLoop, Pitch, SwapSides, RangeFromSelection, RangeReset };
+    void applyTool (Tool, double value = 0);
+    void showTools();
+    void saveSample();                          // SAVE...: the instrument as a WAV, where you choose
+    bool saveSampleTo (const juce::File&, juce::String& error);
     void setPingPong (bool on);
 
     // slicing (also used by tests)
@@ -97,6 +107,7 @@ private:
     bool stretchOpen = false;
     bool slicerOpen = false;
     int  dragLoopMarker = 0;          // 1 = loop start, 2 = loop end
+    int  dragPlayMarker = 0;          // 1 = START, 2 = END
     int  dragSlice = -1;              // slice marker being dragged
     int  selectedSlice = -1;
     bool auditioningLoop = false;
@@ -114,9 +125,11 @@ private:
               undoBtn { "UNDO" }, redoBtn { "REDO" }, closeBtn { "CLOSE" },
               selKeysBtn { "SEL KEYS", true }, stretchBtn { "STRETCH" },
               presetBtn { "PRESET" }, rawBtn { "RAW", true }, resampleBtn { "RESAMPLE" },
-              loopOnBtn { "LOOP", true }, pingBtn { "PING-PONG", true }, sliceBtn { "SLICE" };
+              loopOnBtn { "LOOP", true }, pingBtn { "PING-PONG", true }, sliceBtn { "SLICE" },
+              toolsBtn { "TOOLS..." }, saveBtn { "SAVE..." };
+    std::unique_ptr<juce::FileChooser> chooser;
     NumberBox rateBox { "RATE", 500, 96000, 16574 }, toBox { "TO", 500, 96000, 11025 };
-    NumberBox loopStartBox { "START", 0, 1, 0 }, loopEndBox { "END", 0, 1, 0 };
+    NumberBox loopStartBox { "LOOP", 0, 1, 0 }, loopEndBox { "TO", 0, 1, 0 };   // (the loop: START / END are the play range)
 
     // slicer panel (replaces the button rows while open)
     PixButton slAuto { "AUTO" }, slEven { "EVEN" }, slAdd { "ADD AT CURSOR" }, slRemove { "REMOVE" }, slClear { "CLEAR ALL" },
@@ -125,6 +138,8 @@ private:
     std::vector<juce::Component*> slicerControls();
     juce::Rectangle<float> slicerInfoArea, slicerHelpArea;
     juce::Rectangle<float> loopHandle (int which) const;   // 1 start, 2 end (top of the waveform)
+    juce::Rectangle<float> playHandle (int which) const;   // START / END: at the middle of the waveform
+    void askValue (const juce::String& title, const juce::String& prompt, double def, std::function<void (double)> then);
     juce::Rectangle<float> sliceHandle (int index) const;  // numbered tab at the bottom
     void syncLoopControls();
     template <typename Fn> void editInPlace (const juce::String& what, bool merge, Fn&& fn);

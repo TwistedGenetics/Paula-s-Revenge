@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.22.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.23.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,6 +39,7 @@ add_library(prv_engine STATIC
     Source/engine/Capture.cpp
     Source/engine/ChordDetect.cpp
     Source/engine/Recorder.cpp
+    Source/engine/SampleTools.cpp
     Source/engine/ChordDatabase.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)

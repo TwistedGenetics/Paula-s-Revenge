@@ -40,6 +40,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     help.onClose = [this] { setView (helpReturn == View::Help ? View::Pattern : helpReturn); };
     help.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (help);
+    chords.onStopSong = [this] { pattern.stopPlayback(); refreshAll(); setStatus ("STOPPED"); };
+    sampleEditor.onStopSong = [this] { pattern.stopPlayback(); refreshAll(); setStatus ("STOPPED"); };
     chords.onClose = [this] { setView (chordsReturn == View::Chords || chordsReturn == View::Help ? View::Pattern : chordsReturn); };
     chords.onStatus = [this] (const juce::String& m) { setStatus (m); };
     chords.onChanged = [this] { refreshAll(); };
@@ -65,6 +67,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         mixer.openEffect (slot);
     };
     params.onOpenFx = openInstrumentFx;
+    params.onFitStretch = [this] (int lines) { setView (View::SampleEdit); sampleEditor.openFit (lines); };
     synthPage.onOpenFx = openInstrumentFx;
     mixer.onBackFromInstrument = [this] { setView (fxReturn == View::Mixer ? View::Params : fxReturn); };
     instruments.openSample = [this] { openSample(); };
@@ -840,6 +843,23 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
             return true;
         }
     }
+    // Space on every page: the song / block plays or stops (and any sample preview stops);
+    // the pattern, HELP's search, the sample editor and CHORDS do their own first
+    {
+        const auto mm = k.getModifiers();
+        const auto v = proc.editorState.view;
+        if (k.getKeyCode() == juce::KeyPress::spaceKey && ! mm.isCommandDown() && ! mm.isCtrlDown() && ! mm.isAltDown()
+            && v != View::Pattern && v != View::Help)
+        {
+            const bool previewOnly = ! proc.player.isPlaying() && proc.previewPos.load() >= 0;
+            sampleEditor.stop();
+            proc.stopPreview();
+            if (! previewOnly) pattern.togglePlayStop (mm.isShiftDown());
+            refreshAll();
+            setStatus (proc.player.isPlaying() ? "PLAYING (SPACE STOPS IT)" : "STOPPED");
+            return true;
+        }
+    }
     // window-wide shortcuts (pages pass on keys they don't use)
     const auto m = k.getModifiers();
     if (m.isCommandDown())
@@ -1267,20 +1287,7 @@ bool PaulaEditor::exportSamplesTo (const juce::File& folder, int& written, juce:
         const juce::String name = juce::String (i + 1).paddedLeft ('0', 2) + " "
                                 + juce::File::createLegalFileName (in.name.empty() ? juce::String ("SAMPLE") : juce::String (in.name)) + ".wav";
         auto f = folder.getChildFile (name);
-        f.deleteFile();
-        std::unique_ptr<juce::FileOutputStream> os (f.createOutputStream());
-        if (os == nullptr) { error = "Couldn't write " + name; return false; }
-        const int chans = in.isStereo() ? 2 : 1;
-        std::unique_ptr<juce::AudioFormatWriter> w (juce::WavAudioFormat().createWriterFor (os.get(), prv::kSampleRateAtC3, (unsigned) chans, 16, {}, 0));
-        if (w == nullptr) { error = "Couldn't write " + name; return false; }
-        os.release();
-        juce::AudioBuffer<float> buf (chans, (int) in.data.size());
-        for (int k = 0; k < (int) in.data.size(); ++k)
-        {
-            buf.setSample (0, k, in.data[(size_t) k] / 32768.0f);
-            if (chans == 2) buf.setSample (1, k, in.dataR[(size_t) k] / 32768.0f);
-        }
-        w->writeFromAudioSampleBuffer (buf, 0, buf.getNumSamples());
+        if (! prv::writeInstrumentWav (in, f, error)) return false;
         ++written;
     }
     return true;

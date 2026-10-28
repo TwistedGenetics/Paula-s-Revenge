@@ -42,26 +42,28 @@ SamplePage::SamplePage (PaulaProcessor& p) : proc (p)
     againBtn.onClick = [this] { again(); };
     trimBtn.onClick = [this] { savePrefs(); };
     normBtn.onClick = [this] { savePrefs(); };
-    for (int i = 0; i < 5; ++i)
-    {
-        auto b = std::make_unique<PixButton> (i == 0 ? juce::String ("NONE") : juce::String (kAmigaRates[i]), true);
-        b->onClick = [this, i] { setAmigaRate (i); };
-        addAndMakeVisible (*b);
-        rateBtns.push_back (std::move (b));
-    }
+    cleanBtn.onClick = [this] { setModel (SamplerModel::Clean); };
+    amigaBtn.onClick = [this] { setModel (SamplerModel::Amiga); };
+    s950Btn.onClick = [this] { setModel (SamplerModel::S950); };
+    bits8Btn.onClick = [this] { setBits (8); };
+    bits12Btn.onClick = [this] { setBits (12); };
+    driveSlider.labelChars = 12; driveSlider.valueChars = 8;
+    driveSlider.format = [] (float v) { return "+" + juce::String (v * 24.0f, 1) + " DB"; };
+    driveSlider.onChange = [this] (float v) { setDriveDb (v * 24.0f); };
     // INPUT GAIN: -24..+24 dB (the middle = 0 dB); THRESHOLD: -60..0 dB
-    gainSlider.labelChars = 10; gainSlider.valueChars = 9;
+    gainSlider.labelChars = 12; gainSlider.valueChars = 9;
     gainSlider.format = [] (float v) { const float db = v * 48.0f - 24.0f; return (db > 0.05f ? "+" : "") + juce::String (db, 1) + " DB"; };
     gainSlider.onChange = [this] (float v) { setGainDb (v * 48.0f - 24.0f); };
-    threshSlider.labelChars = 10; threshSlider.valueChars = 9;
+    threshSlider.labelChars = 12; threshSlider.valueChars = 9;
     threshSlider.format = [] (float v) { return juce::String (v * 60.0f - 60.0f, 1) + " DB"; };
     threshSlider.onChange = [this] (float v) { setThresholdDb (v * 60.0f - 60.0f); };
 
     for (juce::Component* c : std::initializer_list<juce::Component*> { &closeBtn, &settingsBtn, &inputBtn, &resampleBtn, &monitorBtn, &stereoBtn, &monoBtn, &leftBtn, &rightBtn,
                                 &manualBtn, &thresholdBtn, &playbackBtn, &recordBtn, &stopBtn, &keepBtn, &againBtn, &trimBtn, &normBtn,
-                                &gainSlider, &threshSlider })
+                                &gainSlider, &threshSlider, &cleanBtn, &amigaBtn, &s950Btn, &bits8Btn, &bits12Btn, &driveSlider })
         addAndMakeVisible (c);
     loadPrefs();
+    makeRateButtons();
     refreshButtons();
 }
 
@@ -81,6 +83,13 @@ void SamplePage::loadPrefs()
     normBtn.setToggleState (pf.getBoolValue ("sampleNormalise", true), juce::dontSendNotification);
     proc.inputGain = dbToGain (gainDb);
     proc.monitorInput = false;   // (always off to start with: feedback)
+    samplerModel = (SamplerModel) juce::jlimit (0, 2, pf.getIntValue ("samplerModel", 0));
+    bits = pf.getIntValue ("samplerBits", 8) == 12 ? 12 : 8;
+    amigaRateIdx = juce::jlimit (0, 3, pf.getIntValue ("samplerAmigaRate", 1));
+    s950RateIdx = juce::jlimit (0, 7, pf.getIntValue ("samplerS950Rate", 3));
+    driveDb = juce::jlimit (0.0f, 24.0f, (float) pf.getDoubleValue ("samplerDriveDb", 0.0));
+    driveSlider.setValue (driveDb / 24.0f);
+    applyVintage();
     gainSlider.setValue ((gainDb + 24.0f) / 48.0f);
     threshSlider.setValue ((thresholdDb + 60.0f) / 60.0f);
 }
@@ -96,6 +105,85 @@ void SamplePage::savePrefs()
     pf.setValue ("sampleGainDb", (double) gainDb);
     pf.setValue ("sampleTrim", trimBtn.getToggleState());
     pf.setValue ("sampleNormalise", normBtn.getToggleState());
+    pf.setValue ("samplerModel", (int) samplerModel);
+    pf.setValue ("samplerBits", bits);
+    pf.setValue ("samplerAmigaRate", amigaRateIdx);
+    pf.setValue ("samplerS950Rate", s950RateIdx);
+    pf.setValue ("samplerDriveDb", (double) driveDb);
+}
+
+VintageSettings SamplePage::vintageSettings() const
+{
+    VintageSettings v;
+    v.model = samplerModel;
+    v.bits = bits;
+    v.rate = samplerModel == SamplerModel::Amiga ? kAmigaSampleRates[amigaRateIdx] : samplerModel == SamplerModel::S950 ? kS950SampleRates[s950RateIdx] : 0.0;
+    v.driveDb = driveDb;
+    return v;
+}
+
+void SamplePage::applyVintage() { proc.setVintage (vintageSettings()); }
+
+void SamplePage::makeRateButtons()
+{
+    // CLEAN: AMIGA RATE (resampled as it's kept); AMIGA / S950: the sampler's own rates
+    for (auto& b : rateBtns) removeChildComponent (b.get());
+    rateBtns.clear();
+    std::vector<juce::String> names;
+    if (samplerModel == SamplerModel::Clean) for (int i = 0; i < 5; ++i) names.push_back (i == 0 ? juce::String ("NONE") : juce::String (kAmigaRates[i]));
+    else if (samplerModel == SamplerModel::Amiga) for (double r : kAmigaSampleRates) names.push_back (juce::String ((int) r));
+    else for (double r : kS950SampleRates) names.push_back (r == 7500 ? juce::String ("7.5K") : r == 22050 ? juce::String ("22K") : juce::String ((int) (r / 1000)) + "K");   // (8 of them: short)
+    for (int i = 0; i < (int) names.size(); ++i)
+    {
+        auto b = std::make_unique<PixButton> (names[(size_t) i], true);
+        b->onClick = [this, i] { setRateIndex (i); };
+        addAndMakeVisible (*b);
+        rateBtns.push_back (std::move (b));
+    }
+    if (getWidth() > 0) resized();
+}
+
+bool SamplePage::busy() const
+{
+    const auto rs = proc.recorder.state();
+    return rs == TakeRecorder::State::Armed || rs == TakeRecorder::State::Recording;
+}
+
+void SamplePage::setModel (SamplerModel m)
+{
+    if (busy()) { status ("STOP RECORDING FIRST"); refreshButtons(); return; }
+    samplerModel = m;
+    if (m == SamplerModel::Amiga) bits = 8;
+    if (m == SamplerModel::S950) bits = 12;
+    savePrefs(); applyVintage(); makeRateButtons(); refreshButtons();
+    status (m == SamplerModel::Amiga ? "AMIGA SAMPLER: 8-BIT, NO ANTI-ALIAS FILTER - THE GRAIN AND THE ALIASING (MONITOR TO HEAR IT AS YOU SAMPLE)"
+          : m == SamplerModel::S950 ? "AKAI S950: 12-BIT, ITS FILTER FOLLOWS THE RATE - PUSH INPUT DRIVE TO OVERLOAD IT LIKE THE CLASSIC RECORDS"
+                                    : "CLEAN: THE INTERFACE AS IT IS (THE DEFAULT)");
+}
+
+void SamplePage::setBits (int b)
+{
+    if (busy()) { status ("STOP RECORDING FIRST"); refreshButtons(); return; }
+    bits = b == 12 ? 12 : 8;
+    savePrefs(); applyVintage(); refreshButtons();
+    status (juce::String (bits) + "-BIT");
+}
+
+void SamplePage::setRateIndex (int i)
+{
+    if (samplerModel == SamplerModel::Clean) { setAmigaRate (i); return; }
+    if (busy()) { status ("STOP RECORDING FIRST"); refreshButtons(); return; }
+    if (samplerModel == SamplerModel::Amiga) amigaRateIdx = juce::jlimit (0, 3, i);
+    else s950RateIdx = juce::jlimit (0, 7, i);
+    savePrefs(); applyVintage(); refreshButtons();
+    status ("SAMPLING AT " + juce::String ((int) vintageSettings().rate) + " HZ");
+}
+
+void SamplePage::setDriveDb (float db)
+{
+    driveDb = juce::jlimit (0.0f, 24.0f, db);
+    savePrefs();
+    proc.withLock ([&] { proc.vintage.setDrive (driveDb); });
 }
 
 void SamplePage::setSource (int s)
@@ -136,7 +224,16 @@ void SamplePage::refreshButtons()
     manualBtn.setToggleState (trigger == RecTrigger::Manual, juce::dontSendNotification);
     thresholdBtn.setToggleState (trigger == RecTrigger::Threshold, juce::dontSendNotification);
     playbackBtn.setToggleState (trigger == RecTrigger::WithPlayback, juce::dontSendNotification);
-    for (int i = 0; i < (int) rateBtns.size(); ++i) rateBtns[(size_t) i]->setToggleState (i == amigaIndex, juce::dontSendNotification);
+    const int rateSel = samplerModel == SamplerModel::Clean ? amigaIndex : samplerModel == SamplerModel::Amiga ? amigaRateIdx : s950RateIdx;
+    for (int i = 0; i < (int) rateBtns.size(); ++i) rateBtns[(size_t) i]->setToggleState (i == rateSel, juce::dontSendNotification);
+    cleanBtn.setToggleState (samplerModel == SamplerModel::Clean, juce::dontSendNotification);
+    amigaBtn.setToggleState (samplerModel == SamplerModel::Amiga, juce::dontSendNotification);
+    s950Btn.setToggleState (samplerModel == SamplerModel::S950, juce::dontSendNotification);
+    bits8Btn.setToggleState (samplerModel != SamplerModel::Clean && bits == 8, juce::dontSendNotification);
+    bits12Btn.setToggleState (samplerModel != SamplerModel::Clean && bits == 12, juce::dontSendNotification);
+    bits8Btn.setEnabled (samplerModel != SamplerModel::Clean);
+    bits12Btn.setEnabled (samplerModel != SamplerModel::Clean);
+    driveSlider.setEnabled (samplerModel != SamplerModel::Clean);
     const auto rs = proc.recorder.state();
     const bool busy = rs == TakeRecorder::State::Armed || rs == TakeRecorder::State::Recording;
     recordBtn.setToggleState (busy, juce::dontSendNotification);
@@ -165,7 +262,8 @@ void SamplePage::record()
     const auto rs = proc.recorder.state();
     if (rs == TakeRecorder::State::Armed || rs == TakeRecorder::State::Recording) { stop(); return; }
     takeL.clear(); takeR.clear(); takeHitLimit = false;
-    const double rate = proc.audioRate() > 0 ? proc.audioRate() : 44100.0;
+    applyVintage();   // (the device's rate may have changed)
+    const double rate = proc.vintage.active() ? proc.vintage.outRate() : (proc.audioRate() > 0 ? proc.audioRate() : 44100.0);
     proc.withLock ([&] { proc.recorder.arm (rate, kMaxSeconds, trigger, dbToGain (thresholdDb)); });
     refreshButtons();
     if (proc.recSource.load() == PaulaProcessor::SourceInput && proc.inputChannels.load() == 0 && proc.audioRunning.load())
@@ -226,7 +324,8 @@ bool SamplePage::keep()
     o.channels = channels;
     o.trimSilence = trimBtn.getToggleState();
     o.normalise = normBtn.getToggleState();
-    o.amigaRate = kAmigaRates[amigaIndex];
+    o.amigaRate = samplerModel == SamplerModel::Clean ? kAmigaRates[amigaIndex] : 0.0;
+    o.bits = samplerModel == SamplerModel::Clean ? 0 : bits;
     const int idx = proc.editorState.instrument;
     o.name = ("SAMPLE " + hex2 (idx + 1)).toStdString();
     Instrument in;
@@ -281,7 +380,8 @@ void SamplePage::paint (juce::Graphics& g)
     PixelFont::drawLeft (g, "SOURCE", sourceLabel.toFloat(), px, pal.ink);
     PixelFont::drawLeft (g, "CHANNELS", channelsLabel.toFloat(), px, pal.ink);
     PixelFont::drawLeft (g, "TRIGGER", triggerLabel.toFloat(), px, pal.ink);
-    PixelFont::drawLeft (g, "AMIGA RATE", rateLabel.toFloat(), px, pal.ink);
+    PixelFont::drawLeft (g, samplerModel == SamplerModel::Clean ? "AMIGA RATE" : "RATE (HZ)", rateLabel.toFloat(), px, pal.ink);
+    PixelFont::drawLeft (g, "SAMPLER", samplerLabel.toFloat(), px, pal.ink);
     drawMeter (g, meterArea.toFloat());
     // the clock, twice the size
     const auto rs = proc.recorder.state();
@@ -379,6 +479,9 @@ void SamplePage::resized()
     auto row1 = r.removeFromTop (rowH); r.removeFromTop (gap);
     sourceLabel = row1.removeFromLeft (labelW);
     place (row1, inputBtn); place (row1, resampleBtn); row1.removeFromLeft (gap * 3); place (row1, monitorBtn);
+    auto rowS = r.removeFromTop (rowH); r.removeFromTop (gap);
+    samplerLabel = rowS.removeFromLeft (labelW);
+    place (rowS, cleanBtn); place (rowS, amigaBtn); place (rowS, s950Btn); rowS.removeFromLeft (gap * 3); place (rowS, bits8Btn); place (rowS, bits12Btn);
     auto row2 = r.removeFromTop (rowH); r.removeFromTop (gap);
     channelsLabel = row2.removeFromLeft (labelW);
     place (row2, stereoBtn); place (row2, monoBtn); place (row2, leftBtn); place (row2, rightBtn);
@@ -386,6 +489,7 @@ void SamplePage::resized()
     triggerLabel = row3.removeFromLeft (labelW);
     place (row3, manualBtn); place (row3, thresholdBtn); place (row3, playbackBtn);
     gainSlider.setBounds (r.removeFromTop (rowH)); r.removeFromTop (gap);
+    driveSlider.setBounds (r.removeFromTop (rowH)); r.removeFromTop (gap);
     threshSlider.setBounds (r.removeFromTop (rowH)); r.removeFromTop (gap * 2);
 
     meterArea = r.removeFromTop ((int) (px * 24)); r.removeFromTop (gap * 2);

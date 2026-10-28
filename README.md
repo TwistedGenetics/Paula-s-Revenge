@@ -118,6 +118,8 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
 * **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
 * **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument or with your hardware instead of the sample (see below).
+* **PITCH** (±48 semitones, the same as TRNS in the instrument panel) and **FINE** (±100 cents) tune the sample. **TUNE TO C** finds the sample's pitch and sets them so `C-3` plays a C (the nearest one, so it moves 6 semitones at most); the status line says what it heard. Drums with no clear pitch are left alone.
+* **BEAT SYNC** (like Renoise's): the sample (START to END) lasts **LINES** lines at `C-3`, at whatever the tempo and speed are — it's sped up or slowed down (repitched) to fit, live, so it follows BPM / SPD changes and `Fxx`. Other notes play it higher or lower as usual. Switching it on suggests a sensible number of lines for the sample's length. **STRETCH...** opens the sample editor's time stretch set to the same number of lines, to make it fit at its own pitch instead (PREVIEW, then APPLY; BEAT SYNC can stay on).
 * **FX** (under the volume envelope): the instrument's own effects (see Instrument effects).
 
 Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
@@ -232,7 +234,7 @@ LOAD in the instrument panel opens a browser in place of the pattern. Every samp
 | `↑` `↓` / `PgUp` `PgDn` | Move (and hear) the next sample |
 | `→` / `Enter` on a folder | Open it · `←` or `Backspace` goes up |
 | `Enter` / double-click | Load into the current instrument |
-| `Space` | Play / stop |
+| `Space` | Play / stop (on every page: it stops the song wherever you are) |
 | Note keys | Play the sample at that pitch |
 | `Alt` + a letter | Jump to the next name starting with it |
 | `Esc` | Close |
@@ -252,7 +254,13 @@ Record audio straight into the selected instrument: from an audio interface, the
 * **INPUT GAIN** (−24 to +24 dB) sets the level; the big L / R meter shows it, with a peak hold and a **CLIP** light. The clock shows how long you've recorded, up to 5 minutes.
 * **RECORD** (or `R`) starts / arms it; **STOP** (or RECORD again) ends it. Armed and stopped before anything came in: nothing is recorded. You can go to another page while it records; the take waits on the SAMPLE page.
 * **The take** shows as a waveform. **KEEP** (`Enter`) puts it in the instrument (one undo step) as `SAMPLE 05` and so on; **AGAIN** (`Backspace`) throws it away and records again. **TRIM SILENCE** cuts quiet at both ends and **NORMALISE** makes the loudest point full level; both are on to start with.
-* **AMIGA RATE:** NONE keeps the recording's own rate (44.1 / 48 kHz…). 8363, 16726, 22050 or 28867 Hz resamples the take when you keep it, for that crunchy lo-fi sound; it still plays at the pitch you recorded.
+* **SAMPLER:** how the sound gets in. **CLEAN** (the default) is your interface as it is. The other two sample the way the old machines did — and you hear it while you sample (with MONITOR on), so what you keep is exactly what you heard:
+  * **AMIGA**: 8-bit, at **8363 / 16726 / 22050 / 28867 Hz**, with no anti-alias filter — so high sounds fold back down as aliasing, the grit of the old Amiga samplers.
+  * **S950**: 12-bit, at **7.5K / 10K / 15K / 22K / 24K / 32K / 40K / 48K**, through the S950's 6-pole anti-alias filter, which follows the rate (so 15K sounds dull and warm, not aliased).
+  * **8 BIT / 12 BIT** pick the bits for either (an S950 at 8 bits, an Amiga at 12).
+  * **INPUT DRIVE** (0 to +24 dB) overloads the sampler's input, as people did on the S950: its input goes soft and fat, then hits the converter's ceiling (the CLIP lights show it). On AMIGA it just clips hard.
+  * The take is recorded at the sampler's rate and bits, and kept on those bits after NORMALISE.
+* **AMIGA RATE** (CLEAN only): NONE keeps the recording's own rate (44.1 / 48 kHz…). 8363, 16726, 22050 or 28867 Hz resamples the take when you keep it; it still plays at the pitch you recorded.
 * Then it's like any other sample: EDIT for the sample editor (slice, loop, rate), and it's saved inside the song. Your settings on the page are remembered.
 
 ## Sample rates
@@ -291,10 +299,13 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 * **Play it from the keyboard:** the computer keys (same layout as the pattern, `[` `]` for octave) and a MIDI keyboard play the sample at the key's pitch through the full instrument sound, several notes at once, with a playhead for each. **SEL KEYS** makes them play only the selection (looped when LOOP is on).
 * **Zoom:** mouse wheel or ZOOM +/-, FIT SEL, FIT ALL. Click or drag the overview strip to move around. Zoomed right in, you see each sample as a step, the way Paula plays it.
 * **DRAW:** draw the waveform with the mouse.
-* **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points and slices move with the audio when you cut, paste, resample or stretch.
-* **Loop:** **LOOP** turns the instrument's loop on (the selection, or the whole sample) and off. Drag the **S** and **E** handles at the top of the waveform to move the start and end; you hear the loop while you drag. START / END type exact values, SET LOOP loops the selection. **PING-PONG** plays the loop forwards then backwards instead of jumping back to the start (saved in songs; SAVE MOD stores it as a normal loop).
+* **Edit:** CUT, COPY, PASTE, DELETE, CROP, SILENCE, REVERSE, MAX VOL (normalise), VOL −/+ (3 dB), FADE IN, FADE OUT, TO MONO. Edits work on the selection, or the whole sample if nothing is selected. Loop points, START / END and slices move with the audio when you cut, paste, resample or stretch.
+* **TOOLS...**: GAIN (any dB), NORMALISE, REMOVE DC, TRIM SILENCE (both ends), INSERT SILENCE (at the cursor), CROSSFADE LOOP (blends the end of the loop into what comes before its start, so the jump back is smooth), PITCH (± semitones, resampled: higher is shorter), SWAP LEFT / RIGHT, START / END from the selection or back to the whole sample, and SAVE SAMPLE. Each is an undo step.
+* **SAVE...** writes the sample to a WAV wherever you choose (16-bit, stereo kept, at the rate C-3 plays it at, so it sounds the same anywhere). The folder is remembered.
+* **START / END:** the green **[** and **]** handles at the middle of the waveform set the part that plays — drag them in and the rest is shaded and silent, but nothing is deleted (drag them out again for all of it). They're separate from the loop's S / E handles; a loop is cut at END. `9xx` offsets count from START, and SAVE MOD writes just START to END. Saved in the song, undoable.
+* **Loop:** **LOOP** turns the instrument's loop on (the selection, or the whole sample) and off. Drag the **S** and **E** handles at the top of the waveform to move the start and end; you hear the loop while you drag. LOOP / TO type exact values, SET LOOP loops the selection. **PING-PONG** plays the loop forwards then backwards instead of jumping back to the start (saved in songs; SAVE MOD stores it as a normal loop).
 * **Play:** PLAY plays from the cursor, ▶ SEL plays just the selection, REPEAT loops whatever's playing.
-* Keys: `Space` play/stop, `Cmd+X/C/V`, `Cmd+A`, `Delete`, `Cmd+Z` / `Cmd+Shift+Z`, `←` `→` scroll, `↑` `↓` zoom, `Esc` close.
+* Keys: `Space` stops whatever is playing (the song too); when nothing is, it plays the sample, `Cmd+X/C/V`, `Cmd+A`, `Delete`, `Cmd+Z` / `Cmd+Shift+Z`, `←` `→` scroll, `↑` `↓` zoom, `Esc` close.
 * UNDO/REDO share the one history with every other page.
 
 
