@@ -1,0 +1,586 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>Paula's Revenge Manual</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+/* Layout: the app's own window - title bar, a SEQUENCE-style chapter list on the left,
+   chapters as bevelled panels with striped title strips, screenshots in sunken frames.
+   One deliberate look (the app's light skin: black on light grey), so no dark variant. */
+:root {
+  --paper: #ffffff;       /* main background, like the pattern area */
+  --panel: #e6e6e6;       /* panel fill */
+  --light: #ffffff;       /* bevel highlight */
+  --shadow: #7a7a7a;      /* bevel shadow */
+  --ink: #000000;         /* text and lines */
+  --band: #c4c4c4;        /* cursor line / hover */
+  --pressed: #b0b0b0;     /* lit buttons */
+  --faint: #5c5c5c;       /* secondary text, still dark */
+  --trk1: #00849c; --trk2: #9b2a9b; --trk3: #b86400; --trk4: #3a8f2a; --hot: #c8231e;
+  --pixel: "Silkscreen", "Courier New", monospace;
+  --body: "VT323", "Courier New", monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { background: var(--panel); }
+body {
+  margin: 0; background: var(--panel); color: var(--ink);
+  font-family: var(--body); font-size: 25px; line-height: 1.22;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 40px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+a { color: var(--ink); }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+/* bevels */
+.raised { background: var(--panel); border: 3px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); }
+.sunken { border: 3px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+
+/* the title bar */
+.titlebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; margin-bottom: 12px; }
+.titlebar .name { font-family: var(--pixel); font-weight: 700; font-size: clamp(24px, 4vw, 40px); letter-spacing: 0.04em; white-space: nowrap; }
+.rules { flex: 1; min-width: 30px; height: 26px; background: repeating-linear-gradient(to bottom, var(--ink) 0 3px, transparent 3px 7px); }
+.titlebar .ver { font-family: var(--pixel); font-size: 20px; white-space: nowrap; }
+
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+
+/* chapter list, like the SEQUENCE panel */
+nav.seq { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); padding: 10px; }
+.strip { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.strip::before, .strip::after { content: ""; flex: 1; height: 15px; background: repeating-linear-gradient(to bottom, var(--ink) 0 2px, transparent 2px 5px); }
+.strip span { font-family: var(--pixel); font-size: 20px; letter-spacing: 0.06em; white-space: nowrap; }
+nav.seq ol { list-style: none; margin: 0; padding: 4px; background: var(--paper); max-height: calc(100vh - 140px); overflow-y: auto; }
+nav.seq li a { display: grid; grid-template-columns: 2.4em 1fr; gap: 6px; padding: 3px 8px; text-decoration: none; font-family: var(--pixel); font-size: 17px; line-height: 1.5; text-transform: uppercase; }
+nav.seq li a:hover { background: var(--band); }
+nav.seq li a .n { color: var(--faint); font-variant-numeric: tabular-nums; }
+
+main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+section.ch { padding: 14px 20px 20px; scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+section.ch > h2 { margin: 0 0 6px; }
+h2 { font-family: var(--pixel); font-weight: 400; font-size: 26px; letter-spacing: 0.05em; text-wrap: balance; margin: 0; display: flex; gap: 12px; align-items: center; }
+h2::before, h2::after { content: ""; flex: 1; min-width: 20px; height: 18px; background: repeating-linear-gradient(to bottom, var(--ink) 0 3px, transparent 3px 6px); }
+.accent { height: 6px; margin: 2px 0 14px; }
+.t1 { background: var(--trk1); } .t2 { background: var(--trk2); } .t3 { background: var(--trk3); } .t4 { background: var(--trk4); }
+h3 { font-family: var(--pixel); font-weight: 400; font-size: 20px; letter-spacing: 0.05em; margin: 22px 0 6px; text-transform: uppercase; }
+p, ul, ol.steps { max-width: 68ch; margin: 0 0 12px; }
+ul, ol.steps { padding-left: 1.2em; }
+li { margin-bottom: 6px; }
+li::marker { color: var(--faint); }
+
+/* button names, like the app's buttons */
+.b { font-family: var(--pixel); font-size: 0.68em; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
+     display: inline-block; padding: 1px 7px 0; margin: 0 1px; background: var(--panel); vertical-align: 2px;
+     border: 2px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); }
+.b.on { background: var(--pressed); border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+/* keys */
+kbd { font-family: var(--pixel); font-size: 0.66em; display: inline-block; min-width: 1.6em; text-align: center; padding: 1px 6px 0; margin: 0 1px; vertical-align: 2px;
+      background: var(--paper); border: 2px solid var(--ink); border-bottom-width: 4px; white-space: nowrap; }
+/* pattern text: commands, notes */
+code { font-family: var(--body); font-size: 1em; background: var(--paper); padding: 0 5px; border: 1px solid var(--band); overflow-wrap: anywhere; }
+
+figure { margin: 12px 0 18px; }
+figure .frame { background: var(--paper); padding: 0; line-height: 0; }
+figure img { width: 100%; height: auto; display: block; image-rendering: pixelated; }
+figcaption { font-family: var(--pixel); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 6px; color: var(--faint); }
+
+/* the status line, used for tips */
+.status { display: flex; gap: 12px; align-items: baseline; background: var(--paper); padding: 8px 12px; margin: 10px 0 14px; max-width: 72ch; }
+.status .tag { font-family: var(--pixel); font-size: 15px; background: var(--ink); color: var(--paper); padding: 2px 6px; white-space: nowrap; }
+
+.tbl { overflow-x: auto; margin: 8px 0 16px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 24px; }
+th { font-family: var(--pixel); font-weight: 400; font-size: 16px; letter-spacing: 0.05em; text-align: left; background: var(--panel); padding: 6px 10px; border-bottom: 3px solid var(--ink); }
+td { padding: 5px 10px; vertical-align: top; border-bottom: 1px solid var(--band); }
+tr:nth-child(4n+1) td { background: #f2f2f2; }
+td:first-child { white-space: nowrap; }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.two > div { min-width: 0; }
+.flow { font-family: var(--pixel); font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 14px; }
+.flow span.stage { padding: 4px 8px; background: var(--paper); border: 2px solid var(--ink); }
+
+footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin-top: 6px; text-align: center; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  nav.seq { position: static; }
+  nav.seq ol { max-height: 260px; }
+  body { font-size: 23px; }
+  .titlebar .rules { display: none; }
+  td:first-child { white-space: normal; }
+  section.ch { padding: 12px 12px 16px; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<header class="titlebar raised">
+  <span class="name">PAULA'S REVENGE</span>
+  <span class="rules" aria-hidden="true"></span>
+  <span class="ver">MANUAL &middot; V0.12</span>
+</header>
+
+<div class="app">
+<nav class="seq raised" aria-label="Chapters">
+  <div class="strip"><span>CHAPTERS</span></div>
+  <ol class="sunken">
+    <li><a href="#start"><span class="n">000</span><span>Getting started</span></a></li>
+    <li><a href="#screen"><span class="n">001</span><span>The screen</span></a></li>
+    <li><a href="#pattern"><span class="n">002</span><span>Writing patterns</span></a></li>
+    <li><a href="#commands"><span class="n">003</span><span>Effect commands</span></a></li>
+    <li><a href="#song"><span class="n">004</span><span>Blocks &amp; the song</span></a></li>
+    <li><a href="#samples"><span class="n">005</span><span>Instruments &amp; samples</span></a></li>
+    <li><a href="#params"><span class="n">006</span><span>Sound shaping</span></a></li>
+    <li><a href="#sound"><span class="n">007</span><span>Paula &amp; the Akais</span></a></li>
+    <li><a href="#mixer"><span class="n">008</span><span>The mixer</span></a></li>
+    <li><a href="#plugins"><span class="n">009</span><span>Plug-ins</span></a></li>
+    <li><a href="#auto"><span class="n">010</span><span>Automation</span></a></li>
+    <li><a href="#midi"><span class="n">011</span><span>MIDI out</span></a></li>
+    <li><a href="#bounce"><span class="n">012</span><span>Bouncing</span></a></li>
+    <li><a href="#render"><span class="n">013</span><span>Rendering</span></a></li>
+    <li><a href="#files"><span class="n">014</span><span>Saving &amp; files</span></a></li>
+    <li><a href="#keys"><span class="n">015</span><span>Keys</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============================================================ 000 -->
+<section class="ch raised" id="start">
+  <h2>GETTING STARTED</h2>
+  <div class="accent t1"></div>
+  <p>Paula's Revenge is an 8-track sample tracker for jungle, drum &amp; bass and anything else that wants the crunchy sound of the Amiga's Paula chip and the old Akai samplers. You write music as lines of notes and commands that play from top to bottom, one block at a time, in the order the song lists them.</p>
+  <h3>Install</h3>
+  <ol class="steps">
+    <li>Open <b>Releases</b> on the right of the GitHub repo page and download <code>PaulasRevenge-macOS.zip</code> from the newest one.</li>
+    <li>Follow <code>INSTALL.txt</code> inside: copy the app into Applications and clear the macOS quarantine.</li>
+    <li>Open it. Audio and MIDI devices are in the menu under <b>Audio/MIDI Settings…</b> (<kbd>Cmd</kbd><kbd>,</kbd>).</li>
+  </ol>
+  <h3>Your first sound in a minute</h3>
+  <ol class="steps">
+    <li>Press <kbd>Space</kbd>. A new song already has a few chip sounds in it, so the keys make sound straight away.</li>
+    <li>Press <kbd>Esc</kbd> to switch <span class="b on">&#9679; EDIT</span> on. The cursor line turns grey.</li>
+    <li>Type notes with the bottom two rows of the keyboard (<kbd>Z</kbd> is C, <kbd>S</kbd> is C#, <kbd>X</kbd> is D…). Each note goes in with the current instrument and the cursor moves down by <span class="b">STEP</span>.</li>
+    <li>Click <span class="b">LOAD</span> in the instrument panel to pick a break from your drive. Every sample you highlight plays straight away.</li>
+    <li>Press <kbd>Space</kbd> to hear the block. <kbd>Shift</kbd><kbd>Space</kbd> plays the whole song.</li>
+  </ol>
+  <div class="status sunken"><span class="tag">TIP</span><span>For a break: put <code>C-3</code> on line 0 and use <code>9xx</code> offsets to jump around inside it, or slice it in the sample editor and play the slices from the keys.</span></div>
+</section>
+
+<!-- ============================================================ 001 -->
+<section class="ch raised" id="screen">
+  <h2>THE SCREEN</h2>
+  <div class="accent t2"></div>
+  <figure>
+    <div class="frame sunken"><img src="img/main.png" alt="The main screen: title bar, transport, sequence, block and instrument panels on the left, the pattern with four coloured tracks on the right, the output strip and bottom row underneath." width="1440" height="900"></div>
+    <figcaption>The main screen, light skin, playing</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>AREA</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td>Title bar</td><td><span class="b">NEW</span> <span class="b">LOAD</span> <span class="b">SAVE</span> <span class="b">SAVE AS</span>, <span class="b">UNDO</span> <span class="b">REDO</span>, <span class="b">SAVE MOD</span>, <span class="b">RENDER WAV</span>, <span class="b">EXPORT SAMPLES</span>, and text size <span class="b">A-</span> <span class="b">A+</span>.</td></tr>
+      <tr><td>Transport</td><td>Play the song or the block, stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step.</td></tr>
+      <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
+      <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
+      <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
+      <tr><td>Pattern</td><td>4 or 8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
+      <tr><td>Output strip</td><td>The machine you hear (A500, A1200, CLEAN, S950, S1000), its options, an L/R meter, stereo separation and volume.</td></tr>
+      <tr><td>Bottom row</td><td>4 or 8 tracks, <span class="b">BIG VIEW</span>, <span class="b">FOLLOW</span>, <span class="b">PANELS</span>, song <span class="b">NAME</span>, <span class="b">MIXER</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to black on white, as in this manual. <span class="b">BIG VIEW</span> shows 4 tracks at a time with large text: <kbd>Tab</kbd> to track 5 and the view flips to tracks 5–8.</p>
+  <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
+</section>
+
+<!-- ============================================================ 002 -->
+<section class="ch raised" id="pattern">
+  <h2>WRITING PATTERNS</h2>
+  <div class="accent t3"></div>
+  <p>Each track has a note, an instrument number and an effect command per line: <code>C-2 01 956</code> means note C-2, instrument 01, command <code>9</code> with value <code>56</code>. A second effect column appears when you switch <span class="b">FX2</span> on.</p>
+  <h3>Notes and the cursor</h3>
+  <ul>
+    <li>With <span class="b on">&#9679; EDIT</span> on, the bottom rows of keys play and enter notes from the octave in <span class="b">OCT</span>; the <kbd>Q</kbd> row is the octave above. <kbd>1</kbd> enters a note-off (<code>OFF</code>).</li>
+    <li>In the instrument and command columns, type hex digits <kbd>0</kbd>–<kbd>9</kbd> <kbd>A</kbd>–<kbd>F</kbd>, or a letter <kbd>G</kbd>–<kbd>Z</kbd> for the extra commands.</li>
+    <li><kbd>Delete</kbd> clears the field under the cursor. <kbd>Shift</kbd><kbd>Delete</kbd> removes the line and pulls the track up; <kbd>Alt</kbd><kbd>Delete</kbd> inserts a blank line.</li>
+    <li>A MIDI keyboard plays the current instrument and enters notes when EDIT is on. MIDI 60 = <code>C-3</code>.</li>
+  </ul>
+  <h3>Highlighting with the mouse</h3>
+  <p>Drag across the pattern to highlight notes and effects; it snaps to whole fields and can cover several tracks. <kbd>Shift</kbd>-click highlights from the cursor to the click, and <kbd>Cmd</kbd><kbd>A</kbd> highlights the whole block.</p>
+  <ul>
+    <li><kbd>Cmd</kbd><kbd>C</kbd> / <kbd>Cmd</kbd><kbd>X</kbd> copy or cut the highlight; <kbd>Cmd</kbd><kbd>V</kbd> pastes at the cursor, each part into the same kind of field. Without a highlight they work on the whole track (add <kbd>Shift</kbd> for the block).</li>
+    <li><kbd>Cmd</kbd><kbd>&uarr;</kbd> / <kbd>Cmd</kbd><kbd>&darr;</kbd> transpose the track a semitone, with <kbd>Shift</kbd> an octave.</li>
+    <li>Right-click inside a highlight to <a href="#bounce">bounce it to a new sample</a>.</li>
+  </ul>
+  <h3>Looping some lines</h3>
+  <p>Drag down the line numbers to mark lines; they turn red and playback goes round them. <kbd>Cmd</kbd><kbd>[</kbd> and <kbd>Cmd</kbd><kbd>]</kbd> set the start and end at the cursor. <span class="b">LOOP</span> on the transport row turns the loop off and on again.</p>
+  <h3>Playing a block</h3>
+  <p>While a block plays, picking another block (in the sequence, the BLOCK box or the <span class="b">BLK</span> corner) carries playback over to it on the same line, without stopping, so you can try blocks against each other in time.</p>
+  <h3>Undo</h3>
+  <p>One history covers everything: notes, blocks, the sequence, instruments, samples, the mixer and song settings. <kbd>Cmd</kbd><kbd>Z</kbd> and <kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd> work on every page, and the status line says what was undone. It keeps the last 200 steps.</p>
+</section>
+
+<!-- ============================================================ 003 -->
+<section class="ch raised" id="commands">
+  <h2>EFFECT COMMANDS</h2>
+  <div class="accent t4"></div>
+  <p><b>Right-click an effect cell</b> for a list of every command with what it does. Click one, or type its letter, and it goes into the cell with a useful starting value, the cursor ready on the value. Put the cursor on any command to see it explained in the help strip under the pattern.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/command_list.png" alt="The command list open over the pattern, each command with a short description." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Right-click an effect cell: the command list</figcaption>
+  </figure>
+  <h3>Classic commands (0–F)</h3>
+  <p>The same numbering as ProTracker, so MOD files load straight in.</p>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CMD</th><th>EFFECT</th></tr></thead>
+    <tbody>
+      <tr><td><code>0xy</code></td><td>Arpeggio (+x, +y semitones). On a plug-in or MIDI-out instrument with CHORD on, a held chord instead.</td></tr>
+      <tr><td><code>1xx</code> <code>2xx</code></td><td>Slide pitch up / down</td></tr>
+      <tr><td><code>3xx</code></td><td>Slide to the note</td></tr>
+      <tr><td><code>4xy</code></td><td>Vibrato (speed x, depth y)</td></tr>
+      <tr><td><code>5xy</code> <code>6xy</code></td><td>Slide to note / vibrato, plus volume slide</td></tr>
+      <tr><td><code>7xy</code></td><td>Tremolo</td></tr>
+      <tr><td><code>8xx</code></td><td>Pan: <code>00</code> left, <code>80</code> centre, <code>FF</code> right</td></tr>
+      <tr><td><code>9xx</code></td><td>Sample offset (xx × 256)</td></tr>
+      <tr><td><code>Axy</code></td><td>Volume slide (x up, y down)</td></tr>
+      <tr><td><code>Bxx</code></td><td>Jump to song position xx</td></tr>
+      <tr><td><code>Cxx</code></td><td>Volume (<code>00</code>–<code>40</code>); velocity on plug-in and MIDI-out instruments</td></tr>
+      <tr><td><code>Dxx</code></td><td>Next block, starting at line xx</td></tr>
+      <tr><td><code>E0x</code></td><td>LED filter: <code>E00</code> on, <code>E01</code> off</td></tr>
+      <tr><td><code>E1x</code> <code>E2x</code></td><td>Fine slide up / down</td></tr>
+      <tr><td><code>E4x</code> <code>E7x</code></td><td>Vibrato / tremolo waveform</td></tr>
+      <tr><td><code>E5x</code></td><td>Finetune</td></tr>
+      <tr><td><code>E6x</code></td><td>Loop: <code>E60</code> marks the start, <code>E6x</code> repeats x times</td></tr>
+      <tr><td><code>E8x</code></td><td>Coarse pan</td></tr>
+      <tr><td><code>E9x</code></td><td>Retrigger every x ticks</td></tr>
+      <tr><td><code>EAx</code> <code>EBx</code></td><td>Fine volume up / down</td></tr>
+      <tr><td><code>ECx</code></td><td>Cut the note at tick x</td></tr>
+      <tr><td><code>EDx</code></td><td>Delay the note by x ticks</td></tr>
+      <tr><td><code>EEx</code></td><td>Delay the line by x lines</td></tr>
+      <tr><td><code>Fxx</code></td><td><code>01</code>–<code>1F</code> speed, <code>20</code>–<code>FF</code> BPM, <code>00</code> stop</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Extra commands (G–Z)</h3>
+  <p>Type the letter in an effect column, then two hex digits.</p>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CMD</th><th>EFFECT</th></tr></thead>
+    <tbody>
+      <tr><td><code>Gxx</code></td><td>Glide to the note over xx ticks</td></tr>
+      <tr><td><code>Hxx</code> <code>Lxx</code> <code>Wxx</code></td><td>High-pass / low-pass / band-pass filter, cutoff xx (<code>00</code> 20 Hz – <code>FF</code> 20 kHz). On a plug-in or MIDI-out instrument, its learned knobs instead.</td></tr>
+      <tr><td><code>Qxx</code></td><td>Filter resonance (or a learned knob)</td></tr>
+      <tr><td><code>Ixx</code></td><td>Transpose just this note: <code>80</code> none, <code>8C</code> +12, <code>74</code> −12</td></tr>
+      <tr><td><code>Kxx</code></td><td>Chance: the step plays xx/FF of the time</td></tr>
+      <tr><td><code>Mxx</code></td><td>Micro-move: <code>01</code>–<code>7F</code> late by xx/128 of a line, <code>81</code>–<code>FF</code> early</td></tr>
+      <tr><td><code>Nxx</code></td><td>Note length: release after xx ticks</td></tr>
+      <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
+      <tr><td><code>Pxx</code></td><td>Start at xx/256 of the sample</td></tr>
+      <tr><td><code>Rxy</code></td><td>Roll: retrigger every x ticks, y <code>1</code>–<code>7</code> quieter or <code>9</code>–<code>F</code> louder each time</td></tr>
+      <tr><td><code>Sxx</code></td><td>Play slice xx+1</td></tr>
+      <tr><td><code>Txx</code></td><td>Micro-tune: <code>80</code> = 0, each step 1 cent</td></tr>
+      <tr><td><code>U01</code> <code>U00</code></td><td>Play backwards / forwards</td></tr>
+      <tr><td><code>Xxy</code></td><td>Randomise: x <code>0</code> note ±y, <code>1</code> volume, <code>2</code> pan, <code>3</code> start</td></tr>
+      <tr><td><code>Zxx</code></td><td>Bit crush to xx bits</td></tr>
+      <tr><td><code>Vxx</code> <code>Jxx</code></td><td>The track's automation knobs AUTO A and AUTO B (see <a href="#auto">Automation</a>)</td></tr>
+      <tr><td><code>Yxx</code></td><td>The next knob change on this track glides over xx ticks</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ 004 -->
+<section class="ch raised" id="song">
+  <h2>BLOCKS &amp; THE SONG</h2>
+  <div class="accent t1"></div>
+  <p>A song is a list of positions, each playing a block. The same block can play at many positions; change it once and every position hears the change.</p>
+  <h3>The sequence panel</h3>
+  <ul>
+    <li><span class="b">ADD</span> puts a new position after the selected one, playing the same block; change it with BLOCK <span class="b">-</span> <span class="b">+</span>. <span class="b">NEW</span> makes a new empty block in a new position.</li>
+    <li>Drag over positions to highlight them, then <span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DUP</span> <span class="b">DEL</span>. Drag the highlight, or use <span class="b">&#9650;</span> <span class="b">&#9660;</span>, to move positions.</li>
+    <li><span class="b">CLONE IN PLACE</span> gives a position its own copy of its block, in the next free block, so you can change it without touching the other places it plays.</li>
+    <li>Click at the right of a row to start a named <b>section</b> there (INTRO, DROP…). <span class="b">LOOP SECTION</span> loops the section you're in; pick a position in another section and playback goes there when the current block ends.</li>
+  </ul>
+  <h3>The arrange page</h3>
+  <p><span class="b">ARRANGE</span> shows the song order full size, with a picture of each block's notes. It shares the highlight and clipboard with the sequence panel. <span class="b">INSERT</span> adds the BLOCK number after the cursor, <span class="b">SET</span> makes the highlighted positions play it.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/arrange.png" alt="The arrange page with song positions, their blocks drawn as little note pictures, and INTRO and DROP section names." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The arrange page, with two sections</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ 005 -->
+<section class="ch raised" id="samples">
+  <h2>INSTRUMENTS &amp; SAMPLES</h2>
+  <div class="accent t2"></div>
+  <h3>The sample browser</h3>
+  <p><span class="b">LOAD</span> opens the browser in place of the pattern. Every sample you highlight plays straight away, and the note keys or a MIDI keyboard play it at other pitches. Shortcut buttons go to Home, Music, Desktop, Downloads, Documents and Drives, and four <span class="b">FAV</span> buttons hold your own folders (click an empty one to set it; <kbd>Shift</kbd>-click changes it, <kbd>Alt</kbd>-click clears it). <kbd>Enter</kbd> or a double-click loads the sample.</p>
+  <h3>The sample editor</h3>
+  <p><span class="b">EDIT</span> (or a double-click on the little waveform) opens the editor.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/sample_editor.png" alt="The sample editor showing a break's waveform, its slice tabs, and the edit buttons." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The sample editor, with slices</figcaption>
+  </figure>
+  <ul>
+    <li>Drag to select; grab either end of a selection to move just that end. The note keys and MIDI play the sample through the full instrument sound; <span class="b">SEL KEYS</span> plays just the selection.</li>
+    <li><span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DELETE</span> <span class="b">CROP</span> <span class="b">SILENCE</span> <span class="b">REVERSE</span> <span class="b">MAX VOL</span> <span class="b">VOL -</span> <span class="b">VOL +</span> <span class="b">FADE IN</span> <span class="b">FADE OUT</span> <span class="b">TO MONO</span>, and <span class="b">DRAW</span> to draw the wave.</li>
+    <li><b>Loop:</b> drag the <span class="b">S</span> and <span class="b">E</span> handles at the top of the wave; you hear the loop while you drag. <span class="b">PING-PONG</span> plays it forwards then backwards.</li>
+  </ul>
+  <h3>Rates</h3>
+  <p>Each instrument has a RATE: the speed it plays at on <code>C-3</code>. Samples load at their own rate, so they sound as recorded. <span class="b">RATE</span> changes it without touching the data (lower rate, lower and slower); <span class="b">RESAMPLE</span> converts the data to a new rate and keeps the pitch, with <span class="b">RAW</span> for the rough, unfiltered old-sampler way.</p>
+  <h3>Slicing</h3>
+  <p><span class="b">SLICE</span> opens the slicer. <span class="b">AUTO</span> finds the hits (<span class="b">SENS</span> sets how quiet), <span class="b">EVEN</span> cuts equal slices. Drag a tab to move a slice point, double-click the wave to add one, <kbd>Alt</kbd>-click a tab to remove it. With <span class="b">SLICE TO KEYS</span> on, <code>C-3</code> plays slice 1, <code>C#3</code> slice 2 and so on; without it, <code>Sxx</code> picks the slice.</p>
+  <h3>Time stretch</h3>
+  <p><span class="b">STRETCH</span> opens the old-sampler stretch: <b>CLASSIC</b> (the Akai sound, matched to recordings of the real thing), <b>REVISED</b> (cleaner joins), <b>HARD</b> (no blending) and <b>AKAIZER</b> (Akaizer v1.2's granular method, rebuilt). Set TIME %, SEMI and CENTS and the CYCLE length; <span class="b">FIT TO LINES</span> makes the selection last a number of lines at the song's tempo. <span class="b">PREVIEW</span>, then <span class="b">APPLY</span>.</p>
+  <h3>Instrument VOL and switching off</h3>
+  <p>VOL is a level for the whole instrument on top of each note's <code>Cxx</code>. Any instrument can be switched off with its <span class="b">ON</span> button (on its PARAMS page): its notes are silent and the list shows it dimmed with <code>OFF</code>.</p>
+</section>
+
+<!-- ============================================================ 006 -->
+<section class="ch raised" id="params">
+  <h2>SOUND SHAPING</h2>
+  <div class="accent t3"></div>
+  <p><span class="b">PARAMS</span> opens the current instrument's page. Everything starts off or neutral, so MODs and older songs sound exactly as they did.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/params.png" alt="The PARAMS page with volume envelope, filter, filter envelope and pan panels, and the ON, TRACK and LEARN buttons along the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>PARAMS: envelope, filter, pan, and the ON button</figcaption>
+  </figure>
+  <ul>
+    <li><b>Volume envelope:</b> <span class="b">VOL ENVELOPE</span> on, then ATK, DEC, SUS, REL (1 ms – 10 s). With it on, a note-off starts the release instead of cutting the note.</li>
+    <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL.</li>
+    <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
+    <li><span class="b">&#9654; HOLD TO PLAY</span> or the keys to hear it; <span class="b">RESET ALL</span> puts everything back; double-click any slider for its default.</li>
+    <li><span class="b">ON</span> switches the instrument off and on. To switch it from the pattern, pick a track, press <span class="b">LEARN A (V)</span> or <span class="b">LEARN B (J)</span>, then click ON: that track's <code>V00</code> switches it off and <code>V01</code>–<code>VFF</code> on.</li>
+    <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 007 -->
+<section class="ch raised" id="sound">
+  <h2>PAULA &amp; THE AKAIS</h2>
+  <div class="accent t4"></div>
+  <p>The output strip picks the machine you hear. None of these change your samples; switch between them any time.</p>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">A500</span></td><td>The original A500's 4.4 kHz output filter: warm and dull</td></tr>
+      <tr><td><span class="b">A1200</span></td><td>An open output filter: brighter, more aliasing sparkle</td></tr>
+      <tr><td><span class="b">CLEAN</span></td><td>No output filtering</td></tr>
+      <tr><td><span class="b">S950</span></td><td>Akai S950: 12-bit, stepped variable-rate playback, its 6-pole filter</td></tr>
+      <tr><td><span class="b">S1000</span></td><td>Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output</td></tr>
+      <tr><td><span class="b">STEPPED</span></td><td>Sample-and-hold playback like the real chip (off = smooth)</td></tr>
+      <tr><td><span class="b">8-BIT</span></td><td>Samples play at 8-bit resolution</td></tr>
+      <tr><td><span class="b">CRUNCH</span></td><td>In 8-track songs, track pairs are mixed and squashed back to 8 bits, as 8-channel Amiga trackers did</td></tr>
+      <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
+      <tr><td>SEP</td><td>How far tracks lean to the Amiga sides (1 and 4 left, 2 and 3 right). 20% to start; 0% = all centred</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Panning, in order</h3>
+  <ol class="steps">
+    <li><code>8xx</code> in the pattern (an absolute position, not scaled by SEP).</li>
+    <li>The track's pan, the bar under its name (AUTO = none).</li>
+    <li>The instrument's PAN, when its AMIGA L/R is off.</li>
+    <li>Otherwise Amiga style, by SEP. Stereo samples play centred with their own stereo image.</li>
+  </ol>
+</section>
+
+<!-- ============================================================ 008 -->
+<section class="ch raised" id="mixer">
+  <h2>THE MIXER</h2>
+  <div class="accent t1"></div>
+  <p><span class="b">MIXER</span> on the bottom row (<kbd>Cmd</kbd><kbd>2</kbd>) opens the mixer across the window; <kbd>Esc</kbd> or <kbd>Cmd</kbd><kbd>1</kbd> goes back. The keys still play the current instrument while it's open.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/mixer.png" alt="The mixer: four track strips, SEND A with a reverb and SEND B with a delay, and the master, each with a fader and meter." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The strips: tracks, SEND A, SEND B, master</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>STRIP PART</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td>Name / EQ</td><td>Opens the track's channel page. EQ is lit when a band is on; <code>EQ AB</code> when automation knobs are set.</td></tr>
+      <tr><td>3 insert slots</td><td>Click for the effect page; <kbd>Shift</kbd>-click bypasses (a bypassed slot is dimmed).</td></tr>
+      <tr><td>A, B</td><td>How much goes to SEND A / B. <code>AP</code> / <code>BP</code> = pre-fader. Double-click = off.</td></tr>
+      <tr><td>PAN</td><td>The track's pan. Double-click = AUTO.</td></tr>
+      <tr><td>Fader</td><td>−INF to +6 dB with the meter beside it. <kbd>Shift</kbd> = fine, double-click = 0 dB.</td></tr>
+      <tr><td>M / S</td><td>Mute and solo.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="flow"><span class="stage">EQ</span>&rarr;<span class="stage">INSERTS</span>&rarr;<span class="stage">PRE SENDS</span>&rarr;<span class="stage">FADER</span>&rarr;<span class="stage">POST SENDS</span>&rarr;<span class="stage">MASTER</span>&rarr;<span class="stage">PAULA / AKAI OUTPUT</span></div>
+  <div class="two">
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/channel.png" alt="A track's channel page: an EQ response curve, five EQ bands, the inserts, sends and fader." width="1440" height="900" loading="lazy"></div>
+        <figcaption>Channel page: EQ, inserts, sends</figcaption>
+      </figure>
+    </div>
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/effect.png" alt="The effect page for SEND B's delay, with its settings as sliders." width="1440" height="900" loading="lazy"></div>
+        <figcaption>Effect page: SEND B's delay</figcaption>
+      </figure>
+    </div>
+  </div>
+  <ul>
+    <li><b>Channel page:</b> five EQ bands (HIGH-PASS, LOW SHELF, MID 1, MID 2, HIGH SHELF) with a response curve; click a band's name to switch it on. <span class="b">&lt;</span> <span class="b">&gt;</span> step through the tracks.</li>
+    <li><b>Effect page:</b> FILTER, DRIVE, COMP, DELAY (in ms or synced to the song), REVERB, CHORUS, or <span class="b">PLUG-IN...</span>. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>.</li>
+    <li><b>Returns:</b> SEND A starts with a reverb and SEND B with a delay, fully wet, silent until a track sends to them.</li>
+    <li><b>Delay compensation:</b> plug-ins that give their sound back late (lookahead limiters, linear-phase EQs) are lined up, so every track stays in time, sends included. The strips page title shows the total delay.</li>
+  </ul>
+  <p>A mixer with nothing changed is skipped, so the song sounds exactly as it would without one. Everything in it is saved in the song, undoable and in renders.</p>
+</section>
+
+<!-- ============================================================ 009 -->
+<section class="ch raised" id="plugins">
+  <h2>PLUG-INS</h2>
+  <div class="accent t2"></div>
+  <h3>Effects in the mixer</h3>
+  <p>On any insert slot's effect page press <span class="b">PLUG-IN...</span>. The first time, it looks for the plug-ins on your Mac, each one in a separate hidden copy of the app, so one that crashes can't take Paula's Revenge down. Double-click one to load it; <span class="b">OPEN PLUG-IN WINDOW</span> shows its own controls. Its settings are saved in the song. If a song uses a plug-in this Mac doesn't have, the slot shows <code>!NAME</code>, passes the audio through and keeps the settings.</p>
+  <h3>Instruments</h3>
+  <p>Pick an instrument, press <span class="b">PARAMS</span>, then <span class="b">PLUG-IN / MIDI OUT...</span> and <span class="b">A VST3 / AU INSTRUMENT</span>.</p>
+  <div class="two">
+    <div><figure><div class="frame sunken"><img src="img/source_choice.png" alt="The choice box: A VST3 / AU INSTRUMENT, MIDI OUT TO HARDWARE, CANCEL." width="1440" height="900" loading="lazy"></div><figcaption>Plug-in or MIDI out?</figcaption></figure></div>
+    <div><figure><div class="frame sunken"><img src="img/synth.png" alt="A plug-in instrument's page with OUTPUT, BEND, CHORD and ON, four learnable knobs and the track's automation knobs." width="1440" height="900" loading="lazy"></div><figcaption>A plug-in instrument's page</figcaption></figure></div>
+  </div>
+  <ul>
+    <li><span class="b">EDIT</span> opens the plug-in's own window. The laptop keys keep playing it while that window is in front.</li>
+    <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the first track that plays it. <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
+    <li>Notes play one at a time per track. <code>Cxx</code> is velocity, pitch commands become pitch bend, <code>Oxx</code> is the mod wheel, and <code>ECx</code> <code>EDx</code> <code>Nxx</code> <code>Kxx</code> <code>Mxx</code> <code>E9x</code> <code>Rxy</code> work. Sample-only commands are ignored.</li>
+    <li><span class="b">CHORD</span>: <code>0xy</code> on a note's line plays a held chord, x and y semitones above the note (<code>037</code> minor, <code>047</code> major).</li>
+    <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 010 -->
+<section class="ch raised" id="auto">
+  <h2>AUTOMATION</h2>
+  <div class="accent t3"></div>
+  <p>Every track has two automation knobs, <b>AUTO A</b> (<code>Vxx</code>) and <b>AUTO B</b> (<code>Jxx</code>). Point one at any effect control and the pattern moves it.</p>
+  <ol class="steps">
+    <li>Open an insert's effect page in the mixer. Pick the track in the <span class="b">TRACK</span> box.</li>
+    <li>Press <span class="b on">LEARN AUTO A (V)</span>, then move the control: drag a built-in effect's slider, or turn a knob in the plug-in's window.</li>
+    <li>In the pattern, <code>V00</code> is the control's lowest and <code>VFF</code> its highest. The value holds until the next one.</li>
+    <li>Put <code>Yxx</code> before or beside the <code>V</code> to glide there over xx ticks instead of jumping.</li>
+  </ol>
+  <ul>
+    <li><b>On and off:</b> press LEARN, then click the effect's <span class="b">BYPASS</span> (or an instrument's <span class="b">ON</span>) instead. <code>V00</code> then switches it off and <code>V01</code>–<code>VFF</code> on.</li>
+    <li>The channel page lists what each knob controls under AUTOMATION KNOBS, with CLEAR buttons. The help strip and the command list name it too.</li>
+  </ul>
+  <h3>Recording by hand: REC AUTO</h3>
+  <p>Switch on <span class="b on">REC AUTO</span> on the bottom row, turn EDIT on and play. Moving a learned control writes its command on the line that's playing: <code>V</code> or <code>J</code>, or <code>L</code> <code>Q</code> <code>H</code> <code>W</code> for an instrument's own knobs on the track playing it.</p>
+  <ul>
+    <li>It goes in the first effect column if that's free, otherwise in FX2. It never overwrites other commands; that line is skipped and the status line says so.</li>
+    <li>One value per line per knob, and only when it changes. What the pattern plays back isn't recorded again.</li>
+    <li>A whole pass, until you stop, is one undo step.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 011 -->
+<section class="ch raised" id="midi">
+  <h2>MIDI OUT</h2>
+  <div class="accent t4"></div>
+  <p>An instrument can play your hardware (an MPC, a microKORG, an NTS-1) over MIDI. Press <span class="b">PARAMS</span>, <span class="b">PLUG-IN / MIDI OUT...</span>, <span class="b">MIDI OUT TO HARDWARE</span>, then double-click a MIDI output.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/midi.png" alt="A MIDI-out instrument's page: device, CHANNEL, BEND, CHORD, ON, DELAY, SEND MIDI CLOCK, four CC knobs with SEND bars and LEARN CC, and the track's automation knobs." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A MIDI-out instrument's page</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">CHANNEL</span></td><td>MIDI channel 1–16</td></tr>
+      <tr><td><span class="b">BEND</span></td><td>The hardware's pitch bend range, so pitch commands land in tune</td></tr>
+      <tr><td><span class="b">CHORD</span> <span class="b">ON</span></td><td>As for plug-in instruments</td></tr>
+      <tr><td><span class="b">DELAY</span></td><td>−50 to +200 ms to line the hardware up with the audio. Positive: the MIDI goes later. Negative: all the audio goes later instead.</td></tr>
+      <tr><td><span class="b">SEND MIDI CLOCK</span></td><td>24-a-beat clock with start, stop, continue and song position (4 lines = a beat), so the hardware follows the song</td></tr>
+      <tr><td>KNOB L Q H W</td><td>The CC each sends (74, 71, 73, 10 to start). <span class="b">LEARN CC</span> takes the number from the next knob you turn on a controller; the <span class="b">SEND</span> bar sends it now (and REC AUTO records it).</td></tr>
+      <tr><td><span class="b">PANIC</span></td><td>All notes off on every MIDI output. <span class="b">STOP</span> pressed while already stopped does the same.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Notes, velocity, pitch bend, the mod wheel and the timing commands work as for plug-in instruments. If the device isn't connected, the instrument shows <code>!NAME</code>, sends nothing and keeps its settings; <span class="b">CHANGE DEVICE...</span> and the same device again reconnects it. MIDI-out instruments aren't in renders or bounces (they're hardware).</p>
+</section>
+
+<!-- ============================================================ 012 -->
+<section class="ch raised" id="bounce">
+  <h2>BOUNCING</h2>
+  <div class="accent t1"></div>
+  <p>Turn any part of the pattern into a new sample. Highlight some notes (they can cover several tracks), then right-click inside the highlight, or press <kbd>Cmd</kbd><kbd>B</kbd>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/bounce_menu.png" alt="Two highlighted tracks in the pattern with the choice box: BOUNCE DRY (NO FX), BOUNCE WITH FX, EFFECT COMMANDS..., CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Right-click inside a highlight</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CHOICE</th><th>WHAT'S IN THE SAMPLE</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">BOUNCE DRY (NO FX)</span></td><td>The instruments' own sound, before the tracks' mixer strips. Use it when the sample will play through a strip with the same effects.</td></tr>
+      <tr><td><span class="b">BOUNCE WITH FX</span></td><td>After the tracks' strips (EQ, inserts, fader) plus what they send to SEND A / B, so reverb and delay tails are in it. Not the master or the Paula / Akai output stage.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>Only the highlighted lines of the highlighted tracks play, from the first line, at the tempo and speed set there. Plug-in instruments are included.</li>
+    <li>It records on after the last line until the sound has died away (up to 10 seconds), so tails aren't cut.</li>
+    <li>The sample goes into the first empty instrument slot, named like <code>BOUNCE T1-2 000-015</code>, at 44.1 kHz. <code>C-3</code> plays it exactly as recorded.</li>
+    <li>Nothing else changes: your pattern and the instruments that played it stay as they are. Undo removes the new instrument.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 013 -->
+<section class="ch raised" id="render">
+  <h2>RENDERING</h2>
+  <div class="accent t2"></div>
+  <p><span class="b">RENDER WAV</span> asks what to render:</p>
+  <figure>
+    <div class="frame sunken"><img src="img/render_choice.png" alt="The RENDER WAV choice box: SONG (ONE WAV FILE), STEMS (A WAV PER TRACK), CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>SONG or STEMS</figcaption>
+  </figure>
+  <ul>
+    <li><b>SONG:</b> the song once through as a 24-bit stereo WAV, mixer and all.</li>
+    <li><b>STEMS:</b> a folder next to the name you pick, <code>&lt;name&gt; STEMS</code>, with one 24-bit WAV per used track (after its strip), SEND A, SEND B and the master: <code>01 TRACK 1.wav</code> … <code>11 MASTER.wav</code>. They start together and are the same length, so they drop straight into Ableton.</li>
+    <li>After the song ends it keeps going until everything is quiet for a second (up to 20 seconds), so tails aren't cut. Plug-in delay is taken off the start.</li>
+    <li>MIDI-out instruments can't be rendered; the status line says which were left out.</li>
+  </ul>
+  <p><span class="b">EXPORT SAMPLES</span> writes every instrument's sample to a folder as <code>01 NAME.wav</code>, <code>02 NAME.wav</code>… <span class="b">SAVE MOD</span> writes a ProTracker MOD (4 tracks <code>M.K.</code>, 8 tracks <code>8CHN</code>) and says what a MOD can't hold.</p>
+</section>
+
+<!-- ============================================================ 014 -->
+<section class="ch raised" id="files">
+  <h2>SAVING &amp; FILES</h2>
+  <div class="accent t3"></div>
+  <ul>
+    <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. <span class="b">SAVE*</span> with a star means unsaved changes.</li>
+    <li>A <code>.prv</code> song holds everything: every sample (stereo too), the mixer, plug-in settings, automation, MIDI-out settings. You can move or delete the original WAVs.</li>
+    <li><span class="b">LOAD</span> also opens ProTracker-style <code>.mod</code> files (4, 6 and 8 channels) and MED / OctaMED <code>MMD0</code> / <code>MMD1</code> modules.</li>
+    <li>Songs saved by older versions always load.</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 015 -->
+<section class="ch raised" id="keys">
+  <h2>KEYS</h2>
+  <div class="accent t4"></div>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>KEY</th><th>ACTION</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>Z</kbd> <kbd>S</kbd> <kbd>X</kbd> <kbd>D</kbd> <kbd>C</kbd>…</td><td>Notes, lower octave (<kbd>,</kbd> <kbd>L</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>/</kbd> carry on up)</td></tr>
+      <tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd>…</td><td>Notes, upper octave</td></tr>
+      <tr><td><kbd>1</kbd></td><td>Note off</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Play / stop the block · with <kbd>Shift</kbd>, the song</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Edit mode on / off</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Play block · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
+      <tr><td>Arrows</td><td>Move · <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> 4 lines · <kbd>Shift</kbd> <kbd>&larr;</kbd><kbd>&rarr;</kbd> track</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up</td></tr>
+      <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Previous / next instrument</td></tr>
+      <tr><td><kbd>Delete</kbd></td><td>Clear the highlight or the field · <kbd>Shift</kbd> removes the line · <kbd>Alt</kbd> inserts one</td></tr>
+      <tr><td><kbd>Cmd</kbd> <kbd>C</kbd> <kbd>X</kbd> <kbd>V</kbd></td><td>Copy / cut / paste the highlight, or the track (<kbd>Shift</kbd>: the block)</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>A</kbd></td><td>Highlight the whole block</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>B</kbd></td><td>Bounce the highlight to a new instrument</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Transpose the track a semitone (<kbd>Shift</kbd>: an octave)</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>Z</kbd></td><td>Undo · with <kbd>Shift</kbd>, redo</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>[</kbd> <kbd>]</kbd></td><td>Loop start / end at the cursor</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>S</kbd></td><td>Save · with <kbd>Shift</kbd>, save as</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>2</kbd> / <kbd>1</kbd></td><td>Mixer / pattern</td></tr>
+      <tr><td><kbd>Alt</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd></td><td>Move the selected song positions</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.12</footer>
+</main>
+</div>
+</body></html>
