@@ -140,7 +140,7 @@ class WaveView : public juce::Component
 {
 public:
     explicit WaveView (PaulaProcessor& p) : proc (p) {}
-    std::function<void()> changed, openEditor;
+    std::function<void()> changed, openEditor, openSample;   // openSample: a click on an empty slot (SAMPLE)
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
@@ -159,7 +159,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void loadSample();
-    std::function<void()> openBrowser, openSampleEditor, openParams;
+    std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
 
 private:
     PaulaProcessor& proc;

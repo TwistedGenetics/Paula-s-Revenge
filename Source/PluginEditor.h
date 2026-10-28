@@ -15,6 +15,7 @@
 #include "ui/ChoiceBox.h"
 #include "ui/HelpPage.h"
 #include "ui/ChordsPage.h"
+#include "ui/SamplePage.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 
@@ -40,6 +41,7 @@ public:
     prv::ui::ChoiceBox& getChoice() { return choice; }
     prv::ui::HelpPage& getHelp() { return help; }
     prv::ui::ChordsPage& getChords() { return chords; }
+    prv::ui::SamplePage& getSamplePage() { return samplePage; }
     void openChords (int slot = -1);                  // CHORDS (Cmd+3; EDIT CHORDS... in the chord list)
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
@@ -48,6 +50,9 @@ public:
     void askBounce();                                 // DRY or WITH FX?
     int  captureNow();                                // CAPTURE (Cmd+R): what was played into the pattern; notes written
     void showMeterColourMenu (bool forSpectrum);      // right-click a level meter / the spectrum: its colour
+    std::function<void()> openAudioSettings;          // the app's Audio/MIDI Settings (the standalone sets it)
+    void openSample();                                // SAMPLE (Cmd+4): record audio into the instrument
+    void toggleSample();                              // Cmd+4: open it, or close it
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
@@ -120,6 +125,8 @@ private:
     prv::ui::ChoiceBox choice;
     prv::ui::HelpPage help;
     prv::ui::ChordsPage chords;
+    prv::ui::SamplePage samplePage;
+    PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View chordsReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View helpReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::ArrangePage arrange;

@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.19</span>
+  <span class="ver">MANUAL &middot; V0.20</span>
 </header>
 
 <div class="app">
@@ -203,7 +203,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>A note in the pattern</td><td>Copy / cut / paste the track, clear the line, insert or delete a line, effect commands, VU meter colour, spectrum colour</td></tr>
       <tr><td>An effect cell</td><td>The command list; on a <code>#xy</code>, the chord list</td></tr>
       <tr><td>A highlight in the pattern</td><td>Bounce it to a new sample</td></tr>
-      <tr><td>An instrument</td><td>Copy, paste, duplicate to the next free slot, clear, rename, load a sample, play <code>C-3</code></td></tr>
+      <tr><td>An instrument</td><td>Copy, paste, duplicate to the next free slot, clear, rename, load a sample, sample (record audio), play <code>C-3</code></td></tr>
       <tr><td>A song position (sequence or ARRANGE)</td><td>Copy, cut, paste, repeat, delete, insert the block again, section label</td></tr>
       <tr><td>The block panel</td><td>Copy / cut / paste / clear the block, duplicate, new, delete, double, halve</td></tr>
       <tr><td>The sample's waveform</td><td>The sample editor's edits on the highlight</td></tr>
@@ -370,6 +370,29 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p><span class="b">SLICE</span> opens the slicer. <span class="b">AUTO</span> finds the hits (<span class="b">SENS</span> sets how quiet), <span class="b">EVEN</span> cuts equal slices. Drag a tab to move a slice point, double-click the wave to add one, <kbd>Alt</kbd>-click a tab to remove it. With <span class="b">SLICE TO KEYS</span> on, <code>C-3</code> plays slice 1, <code>C#3</code> slice 2 and so on; without it, <code>Sxx</code> picks the slice.</p>
   <h3>Time stretch</h3>
   <p><span class="b">STRETCH</span> opens the old-sampler stretch: <b>CLASSIC</b> (the Akai sound, matched to recordings of the real thing), <b>REVISED</b> (cleaner joins), <b>HARD</b> (no blending) and <b>AKAIZER</b> (Akaizer v1.2's granular method, rebuilt). Set TIME %, SEMI and CENTS and the CYCLE length; <span class="b">FIT TO LINES</span> makes the selection last a number of lines at the song's tempo. <span class="b">PREVIEW</span>, then <span class="b">APPLY</span>.</p>
+  <h3>Sampling: recording audio</h3>
+  <p>Record straight into the selected instrument, from an audio interface, the mic or line-in, or from the app's own output. Open the <span class="b">SAMPLE</span> page with <kbd>Cmd</kbd><kbd>4</kbd>, <b>Sample Audio…</b> in the View menu, right-click an instrument &rarr; <b>SAMPLE (RECORD AUDIO)…</b>, or click an empty instrument's <b>NO SAMPLE - CLICK TO RECORD</b>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/sample.png" alt="The SAMPLE page: SOURCE INPUT / RESAMPLE / MONITOR, CHANNELS, TRIGGER, INPUT GAIN and THRESHOLD, a big L/R meter with CLIP lights, RECORD and STOP with the clock TAKE 0:00.8, the take's waveform, KEEP, AGAIN, TRIM SILENCE, NORMALISE and the AMIGA RATE buttons." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The SAMPLE page with a take waiting: KEEP puts it in the instrument</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">INPUT</span> <span class="b">RESAMPLE</span></td><td>Record the audio input (chosen in <b>AUDIO/MIDI SETTINGS…</b>, bottom right), or everything the app plays: play the song or a block, or jam, and record what comes out</td></tr>
+      <tr><td><span class="b">MONITOR</span></td><td>Hear the input through the app. Off to start with: with a mic, use headphones or it feeds back</td></tr>
+      <tr><td><span class="b">STEREO</span> <span class="b">MONO</span> <span class="b">LEFT</span> <span class="b">RIGHT</span></td><td>What goes into the instrument (MONO mixes left and right)</td></tr>
+      <tr><td><span class="b">MANUAL</span></td><td>Records from the moment you press RECORD</td></tr>
+      <tr><td><span class="b">THRESHOLD</span></td><td>RECORD arms it; it starts when the sound goes over the THRESHOLD level (the red line on the meter), keeping the 20&nbsp;ms before so the attack isn't cut</td></tr>
+      <tr><td><span class="b">WITH PLAYBACK</span></td><td>RECORD arms it; it records from when the song or block starts to when it stops: one block, exactly</td></tr>
+      <tr><td><span class="b">INPUT GAIN</span></td><td>&minus;24 to +24&nbsp;dB. The meter shows the level, a peak hold and a CLIP light</td></tr>
+      <tr><td><span class="b">RECORD</span> <span class="b">STOP</span></td><td>Start (or arm) and end it (<kbd>R</kbd>). Up to 5 minutes. It carries on if you go to another page</td></tr>
+      <tr><td><span class="b">KEEP</span> <span class="b">AGAIN</span></td><td>The take into the instrument, one undo step (<kbd>Enter</kbd>), or thrown away and recorded again (<kbd>Backspace</kbd>)</td></tr>
+      <tr><td><span class="b">TRIM SILENCE</span> <span class="b">NORMALISE</span></td><td>Cut quiet at both ends; bring the loudest point to full level. Both on to start with</td></tr>
+      <tr><td><span class="b">AMIGA RATE</span></td><td>NONE keeps the recording's rate; 8363, 16726, 22050 or 28867&nbsp;Hz resamples it as you keep it, for the crunchy sound, at the same pitch</td></tr>
+    </tbody>
+  </table></div>
+  <p>The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or the input is silent (System Settings &rarr; Privacy &amp; Security &rarr; Microphone changes it later). After KEEP it's a sample like any other: EDIT to slice or loop it, and it's saved in the song.</p>
   <h3>Instrument VOL and switching off</h3>
   <p>VOL is a level for the whole instrument on top of each note's <code>Cxx</code>. Any instrument can be switched off with its <span class="b">ON</span> button (on its PARAMS page): its notes are silent and the list shows it dimmed with <code>OFF</code>.</p>
 </section>
@@ -710,6 +733,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>S</kbd></td><td>Save · with <kbd>Shift</kbd>, save as</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>2</kbd> / <kbd>1</kbd></td><td>Mixer / pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>3</kbd></td><td>CHORDS: the chord table</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
       <tr><td><kbd>Alt</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd></td><td>Move the selected song positions</td></tr>
@@ -717,7 +741,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.19</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.20</footer>
 </main>
 </div>
 </body></html>

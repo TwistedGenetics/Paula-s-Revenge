@@ -48,7 +48,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR, RENAME, LOAD SAMPLE, PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR, RENAME, LOAD SAMPLE, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -220,6 +220,20 @@ Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FI
 
 **Favourite folders**: the row under DOWNLOADS / DOCUMENTS / DRIVES / FINDER… has four buttons for your own folders. Click an empty one (SET FAV 1–4) to pick a folder; after that it shows the folder's name and one click goes there. `Shift`-click changes it, `Alt`-click clears it. They're remembered on this computer, whatever song is loaded. If a favourite's drive isn't plugged in, the status line says so.
 
+## Sampling (recording audio)
+
+Record audio straight into the selected instrument: from an audio interface, the mic or line-in, or from the app's own output (**RESAMPLE**).
+
+* **Open it:** `Cmd+4` (`Ctrl+4` on a PC), **Sample Audio...** in the View menu, right-click an instrument → **SAMPLE (RECORD AUDIO)...**, or click an empty instrument's **NO SAMPLE - CLICK TO RECORD**. `Cmd+4` again (or Esc, or CLOSE) goes back.
+* **SOURCE:** **INPUT** records the audio input chosen in Audio/MIDI Settings (the button at the bottom right of the page opens them); **RESAMPLE** records everything the app plays — play the song or a block, or jam, and record what comes out, the classic way to build breaks and stabs. **MONITOR** lets you hear the input through the app (off to start with: with a mic, use headphones or it feeds back). The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or there's only silence (System Settings → Privacy & Security → Microphone changes it later). On a PC, if it only records silence, allow desktop apps to use the microphone in Windows Settings → Privacy & security → Microphone.
+* **CHANNELS:** STEREO, MONO (left and right mixed), LEFT or RIGHT — what goes into the instrument when you keep the take.
+* **TRIGGER:** **MANUAL** records from the moment you press RECORD. **THRESHOLD**: RECORD arms it, and it starts when the sound goes over the THRESHOLD level (the red line on the meter), keeping the 20 ms before so the attack isn't cut. **WITH PLAYBACK**: RECORD arms it, and it records from when the song or block starts to when it stops — perfect for resampling exactly one block.
+* **INPUT GAIN** (−24 to +24 dB) sets the level; the big L / R meter shows it, with a peak hold and a **CLIP** light. The clock shows how long you've recorded, up to 5 minutes.
+* **RECORD** (or `R`) starts / arms it; **STOP** (or RECORD again) ends it. Armed and stopped before anything came in: nothing is recorded. You can go to another page while it records; the take waits on the SAMPLE page.
+* **The take** shows as a waveform. **KEEP** (`Enter`) puts it in the instrument (one undo step) as `SAMPLE 05` and so on; **AGAIN** (`Backspace`) throws it away and records again. **TRIM SILENCE** cuts quiet at both ends and **NORMALISE** makes the loudest point full level; both are on to start with.
+* **AMIGA RATE:** NONE keeps the recording's own rate (44.1 / 48 kHz…). 8363, 16726, 22050 or 28867 Hz resamples the take when you keep it, for that crunchy lo-fi sound; it still plays at the pitch you recorded.
+* Then it's like any other sample: EDIT for the sample editor (slice, loop, rate), and it's saved inside the song. Your settings on the page are remembered.
+
 ## Sample rates
 
 Each instrument has a **RATE**: the speed (Hz) it plays at on C-3. Samples load at their own rate (a 44.1 kHz WAV plays at 44100 on C-3, so it sounds as recorded). Rates are set in the sample editor:
@@ -307,6 +321,7 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Cmd+S` / `Cmd+Shift+S` | Save / save as |
 | `Cmd+2` / `Cmd+1` | Mixer / pattern |
 | `Cmd+3` | CHORDS: the chord table (again to go back) |
+| `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `F1` / `Cmd+/` | HELP: this manual, inside the app |

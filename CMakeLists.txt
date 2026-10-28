@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.19.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.20.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,6 +38,7 @@ add_library(prv_engine STATIC
     Source/engine/Blep.cpp
     Source/engine/Capture.cpp
     Source/engine/ChordDetect.cpp
+    Source/engine/Recorder.cpp
     Source/engine/ChordDatabase.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -60,7 +61,8 @@ juce_add_plugin(PaulasRevenge
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Instrument Synth Sampler
     AU_MAIN_TYPE kAudioUnitType_MusicDevice
-    MICROPHONE_PERMISSION_ENABLED FALSE
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT "Paula's Revenge records audio into instruments on its SAMPLE page."
     ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_1024.png"
     ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon_32.png")
 
@@ -88,6 +90,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/HelpPage.cpp
     Source/ui/ChordsPage.cpp
     Source/ui/ChordPicker.cpp
+    Source/ui/SamplePage.cpp
     Source/OutputFollower.cpp
     Source/PluginHost.cpp
     Source/MidiOutHost.cpp

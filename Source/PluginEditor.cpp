@@ -17,7 +17,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), samplePage (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -48,6 +48,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         return true;
     };
     addChildComponent (chords);
+    // SAMPLE: record audio into the instrument
+    samplePage.onClose = [this] { setView (sampleReturn == View::Sample || sampleReturn == View::Help ? View::Pattern : sampleReturn); };
+    samplePage.onChanged = [this] { refreshAll(); };
+    samplePage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    samplePage.onAudioSettings = [this] { if (openAudioSettings) openAudioSettings(); else setStatus ("AUDIO/MIDI SETTINGS: IN THE APP MENU"); };
+    samplePage.onEdit = [this] { setView (View::SampleEdit); };
+    addChildComponent (samplePage);
+    instruments.openSample = [this] { openSample(); };
     pattern.onEditChords = [this] (int slot) { openChords (slot); };
     for (auto& a : recSeenTrack) for (auto& v : a) v = -1.0f;
     for (auto& a : recSeenInst) for (auto& v : a) v = -1.0f;
@@ -208,6 +216,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::Mixer:      mixer.grabKeyboardFocus(); break;
             case View::Help:       help.grabKeyboardFocus(); break;
             case View::Chords:     chords.grabKeyboardFocus(); break;
+            case View::Sample:     samplePage.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
         }
     };
@@ -360,6 +369,7 @@ void PaulaEditor::setView (View v)
     mixer.setVisible (v == View::Mixer);
     help.setVisible (v == View::Help);
     chords.setVisible (v == View::Chords);
+    samplePage.setVisible (v == View::Sample);
     helpBtn.setToggleState (v == View::Help, juce::dontSendNotification);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
@@ -371,6 +381,7 @@ void PaulaEditor::setView (View v)
     else if (v == View::Mixer) mixer.opened();
     else if (v == View::Help) help.opened();
     else if (v == View::Chords) chords.opened();
+    else if (v == View::Sample) samplePage.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -466,6 +477,8 @@ void PaulaEditor::timerCallback()
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
     if (synthPage.isVisible()) synthPage.tick();
+    // SAMPLE: its meter, and a take finishing even while another page is showing
+    if (samplePage.isVisible() || proc.recorder.state() != prv::TakeRecorder::State::Idle) samplePage.tick();
     if (midiPage.isVisible()) midiPage.tick();
     // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
     {
@@ -685,6 +698,7 @@ void PaulaEditor::resized()
     synthPage.setBounds (main);
     midiPage.setBounds (main);
     arrange.setBounds (main);
+    samplePage.setBounds (main);
 }
 
 void PaulaEditor::openChords (int slot)
@@ -693,6 +707,19 @@ void PaulaEditor::openChords (int slot)
     if (st.view != View::Chords) chordsReturn = st.view == View::Browser ? View::Pattern : st.view;
     setView (View::Chords);
     if (slot > 0) chords.opened (slot);
+}
+
+void PaulaEditor::toggleSample()
+{
+    if (proc.editorState.view == View::Sample) samplePage.onClose();
+    else openSample();
+}
+
+void PaulaEditor::openSample()
+{
+    auto& st = proc.editorState;
+    if (st.view != View::Sample) sampleReturn = st.view == View::Browser ? View::Pattern : st.view;
+    setView (View::Sample);
 }
 
 int PaulaEditor::captureNow()
@@ -811,6 +838,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
             return true;
         }
         if (ch == '3') { if (proc.editorState.view == View::Chords) chords.onClose(); else openChords(); return true; }
+        if (ch == '4') { toggleSample(); return true; }
         if (ch == 'r' && ! m.isShiftDown()) { captureNow(); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
@@ -825,6 +853,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Mixer:      return mixer.keyPressed (k);
         case View::Help:       return help.keyPressed (k);
         case View::Chords:     return chords.keyPressed (k);
+        case View::Sample:     return samplePage.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }

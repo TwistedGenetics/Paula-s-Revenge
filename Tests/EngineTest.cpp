@@ -4,6 +4,7 @@
 #include "engine/Player.h"
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
+#include "engine/Recorder.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -2253,6 +2254,97 @@ static void testCapture()
     }
 }
 
+static void testRecorder()
+{
+    const double sr = 48000;
+    auto block = [] (float v, int n) { return std::vector<float> ((size_t) n, v); };
+
+    // MANUAL: records from the start, stops on STOP
+    TakeRecorder r;
+    r.arm (sr, 2.0, RecTrigger::Manual, 0.1f);
+    CHECK (r.state() == TakeRecorder::State::Recording);
+    auto a = block (0.25f, 512), b = block (-0.25f, 512);
+    for (int i = 0; i < 10; ++i) r.process (a.data(), b.data(), 512, false);
+    CHECK (r.frames() == 5120 && std::abs (r.takePeak (0) - 0.25f) < 1e-6f && r.takePeak (0) == 0.0f);
+    r.stop();
+    CHECK (r.state() == TakeRecorder::State::Done);
+    r.process (a.data(), b.data(), 512, false);              // (after STOP: nothing more)
+    CHECK (r.frames() == 5120);
+    std::vector<float> L, R;
+    r.takeAway (L, R);
+    CHECK (L.size() == 5120 && R.size() == 5120 && R[100] == -0.25f && r.state() == TakeRecorder::State::Idle);
+
+    // the limit: stops by itself, full
+    r.arm (sr, 0.05, RecTrigger::Manual, 0.1f);              // 2400 frames
+    for (int i = 0; i < 10; ++i) r.process (a.data(), b.data(), 512, false);
+    CHECK (r.state() == TakeRecorder::State::Done && r.hitLimit() && r.frames() == 2400);
+    r.reset();
+
+    // THRESHOLD: waits, then starts at the first loud sample with ~20 ms of what came before
+    r.arm (sr, 2.0, RecTrigger::Threshold, 0.5f, 0.02);
+    auto quiet = block (0.01f, 512);
+    for (int i = 0; i < 4; ++i) r.process (quiet.data(), quiet.data(), 512, false);
+    CHECK (r.state() == TakeRecorder::State::Armed && r.frames() == 0);
+    std::vector<float> hit ((size_t) 512, 0.01f);
+    for (int i = 300; i < 512; ++i) hit[(size_t) i] = 0.9f;
+    r.process (hit.data(), hit.data(), 512, false);
+    std::printf ("threshold: %lld frames after the hit block (pre-roll %d + %d)\n", (long long) r.frames(), 960, 212);
+    CHECK (r.state() == TakeRecorder::State::Recording && r.frames() == 960 + 212);
+    r.stop(); r.takeAway (L, R);
+    CHECK (L.size() == 1172 && L[959] == 0.01f && L[960] == 0.9f);   // the attack right after the pre-roll
+    // THRESHOLD armed, STOP before anything: nothing recorded
+    r.arm (sr, 2.0, RecTrigger::Threshold, 0.5f);
+    r.stop();
+    CHECK (r.state() == TakeRecorder::State::Idle);
+
+    // WITH PLAYBACK: from play to stop
+    r.arm (sr, 2.0, RecTrigger::WithPlayback, 0.1f);
+    r.process (a.data(), b.data(), 512, false);
+    CHECK (r.state() == TakeRecorder::State::Armed);
+    for (int i = 0; i < 3; ++i) r.process (a.data(), b.data(), 512, true);
+    CHECK (r.state() == TakeRecorder::State::Recording && r.frames() == 1536);
+    r.process (a.data(), b.data(), 512, false);
+    CHECK (r.state() == TakeRecorder::State::Done && r.frames() == 1536);
+    r.reset();
+
+    // trim, normalise, channels, an Amiga rate
+    std::vector<float> tl (48000, 0.0f), tr (48000, 0.0f);
+    for (int i = 12000; i < 36000; ++i) { tl[(size_t) i] = 0.4f * std::sin (i * 0.05f); tr[(size_t) i] = 0.2f * std::sin (i * 0.05f); }
+    int64_t s0 = 0, s1 = 0;
+    findTrim (tl, tr, 0.001f, 96, s0, s1);
+    std::printf ("trim: %lld .. %lld\n", (long long) s0, (long long) s1);
+    CHECK (s0 >= 12000 - 96 - 2 && s0 <= 12000 - 96 + 2 && s1 >= 35990 && s1 <= 36000 + 96);
+    TakeOptions o;
+    Instrument ins;
+    CHECK (takeToInstrument (tl, tr, sr, o, ins));
+    int16_t mx = 0;
+    for (auto v : ins.data) mx = std::max<int16_t> (mx, (int16_t) std::abs (v));
+    std::printf ("kept: %zu frames, stereo %d, peak %d, rate %.0f\n", ins.data.size(), (int) ! ins.dataR.empty(), mx, ins.rate);
+    CHECK (ins.data.size() > 23900 && ins.data.size() < 24300 && ! ins.dataR.empty() && mx > 32000 && ins.rate == 48000.0 && ins.natRate == 48000.0);
+    o.channels = RecChannels::Mono; o.normalise = false; o.trimSilence = false;
+    CHECK (takeToInstrument (tl, tr, sr, o, ins) && ins.dataR.empty() && ins.data.size() == 48000);
+    CHECK (std::abs (ins.data[20000] - (int) std::lround (0.3f * std::sin (20000 * 0.05f) * 32767)) <= 2);
+    o.channels = RecChannels::Right;
+    CHECK (takeToInstrument (tl, tr, sr, o, ins) && std::abs (ins.data[20000] - (int) std::lround (0.2f * std::sin (20000 * 0.05f) * 32767)) <= 2);
+    o.channels = RecChannels::Stereo; o.amigaRate = 16726;
+    CHECK (takeToInstrument (tl, tr, sr, o, ins));
+    std::printf ("Amiga rate: %zu frames at %.0f Hz\n", ins.data.size(), ins.rate);
+    CHECK (std::abs ((double) ins.data.size() - 48000.0 * 16726.0 / 48000.0) < 3 && ins.rate == 16726.0 && ins.dataR.size() == ins.data.size());
+    // a 15 kHz tone at 48k going to 16726 Hz: filtered away, not aliased down
+    std::vector<float> hi (48000);
+    for (int i = 0; i < 48000; ++i) hi[(size_t) i] = 0.8f * std::sin (2.0 * 3.14159265358979 * 15000.0 * i / 48000.0);
+    const auto down = resample (hi, 48000, 16726);
+    float rms = 0;
+    for (size_t i = 1000; i < down.size(); ++i) rms += down[i] * down[i];
+    rms = std::sqrt (rms / (float) (down.size() - 1000));
+    std::printf ("15 kHz to 16726 Hz: rms %.4f (was 0.566)\n", rms);
+    CHECK (rms < 0.05f);
+    // all silence: nothing to keep
+    std::vector<float> sil (1000, 0.0f);
+    o.trimSilence = true;
+    CHECK (! takeToInstrument (sil, sil, sr, o, ins));
+}
+
 static void testCapturePasses()
 {
     // while playing, a take is one pass round the block: loops don't pile up on each other
@@ -2444,6 +2536,7 @@ int main()
     testCapture();
     testChordDetect();
     testCapturePasses();
+    testRecorder();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

@@ -18,3 +18,7 @@ Shortcuts: everything the Mac does with Cmd, the PC does with Ctrl
 Plug-ins: VST3 instruments and effects (Audio Units are Mac-only).
 Settings and the global chord set are kept in
 %APPDATA%\Paula's Revenge.
+
+SAMPLE (Ctrl+4) records audio from the input chosen in File > Audio/MIDI
+Settings. If it only records silence, check Windows Settings > Privacy &
+security > Microphone and allow desktop apps to use it.

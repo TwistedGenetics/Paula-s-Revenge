@@ -690,7 +690,7 @@ void WaveView::paint (juce::Graphics& g)
     auto inner = r.reduced (2.0f);
     if (! in.hasData())
     {
-        PixelFont::drawCentred (g, "NO SAMPLE", inner, px, Theme::skin.dim);
+        PixelFont::drawCentred (g, openSample ? "NO SAMPLE - CLICK TO RECORD" : "NO SAMPLE", inner, px, Theme::skin.dim);
         Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
         return;
     }
@@ -736,6 +736,7 @@ void WaveView::mouseDown (const juce::MouseEvent& e)
 {
     const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
     dragging = 0;
+    if (! in.hasData() && openSample && ! e.mods.isPopupMenu()) { openSample(); return; }
     if (! in.isLooped()) return;
     const float w = (float) std::max (1, getWidth() - 4);
     const float n = (float) in.data.size();
@@ -764,6 +765,7 @@ void WaveView::mouseDrag (const juce::MouseEvent& e)
 InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, std::function<void (const juce::String&)> s)
     : proc (p), changed (std::move (c)), status (std::move (s)), wave (p)
 {
+    wave.openSample = [this] { if (openSample) openSample(); };
     auto& st = proc.editorState;
     list.getNumRows = [] { return kMaxInstruments; };
     list.getRowText = [this] (int r)
@@ -986,6 +988,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "CLEAR", [safe] { if (safe != nullptr) safe->clearBtn.onClick(); } },
         { "RENAME...", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
         { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
+        { "SAMPLE (RECORD AUDIO)...", [safe] { if (safe != nullptr && safe->openSample) safe->openSample(); } },
         { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
     });
 }

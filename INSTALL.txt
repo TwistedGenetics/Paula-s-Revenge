@@ -12,3 +12,7 @@ Paula's Revenge > Audio/MIDI Settings... (Cmd+,).
 (From v0.8 Paula's Revenge is a standalone app only; the old VST3/AU
 plug-ins are no longer built. You can delete them from
 ~/Library/Audio/Plug-Ins/VST3 and ~/Library/Audio/Plug-Ins/Components.)
+
+SAMPLE (Cmd+4) records audio: the first time, macOS asks whether
+Paula's Revenge may use the microphone / audio input - click OK.
+(System Settings > Privacy & Security > Microphone changes it later.)

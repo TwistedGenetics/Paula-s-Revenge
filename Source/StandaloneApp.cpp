@@ -24,7 +24,8 @@ enum CommandIDs
     cmdAudioSettings = 0x2001,
     cmdFullScreen    = 0x2002,
     cmdFollowOutput  = 0x2003,
-    cmdCapture       = 0x2004
+    cmdCapture       = 0x2004,
+    cmdSample        = 0x2005
 };
 
 // the real audio system for FOLLOW SYSTEM OUTPUT
@@ -147,6 +148,9 @@ public:
         holder = std::make_unique<juce::StandalonePluginHolder> (appProperties.getUserSettings(), false, juce::String(), nullptr,
                                                                  juce::Array<juce::StandalonePluginHolder::PluginInOuts>(), false);
         ensureStereoOutputs();
+        // SAMPLE records the input: JUCE's standalone mutes it by default (feedback); the SAMPLE
+        // page has its own MONITOR switch, off to start with
+        holder->getMuteInputValue().setValue (false);
 
         // FOLLOW SYSTEM OUTPUT: headphones in, AirPods on... the sound goes there too
         outputSystem = std::make_unique<AppOutputSystem> (*holder);
@@ -165,6 +169,7 @@ public:
         commands.registerAllCommandsForTarget (this);
         window = std::make_unique<MainWindow> (getApplicationName(), *holder->processor, appProperties.getUserSettings());
         window->addKeyListener (commands.getKeyMappings());
+        if (auto* ed = editor()) ed->openAudioSettings = [this] { if (holder != nullptr) holder->showAudioSettingsDialog(); };
         window->setVisible (true);
 
        #if JUCE_MAC
@@ -234,6 +239,7 @@ public:
             return m;
         }
         m.addCommandItem (&commands, cmdCapture);
+        m.addCommandItem (&commands, cmdSample);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -248,7 +254,7 @@ public:
     void getAllCommands (juce::Array<juce::CommandID>& c) override
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
-        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture });
+        c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -272,6 +278,11 @@ public:
             info.setInfo ("Capture What I Played", "Put the notes you just played into the pattern", "General", 0);
             info.addDefaultKeypress ('r', juce::ModifierKeys::commandModifier);
         }
+        else if (id == cmdSample)
+        {
+            info.setInfo ("Sample Audio...", "Record audio (the input, or the app's own output) into the instrument", "General", 0);
+            info.addDefaultKeypress ('4', juce::ModifierKeys::commandModifier);
+        }
         else if (id == cmdFollowOutput)
         {
             info.setInfo ("Follow System Output (Headphones)", "Play through whatever output the computer switches to", "General", 0);
@@ -285,6 +296,7 @@ public:
         if (info.commandID == cmdAudioSettings) { if (holder != nullptr) holder->showAudioSettingsDialog(); return true; }
         if (info.commandID == cmdFullScreen)    { toggleFullScreen(); return true; }
         if (info.commandID == cmdCapture)       { if (auto* ed = editor()) ed->captureNow(); return true; }
+        if (info.commandID == cmdSample)        { if (auto* ed = editor()) ed->toggleSample(); return true; }
         if (info.commandID == cmdFollowOutput && follower != nullptr)
         {
             const bool on = ! follower->enabled;

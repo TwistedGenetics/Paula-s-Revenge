@@ -35,7 +35,8 @@ namespace
 }
 
 PaulaProcessor::PaulaProcessor()
-    : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioProcessor (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
+                                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     addStarterInstruments (song);
     song.chords = globalChords;
@@ -131,7 +132,10 @@ void PaulaProcessor::reloadMixerSlot (int slot)
 bool PaulaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     // stereo only: a mono layout would put everything on one side of some setups
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo()) return false;
+    // the input (SAMPLE): stereo, mono or none
+    const auto in = layouts.getMainInputChannelSet();
+    return in.isDisabled() || in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono();
 }
 
 void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -141,6 +145,8 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     player.setSampleRate (sampleRate);
     scratchSize = std::max (samplesPerBlock, 512);
     scratchL.allocate ((size_t) scratchSize, true);
+    inL.allocate ((size_t) scratchSize, true);
+    inR.allocate ((size_t) scratchSize, true);
     scratchR.allocate ((size_t) scratchSize, true);
 }
 
@@ -304,14 +310,27 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
 {
     juce::ScopedNoDenormals noDenormals;
     const int n = buffer.getNumSamples();
-    buffer.clear();
 
     if (n > scratchSize)
     {
         scratchSize = n;
         scratchL.allocate ((size_t) n, true);
         scratchR.allocate ((size_t) n, true);
+        inL.allocate ((size_t) n, true);
+        inR.allocate ((size_t) n, true);
     }
+    // the input (SAMPLE), before the buffer becomes the output: mono goes to both sides
+    {
+        const int ins = std::min (getTotalNumInputChannels(), buffer.getNumChannels());
+        inputChannels.store (ins, std::memory_order_relaxed);
+        const float g = inputGain.load (std::memory_order_relaxed);
+        if (ins >= 1) juce::FloatVectorOperations::multiply (inL.get(), buffer.getReadPointer (0), g, n);
+        else juce::FloatVectorOperations::clear (inL.get(), n);
+        if (ins >= 2) juce::FloatVectorOperations::multiply (inR.get(), buffer.getReadPointer (1), g, n);
+        else juce::FloatVectorOperations::copy (inR.get(), inL.get(), n);
+    }
+    audioRunning.store (true, std::memory_order_relaxed);
+    buffer.clear();
 
     midiHost.outputLatencyMs = 1000.0 * n / std::max (1.0, currentRate);
 
@@ -406,6 +425,19 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
                 l[i] *= outputGain; r[i] *= outputGain;
             }
         }
+    }
+
+    // SAMPLE: the monitor (the input, heard through the app), then what the recorder takes -
+    // the input, or everything the app plays (RESAMPLE)
+    {
+        const bool resampling = recSource.load (std::memory_order_relaxed) == SourceResample;
+        if (! resampling) recorder.process (inL.get(), inR.get(), n, player.isPlaying());
+        if (monitorInput.load (std::memory_order_relaxed))
+        {
+            juce::FloatVectorOperations::add (scratchL.get(), inL.get(), n);
+            juce::FloatVectorOperations::add (scratchR.get(), inR.get(), n);
+        }
+        if (resampling) recorder.process (scratchL.get(), scratchR.get(), n, player.isPlaying());
     }
 
     if (buffer.getNumChannels() >= 2)

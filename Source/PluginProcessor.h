@@ -5,6 +5,7 @@
 #include <deque>
 #include "engine/Song.h"
 #include "engine/Player.h"
+#include "engine/Recorder.h"
 #include "History.h"
 #include "PluginHost.h"
 #include "MidiOutHost.h"
@@ -84,6 +85,16 @@ public:
     prv::ChordTable globalChords = prv::loadGlobalChords();
     // output fade (0..1): the standalone app fades out, switches the output device, fades back in
     std::atomic<float> outputGainTarget { 1.0f };
+
+    // SAMPLE: recording the input (or the app's own output) into an instrument
+    prv::TakeRecorder recorder;
+    enum RecSource { SourceInput = 0, SourceResample = 1 };
+    std::atomic<int>   recSource { SourceInput };
+    std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
+    std::atomic<bool>  monitorInput { false };  // hear the input through the app
+    std::atomic<int>   inputChannels { 0 };     // input channels the audio device gives (0 = none)
+    std::atomic<bool>  audioRunning { false };  // processBlock has run recently (a device is open)
+    double audioRate() const { return currentRate; }   // the rate the audio runs at (prepareToPlay)
     float outputGain = 1.0f;                                    // (audio thread)   // CHORDS: every new song starts with a copy
     juce::String chordReport (const prv::Song&) const;          // after loading: how its chords compare with the global set
     bool isRunningStandalone() const { return true; }   // v0.8: the app is standalone only
@@ -103,7 +114,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)
         bool showSpectrum = true;
@@ -171,6 +182,7 @@ public:
 private:
     double currentRate = 44100.0;
     juce::HeapBlock<float> scratchL, scratchR;
+    juce::HeapBlock<float> inL, inR;   // the input (SAMPLE)
     int scratchSize = 0;
     juce::AbstractFifo midiFifo { 256 };
     InputNote midiNotes[256] {};
