@@ -8,7 +8,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 9;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 10;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
@@ -214,6 +214,8 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeIntBigEndian (in.bendRange);
         for (const auto& k : in.knobs) writeTarget (raw, k);
     }
+    // v10: plug-in instruments switched off
+    for (const auto& in : song.instruments) if (in.plugin) raw.writeByte (in.pluginOff ? 1 : 0);
 
     juce::MemoryOutputStream packed;
     {
@@ -392,6 +394,8 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         }
         if (! ok) { error = "The automation / plug-in instrument part of this song is damaged."; return false; }
     }
+    if (version >= 10 && ! in.isExhausted())
+        for (auto& ins : s.instruments) if (ins.plugin) ins.pluginOff = in.readByte() != 0;
     out = std::move (s);
     return true;
 }

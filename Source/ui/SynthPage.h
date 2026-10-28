@@ -37,6 +37,7 @@ public:
     void learnTrackKnob (int k);    // 0 = A (V), 1 = B (J) for the TRACK box's track
     bool isLearning() const { return learner.armed; }
     int  learnTrack() const { return trackBox.getValue() - 1; }
+    void toggleOn();                // its ON button (learns on/off while LEARN is armed)
 
 private:
     PaulaProcessor& proc;
@@ -50,6 +51,7 @@ private:
     PixButton learnK[kInstrumentKnobs] { PixButton ("LEARN"), PixButton ("LEARN"), PixButton ("LEARN"), PixButton ("LEARN") };
     PixButton clearK[kInstrumentKnobs] { PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR") };
     PixButton learnA { "LEARN AS AUTO A (V)" }, learnB { "LEARN AS AUTO B (J)" };
+    PixButton onBtn { "ON", true };   // the instrument switched on / off
     ParamLearner learner;           // what: 0..3 instrument knobs, 10 + k track knobs
     std::map<int, int> heldKeys;
     juce::Rectangle<float> titleArea, infoArea, knobArea[kInstrumentKnobs], trackArea;
@@ -59,5 +61,6 @@ private:
     void setBrowsing (bool);
     void refreshList();
     std::vector<float> readParams();
+    void learned (int param);
 };
 } // namespace prv::ui

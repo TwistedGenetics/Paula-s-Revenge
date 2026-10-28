@@ -135,6 +135,7 @@ struct Instrument
     std::vector<uint8_t> pluginState;
     int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
+    bool pluginOff = false;                 // switched off (its ON button): plays nothing
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
     bool isPlugin() const { return plugin; }
 

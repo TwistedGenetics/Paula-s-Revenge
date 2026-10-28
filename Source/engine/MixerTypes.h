@@ -106,6 +106,10 @@ struct AutoTarget
     bool valid() const { return target >= 0 && param >= 0; }
     bool operator== (const AutoTarget& o) const { return target == o.target && param == o.param && name == o.name; }
 };
+// param = kAutoOnOff: the knob switches the effect / plug-in instrument itself on and off
+// (00 = off, 01-FF = on), learned by clicking its BYPASS / ON button while LEARN is armed
+constexpr int kAutoOnOff = 1 << 30;
+inline bool autoValueOn (float v01) { return v01 > 0.5f / 255.0f; }
 constexpr int kTrackKnobs = 2;        // V = A, J = B
 constexpr int kInstrumentKnobs = 4;   // L, Q, H, W on a plug-in instrument's notes
 

@@ -145,6 +145,7 @@ void PaulaProcessor::replaceSong (prv::Song&& newSong)
     history.clear();
     player.mixer().reset();
     player.mixer().clearAutomation();
+    player.resetSwitches();
     player.mixer().apply (changes, oldEffects);
     player.synths().apply (synthChanges, oldSynths);
 }

@@ -121,6 +121,11 @@ public:
     SynthRack& synths() { return rack; }
     // which track's mixer strip a plug-in instrument plays into right now
     int synthOutputTrack (int instrument) const;
+    // a plug-in instrument switched on/off: by its ON button, or by an automation knob while playing
+    bool synthIsOn (int instrument) const;
+    void setSynthOn (int instrument, int state);   // (audio lock) 0 = off, 1 = on, -1 = back to its ON button
+    void resetSwitches();   // automated on/off of effects and instruments back to their buttons
+    int  synthOnOverride (int instrument) const { return instrument >= 0 && instrument < kMaxInstruments ? synthOnOv[instrument] : -1; }
     bool forceMixPath = false;    // tests: use the mixer path even when flat
 
     // Read by the UI
@@ -184,6 +189,7 @@ private:
     int  rowGlide = 0; bool knobSetThisRow = false;
     void setLane (Lane&, float value, int glide, int kind, int a, int b);
     void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob
+    int  synthOnOv[kMaxInstruments];   // automated on/off of a plug-in instrument: -1 = its ON button
     void advanceAutomation();
 
     // plug-in instruments

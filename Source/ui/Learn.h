@@ -7,6 +7,13 @@
 
 namespace prv::ui
 {
+// a knob's target name when space is short: "REAL GAIN: ON/OFF" -> "ON/OFF"
+inline juce::String shortTargetName (const juce::String& full, int maxChars)
+{
+    if (full.length() <= maxChars || ! full.contains (": ")) return full;
+    return full.fromLastOccurrenceOf (": ", false, false);
+}
+
 struct ParamLearner
 {
     bool armed = false;

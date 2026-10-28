@@ -59,6 +59,7 @@ Player::Player()
     resetVoices();
     for (auto& j : uiJamPos) j = -1;
     for (auto& t : synthTrack) t = 99;
+    for (auto& o : synthOnOv) o = -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,30 @@ int Player::synthOutputTrack (int i) const
     const int o = song->instruments[(size_t) i].pluginOutput;
     if (o >= 0) return std::min (o, nt - 1);
     return synthTrack[i] < nt ? synthTrack[i] : 0;   // AUTO: the lowest track that has played it
+}
+
+bool Player::synthIsOn (int i) const
+{
+    if (song == nullptr || i < 0 || i >= kMaxInstruments) return false;
+    return synthOnOv[i] >= 0 ? synthOnOv[i] == 1 : ! song->instruments[(size_t) i].pluginOff;
+}
+
+void Player::setSynthOn (int i, int state)
+{
+    if (i < 0 || i >= kMaxInstruments) return;
+    synthOnOv[i] = std::clamp (state, -1, 1);
+    if (synthIsOn (i)) return;
+    // switched off: its notes stop now
+    for (auto& v : voices) if (v.synthNote >= 0 && v.synthInstr == i) synthRelease (v);
+    for (auto& j : jamSynth) if (j.note >= 0 && j.instr == i) { if (auto* s = rack.at (i)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
+    if (auto* s = rack.at (i)) s->allNotesOff (chunkPos);
+}
+
+void Player::resetSwitches()
+{
+    // play / stop start again from the BYPASS and ON buttons
+    for (auto& o : synthOnOv) o = -1;
+    mixerEngine.clearOnOff();
 }
 
 void Player::synthRelease (Voice& v)
@@ -103,7 +128,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     v.synthVel = std::clamp ((int) std::lround (vol * 127.0 / 64.0), 1, 127);
     v.active = false;   // (no sample to play)
     auto* s = rack.at (v.instr);
-    if (s == nullptr || (ch < kMaxTracks && mute[ch].load (std::memory_order_relaxed))) return;
+    if (s == nullptr || (ch < kMaxTracks && mute[ch].load (std::memory_order_relaxed)) || ! synthIsOn (v.instr)) return;
     if (v.lastBend != 8192) { s->pitchBend (8192, chunkPos); v.lastBend = 8192; }
     v.synthNote = midiNoteFor (v.note);
     v.synthInstr = v.instr;
@@ -151,12 +176,14 @@ void Player::applyLane (int kind, int a, int b, float v)
         const auto& t = song->mixer.trackAuto[a][b];
         if (! t.valid()) return;
         if (t.target < kAutoInstrumentBase) mixerEngine.setAutomation (t.target, t.param, v);
+        else if (t.param == kAutoOnOff) setSynthOn (t.target - kAutoInstrumentBase, autoValueOn (v) ? 1 : 0);
         else if (auto* s = rack.at (t.target - kAutoInstrumentBase)) s->setParameter (t.param, v);
     }
     else
     {
         const auto& t = song->instruments[(size_t) a].knobs[b];
-        if (t.param >= 0) if (auto* s = rack.at (a)) s->setParameter (t.param, v);
+        if (t.param == kAutoOnOff) setSynthOn (a, autoValueOn (v) ? 1 : 0);
+        else if (t.param >= 0) if (auto* s = rack.at (a)) s->setParameter (t.param, v);
     }
 }
 
@@ -231,6 +258,7 @@ void Player::playSong (int pos, int startLine)
 {
     if (song == nullptr || song->sequence.empty()) return;
     synthAllOff();
+    resetSwitches();
     for (auto& t : synthTrack) t = 99;
     for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
@@ -251,6 +279,7 @@ void Player::playBlock (int b, int startLine)
 {
     if (song == nullptr || song->blocks.empty()) return;
     synthAllOff();
+    resetSwitches();
     for (auto& t : synthTrack) t = 99;
     for (auto& g : pendingGlide) g = 0;
     for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
@@ -284,6 +313,7 @@ bool Player::switchBlock (int b)
 void Player::stop()
 {
     synthAllOff();
+    resetSwitches();
     mode = Mode::Stopped;
     for (int i = 0; i < kMaxTracks; ++i) { voices[i].active = false; voices[i].microDelay = -1; }
 }
@@ -1252,6 +1282,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (s == nullptr) continue;
             s->render (synthL, synthR, numSamples);
             const int t = synthOutputTrack (ins);
+            if (! synthIsOn (ins)) continue;   // (still run, so it's ready when switched back on)
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
             const float g = (float) std::clamp (song->instruments[(size_t) ins].volume, 0, 64) / 64.0f;
             float pk = 0;

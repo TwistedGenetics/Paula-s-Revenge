@@ -667,7 +667,12 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
         typeBtn[t].onClick = [this, t] { setSlotType (fxSlot, (FxType) t); };
         addChildComponent (typeBtn[t]);
     }
-    bypassBtn.onClick = [this] { toggleBypass (fxSlot); };
+    bypassBtn.onClick = [this]
+    {
+        // with LEARN armed, BYPASS is learned: the knob then switches the effect on and off
+        if (learner.armed) { finishLearn (kAutoOnOff); refresh(); return; }
+        toggleBypass (fxSlot);
+    };
     defaultsBtn.onClick = [this]
     {
         const FxType type = proc.song.mixer.slot (fxSlot).type;
@@ -777,6 +782,7 @@ void MixerPage::toggleBypass (int slot)
     const auto& s = proc.song.mixer.slot (slot);
     if (s.type == FxType::None) { if (onStatus) onStatus ("EMPTY SLOT - CLICK IT TO PICK AN EFFECT"); return; }
     const bool by = ! s.bypass;
+    proc.withLock ([&] { proc.player.mixer().clearOnOff (slot); });   // (the button wins over V / J switching)
     edit (slotOwner (slot) + " " + juce::String (fxName (s.type)) + (by ? " BYPASSED" : " ON"), false,
           [slot, by] (MixerSettings& m) { m.slot (slot).bypass = by; });
 }
@@ -1025,6 +1031,8 @@ std::vector<float> MixerPage::slotParamValues (int slot)
 juce::String MixerPage::slotParamName (int slot, int param)
 {
     const auto& s = proc.song.mixer.slot (slot);
+    if (param == kAutoOnOff)
+        return (s.type == FxType::Plugin ? juce::String (s.pluginName) : slotOwner (slot) + " " + juce::String (fxName (s.type))) + ": ON/OFF";
     if (s.type == FxType::Plugin)
     {
         auto* pe = proc.pluginAt (slot);
@@ -1044,7 +1052,7 @@ void MixerPage::armLearn (int knob)
     learner.arm (knob, [this, slot] { return slotParamValues (slot); });
     if (s.type == FxType::Plugin) editPluginBtn.onClick();   // its window, to move a control in
     if (onStatus) onStatus ("NOW MOVE A CONTROL " + juce::String (s.type == FxType::Plugin ? "IN THE PLUG-IN'S WINDOW" : "ON THIS PAGE") + " FOR TRACK "
-                            + juce::String (learnTrackBox.getValue()) + (knob == 0 ? " AUTO A (V)" : " AUTO B (J)") + " - CLICK LEARN AGAIN TO CANCEL");
+                            + juce::String (learnTrackBox.getValue()) + (knob == 0 ? " AUTO A (V)" : " AUTO B (J)") + ", OR CLICK BYPASS TO SWITCH THE EFFECT ON/OFF - LEARN AGAIN CANCELS");
     refresh();
 }
 
@@ -1056,7 +1064,8 @@ void MixerPage::finishLearn (int param)
     learner.cancel();
     edit ("TRACK " + juce::String (tr + 1) + (knob == 0 ? " AUTO A = " : " AUTO B = ") + name, false,
           [tr, knob, t] (MixerSettings& m) { m.trackAuto[tr][knob] = t; });
-    if (onStatus) onStatus ("TRACK " + juce::String (tr + 1) + (knob == 0 ? " AUTO A (VXX) NOW MOVES " : " AUTO B (JXX) NOW MOVES ") + name);
+    if (onStatus) onStatus ("TRACK " + juce::String (tr + 1) + (knob == 0 ? " AUTO A (VXX) NOW MOVES " : " AUTO B (JXX) NOW MOVES ") + name
+                            + (param == kAutoOnOff ? juce::String (" (00 = OFF, 01-FF = ON)") : juce::String()));
 }
 
 void MixerPage::tick()
@@ -1245,8 +1254,11 @@ void MixerPage::paint (juce::Graphics& g)
         const int tr = learnTrackBox.getValue() - 1;
         const auto& a = proc.song.mixer.trackAuto[tr][0];
         const auto& b = proc.song.mixer.trackAuto[tr][1];
-        const juce::String t = learner.armed ? juce::String ("MOVE A CONTROL...")
-                             : "A: " + (a.valid() ? juce::String (a.name) : juce::String ("-")) + "  B: " + (b.valid() ? juce::String (b.name) : juce::String ("-"));
+        const juce::String t = learner.armed ? juce::String ("MOVE A CONTROL, OR CLICK BYPASS")
+                             : [&] {
+                                   const int room = (int) (learnInfoArea.getWidth() / (px * PixelFont::kCellW)) / 2 - 4;
+                                   return "A: " + (a.valid() ? shortTargetName (a.name, room) : juce::String ("-"))
+                                        + "  B: " + (b.valid() ? shortTargetName (b.name, room) : juce::String ("-")); }();
         PixelFont::drawLeft (g, fitL (t, learnInfoArea.getWidth()), learnInfoArea, px, Theme::ink);
     }
     if (browsingPlugins)

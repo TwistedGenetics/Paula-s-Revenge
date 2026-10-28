@@ -523,6 +523,7 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
         const bool a = cmd == cmdLetter ('V');
         const auto& t = proc.song.mixer.trackAuto[juce::jlimit (0, kMaxTracks - 1, track)][a ? 0 : 1];
         if (! t.valid()) return head + "AUTO " + (a ? "A" : "B") + " ISN'T SET - LEARN IT ON AN EFFECT PAGE IN THE MIXER";
+        if (t.param == kAutoOnOff) return head + juce::String (t.name) + (param == 0 ? " - OFF" : " - ON");
         return head + juce::String (t.name) + " " + juce::String (pct) + "%";
     }
     if (plug)
@@ -532,6 +533,7 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
         {
             const auto& t = proc.song.instruments[(size_t) ins].knobs[k];
             if (t.param < 0) return head + "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd)) + " ISN'T SET - LEARN IT ON THE INSTRUMENT'S PAGE";
+            if (t.param == kAutoOnOff) return head + juce::String (t.name) + (param == 0 ? " - OFF" : " - ON");
             return head + juce::String (t.name) + " " + juce::String (pct) + "%";
         }
         if (cmd == cmdLetter ('O')) return head + "MOD WHEEL " + juce::String (param >> 1);

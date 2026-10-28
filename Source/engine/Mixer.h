@@ -38,6 +38,8 @@ public:
     // in place of the slot's own value until the slot changes; plug-ins get it directly.
     void setAutomation (int slot, int param, float value01);
     void clearAutomation();
+    void clearOnOff (int slot = -1);   // on/off automation back to the slot's BYPASS button (-1 = every slot)
+    int  onOffOverride (int slot) const { return slot >= 0 && slot < kTotalSlots ? autoOn[slot] : -1; }
     Effect* effectAt (int slot) const { return slot >= 0 && slot < kTotalSlots ? fx[slot].get() : nullptr; }
     double sampleRate() const { return sr; }
     void reset();
@@ -59,6 +61,7 @@ private:
     FxType fxType[kTotalSlots] {};
     std::string fxKey[kTotalSlots];   // the plug-in in a plug-in slot
     float autoParam[kTotalSlots][kFxParams];   // automated built-in values (< 0 = not automated)
+    int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];
     void runInserts (const FxSlot* slots, int firstSlot, float* L, float* R, int n, double bpm);
 };

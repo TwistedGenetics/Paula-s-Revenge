@@ -891,6 +891,93 @@ static void testPluginInstruments()
     CHECK (commandName (cmdLetter ('V')) == "AUTO A");
 }
 
+// ---------------------------------------------------------------- v0.10.3: switching effects and instruments on / off
+static void testOnOff()
+{
+    // ---- an effect: V00 switches it off, V01-FF on (even when its BYPASS is pressed)
+    {
+        MixerEngine mx; mx.prepare (48000);
+        MixerSettings m;
+        initFxSlot (m.ch[0].inserts[0], FxType::Drive);
+        m.ch[0].inserts[0].p[0] = 1.0f; m.ch[0].inserts[0].p[4] = 1.0f;   // full drive, all wet
+        mx.syncEffectsNow (m);
+        std::vector<float> a (256);
+        for (int i = 0; i < 256; ++i) a[(size_t) i] = 0.3f * (float) std::sin (i * 0.1);
+        auto run = [&]
+        {
+            std::vector<float> l = a, r = a, out (256), outR (256); float* tl[1] = { l.data() }; float* tr[1] = { r.data() };
+            mx.process (m, tl, tr, 1, nullptr, nullptr, out.data(), outR.data(), 256, 120);
+            double d = 0; for (int i = 0; i < 256; ++i) d += std::abs (out[(size_t) i] - a[(size_t) i]);
+            return d;   // how far from the dry signal
+        };
+        const int slot = trackSlot (0, 0);
+        const double on = run();
+        mx.setAutomation (slot, kAutoOnOff, 0.0f);
+        const double off = run();
+        m.ch[0].inserts[0].bypass = true;
+        const double bypassed = run();
+        mx.setAutomation (slot, kAutoOnOff, 1.0f / 255.0f);
+        const double forcedOn = run();
+        mx.clearOnOff();
+        const double backToButton = run();
+        std::printf ("effect on/off: on %.2f, V00 %.4f, bypassed %.4f, V01 %.2f, cleared %.4f\n", on, off, bypassed, forcedOn, backToButton);
+        CHECK (on > 1.0 && off < 1e-4 && bypassed < 1e-4 && forcedOn > 1.0 && backToButton < 1e-4);
+        CHECK (mx.onOffOverride (slot) == -1);
+    }
+    // ---- a plug-in instrument: AUTO A switches it; notes while it's off don't play
+    {
+        Song song;
+        song.numTracks = 4;
+        auto& in = song.instruments[0];
+        in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH";
+        in.knobs[1] = { kAutoInstrumentBase, kAutoOnOff, "SYNTH: ON/OFF" };   // Q
+        song.mixer.trackAuto[0][0] = { kAutoInstrumentBase, kAutoOnOff, "SYNTH: ON/OFF" };
+        auto& b = song.blocks[0];
+        b.at (0, 0) = { 37, 1, 0, 0 };
+        b.at (2, 0) = { 0, 0, cmdLetter ('V'), 0x00 };    // off: C-3 stops
+        b.at (3, 0) = { 39, 1, 0, 0 };                    // not played
+        b.at (5, 0) = { 0, 0, cmdLetter ('V'), 0xFF };    // on again
+        b.at (6, 0) = { 41, 1, 0, 0 };                    // plays
+        b.at (8, 0) = { 43, 1, cmdLetter ('Q'), 0x00 };   // its own knob Q switches it off on this note
+        b.at (10, 0) = { 45, 1, 0, 0 };                   // not played
+        std::vector<Ev> log; long long clock = 0;
+        Player p; p.setSampleRate (48000); p.setSong (&song);
+        p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
+        p.synths().syncNow (song, 48000);
+        p.playBlock (0);
+        const int tickLen = (int) std::lround (48000 * 2.5 / 125);
+        std::vector<float> L (512), R (512);
+        float levelOff = 0, levelOn = 0;
+        for (int done = 0; done < tickLen * 6 * 12; done += 512)
+        {
+            p.render (L.data(), R.data(), 512);
+            clock += 512;
+            const int line = p.uiLine.load();
+            const float pk = p.uiLevel[0].exchange (0.0f);   // track 1's meter (the synth's DC would be blocked at the output)
+            if (line == 3 || line == 4) levelOff = std::max (levelOff, pk);
+            if (line == 6 || line == 7) levelOn = std::max (levelOn, pk);
+        }
+        auto count = [&] (char t, int a) { int n = 0; for (auto& e : log) if (e.type == t && (a < 0 || e.a == a)) ++n; return n; };
+        std::printf ("instrument on/off: notes C-3 %d D-3 %d E-3 %d F#3 %d G#3 %d, level while off %.3f, on %.3f, offs %d\n",
+                     count ('n', 60), count ('n', 62), count ('n', 64), count ('n', 66), count ('n', 68), levelOff, levelOn, count ('a', -1));
+        CHECK (count ('n', 60) == 1 && count ('f', 60) == 1);
+        CHECK (count ('n', 62) == 0 && count ('n', 64) == 1);
+        CHECK (count ('n', 68) == 0);
+        CHECK (levelOff < 1e-6f && levelOn > 0.05f);
+        CHECK (! p.synthIsOn (0) && p.synthOnOverride (0) == 0);
+        p.stop();
+        CHECK (p.synthIsOn (0) && p.synthOnOverride (0) == -1);   // stop: back to its ON button
+        // its ON button off
+        song.instruments[0].pluginOff = true;
+        log.clear();
+        p.jamNoteOn (37, 0, 100);
+        p.render (L.data(), R.data(), 512);
+        float pk = 0; for (float x : L) pk = std::max (pk, std::abs (x));
+        CHECK (! p.synthIsOn (0) && pk < 1e-6f);
+        p.jamAllOff();
+    }
+}
+
 // ---------------------------------------------------------------- v0.9: AKAIZER
 // the same integer-only signal as Tests/tools/akaizer_ref.js makes
 static std::vector<int16_t> akaizerTestInput (int words, uint32_t seed, bool loud)
@@ -1492,6 +1579,7 @@ int main()
     testPluginSlots();
     testAutomation();
     testPluginInstruments();
+    testOnOff();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();
