@@ -22,4 +22,9 @@ struct ChordMatch
 // ignoring octaves. Ties: a root that is the lowest note played, then the first note pressed,
 // then the lowest slot.
 ChordMatch matchChord (const ChordTable& table, const std::vector<int>& notes);
+
+// RECORD CHORD: a slot from notes played together. When the notes are one of the database's
+// voicings it takes that name and root (E G C -> MAJ INV 1, root C); else it's "USER", measured
+// from the lowest note. Up to kMaxChordNotes (the lowest ones). Empty for fewer than two notes.
+ChordDef chordFromNotes (const std::vector<int>& notes);
 } // namespace prv

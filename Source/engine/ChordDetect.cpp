@@ -92,4 +92,48 @@ ChordMatch matchChord (const ChordTable& table, const std::vector<int>& notes)
     }
     return best;
 }
+
+ChordDef chordFromNotes (const std::vector<int>& notes)
+{
+    auto played = sortedUnique (notes);
+    if (played.size() > (size_t) kMaxChordNotes) played.resize ((size_t) kMaxChordNotes);
+    ChordDef d;
+    if (played.size() < 2) return d;
+    const int lowest = played.front();
+
+    // one of the database's voicings? Common chords first (the ones in the factory set: E G C is
+    // C major's first inversion, not E minor #5), then a root that's the lowest note, then how
+    // common, then root position
+    const auto& factory = defaultChordTable();
+    auto commonRank = [&] (const char* symbol)
+    {
+        for (int slot = 1; slot < kChordSlots; ++slot) if (factory[(size_t) slot].name == symbol) return slot;
+        return 1000;
+    };
+    int n = 0;
+    const ChordEntry* all = chordDatabase (n);
+    int best = -1;
+    long bestScore = LONG_MAX;
+    for (int i = 0; i < n; ++i)
+    {
+        const auto& e = all[i];
+        std::vector<int> iv (e.notes, e.notes + std::min (e.count, kMaxChordNotes));
+        iv = sortedUnique (iv);
+        if (iv.size() != played.size()) continue;
+        const int root = lowest - iv.front();
+        bool same = true;
+        for (size_t k = 0; k < iv.size() && same; ++k) same = root + iv[k] == played[k];
+        if (! same) continue;
+        const int rank = commonRank (e.symbol);
+        const long score = (rank < 1000 ? 0L : 1000000L) + (root == lowest ? 0L : 100000L) + rank * 10L
+                         + (std::string (e.voicing) == "ROOT" ? 0L : 1L);
+        if (score < bestScore) { bestScore = score; best = i; }
+    }
+    if (best >= 0) return chordFrom (all[best]);
+
+    d.name = "USER";
+    d.count = (int) played.size();
+    for (size_t k = 0; k < played.size(); ++k) d.notes[k] = (int8_t) std::clamp (played[k] - lowest, -128, 127);
+    return d;
+}
 } // namespace prv

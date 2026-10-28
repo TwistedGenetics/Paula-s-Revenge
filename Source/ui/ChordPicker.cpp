@@ -27,7 +27,8 @@ void ChordPicker::open (const ChordTable& table, int currentSlot)
         const auto& d = table[(size_t) i];
         if (d.empty()) continue;
         slotRows.push_back (i);
-        texts.push_back (juce::String::toHexString (i).toUpperCase().paddedLeft ('0', 2) + "  " + juce::String (d.name).paddedRight (' ', 16) + juce::String (notesText (d)));
+        const juce::String row = juce::String::toHexString (i).toUpperCase().paddedLeft ('0', 2) + "  " + juce::String (d.name).paddedRight (' ', 16) + juce::String (notesText (d));
+        texts.push_back (d.note.empty() ? row : row.paddedRight (' ', 46) + "  " + juce::String (d.note));
     }
     list.selected = 0;
     for (int r = 0; r < (int) slotRows.size(); ++r) if (slotRows[(size_t) r] == currentSlot) list.selected = r;

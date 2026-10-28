@@ -41,6 +41,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     chords.onClose = [this] { setView (chordsReturn == View::Chords || chordsReturn == View::Help ? View::Pattern : chordsReturn); };
     chords.onStatus = [this] (const juce::String& m) { setStatus (m); };
     chords.onChanged = [this] { refreshAll(); };
+    pattern.onInputNote = [this] (int note, bool on)
+    {
+        if (! (chords.isVisible() && chords.isRecording())) return false;
+        chords.inputNote (note, on);
+        return true;
+    };
     addChildComponent (chords);
     pattern.onEditChords = [this] (int slot) { openChords (slot); };
     for (auto& a : recSeenTrack) for (auto& v : a) v = -1.0f;

@@ -2294,6 +2294,32 @@ static void testChordDetect()
     ChordTable none {};
     CHECK (! m ({ 60, 64, 67 }, &none));
 
+    // RECORD CHORD: a slot from played notes - the database's name and root when it's one of its voicings
+    auto notesOf = [] (const ChordDef& d) { std::string t; for (int i = 0; i < d.count; ++i) t += std::to_string (d.notes[(size_t) i]) + " "; return t; };
+    auto rc = chordFromNotes ({ 67, 60, 64 });
+    std::printf ("record C E G: '%s' %s\n", rc.name.c_str(), notesOf (rc).c_str());
+    CHECK (rc.name == "MAJ" && notesOf (rc) == "0 4 7 ");
+    rc = chordFromNotes ({ 64, 67, 72 });
+    std::printf ("record E G C: '%s' %s\n", rc.name.c_str(), notesOf (rc).c_str());
+    CHECK (rc.name == "MAJ INV 1" && notesOf (rc) == "4 7 12 ");
+    rc = chordFromNotes ({ 60, 64, 67, 69 });
+    CHECK (rc.name == "6" && notesOf (rc) == "0 4 7 9 ");
+    rc = chordFromNotes ({ 60, 61, 66 });                       // not in the database
+    CHECK (rc.name == "USER" && notesOf (rc) == "0 1 6 ");
+    rc = chordFromNotes ({ 50, 60, 61, 66, 50 });               // (a note twice counts once)
+    CHECK (rc.name == "USER" && notesOf (rc) == "0 10 11 16 ");
+    rc = chordFromNotes ({ 40, 42, 44, 46, 48, 50, 52, 54, 56, 58 });   // ten notes: the lowest eight
+    CHECK (rc.count == 8 && rc.notes[7] == 14);
+    CHECK (chordFromNotes ({ 60 }).empty() && chordFromNotes ({}).empty());
+    // a matched slot works with the matcher: play it back in and it's found
+    {
+        ChordTable t3 {};
+        t3[0x40] = chordFromNotes ({ 48, 55, 58, 63 });          // C G A# D#: USER
+        t3[0x40].note = "VERSE PROG 1";
+        auto mm = matchChord (t3, { 50, 57, 60, 65 });           // the same shape on D
+        CHECK (mm.slot == 0x40 && mm.root == 50 && mm.exact);
+    }
+
     // CAPTURE: notes on a plug-in played together -> one note + #xy, OFF when the last key goes
     Song song; song.numTracks = 4;
     std::vector<bool> offs (kMaxInstruments, false);

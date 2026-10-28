@@ -54,6 +54,7 @@ public:
 
     // the track VU meters: one colour, chosen by right-clicking a meter (kept on this computer)
     std::function<void()> onVuMenu, onSpectrumMenu;
+    std::function<bool (int note, bool on)> onInputNote;   // MIDI keyboard notes; true = taken (not recorded here)
     static juce::StringArray vuColourNames();
     static int  vuColourChoice();
     static void setVuColourChoice (int);

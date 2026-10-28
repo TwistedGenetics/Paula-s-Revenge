@@ -7,6 +7,8 @@
 #include "Panels.h"
 #include "ChoiceBox.h"
 #include "../PluginProcessor.h"
+#include <map>
+#include <set>
 
 namespace prv::ui
 {
@@ -25,7 +27,8 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
-    void visibilityChanged() override { if (! isVisible()) stopPreview(); }
+    void visibilityChanged() override { if (! isVisible()) { stopPreview(); cancelRecording(); } }
+    bool keyStateChanged (bool) override;
 
     // actions (buttons and keys; tests call them too)
     void setEditingGlobal (bool global);
@@ -48,6 +51,14 @@ public:
     void preview();                             // PLAY: the slot (or database chord) on the current instrument
     void slotMenu (int slot);                   // right-click a slot: COPY, PASTE, CLEAR, PLAY
     juce::String slotRowText (int row) const;
+    // RECORD CHORD: play a chord (MIDI keyboard or the laptop keys) into the selected slot
+    void startRecording();
+    void cancelRecording();
+    bool isRecording() const { return recording; }
+    void inputNote (int note, bool on);         // a key down / up while recording (MIDI notes come here too)
+    // the slot's own note ("VERSE PROG 2")
+    void setSlotNote (int slot, const juce::String& text);
+    void askSlotNote (int slot);                // NOTE...: a text box
     juce::String compareText() const;           // how the song's table compares with the global set
     ChoiceBox& question() { return ask; }
 
@@ -58,7 +69,8 @@ private:
     std::vector<std::unique_ptr<PixButton>> catBtns;
     PixButton setBtn { "SET SLOT" }, playBtn { "PLAY" }, clearBtn { "CLEAR SLOT" },
               saveGlobalBtn { "SAVE AS GLOBAL SET" }, useGlobalBtn { "USE GLOBAL SET" },
-              convertBtn { "CONVERT OLD 0XY" }, closeBtn { "CLOSE" };
+              convertBtn { "CONVERT OLD 0XY" }, closeBtn { "CLOSE" },
+              recordBtn { "RECORD CHORD", true }, noteBtn { "NOTE..." };
     ChoiceBox ask;
     bool global = false;
     int  category = -1;
@@ -66,6 +78,10 @@ private:
     std::vector<int> shown;                     // database entries after the category and search
     juce::Rectangle<int> titleArea, slotHead, searchArea, infoArea, compareArea;
     std::vector<int> previewNotes;
+    bool recording = false;
+    std::vector<int> recNotes;                  // every note pressed in this take
+    std::set<int> recHeld;                      // still held
+    std::map<int, int> heldKeys;                // laptop key -> note (while recording)
     bool previewFromDb = true;                  // PLAY plays what was clicked last
 
     const ChordTable& table() const;

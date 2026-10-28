@@ -445,6 +445,7 @@ void PatternEditor::tick()
     PaulaProcessor::InputNote in;
     while (proc.popMidiNote (in))
     {
+        if (onInputNote && onInputNote (in.note, in.on)) continue;   // (RECORD CHORD on the CHORDS page)
         if (! in.on) { recordRelease (in.note, in.pos); continue; }
         if (! st.editMode) continue;
         recordNote (in.note, in.timeMs);
@@ -565,7 +566,8 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
         const auto& d = proc.song.chords[param];
         juce::String t = head + (param == 0 ? juce::String ("CHORD 00: JUST THE NOTE")
                                             : d.empty() ? "CHORD " + juce::String::toHexString ((int) param).toUpperCase().paddedLeft ('0', 2) + " IS EMPTY - JUST THE NOTE (SET IT ON THE CHORDS PAGE)"
-                                                        : "CHORD " + juce::String (d.name) + "  " + juce::String (notesText (d)) + ", HELD");
+                                                        : "CHORD " + juce::String (d.name) + "  " + juce::String (notesText (d)) + ", HELD"
+                                                          + (d.note.empty() ? juce::String() : "  (" + juce::String (d.note) + ")"));
         if (ins >= 0 && ! plug && param != 0) t << "  (A SAMPLE INSTRUMENT: JUST THE NOTE)";
         return t;
     }

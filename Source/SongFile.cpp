@@ -8,11 +8,12 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 13;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 14;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
-                                  // v13: chords are #xy (older songs' chord 0xy converted on loading)
+                                  // v13: chords are #xy (older songs' chord 0xy converted on loading),
+                                  // v14: notes on chord slots
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -243,6 +244,17 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeByte ((char) d.count);
         for (int k = 0; k < d.count; ++k) raw.writeByte ((char) d.notes[(size_t) k]);
     }
+    // v14: the slots' notes
+    int noted = 0;
+    for (int i = 1; i < kChordSlots; ++i) if (! song.chords[(size_t) i].note.empty()) ++noted;
+    raw.writeShortBigEndian ((short) noted);
+    for (int i = 1; i < kChordSlots; ++i)
+    {
+        const auto& d = song.chords[(size_t) i];
+        if (d.note.empty()) continue;
+        raw.writeByte ((char) i);
+        writeLong (raw, d.note.data(), d.note.size());
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -463,6 +475,19 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         }
         if (! ok) { error = "The chord table part of this song is damaged."; return false; }
         s.chordsSaved = true;
+        if (version >= 14 && ! in.isExhausted())
+        {
+            const int noted = (int) (uint16_t) in.readShortBigEndian();
+            ok = noted < kChordSlots;
+            for (int n = 0; ok && n < noted; ++n)
+            {
+                const int slot = (int) (uint8_t) in.readByte();
+                std::vector<uint8_t> text;
+                ok = slot > 0 && readLong (in, text, 256);
+                if (ok) s.chords[(size_t) slot].note.assign (text.begin(), text.end());
+            }
+            if (! ok) { error = "The chord notes part of this song is damaged."; return false; }
+        }
     }
     else if (version == 11)
     {
