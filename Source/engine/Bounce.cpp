@@ -127,7 +127,8 @@ bool bounceRange (const Song& song, const PaulaOptions& options, double sampleRa
     p.setSong (&s);
     p.forceMixPath = true;
     p.stemsBeforeMixer = ! r.withFx;
-    if (r.withFx)
+    p.skipInstrumentFx = ! r.instrumentFx;
+    if (r.withFx || r.instrumentFx)
     {
         p.mixer().pluginFactory = std::move (pluginFactory);
         p.mixer().syncEffectsNow (s.mixer);

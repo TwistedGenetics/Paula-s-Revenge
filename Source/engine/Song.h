@@ -71,6 +71,7 @@ struct Cell
 struct Block
 {
     int lines = kDefaultLines;
+    std::string name;                  // shown in the sequence list (empty = none)
     std::vector<std::array<Cell, kMaxTracks>> rows = std::vector<std::array<Cell, kMaxTracks>> (kMaxLines);
 
     Cell&       at (int line, int track)       { return rows[(size_t) line][(size_t) track]; }

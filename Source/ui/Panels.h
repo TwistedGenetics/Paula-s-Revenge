@@ -36,6 +36,7 @@ public:
     std::function<juce::String (int)> getRowTag;     // non-empty = a divider above this row
     std::function<bool (int)> isRowLooped;           // marked at the left edge
     std::function<void (int)> onTagClick;
+    std::function<juce::String (int)> getRowName;    // a name shown after the row's text, before any section label
     float tagZoneX = -1;                             // x where the label zone starts (-1 = none)
 
     void paint (juce::Graphics&) override;
@@ -102,11 +103,14 @@ public:
     void moveSelected (int delta);
     void cloneInPlace();
     void selectPosition (int row);   // same as clicking it in the list
+    void nameBlockAt (int row);      // BLOCK NAME... for the block at that song position
 };
 
 // Add / rename / remove the section divider at sequence position `pos` (asks in a small window).
 // `done` gets a status message when something changed.
 void editSectionDialog (PaulaProcessor&, int pos, std::function<void (const juce::String&)> done);
+void editBlockNameDialog (PaulaProcessor&, int block, std::function<void (const juce::String&)> done);   // the block's name (an undo step)
+void setBlockName (PaulaProcessor&, int block, const juce::String& name);
 // Point the player's section loop at the selected position's section (or turn it off)
 void syncSectionLoop (PaulaProcessor&);
 

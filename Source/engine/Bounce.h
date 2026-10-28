@@ -9,7 +9,9 @@
 
 namespace prv
 {
-struct BounceRange { int block = 0, line0 = 0, line1 = 0, track0 = 0, track1 = 0; bool withFx = false; };
+// withFx: the mixer (the tracks' strips: EQ, inserts, fader, sends and their returns);
+// instrumentFx: the instruments' own inserts
+struct BounceRange { int block = 0, line0 = 0, line1 = 0, track0 = 0, track1 = 0; bool withFx = false; bool instrumentFx = false; };
 
 struct BounceResult
 {
@@ -23,7 +25,7 @@ struct BounceResult
 std::vector<int> instrumentsInRange (const Song&, const BounceRange&);
 
 // Plays just those lines of those tracks (from the range's first line, at the tempo and speed
-// set there) and records them. Dry: the tracks before their mixer strips. With FX: after their
+// set there) and records them. Without the mixer: the tracks before their mixer strips. With it: after their
 // strips (EQ, inserts, fader) plus what they send to SEND A / B through the returns (the master's
 // inserts and the machine's output stage aren't in it). After the last line, plug-in notes and
 // looped samples are let go and it records on until quiet (-80 dB for 0.25 s, at most 10 s).

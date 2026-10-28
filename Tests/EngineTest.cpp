@@ -228,7 +228,7 @@ static void testMED()
     if (! r.ok) std::printf ("  med error: %s\n", r.error.c_str());
     CHECK (r.ok);
     CHECK (t.blocks.size() == 1 && t.blocks[0].lines == 4);
-    CHECK (t.numTracks == 4);
+    CHECK (t.numTracks == 8);   // (every song has 8 tracks)
     CHECK (t.speed == 3 && t.tempo == 125);
     CHECK (t.sequence.size() == 2);
     const Cell c = t.blocks[0].at (0, 0);
@@ -331,6 +331,54 @@ static void testBalance()
         s.trackPan[0] = 0; s.blocks[0].at (0, 0).cmd = 8; s.blocks[0].at (0, 0).param = 128;
         p.playBlock (0); energies (p, 24000, eL, eR);
         CHECK (std::abs (10.0 * std::log10 (eL / eR)) < 0.2);
+    }
+}
+
+static void testEightTracks()
+{
+    // a track sounds as loud in an 8-track song as in a 4-track one (no OctaMED halving)
+    auto render = [] (int tracks, bool grit, int track, bool mixPath, std::vector<float>& L, std::vector<float>& R, int n = 24000)
+    {
+        Song s; s.numTracks = tracks; s.instruments[0] = drum(); s.instruments[0].volume = 40;
+        s.blocks[0].at (0, track) = Cell { 37, 1, 0, 0 }; s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.crunch8ch = grit; p.forceMixPath = mixPath;
+        p.playBlock (0);
+        L.assign ((size_t) n, 0); R.assign ((size_t) n, 0);
+        p.render (L.data(), R.data(), n);
+    };
+    auto rms = [] (const std::vector<float>& v) { double e = 0; for (float x : v) e += x * x; return std::sqrt (e / (double) v.size()); };
+    std::vector<float> l4, r4, l8, r8, lg, rg, lm, rm, l5, r5;
+    render (4, false, 0, false, l4, r4);
+    render (8, false, 0, false, l8, r8);
+    std::printf ("track 1: 4-track rms %.4f, 8-track rms %.4f\n", rms (l4), rms (l8));
+    CHECK (std::abs (rms (l8) / rms (l4) - 1.0) < 0.01);
+    // 8CH GRIT: the same level, a little rougher
+    render (8, true, 0, false, lg, rg);
+    double diff = 0; for (size_t i = 0; i < lg.size(); ++i) diff = std::max (diff, (double) std::abs (lg[i] - l8[i]));
+    std::printf ("8CH GRIT: rms %.4f (clean %.4f), biggest change %.4f\n", rms (lg), rms (l8), diff);
+    CHECK (std::abs (rms (lg) / rms (l8) - 1.0) < 0.05 && diff > 0.001 && diff < 0.05);
+    // the mixer path does the same as the plain one
+    render (8, true, 0, true, lm, rm);
+    double md = 0; for (size_t i = 0; i < lm.size(); ++i) md = std::max (md, (double) std::abs (lm[i] - lg[i]));
+    std::printf ("8CH GRIT mixer path vs plain: biggest difference %.6f\n", md);
+    CHECK (md < 0.002);
+    // track 5 sits on track 1's side (L-R-R-L, then again)
+    render (8, false, 4, false, l5, r5);
+    double eL = 0, eR = 0; for (size_t i = 0; i < l5.size(); ++i) { eL += l5[i] * l5[i]; eR += r5[i] * r5[i]; }
+    CHECK (eL > eR * 1.2);
+    // eight loud tracks: the limiter keeps it from clipping
+    {
+        Song s; s.numTracks = 8; s.instruments[0] = drum();
+        for (int t = 0; t < 8; ++t) s.blocks[0].at (0, t) = Cell { 37, 1, 0, 0 };
+        s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.options.master = 2.0f;
+        p.playBlock (0);
+        std::vector<float> L (24000), R (24000);
+        p.render (L.data(), R.data(), 24000);
+        float pk = 0; for (size_t i = 0; i < L.size(); ++i) pk = std::max ({ pk, std::abs (L[i]), std::abs (R[i]) });
+        std::printf ("eight loud tracks at VOL 200%%: peak %.3f\n", pk);
+        CHECK (pk <= 1.0f && pk > 0.5f);
     }
 }
 
@@ -1447,6 +1495,26 @@ static void testBounce()
         double diff = 0; for (size_t i = 0; i < std::min (dry.left.size(), wet.left.size()); ++i) diff += std::abs (dry.left[i] - wet.left[i]);
         std::printf ("bounce: dry %zu samples, with FX %zu samples, difference %.1f\n", dry.left.size(), wet.left.size(), diff);
         CHECK (wet.left.size() > dry.left.size() + 4800 && diff > 100.0);
+
+        // the four choices: no FX, the instruments' own only, the mixer's only, all
+        Song both = fx;
+        for (int i = 0; i < 2; ++i) { initFxSlot (both.mixer.inst[i][0], FxType::Drive); both.mixer.inst[i][0].p[0] = 1.0f; both.mixer.inst[i][0].p[4] = 0.3f; }
+        BounceResult none, instOnly, mixOnly, all;
+        CHECK (bounceRange (both, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, false, false }, none, nullptr, err));
+        CHECK (bounceRange (both, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, false, true }, instOnly, nullptr, err));
+        CHECK (bounceRange (both, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, true, false }, mixOnly, nullptr, err));
+        CHECK (bounceRange (both, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, true, true }, all, nullptr, err));
+        auto same = [] (const BounceResult& a, const BounceResult& b)
+        {
+            if (a.left.size() != b.left.size()) return false;
+            for (size_t i = 0; i < a.left.size(); ++i) if (std::abs (a.left[i] - b.left[i]) > 1e-5f) return false;
+            return true;
+        };
+        std::printf ("bounce choices: none %zu, instrument FX %zu, mixer FX %zu, all %zu samples\n", none.left.size(), instOnly.left.size(), mixOnly.left.size(), all.left.size());
+        CHECK (same (none, dry));          // no FX: as if neither had any
+        CHECK (same (mixOnly, wet));       // the mixer only: the instruments' drive isn't in it
+        CHECK (! same (instOnly, none) && ! same (instOnly, mixOnly) && instOnly.left.size() < mixOnly.left.size());   // (no reverb tail)
+        CHECK (! same (all, mixOnly) && ! same (all, instOnly) && all.left.size() > instOnly.left.size() + 4800);
     }
     // a MIDI-out instrument can't be bounced
     song.instruments[1].midiOut = true;
@@ -2630,6 +2698,7 @@ int main()
     testMidiOut();
     testBounce();
     testBalance();
+    testEightTracks();
     testEnvelopeAndFilter();
     testSongOps();
     testStereo();

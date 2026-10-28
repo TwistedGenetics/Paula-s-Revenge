@@ -107,7 +107,7 @@ IOResult loadMOD (const std::vector<uint8_t>& bytes, Song& out)
     Song s;
     s.name = r.str (0, 20);
     if (s.name.empty()) s.name = "UNTITLED";
-    s.numTracks = channels <= 4 ? 4 : kMaxTracks;
+    s.numTracks = kMaxTracks;   // (every song has 8 tracks; a 4-channel MOD fills tracks 1-4)
 
     int sampleLen[31] = {};
     for (int i = 0; i < numSamples; ++i)
@@ -355,7 +355,7 @@ IOResult loadMED (const std::vector<uint8_t>& bytes, Song& out)
                 blk.at (row, t) = c;
             }
     }
-    s.numTracks = maxTracks <= 4 ? 4 : kMaxTracks;
+    s.numTracks = kMaxTracks;   // (every song has 8 tracks)
     if (droppedTracks) res.warnings.push_back ("Song has more than 8 tracks - only the first 8 are kept.");
     if (unknownCmds) res.warnings.push_back ("Some MED-only commands have no equivalent and were left out.");
 
@@ -415,11 +415,10 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
 
     // Use 4 channels when the upper tracks are empty
     bool upperUsed = false;
-    if (song.numTracks > 4)
-        for (const auto& b : song.blocks)
-            for (int l = 0; l < b.lines && ! upperUsed; ++l)
-                for (int t = 4; t < kMaxTracks; ++t)
-                    if (! b.at (l, t).isEmpty()) { upperUsed = true; break; }
+    for (const auto& b : song.blocks)
+        for (int l = 0; l < b.lines && ! upperUsed; ++l)
+            for (int t = 4; t < kMaxTracks; ++t)
+                if (! b.at (l, t).isEmpty()) { upperUsed = true; break; }
     const int channels = upperUsed ? 8 : 4;
 
     bool tooLong = false, instrTooHigh = false, bigSample = false, rateChanged = false, fxDropped = false;

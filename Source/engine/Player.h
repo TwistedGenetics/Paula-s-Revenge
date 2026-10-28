@@ -31,10 +31,10 @@ struct PaulaOptions
     // what the model actually does with the Amiga options
     bool stepped() const   { return model == Model::S950 ? true : model == Model::S1000 ? false : zeroOrderHold; }
     int  dropBits() const  { return model == Model::S950 ? 4 : model == Model::S1000 ? 0 : (eightBit ? 8 : 0); }   // 16 - bit depth
-    bool crunches() const  { return ! isAkai() && crunch8ch && eightBit; }
+    bool crunches() const  { return isAmiga() && crunch8ch && eightBit; }   // 8CH GRIT in effect
     bool  zeroOrderHold = true;         // stepped Paula playback (vs. linear interpolation)
     bool  eightBit      = true;         // quantise sample data to 8 bits
-    bool  crunch8ch     = true;         // requantise mixed track pairs in 8-track songs
+    bool  crunch8ch     = true;         // 8CH GRIT: tracks 1+5, 2+6... mixed the OctaMED 8-channel way (at full level)
     float stereoSep     = 0.2f;         // 0 = everything centred, 1 = hard Amiga L-R-R-L panning
     float master        = 1.0f;          // 0..2
 };
@@ -175,6 +175,7 @@ public:
     };
     StemTap* stemTap = nullptr;
     bool stemsBeforeMixer = false;   // bounces: the tracks before their mixer strips (no master)
+    bool skipInstrumentFx = false;   // bounces: the instruments' own inserts left out
     // bounces: the range has ended - plug-in notes and looped samples are let go (one-shots ring on)
     void releaseForTail();
     static constexpr int kStems = kMaxTracks + kReturns + 1;
@@ -348,6 +349,7 @@ private:
     // output filters
     FirstOrder lpL, lpR;     // the model's fixed output filter (measured response where there is one)
     OnePole hpL, hpR;
+    float limGain = 1.0f, limRelease = 0.0002f;   // the safety limiter
     Biquad  ledL, ledR;
     Biquad  akL[4], akR[4];   // Akai output filter (cascaded 2-pole sections)
     int     akStages = 0;

@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.21.1</span>
+  <span class="ver">MANUAL &middot; V0.22</span>
 </header>
 
 <div class="app">
@@ -184,16 +184,16 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <thead><tr><th>AREA</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
       <tr><td>Title bar</td><td><span class="b">NEW</span> <span class="b">LOAD</span> <span class="b">SAVE</span> <span class="b">SAVE AS</span>, <span class="b">UNDO</span> <span class="b">REDO</span>, <span class="b">FULL VEL</span> <span class="b">NOTE-OFFS</span> <span class="b">CAPTURE</span> (see <a href="#pattern">Recording</a>), and text size <span class="b">A-</span> <span class="b">A+</span>. Save MOD, Render WAV and Export Samples are in the <b>File</b> menu.</td></tr>
-      <tr><td>Transport</td><td>Play the song or the block, stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step.</td></tr>
+      <tr><td>Transport</td><td>Play the song or the block, stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>) and <span class="b">MIXER</span> (<kbd>Cmd</kbd><kbd>2</kbd>).</td></tr>
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
-      <tr><td>Pattern</td><td>4 or 8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
+      <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
       <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, an L/R meter, stereo separation and volume.</td></tr>
-      <tr><td>Bottom row</td><td>4 or 8 tracks, <span class="b">BIG VIEW</span>, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>), <span class="b">PANELS</span>, song <span class="b">NAME</span>, <span class="b">MIXER</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
+      <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
     </tbody>
   </table></div>
-  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to black on white, as in this manual. <span class="b">BIG VIEW</span> shows 4 tracks at a time with large text: <kbd>Tab</kbd> to track 5 and the view flips to tracks 5–8.</p>
+  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to black on white, as in this manual. Every song has 8 tracks (a 4-channel MOD fills tracks 1–4). <span class="b">BIG VIEW</span> shows 4 at a time with large text, with a tall <span class="b">TRACKS 5-8 &#9654;</span> tab beside them; click it for tracks 5–8, and <span class="b">&#9664; TRACKS 1-4</span> brings you back (<kbd>Tab</kbd> past track 4 flips too). The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
   <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
   <h3>Right-click menus</h3>
   <p>Right-click almost anything for the things you can do to it. Everything they do can be undone.</p>
@@ -350,6 +350,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>Drag over positions to highlight them, then <span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DUP</span> <span class="b">DEL</span>. Drag the highlight, or use <span class="b">&#9650;</span> <span class="b">&#9660;</span>, to move positions.</li>
     <li><span class="b">CLONE IN PLACE</span> gives a position its own copy of its block, in the next free block, so you can change it without touching the other places it plays.</li>
     <li>Click at the right of a row to start a named <b>section</b> there (INTRO, DROP…). <span class="b">LOOP SECTION</span> loops the section you're in; pick a position in another section and playback goes there when the current block ends.</li>
+    <li><b>Block names:</b> double-click a position (or right-click &rarr; <span class="b">BLOCK NAME...</span>) to name its block (AMEN, REESE…). The name shows after the block number, before any section name.</li>
   </ul>
   <h3>The arrange page</h3>
   <p><span class="b">ARRANGE</span> shows the song order full size, with a picture of each block's notes. It shares the highlight and clipboard with the sequence panel. <span class="b">INSERT</span> adds the BLOCK number after the cursor, <span class="b">SET</span> makes the highlighted positions play it.</p>
@@ -451,9 +452,9 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">S1000</span></td><td>Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output</td></tr>
       <tr><td><span class="b">STEPPED</span></td><td>Paula's stepped playback, exactly as the chip makes it (off = smooth)</td></tr>
       <tr><td><span class="b">8-BIT</span></td><td>Samples play at 8-bit resolution</td></tr>
-      <tr><td><span class="b">CRUNCH</span></td><td>In 8-track songs, track pairs are mixed and squashed back to 8 bits, as 8-channel Amiga trackers did</td></tr>
+      <tr><td><span class="b">8CH GRIT</span></td><td>OctaMED's 8-channel sound on all 8 tracks. The Amiga has 4 channels, so 8-channel trackers mixed two tracks into each (1+5, 2+6, 3+7, 4+8) at half level and squashed them back to 8 bits; this does the squashing, then brings the level back up. On for the Amiga models. Every track plays at full level either way, and a safety limiter stops eight loud tracks clipping</td></tr>
       <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter (12 dB/oct at 3.2 kHz) at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
-      <tr><td>SEP</td><td>How far tracks lean to the Amiga sides (1 and 4 left, 2 and 3 right). 20% to start; 0% = all centred</td></tr>
+      <tr><td>SEP</td><td>How far tracks lean to the Amiga sides (1, 4, 5, 8 left; 2, 3, 6, 7 right). 20% to start; 0% = all centred</td></tr>
     </tbody>
   </table></div>
   <h3>How the Paula modes work</h3>
@@ -475,7 +476,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <section class="ch raised" id="mixer">
   <h2>THE MIXER</h2>
   <div class="accent t1"></div>
-  <p><span class="b">MIXER</span> on the bottom row (<kbd>Cmd</kbd><kbd>2</kbd>) opens the mixer across the window; <kbd>Esc</kbd> or <kbd>Cmd</kbd><kbd>1</kbd> goes back. The keys still play the current instrument while it's open.</p>
+  <p><span class="b">MIXER</span> on the transport row (<kbd>Cmd</kbd><kbd>2</kbd>) opens the mixer across the window; <kbd>Esc</kbd> or <kbd>Cmd</kbd><kbd>1</kbd> goes back. The keys still play the current instrument while it's open.</p>
   <figure>
     <div class="frame sunken"><img src="img/mixer.png" alt="The mixer: four track strips, SEND A with a reverb and SEND B with a delay, and the master, each with a fader and meter." width="1440" height="900" loading="lazy"></div>
     <figcaption>The strips: tracks, SEND A, SEND B, master</figcaption>
@@ -676,14 +677,16 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="accent t1"></div>
   <p>Turn any part of the pattern into a new sample. Highlight some notes (they can cover several tracks), then right-click inside the highlight, or press <kbd>Cmd</kbd><kbd>B</kbd>.</p>
   <figure>
-    <div class="frame sunken"><img src="img/bounce_menu.png" alt="Two highlighted tracks in the pattern with the choice box: BOUNCE DRY (NO FX), BOUNCE WITH FX, EFFECT COMMANDS..., CANCEL." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/bounce_menu.png" alt="Two highlighted tracks in the pattern with the choice box: BOUNCE: NO FX, BOUNCE: INSTRUMENT FX ONLY, BOUNCE: MIXER FX ONLY, BOUNCE: ALL FX, EFFECT COMMANDS..., CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>Right-click inside a highlight</figcaption>
   </figure>
   <div class="tbl sunken"><table>
     <thead><tr><th>CHOICE</th><th>WHAT'S IN THE SAMPLE</th></tr></thead>
     <tbody>
-      <tr><td><span class="b">BOUNCE DRY (NO FX)</span></td><td>The instruments' own sound, before the tracks' mixer strips. Use it when the sample will play through a strip with the same effects.</td></tr>
-      <tr><td><span class="b">BOUNCE WITH FX</span></td><td>After the tracks' strips (EQ, inserts, fader) plus what they send to SEND A / B, so reverb and delay tails are in it. Not the master or the Paula / Akai output stage.</td></tr>
+      <tr><td><span class="b">NO FX</span></td><td>The instruments' sound before any effects. Use it when the sample will play through the same effects.</td></tr>
+      <tr><td><span class="b">INSTRUMENT FX ONLY</span></td><td>Through the instruments' own inserts, not the mixer.</td></tr>
+      <tr><td><span class="b">MIXER FX ONLY</span></td><td>After the tracks' strips (EQ, inserts, fader) plus what they send to SEND A / B, so reverb and delay tails are in it; not the instruments' own effects.</td></tr>
+      <tr><td><span class="b">ALL FX</span></td><td>Both. Never the master or the Paula / Akai output stage. The new instrument is called BOUNCE, BOUNCE+IFX, BOUNCE+MFX or BOUNCE+FX.</td></tr>
     </tbody>
   </table></div>
   <ul>
@@ -709,7 +712,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>After the song ends it keeps going until everything is quiet for a second (up to 20 seconds), so tails aren't cut. Plug-in delay is taken off the start.</li>
     <li>MIDI-out instruments can't be rendered; the status line says which were left out.</li>
   </ul>
-  <p>These are in the <b>File</b> menu. <span class="b">EXPORT SAMPLES</span> writes every instrument's sample to a folder as <code>01 NAME.wav</code>, <code>02 NAME.wav</code>… <span class="b">SAVE MOD</span> writes a ProTracker MOD (4 tracks <code>M.K.</code>, 8 tracks <code>8CHN</code>) and says what a MOD can't hold.</p>
+  <p>These are in the <b>File</b> menu. <span class="b">EXPORT SAMPLES</span> writes every instrument's sample to a folder as <code>01 NAME.wav</code>, <code>02 NAME.wav</code>… <span class="b">SAVE MOD</span> writes a ProTracker MOD (<code>M.K.</code> when only tracks 1–4 are used, else <code>8CHN</code>) and says what a MOD can't hold.</p>
 </section>
 
 <!-- ============================================================ 014 -->
@@ -717,7 +720,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h2>SAVING &amp; FILES</h2>
   <div class="accent t3"></div>
   <ul>
-    <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. <span class="b">SAVE*</span> with a star means unsaved changes.</li>
+    <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. The song takes the file's name. <span class="b">SAVE*</span> with a star means unsaved changes.</li>
     <li>A <code>.prv</code> song holds everything: every sample (stereo too), the mixer, plug-in settings, automation, MIDI-out settings, its chord table. You can move or delete the original WAVs.</li>
     <li><span class="b">LOAD</span> also opens ProTracker-style <code>.mod</code> files (4, 6 and 8 channels) and MED / OctaMED <code>MMD0</code> / <code>MMD1</code> modules.</li>
     <li>Songs saved by older versions always load.</li>
@@ -740,7 +743,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Enter</kbd></td><td>Play block · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
       <tr><td>Arrows</td><td>Move · <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> 4 lines · <kbd>Shift</kbd> <kbd>&larr;</kbd><kbd>&rarr;</kbd> track</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous</td></tr>
-      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up, on every page (also with a plug-in's window in front)</td></tr>
       <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Previous / next instrument</td></tr>
       <tr><td><kbd>Delete</kbd></td><td>Clear the highlight or the field · <kbd>Shift</kbd> removes the line · <kbd>Alt</kbd> inserts one</td></tr>
       <tr><td><kbd>Cmd</kbd> <kbd>C</kbd> <kbd>X</kbd> <kbd>V</kbd></td><td>Copy / cut / paste the highlight, or the track (<kbd>Shift</kbd>: the block)</td></tr>
@@ -761,7 +764,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.21.1</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.22</footer>
 </main>
 </div>
 </body></html>

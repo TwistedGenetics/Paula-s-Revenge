@@ -112,8 +112,23 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     Theme::bevel (g, r, ! on, std::max (1.0f, Theme::px * 0.5f), P);
     const float px = Theme::px * textScale;
     auto label = getButtonText();
+    if (label.containsChar ('\n'))
+    {
+        // lines stacked (a tall, narrow button)
+        juce::StringArray lines; lines.addLines (label);
+        const float lh = px * (PixelFont::kCellH + 3);
+        auto area = r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f);
+        float y = area.getCentreY() - lh * (float) lines.size() * 0.5f;
+        for (const auto& l : lines)
+        {
+            PixelFont::drawCentred (g, l, juce::Rectangle<float> (area.getX(), y, area.getWidth(), lh), px, isEnabled() ? P.ink : P.faint);
+            y += lh;
+        }
+        return;
+    }
     float usePx = px;
-    while (usePx > 1.0f && PixelFont::textWidth (label, usePx) > r.getWidth() - 4) usePx -= 0.5f;
+    // (the text's own width: the last character's spacing column doesn't count)
+    while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
     PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? P.ink : P.faint);
 }
 
@@ -139,8 +154,15 @@ void NumberBox::setValue (int v, bool notify)
     if (notify && onChange) onChange (value);
 }
 
+float NumberBox::labelWidth (float px) const
+{
+    return compact ? PixelFont::textWidth (label.trim(), px) + px : px * PixelFont::kCellW * labelChars;
+}
+
 int NumberBox::preferredWidth (float px) const
 {
+    if (compact)
+        return (int) std::ceil (labelWidth (px) + px * PixelFont::kCellW * valueChars + px * 3 + 2 * (px * 5 + 7) + px);
     return (int) std::ceil (px * PixelFont::kCellW * (labelChars + valueChars + 1) + 2 * (px * 9) + px * 4);
 }
 
@@ -148,8 +170,8 @@ void NumberBox::resized()
 {
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
-    r.removeFromLeft (px * PixelFont::kCellW * labelChars);
-    const float bw = std::min (r.getHeight(), px * 9);
+    r.removeFromLeft (labelWidth (px));
+    const float bw = std::min (r.getHeight(), compact ? px * 5 + 7 : px * 9);   // (compact: just room for the - / + at full size)
     minus.setBounds (r.removeFromLeft (bw).toNearestInt());
     plus.setBounds (r.removeFromRight (bw).toNearestInt());
     valueArea = r.reduced (px * 0.5f, 0);
@@ -160,7 +182,7 @@ void NumberBox::paint (juce::Graphics& g)
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
     const auto& P = Theme::palFor (*this);
-    PixelFont::drawLeft (g, label, r.withWidth (px * PixelFont::kCellW * labelChars), px, P.ink);
+    PixelFont::drawLeft (g, compact ? label.trim() : label, r.withWidth (labelWidth (px)), px, P.ink);
     g.setColour (P.paper);
     g.fillRect (valueArea);
     Theme::bevel (g, valueArea, false, std::max (1.0f, px * 0.5f), P);

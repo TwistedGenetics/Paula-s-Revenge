@@ -37,6 +37,7 @@ public:
     void choose (int answer) { finish (answer); }   // (tests)
     const juce::String& getTitle() const { return title; }
     int  numAnswers() const { return (int) buttons.size() - 1; }
+    juce::String answerText (int i) const { return i >= 0 && i < numAnswers() ? buttons[(size_t) i]->getButtonText() : juce::String(); }   // (tests)
 
     void paint (juce::Graphics& g) override
     {

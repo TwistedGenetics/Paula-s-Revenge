@@ -21,6 +21,8 @@ namespace
     }
 
     inline float quant8 (float s) { return std::round (std::clamp (s, -1.0f, 1.0f) * 127.0f) / 127.0f; }
+    // OctaMED's 8-channel mix of a pair of tracks: halved into one 8-bit channel, then (here) back up
+    inline float grit (float s) { return quant8 (s * 0.5f) * 2.0f; }
 
     constexpr uint8_t C_G = cmdLetter ('G'), C_H = cmdLetter ('H'), C_K = cmdLetter ('K'), C_L = cmdLetter ('L'),
                       C_M = cmdLetter ('M'), C_N = cmdLetter ('N'), C_O = cmdLetter ('O'), C_P = cmdLetter ('P'),
@@ -154,7 +156,7 @@ namespace
 void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
 {
     const auto& in = song->instruments[(size_t) v.instr];
-    if (ch >= 0 && ch < kMaxTracks) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts')
+    if (ch >= 0 && ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts'; a muted track's note doesn't take it)
     synthRelease (v);   // one note at a time on a track, as with samples
     uint8_t p = 0;
     int note = (int) cell.note + in.transpose;
@@ -292,6 +294,8 @@ void Player::advanceAutomation()
 void Player::setSampleRate (double sr)
 {
     sampleRate = sr > 0 ? sr : 44100.0;
+    limRelease = (float) (1.0 - std::exp (-1.0 / (0.15 * sampleRate)));
+    limGain = 1.0f;
     updateFilters();
     mixerEngine.prepare (sampleRate);
     rack.prepare (sampleRate, MixerEngine::kMaxBlock);
@@ -635,7 +639,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
         return;
     }
     v.fadeOut = 0;
-    if (ch < kMaxTracks) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track)
+    if (ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track; not a muted one)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;
@@ -1342,8 +1346,13 @@ void Player::outputStage (float& L, float& R, bool led)
         R = ledR.process (R);
     }
     const float g = options.master;
-    L = softClip (L * g);
-    R = softClip (R * g);
+    L *= g; R *= g;
+    // a safety limiter (eight loud tracks at full level): instant down, back up over ~150 ms
+    const float pk = std::max (std::abs (L), std::abs (R));
+    const float want = pk > 0.9f ? 0.9f / pk : 1.0f;
+    limGain = want < limGain ? want : limGain + (want - limGain) * limRelease;
+    L = softClip (L * limGain);
+    R = softClip (R * limGain);
 }
 
 void Player::updateSynths (int numSamples)
@@ -1410,7 +1419,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     bool anyChain = false;
     for (int ins = 0; ins < kMaxInstruments; ++ins)
     {
-        instChain[ins] = mixActive && song->mixer.instrumentChain (ins);
+        instChain[ins] = mixActive && ! skipInstrumentFx && song->mixer.instrumentChain (ins);
         if (! instChain[ins]) continue;
         anyChain = true;
         std::fill (instL[ins], instL[ins] + numSamples, 0.0f);
@@ -1427,7 +1436,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         L += s * (1.0f - pos) * 0.5f;
         R += s * (1.0f + pos) * 0.5f;
     };
-    auto sidePan = [&] (int hw) { return ((hw == 0 || hw == 3) ? -1.0f : 1.0f) * sep; };
+    auto sidePan = [&] (int t) { const int hw = t % 4; return ((hw == 0 || hw == 3) ? -1.0f : 1.0f) * sep; };   // (tracks 1, 4, 5, 8 left)
     for (int i = 0; i < numSamples; ++i)
     {
         chunkPos = i;
@@ -1534,17 +1543,24 @@ void Player::renderChunk (float* left, float* right, int numSamples)
 
         if (mixActive)
         {
-            // each track on its own (paired tracks in 8-track songs share the level they'd have had)
-            const float scale = nt > 4 ? 0.5f : 1.0f;
+            // each track on its own, at full level; 8CH GRIT: what OctaMED's 8-channel mixing does to
+            // a pair of tracks sharing one Paula channel, its error shared between the two
+            float tls[kMaxTracks] = {}, trs[kMaxTracks] = {};
+            for (int t = 0; t < nt; ++t) addVoice (t, 1.0f, sidePan (t), tls[t], trs[t]);
+            if (options.crunches())
+                for (int a = 0; a < 4; ++a)
+                {
+                    const int b = a + 4;
+                    if (b >= nt) { tls[a] = grit (tls[a]); trs[a] = grit (trs[a]); continue; }
+                    const float sl = tls[a] + tls[b], sr = trs[a] + trs[b];
+                    const float el = (grit (sl) - sl) * 0.5f, er = (grit (sr) - sr) * 0.5f;
+                    tls[a] += el; tls[b] += el; trs[a] += er; trs[b] += er;
+                }
             for (int t = 0; t < kMaxTracks; ++t)
             {
-                float tl = 0, tr = 0;
+                float tl = tls[t], tr = trs[t];
                 if (t < nt)
-                {
-                    addVoice (t, scale, sidePan (nt > 4 ? t / 2 : t), tl, tr);
-                    if (nt > 4 && options.crunches()) { tl = quant8 (tl); tr = quant8 (tr); }
                     if (const int vi = chainOf (t); vi >= 0) { instL[vi][i] += tl; instR[vi][i] += tr; tl = tr = 0; }
-                }
                 trkL[t][i] = tl; trkR[t][i] = tr;
             }
             jamL[i] = jl; jamR[i] = jr;
@@ -1552,26 +1568,19 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             continue;
         }
 
+        // all the tracks at full level, on the Amiga's L-R-R-L sides (tracks 1-4, then 5-8 the same);
+        // 8CH GRIT: each pair sharing a Paula channel (1+5, 2+6, 3+7, 4+8) mixed the OctaMED way -
+        // halved into 8 bits together - then brought back up to full level
         float L = 0, R = 0;
-        if (nt > 4)
+        if (options.crunches())
         {
-            for (int p = 0; p < 4; ++p)
+            for (int a = 0; a < 4; ++a)
             {
-                const int a = p * 2, b = p * 2 + 1;
-                if (! isFixed[a] && ! isFixed[b] && ! st[a] && ! st[b])
-                {
-                    float s = (valL[a] + valL[b]) * 0.5f;
-                    if (options.crunches()) s = quant8 (s);
-                    addPanned (s, sidePan (p), L, R);
-                }
-                else
-                {
-                    float pl = 0, pr = 0;
-                    addVoice (a, 0.5f, sidePan (p), pl, pr);
-                    addVoice (b, 0.5f, sidePan (p), pl, pr);
-                    if (options.crunches()) { pl = quant8 (pl); pr = quant8 (pr); }
-                    L += pl; R += pr;
-                }
+                const int b = a + 4;
+                float pl = 0, pr = 0;
+                if (a < nt) addVoice (a, 1.0f, sidePan (a), pl, pr);
+                if (b < nt) addVoice (b, 1.0f, sidePan (b), pl, pr);
+                L += grit (pl); R += grit (pr);
             }
         }
         else

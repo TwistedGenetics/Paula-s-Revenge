@@ -19,7 +19,8 @@ public:
     // the view's own scrolling (FOLLOW doesn't scroll it while playing): ▲ / ▼ a page, ● to the play line
     void scrollView (int lines);
     void showPlayLine();
-    int  playLineOffScreen() const;   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
+    int  playLineOffScreen() const;
+    void showOtherHalf();             // BIG VIEW: tracks 5-8 / 1-4 (the cursor goes to the same place there)   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
     float viewTopLine() const { return viewTop; }
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -212,6 +213,11 @@ private:
     float fontPx() const;
     void placeArrows();
     float arrowsW() const { return Theme::px * 10.0f; }   // the ▲ ● ▼ column at the right
+    // BIG VIEW: the tab after the 4 tracks shown, to the other 4 ("TRACKS 5-8 >" / "< TRACKS 1-4")
+    bool  halfTabShown() const { return visibleTracks() < proc.song.numTracks; }
+    float halfTabMinW() const { return halfTabShown() ? Theme::px * (PixelFont::kCellW + 4) : 0.0f; }   // one character wide
+    float halfTabW() const;           // what's left beside the tracks (at least one character wide)
+    PixButton halfBtn { "TRACKS\n5-8\n\x01" };
     PixButton viewUpBtn { juce::String::charToString ((juce::juce_wchar) 3) }, viewPlayBtn { juce::String::charToString ((juce::juce_wchar) 5) },
               viewDownBtn { juce::String::charToString ((juce::juce_wchar) 4) };
     int viewRepeat = 0;

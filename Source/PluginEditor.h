@@ -46,7 +46,8 @@ public:
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
     void toggleHelp();                                // HELP (F1, Cmd+/)
-    bool bounceSelection (bool withFx);               // the highlighted area to a new instrument
+    enum BounceFx { BounceNoFx = 0, BounceInstrumentFx, BounceMixerFx, BounceAllFx };
+    bool bounceSelection (int fx);                    // the highlighted area to a new instrument (a BounceFx)
     void askBounce();                                 // DRY or WITH FX?
     int  captureNow();                                // CAPTURE (Cmd+R): what was played into the pattern; notes written
     void showMeterColourMenu (bool forSpectrum);      // right-click a level meter / the spectrum: its colour
@@ -67,6 +68,8 @@ public:
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
     void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
     bool fullVelocityOn() const { return proc.fullVelocity.load(); }
+    bool writeSongTo (const juce::File&);             // SAVE to that file (the song takes the file's name)
+    bool loadSongFrom (const juce::File&);            // LOAD from that file
     bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
@@ -76,7 +79,7 @@ private:
     void refreshAll();
     void applyOptions();
 
-    bool writeSongTo (const juce::File&);
+    static juce::String songNameFor (const juce::File&);   // the song's name: its file's
     void historyRestored (const juce::String&);
     void exportWav (bool stems);
 
@@ -107,13 +110,13 @@ private:
     // paula strip
     PixButton a500Btn { "A500", true }, a1200Btn { "A1200", true }, a4000Btn { "A4000", true }, cleanBtn { "CLEAN", true };
     PixButton s950Btn { "S950", true }, s1000Btn { "S1000", true };
-    PixButton steppedBtn { "STEPPED", true }, eightBitBtn { "8-BIT", true }, crunchBtn { "CRUNCH", true }, ledBtn { "LED", true };
+    PixButton steppedBtn { "STEPPED", true }, eightBitBtn { "8-BIT", true }, crunchBtn { "8CH GRIT", true }, ledBtn { "LED", true };
     PixLabel  ledLabel { {}, false };
     PixSlider sepSlider { "SEP" }, volSlider { "VOL" };
 
     // song strip
-    PixButton tracksBtn { "8 TRACKS", true }, viewBtn { "BIG VIEW", true };
-    PixButton nameBtn { "NAME" }, mixerBtn { "MIXER", true };
+    PixButton viewBtn { "BIG VIEW", true };
+    PixButton mixerBtn { "MIXER", true };
     PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true };
     PixLabel  statusLabel;
 

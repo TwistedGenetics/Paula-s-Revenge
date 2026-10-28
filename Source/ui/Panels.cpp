@@ -63,6 +63,23 @@ void PixList::paint (juce::Graphics& g)
             g.fillRect (px * 5.5f, rr.getY(), px * 1.5f, rh);
         }
         const juce::String tag = getRowTag ? getRowTag (row) : juce::String();
+        if (getRowName && tagZoneX >= 0)
+        {
+            // the block's name, cut short so it never runs into the section label
+            juce::String nm = getRowName (row);
+            if (nm.isNotEmpty())
+            {
+                const juce::String shownTag = tag.isNotEmpty() ? tag : (row == hoverTagRow ? juce::String ("+ SECTION") : juce::String());
+                const float tagW = shownTag.isNotEmpty() ? PixelFont::textWidth (shownTag, px) + px * 4 : 0.0f;
+                const float room = listW - tagZoneX - tagW - px * 2;
+                if (PixelFont::textWidth (nm, px) > room)
+                {
+                    while (nm.length() > 1 && PixelFont::textWidth (nm + "..", px) > room) nm = nm.dropLastCharacters (1);
+                    nm = room > PixelFont::textWidth ("A..", px) ? nm + ".." : juce::String();
+                }
+                if (nm.isNotEmpty()) PixelFont::draw (g, nm, tagZoneX, ty, px, Theme::skin.text);
+            }
+        }
         if (tag.isNotEmpty() || (row == hoverTagRow && tagZoneX >= 0))
         {
             g.setColour (Theme::skin.hot);
@@ -262,6 +279,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
                 { "INSERT A NEW BLOCK", act ([] (SequencePanel& s) { s.insertPosition (true); }) },
                 { "CLONE IN PLACE", act ([] (SequencePanel& s) { s.cloneInPlace(); }) },
                 { "SECTION NAME...", act ([r] (SequencePanel& s) { s.list.onTagClick (r); }) },
+                { "BLOCK NAME...", act ([r] (SequencePanel& s) { s.nameBlockAt (r); }) },
             });
             return;
         }
@@ -291,6 +309,12 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         if (! proc.editorState.sectionLoop) return false;
         return r >= proc.player.songLoopStart() && r <= proc.player.songLoopEnd();
     };
+    list.getRowName = [this] (int r)
+    {
+        if (r < 0 || r >= (int) proc.song.sequence.size()) return juce::String();
+        return juce::String (proc.song.blocks[(size_t) proc.song.safeBlock (proc.song.sequence[(size_t) r])].name).toUpperCase();
+    };
+    list.onDoubleClick = [this] (int r) { nameBlockAt (r); };
     list.onTagClick = [this] (int r)
     {
         juce::Component::SafePointer<SequencePanel> safe (this);
@@ -537,6 +561,45 @@ void editSectionDialog (PaulaProcessor& proc, int pos, std::function<void (const
         syncSectionLoop (*p);
         if (done) done (msg);
     }), true);
+}
+
+void SequencePanel::nameBlockAt (int row)
+{
+    if (row < 0 || row >= (int) proc.song.sequence.size()) return;
+    juce::Component::SafePointer<SequencePanel> safe (this);
+    editBlockNameDialog (proc, proc.song.sequence[(size_t) row], [safe] (const juce::String& m)
+    {
+        if (safe == nullptr) return;
+        safe->changed(); safe->repaint();
+        if (safe->onStatus) safe->onStatus (m);
+    });
+}
+
+void editBlockNameDialog (PaulaProcessor& proc, int block, std::function<void (const juce::String&)> done)
+{
+    block = proc.song.safeBlock (block);
+    const juce::String num = juce::String (block).paddedLeft ('0', 3);
+    auto* w = new juce::AlertWindow ("Block name", "Name block " + num + " (empty: no name)", juce::MessageBoxIconType::NoIcon);
+    w->addTextEditor ("name", juce::String (proc.song.blocks[(size_t) block].name));
+    w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    auto* p = &proc;
+    w->enterModalState (true, juce::ModalCallbackFunction::create ([p, w, block, num, done] (int r)
+    {
+        if (r != 1) return;
+        setBlockName (*p, block, w->getTextEditorContents ("name"));
+        const juce::String n (p->song.blocks[(size_t) block].name);
+        if (done) done (n.isEmpty() ? "BLOCK " + num + ": NO NAME" : "BLOCK " + num + " IS \"" + n + "\"");
+    }), true);
+}
+
+void setBlockName (PaulaProcessor& proc, int block, const juce::String& name)
+{
+    block = proc.song.safeBlock (block);
+    const auto n = name.toUpperCase().trim().substring (0, 24).toStdString();
+    if (n == proc.song.blocks[(size_t) block].name) return;
+    proc.history.block (block, "BLOCK NAME");
+    proc.withLock ([&] { proc.song.blocks[(size_t) block].name = n; });
 }
 
 // =========================================================================== Block

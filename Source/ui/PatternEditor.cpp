@@ -27,6 +27,9 @@ PatternEditor::PatternEditor (PaulaProcessor& p) : proc (p), st (p.editorState)
     viewUpBtn.onClick = [this] { scrollView (-std::max (1, fullRows() - 2)); };
     viewDownBtn.onClick = [this] { scrollView (std::max (1, fullRows() - 2)); };
     viewPlayBtn.onClick = [this] { showPlayLine(); };
+    halfBtn.onClick = [this] { showOtherHalf(); };
+    halfBtn.setWantsKeyboardFocus (false); halfBtn.setMouseClickGrabsKeyboardFocus (false);
+    addChildComponent (halfBtn);
     for (auto* b : { &viewUpBtn, &viewDownBtn }) { b->setRepeatSpeed (400, 120); }
     for (auto* b : { &viewUpBtn, &viewPlayBtn, &viewDownBtn }) { b->setWantsKeyboardFocus (false); b->setMouseClickGrabsKeyboardFocus (false); addAndMakeVisible (*b); }
     edgeScroll.onStep = [this] (int dir)
@@ -84,8 +87,39 @@ void PatternEditor::resized()
     placeArrows();
 }
 
+float PatternEditor::halfTabW() const
+{
+    if (! halfTabShown()) return 0.0f;
+    const float left = (float) getWidth() - arrowsW() - (lineNumW() + trackW() * (float) visibleTracks()) - Theme::px * 2;
+    return std::max (halfTabMinW(), std::min (left, Theme::px * (PixelFont::kCellW * 10)));
+}
+
+void PatternEditor::showOtherHalf()
+{
+    st.track = st.track >= 4 ? st.track - 4 : std::min (proc.song.numTracks - 1, st.track + 4);
+    if (onStatus) onStatus (st.track >= 4 ? "TRACKS 5-8" : "TRACKS 1-4");
+    changed();
+    grabKeyboardFocus();
+}
+
 void PatternEditor::placeArrows()
 {
+    // BIG VIEW: the tab to the other 4 tracks, after the ones shown
+    halfBtn.setVisible (halfTabShown());
+    if (halfTabShown())
+    {
+        const bool upper = firstTrack() >= 4;
+        // as much of "TRACKS 5-8 >" as fits the room beside the tracks (the text stays full size)
+        const float w = halfTabW() - Theme::px * 3;
+        const juce::String arrow = upper ? "\x08" : "\x01", nums = upper ? "1-4" : "5-8";
+        juce::String t;
+        if (w >= PixelFont::textWidth ("TRACKS", Theme::px)) t = upper ? arrow + "\nTRACKS\n" + nums : "TRACKS\n" + nums + "\n" + arrow;
+        else if (w >= PixelFont::textWidth (nums, Theme::px)) t = upper ? arrow + "\n" + nums : nums + "\n" + arrow;
+        else t = upper ? arrow + "\n\n1\n-\n4" : "5\n-\n8\n\n" + arrow;
+        if (halfBtn.getButtonText() != t) halfBtn.setButtonText (t);
+        const float x = lineNumW() + trackW() * (float) visibleTracks() + Theme::px;
+        halfBtn.setBounds ((int) x, (int) (fontPx() * 0.5f), (int) halfTabW(), (int) (headerH() + rowsArea() - fontPx()));   // (a tall tab beside the tracks)
+    }
     // the ▲ ● ▼ column at the right of the rows
     const float aw = arrowsW();
     const float top = headerH();
@@ -168,7 +202,7 @@ float PatternEditor::fontPx() const
 {
     const int chars = kLineNumChars + visibleTracks() * trackChars();
     const float maxPx = Theme::px * 1.5f;
-    return PixelFont::fitPx (chars, (float) getWidth() - 8.0f - arrowsW(), maxPx);
+    return PixelFont::fitPx (chars, (float) getWidth() - 8.0f - arrowsW() - halfTabMinW(), maxPx);
 }
 
 float PatternEditor::helpHeight() const { return st.column >= 3 ? Theme::px * 12 : 0.0f; }
@@ -473,17 +507,6 @@ void PatternEditor::paint (juce::Graphics& g)
     if (st.editMode) g.drawRect (bounds.reduced (1.0f), std::max (2.0f, px));
     else             g.drawRect (bounds, 1.0f);
 
-    if (hasKeyboardFocus (false) == false)
-    {
-        const float hp = std::max (1.5f, px * 0.75f);
-        const juce::String hint = "CLICK HERE TO TYPE";
-        auto box = juce::Rectangle<float> (PixelFont::textWidth (hint, hp) + hp * 4, hp * 11)
-                       .withPosition (bounds.getRight() - arrowsW() - PixelFont::textWidth (hint, hp) - hp * 6, bounds.getBottom() - helpHeight() - hp * 14);
-        g.setColour (Theme::panel);
-        g.fillRect (box);
-        Theme::bevel (g, box, true, 1.0f);
-        PixelFont::drawCentred (g, hint, box, hp, Theme::ink);
-    }
 }
 
 // ---------------------------------------------------------------- refresh

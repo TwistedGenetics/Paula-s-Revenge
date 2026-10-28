@@ -8,12 +8,13 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 16;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 17;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
-                                  // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts
+                                  // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
+                                  // v17: block names
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -270,6 +271,9 @@ juce::MemoryBlock writeSong (const Song& song)
             for (int k = 0; k < kInserts; ++k)
                 if (song.mixer.inst[i][k].type != FxType::None) { raw.writeByte ((char) i); raw.writeByte ((char) k); writeSlot (raw, song.mixer.inst[i][k]); }
     }
+    // v17: the blocks' names
+    raw.writeShortBigEndian ((short) song.blocks.size());
+    for (const auto& b : song.blocks) writeStr (raw, b.name);
 
     juce::MemoryOutputStream packed;
     {
@@ -294,7 +298,8 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
 
     Song s;
     s.name = readStr (in);
-    s.numTracks = juce::jlimit (1, kMaxTracks, (int) (uint8_t) in.readByte());
+    in.readByte();               // (the number of tracks: every song has 8 now)
+    s.numTracks = kMaxTracks;
     s.tempo = juce::jlimit (32, 255, (int) in.readShortBigEndian());
     s.speed = juce::jlimit (1, 31, (int) (uint8_t) in.readByte());
     s.ledFilterAtStart = in.readByte() != 0;
@@ -525,6 +530,15 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 FxSlot sl;
                 readSlot (in, sl, version);
                 if (i < kMixInstruments && k < kInserts) s.mixer.inst[i][k] = sl;
+            }
+        }
+        if (version >= 17 && ! in.isExhausted())
+        {
+            const int nb = (int) (uint16_t) in.readShortBigEndian();
+            for (int b = 0; b < nb; ++b)
+            {
+                auto name = readStr (in);
+                if (b < (int) s.blocks.size()) s.blocks[(size_t) b].name = name.substr (0, 40);
             }
         }
     }

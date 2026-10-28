@@ -128,6 +128,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
     followBtn.onClick    = [this, &st] { st.follow = followBtn.getToggleState(); refreshAll(); };
     panelsBtn.onClick    = [this] { showPanels = panelsBtn.getToggleState(); resized(); };
+    for (auto* b : { &tempoBox, &speedBox, &octBox, &stepBox }) b->compact = true;
     tempoBox.onChange = [this] (int v) { proc.history.settings ("BPM", true); proc.withLock ([&] { proc.song.tempo = v; }); };
     speedBox.onChange = [this] (int v) { proc.history.settings ("SPEED", true); proc.withLock ([&] { proc.song.speed = v; }); };
     octBox.onChange   = [&st] (int v) { st.octave = v; };
@@ -164,42 +165,19 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     volSlider.onChange = [this] (float) { applyOptions(); };
 
     // ---- song strip
-    tracksBtn.onClick = [this]
-    {
-        proc.history.settings ("TRACK COUNT");
-        proc.withLock ([&] { proc.song.numTracks = tracksBtn.getToggleState() ? 8 : 4; });
-        proc.editorState.track = std::min (proc.editorState.track, proc.song.numTracks - 1);
-        refreshAll();
-    };
     viewBtn.onClick = [this, &st] { st.fourTrackView = viewBtn.getToggleState(); refreshAll(); };
-    nameBtn.onClick = [this]
-    {
-        auto* w = new juce::AlertWindow ("Song name", "Name this song", juce::MessageBoxIconType::NoIcon);
-        w->addTextEditor ("name", juce::String (proc.song.name));
-        w->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
-        w->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
-        juce::Component::SafePointer<PaulaEditor> safe (this);
-        w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
-        {
-            if (r != 1 || safe == nullptr) return;
-            const auto n = w->getTextEditorContents ("name").toUpperCase().substring (0, 20).toStdString();
-            safe->proc.history.settings ("SONG NAME");
-            safe->proc.withLock ([&] { safe->proc.song.name = n.empty() ? "UNTITLED" : n; });
-            safe->refreshAll();
-            safe->repaint();
-        }), true);
-    };
 
     pattern.onStateChanged = [this] { refreshAll(); };
     pattern.onBounce = [this] { askBounce(); };
     pattern.onSelectionMenu = [this] (int line, int track, int group)
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
-        choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE DRY (NO FX)", "BOUNCE WITH FX", "EFFECT COMMANDS..." }, [safe, line, track, group] (int a)
+        choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE: NO FX", "BOUNCE: INSTRUMENT FX ONLY", "BOUNCE: MIXER FX ONLY", "BOUNCE: ALL FX", "EFFECT COMMANDS..." },
+                     [safe, line, track, group] (int a)
         {
             if (safe == nullptr) return;
-            if (a == 0 || a == 1) safe->bounceSelection (a == 1);
-            else if (a == 2) safe->pattern.openCommandMenu (line, track, group);
+            if (a >= 0 && a <= 3) safe->bounceSelection (a);
+            else if (a == 4) safe->pattern.openCommandMenu (line, track, group);
         });
     };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -299,7 +277,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
-            &tracksBtn, &viewBtn, &nameBtn, &mixerBtn, &statusLabel,
+            &viewBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
@@ -308,7 +286,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     setStatus (kHelpText);
 
     setResizable (true, true);
-    setResizeLimits (960, 640, 8000, 5000);
+    setResizeLimits (1000, 640, 8000, 5000);   // (the transport row at full size)
     setSize (1440, 900);
     refreshAll();
     setView (st.view == View::Browser ? View::Pattern : st.view);
@@ -411,7 +389,7 @@ void PaulaEditor::applyOptions()
         {
             o.zeroOrderHold = steppedBtn.getToggleState();
             o.eightBit = eightBitBtn.getToggleState();
-            o.crunch8ch = crunchBtn.getToggleState();
+            if (o.isAmiga()) o.crunch8ch = crunchBtn.getToggleState();
         }
         o.stereoSep = sepSlider.value;
         o.master = volSlider.value * 2.0f;
@@ -440,10 +418,10 @@ void PaulaEditor::refreshAll()
     const bool akai = o.isAkai();
     steppedBtn.setToggleState (o.stepped(), juce::dontSendNotification);
     eightBitBtn.setToggleState (akai ? false : o.eightBit, juce::dontSendNotification);
-    crunchBtn.setToggleState (akai ? false : o.crunch8ch, juce::dontSendNotification);
+    crunchBtn.setToggleState (o.isAmiga() && o.crunch8ch, juce::dontSendNotification);
     steppedBtn.setEnabled (! akai);
     eightBitBtn.setEnabled (! akai);
-    crunchBtn.setEnabled (! akai && song.numTracks > 4);
+    crunchBtn.setEnabled (o.isAmiga());   // 8CH GRIT: the Amiga models
     ledBtn.setEnabled (! akai);
     ledBtn.setToggleState (song.ledFilterAtStart, juce::dontSendNotification);
     sepSlider.setValue (o.stereoSep);
@@ -459,15 +437,12 @@ void PaulaEditor::refreshAll()
     octBox.setValue (st.octave);
     stepBox.setValue (st.step);
 
-    tracksBtn.setToggleState (song.numTracks > 4, juce::dontSendNotification);
-    tracksBtn.setButtonText (song.numTracks > 4 ? "8 TRK" : "4 TRK");
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
     skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
     recAutoBtn.setToggleState (st.recAuto, juce::dontSendNotification);
     if (! st.showFx2) st.column = std::min (st.column, 5);
-    viewBtn.setEnabled (song.numTracks > 4);
 
     proc.jamInstrument = st.instrument;
     sequence.refresh();
@@ -487,6 +462,14 @@ void PaulaEditor::setStatus (const juce::String& s)
 
 void PaulaEditor::timerCallback()
 {
+    // the pattern gets the keyboard back when nothing else has it (after a dialog, a plug-in
+    // window, the app coming to the front...), so typing always lands in the pattern
+    if (proc.editorState.view == View::Pattern && juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0
+        && ! juce::ModifierKeys::currentModifiers.isAnyMouseButtonDown())
+    {
+        auto* f = juce::Component::getCurrentlyFocusedComponent();
+        if ((f == nullptr || f == this) && isShowing() && getPeer() != nullptr && getPeer()->isFocused()) pattern.grabKeyboardFocus();
+    }
     pattern.tick();
     if (spectrum.isVisible()) spectrum.tick();
     if (sampleEditor.isVisible()) sampleEditor.tick();
@@ -588,7 +571,7 @@ void PaulaEditor::resized()
 {
     using prv::ui::Theme;
     auto& st = proc.editorState;
-    const float base = std::min ((float) getHeight() / 300.0f, (float) getWidth() / 470.0f);
+    const float base = std::min ((float) getHeight() / 300.0f, (float) getWidth() / 480.0f);
     Theme::px = juce::jlimit (1.5f, 5.0f, std::floor (base * 2.0f) / 2.0f + st.uiZoom * 0.5f);
     const float px = Theme::px;
     const int rowH = (int) (px * 11);
@@ -619,16 +602,25 @@ void PaulaEditor::resized()
     r.removeFromTop (gap);
 
     // transport row
-    auto tr = r.removeFromTop (rowH).reduced (gap, 0);
-    playSongBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
-    playBlockBtn.setBounds (tr.removeFromLeft (charsW (7))); tr.removeFromLeft (gap);
-    stopBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
-    editBtn.setBounds (tr.removeFromLeft (charsW (6))); tr.removeFromLeft (gap);
-    loopBtn.setBounds (tr.removeFromLeft (charsW (4))); tr.removeFromLeft (gap * 4);
-    tempoBox.setBounds (tr.removeFromLeft (tempoBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
-    speedBox.setBounds (tr.removeFromLeft (speedBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
-    octBox.setBounds (tr.removeFromLeft (octBox.preferredWidth (px))); tr.removeFromLeft (gap * 3);
-    stepBox.setBounds (tr.removeFromLeft (stepBox.preferredWidth (px)));
+    // (FOLLOW and MIXER after STEP; the wider gaps close up when the window is narrow, labels stay full size)
+    auto tr = r.removeFromTop (rowH).reduced (std::max (1, gap / 2), 0);
+    auto tW = [px] (int chars) { return (int) std::ceil (px * 6 * chars - px + 7.0f); };   // (the text at full size, a little room)
+    const int fixedW = tW (6) + tW (7) + tW (6) + tW (6) + tW (4) + tW (6) + tW (5)
+                     + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px) + stepBox.preferredWidth (px);
+    const int tg = std::max (2, (int) px);   // between the buttons
+    const int spare = tr.getWidth() - fixedW - tg * 6;
+    const int bigGap = juce::jlimit (tg, gap * 3, spare / 5);
+    playSongBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
+    playBlockBtn.setBounds (tr.removeFromLeft (tW (7))); tr.removeFromLeft (tg);
+    stopBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
+    editBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
+    loopBtn.setBounds (tr.removeFromLeft (tW (4))); tr.removeFromLeft (bigGap);
+    tempoBox.setBounds (tr.removeFromLeft (tempoBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
+    speedBox.setBounds (tr.removeFromLeft (speedBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
+    octBox.setBounds (tr.removeFromLeft (octBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
+    stepBox.setBounds (tr.removeFromLeft (stepBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
+    followBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
+    mixerBtn.setBounds (tr.removeFromLeft (tW (5)));
     posLabel.setVisible (false);
 
     r.removeFromTop (gap);
@@ -641,12 +633,8 @@ void PaulaEditor::resized()
     auto paula = r.removeFromBottom (rowH).reduced (gap, 0);    // models, options, meter
     r.removeFromBottom (gap);
 
-    tracksBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     viewBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
-    followBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     panelsBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
-    nameBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
-    mixerBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
@@ -663,7 +651,7 @@ void PaulaEditor::resized()
     s1000Btn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap * 3);
     steppedBtn.setBounds (paula.removeFromLeft (charsW (7))); paula.removeFromLeft (gap);
     eightBitBtn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
-    crunchBtn.setBounds (paula.removeFromLeft (charsW (6))); paula.removeFromLeft (gap);
+    crunchBtn.setBounds (paula.removeFromLeft (charsW (8))); paula.removeFromLeft (gap);
     ledBtn.setBounds (paula.removeFromLeft (charsW (4))); paula.removeFromLeft (gap * 3);
     outMeter.setBounds (paula.withTrimmedLeft (std::max (0, paula.getWidth() - charsW (24))));
     const int sliderW = (paula2.getWidth() - gap * 2) / 2;
@@ -836,6 +824,22 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         toggleHelp();
         return true;
     }
+    // [ ] octave down / up on every page that plays notes (and with a plug-in's window in front);
+    // the pattern and the sample browser do their own, HELP's search keeps its typing
+    {
+        const auto mm = k.getModifiers();
+        const auto tc = k.getTextCharacter();
+        const auto v = proc.editorState.view;
+        if (! mm.isCommandDown() && ! mm.isCtrlDown() && ! mm.isAltDown() && (tc == '[' || tc == ']')
+            && v != View::Pattern && v != View::Browser && v != View::Help)
+        {
+            auto& st = proc.editorState;
+            st.octave = juce::jlimit (0, 6, st.octave + (tc == ']' ? 1 : -1));
+            octBox.setValue (st.octave);
+            setStatus ("OCTAVE " + juce::String (st.octave) + " ([ DOWN, ] UP)");
+            return true;
+        }
+    }
     // window-wide shortcuts (pages pass on keys they don't use)
     const auto m = k.getModifiers();
     if (m.isCommandDown())
@@ -905,6 +909,11 @@ void PaulaEditor::newSong()
         }));
 }
 
+juce::String PaulaEditor::songNameFor (const juce::File& f)
+{
+    return f.getFileNameWithoutExtension().toUpperCase().substring (0, 40);
+}
+
 void PaulaEditor::loadSong()
 {
     auto& st = proc.editorState;
@@ -916,25 +925,33 @@ void PaulaEditor::loadSong()
         if (safe == nullptr) return;
         const auto file = fc.getResult();
         if (! file.existsAsFile()) return;
-        auto& self = *safe;
-        prv::rememberFolder (self.proc.editorState.lastFolder, "songFolder", file.getParentDirectory());
-        prv::Song s;
-        juce::String err;
-        juce::StringArray notes;
-        if (! prv::loadSongFile (file, s, err, notes)) { self.setStatus ("ERROR: " + err); return; }
-        if (s.chordsLegacy || s.chordsSaved) notes.add (self.proc.chordReport (s));
-        self.proc.replaceSong (std::move (s));
-        auto& st2 = self.proc.editorState;
-        st2.block = self.proc.song.safeBlock (self.proc.song.sequence[0]); st2.line = 0; st2.seqPos = 0; st2.track = 0;
-        st2.currentFile = file.hasFileExtension ("prv") ? file.getFullPathName() : juce::String();
-        self.setStatus ("LOADED " + file.getFileName() + (notes.isEmpty() ? juce::String() : "  -  " + notes.joinIntoString ("  ")));
-        self.refreshAll();
-        self.repaint();
+        safe->loadSongFrom (file);
     });
+}
+
+bool PaulaEditor::loadSongFrom (const juce::File& file)
+{
+    prv::rememberFolder (proc.editorState.lastFolder, "songFolder", file.getParentDirectory());
+    prv::Song s;
+    juce::String err;
+    juce::StringArray notes;
+    if (! prv::loadSongFile (file, s, err, notes)) { setStatus ("ERROR: " + err); return false; }
+    if (s.chordsLegacy || s.chordsSaved) notes.add (proc.chordReport (s));
+    if (file.hasFileExtension ("prv")) s.name = songNameFor (file).toStdString();   // (a MOD keeps its own name)
+    proc.replaceSong (std::move (s));
+    auto& st2 = proc.editorState;
+    st2.block = proc.song.safeBlock (proc.song.sequence[0]); st2.line = 0; st2.seqPos = 0; st2.track = 0;
+    st2.currentFile = file.hasFileExtension ("prv") ? file.getFullPathName() : juce::String();
+    setStatus ("LOADED " + file.getFileName() + (notes.isEmpty() ? juce::String() : "  -  " + notes.joinIntoString ("  ")));
+    refreshAll();
+    repaint();
+    return true;
 }
 
 bool PaulaEditor::writeSongTo (const juce::File& file)
 {
+    // the song is called what its file is called
+    proc.withLock ([&] { proc.song.name = songNameFor (file).toStdString(); });
     juce::MemoryBlock data;
     proc.capturePluginStates();
     proc.withLock ([&] { data = prv::writeSong (proc.song); });
@@ -1061,21 +1078,25 @@ void PaulaEditor::renderTo (const juce::File& file, bool stems)
 void PaulaEditor::askBounce()
 {
     juce::Component::SafePointer<PaulaEditor> safe (this);
-    choice.show (*this, "BOUNCE THE HIGHLIGHTED NOTES", { "DRY (NO FX)", "WITH FX (EQ, INSERTS, FADER, SENDS)" }, [safe] (int a)
+    choice.show (*this, "BOUNCE THE HIGHLIGHTED NOTES",
+                 { "NO FX (DRY)", "INSTRUMENT FX ONLY (THE INSTRUMENTS' OWN INSERTS)", "MIXER FX ONLY (EQ, INSERTS, FADER, SENDS)", "ALL FX (INSTRUMENTS AND MIXER)" }, [safe] (int a)
     {
-        if (safe != nullptr && a >= 0) safe->bounceSelection (a == 1);
+        if (safe != nullptr && a >= 0) safe->bounceSelection (a);
     });
 }
 
-bool PaulaEditor::bounceSelection (bool withFx)
+bool PaulaEditor::bounceSelection (int fx)
 {
+    fx = juce::jlimit (0, 3, fx);
+    const bool instFx = fx == BounceInstrumentFx || fx == BounceAllFx, mixFx = fx == BounceMixerFx || fx == BounceAllFx;
     prv::BounceRange r;
     if (! pattern.selectionArea (r.block, r.line0, r.line1, r.track0, r.track1))
     {
         setStatus ("HIGHLIGHT SOME NOTES FIRST (DRAG OVER THEM)");
         return false;
     }
-    r.withFx = withFx;
+    r.withFx = mixFx;
+    r.instrumentFx = instFx;
     // the first empty instrument slot
     int slot = -1;
     for (int i = 0; i < prv::kMaxInstruments && slot < 0; ++i)
@@ -1099,7 +1120,8 @@ bool PaulaEditor::bounceSelection (bool withFx)
     }
 
     prv::Instrument made;
-    const juce::String name = juce::String (withFx ? "BOUNCE+FX T" : "BOUNCE T") + juce::String (r.track0 + 1)
+    static const char* prefix[4] = { "BOUNCE T", "BOUNCE+IFX T", "BOUNCE+MFX T", "BOUNCE+FX T" };
+    const juce::String name = juce::String (prefix[fx]) + juce::String (r.track0 + 1)
                             + (r.track1 > r.track0 ? "-" + juce::String (r.track1 + 1) : juce::String())
                             + " " + juce::String (r.line0).paddedLeft ('0', 3) + "-" + juce::String (r.line1).paddedLeft ('0', 3);
     made.name = name.substring (0, 22).toStdString();
@@ -1120,7 +1142,7 @@ bool PaulaEditor::bounceSelection (bool withFx)
     proc.withLock ([&] { proc.song.instruments[(size_t) slot] = std::move (made); });
     proc.editorState.instrument = slot;
     juce::String m = "BOUNCED TO INSTRUMENT " + juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2)
-                   + " (" + juce::String (res.left.size() / rate, 2) + " S" + (withFx ? ", WITH FX" : ", DRY") + ") - C-3 PLAYS IT AS RECORDED";
+                   + " (" + juce::String (res.left.size() / rate, 2) + " S" + (fx == BounceAllFx ? ", ALL FX" : fx == BounceMixerFx ? ", MIXER FX" : fx == BounceInstrumentFx ? ", INSTRUMENT FX" : ", DRY") + ") - C-3 PLAYS IT AS RECORDED";
     if (! res.leftOut.empty()) m << " - MIDI OUT ISN'T IN IT (HARDWARE)";
     setStatus (m);
     refreshAll();

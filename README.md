@@ -32,13 +32,13 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Area | What it does |
 |---|---|
 | Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, **FULL VEL**, **NOTE-OFFS**, **CAPTURE**, text size `A-` / `A+`. SAVE MOD, RENDER WAV and EXPORT SAMPLES are in the **File** menu |
-| Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step |
+| Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
-| Bottom row | 4 or 8 tracks, BIG VIEW (4 tracks at a time with large text), follow playback, hide/show panels, song name, **MIXER** (`Cmd+2`) |
+| Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO and the status line. The song's name (top) is its file's name, set when you save or load |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
 
@@ -49,7 +49,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | Where | What's there |
 |---|---|
 | Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR, RENAME, LOAD SAMPLE, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
-| Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME |
+| Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
 | Pattern, effect columns | the command list (a `#xy` chord cell: the chord list); inside a highlight: BOUNCE |
@@ -77,7 +77,7 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 
 ## Mixer
 
-**MIXER** on the bottom row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. While it's open the computer keyboard still plays the current instrument (same note keys as the pattern; `[` `]` change octave, `-` `=` change instrument; the title shows which one), so you can play while you set levels. A MIDI keyboard plays it too. These notes go through the master bus. One strip per track (4 or 8), then the two send returns and the master, each with a level meter:
+**MIXER** on the transport row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. While it's open the computer keyboard still plays the current instrument (same note keys as the pattern; `[` `]` change octave, `-` `=` change instrument; the title shows which one), so you can play while you set levels. A MIDI keyboard plays it too. These notes go through the master bus. One strip per track (8), then the two send returns and the master, each with a level meter:
 
 | Strip part | What it does |
 |---|---|
@@ -154,8 +154,12 @@ Drag across the pattern to select notes and effects: the selection snaps to whol
 
 Highlight some notes (drag over them; it can cover several tracks), then right-click inside the highlight — or press `Cmd+B` — and pick:
 
-* **BOUNCE DRY (NO FX)** — just the instruments' sound, before the tracks' mixer strips. Use it when the new sample will play through a strip with the same effects.
-* **BOUNCE WITH FX** — after the tracks' strips (EQ, inserts and fader), plus what they send to SEND A / B, so a reverb or delay tail is in it. The master's inserts and the Paula / Akai output stage aren't.
+* **NO FX** — just the instruments' sound, before their own effects and the tracks' mixer strips. Use it when the new sample will play through the same effects.
+* **INSTRUMENT FX ONLY** — through the instruments' own inserts (see Instrument effects), but not the mixer.
+* **MIXER FX ONLY** — after the tracks' strips (EQ, inserts and fader), plus what they send to SEND A / B, so a reverb or delay tail is in it; the instruments' own effects are left out.
+* **ALL FX** — both: the instruments' own effects, then the mixer.
+
+The master's inserts and the Paula / Akai output stage are never in it. The new instrument's name says which (`BOUNCE T1`, `BOUNCE+IFX`, `BOUNCE+MFX`, `BOUNCE+FX`).
 
 It plays just those lines of just those tracks, from the first highlighted line at the tempo and speed set there. Plug-in instruments are included; MIDI-out instruments can't be (they're hardware). After the last line it records on until the sound has died away (up to 10 seconds), so tails aren't cut. Plug-in delay is taken off the start.
 
@@ -182,6 +186,7 @@ One history covers everything: notes and effects, block lengths, the sequence an
 * **Move positions**: drag the highlight (or the selected position) to a new place, press ▲ / ▼, or use `Alt+↑` / `Alt+↓` in the pattern. (Section dividers stay where they are when you move positions.)
 * **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into the **next free block** and points position 1 at it. The next free block is the lowest-numbered block that's empty and not used anywhere in the song, or else a new block at the end. No other block numbers change and the song order keeps its length. Now you can change the copy without touching the other places block 2 is used. The status line says which block it used.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
+* **Block names**: double-click a position (or right-click → **BLOCK NAME...**) to name the block it plays (`AMEN CHOP`, `REESE`…). The name shows after the block number in the sequence list, before any section name (a long one is cut short with `..`). Every position playing that block shows it. Saved in the song, undoable, copied by CLONE.
 * UNDO / REDO (`Cmd+Z` / `Cmd+Shift+Z`) undo and redo all of these.
 
 ## Song sections
@@ -195,6 +200,8 @@ Mark the parts of a song (intro, drop, break…) with dividers in the sequence:
 * Sections are saved in the song (`.prv`) and are undoable.
 
 ## Saving and your samples
+
+**The song's name is its file's name**: SAVE AS `amen roller.prv` and the song is called `AMEN ROLLER` (shown at the top); load a `.prv` and it takes that file's name. It's also in the window's title bar. A new song is `UNTITLED` until it's saved. MODs keep the name inside them until you save them as `.prv`.
 
 **SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
 
@@ -305,7 +312,7 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 
 Stereo files stay stereo. A stereo sample plays with its own stereo image, centred, instead of following the Amiga left/right track layout (`8xx` still pans it). Mono samples behave exactly as before. Stereo is saved in `.prv` songs; SAVE MOD mixes stereo samples down to mono because the MOD format can't hold stereo. TO MONO in the sample editor converts one yourself.
 
-**BIG VIEW** is on by default so the pattern text is large. Tab to track 5 and the view flips to tracks 5–8. Turn BIG VIEW off, or hide the panels, to see all 8 tracks at once.
+Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills tracks 1–4). **BIG VIEW** is on by default so the pattern text is large: it shows 4 tracks at a time, with a **TRACKS 5-8 ▶** tab beside them (in a small window just **5-8 ▶**); click it for tracks 5–8, and **◀ TRACKS 1-4** takes you back. Tabbing the cursor past track 4 flips the view too. Turn BIG VIEW off, or hide the panels, to see all 8 tracks at once.
 
 ## Keys
 
@@ -321,14 +328,14 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | Arrows | Move · `Shift+↑/↓` 4 lines · `Shift+←/→` track |
 | `Tab` / `Shift+Tab` | Next / previous track |
 | `PgUp` / `PgDn`, `Home` / `End` | Jump |
-| `[` `]` | Octave down / up |
+| `[` `]` | Octave down / up — on every page (PARAMS, plug-in, MIDI out, sample editor, CHORDS, SAMPLE, mixer), also with a plug-in's own window in front |
 | `-` `=` | Previous / next instrument |
 | `Delete` (⌫) | Clear the selection, or the field under the cursor |
 | `Shift+Delete` | Remove the line (pulls the track up) |
 | `Alt+Delete` | Insert a blank line (pushes the track down) |
 | `Cmd+C / X / V` | Copy / cut / paste the mouse selection, or the track · add `Shift` for the whole block |
 | `Cmd+A` | Select the whole block |
-| `Cmd+B` | Bounce the highlighted notes to a new instrument (asks DRY or WITH FX) |
+| `Cmd+B` | Bounce the highlighted notes to a new instrument (asks NO FX, INSTRUMENT FX ONLY, MIXER FX ONLY or ALL FX) |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
@@ -434,9 +441,9 @@ Every track has a **second effect column** so a note can carry two effects; **FX
 | S1000 | Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output (see below) |
 | STEPPED | Paula's stepped (sample-and-hold) playback, exactly as the chip makes it (off = smooth interpolation) — see "How the Paula modes work" |
 | 8-BIT | Samples are played at 8-bit resolution |
-| CRUNCH | In 8-track songs, track pairs are mixed together and squashed back to 8 bits, the way 8-channel Amiga trackers did it in software |
+| 8CH GRIT | OctaMED's 8-channel sound on all 8 tracks: the real Amiga has 4 channels, so 8-channel trackers mixed two tracks into each one (1+5, 2+6, 3+7, 4+8) at half level and squashed the result back to 8 bits. 8CH GRIT does that squashing, then brings the level back up — the grit without the quieter mix. On to start with on the Amiga models; not on CLEAN or the Akais. Every track plays at full level whether it's on or off, and a safety limiter on the output stops eight loud tracks clipping |
 | LED | The "LED" low-pass filter (12 dB/oct Butterworth at 3.2 kHz), on at the start of the song (commands `E00`/`E01` switch it while playing) |
-| SEP | How far tracks lean to the Amiga sides (tracks 1+4 left, 2+3 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
+| SEP | How far tracks lean to the Amiga sides (tracks 1, 4, 5, 8 left; 2, 3, 6, 7 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
 
 For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it, or slice it (see Slicing).
 
@@ -452,7 +459,7 @@ Based on Henryk Richter's measurements in *Amiga Paula vs. System Theory*, with 
 
 These model the playback side of the two samplers behind so much 90s jungle. What's known about the hardware, and what the model does with it:
 
-* **S950** — 12-bit samples and a variable sample rate up to 48 kHz ([Wikipedia](https://en.wikipedia.org/wiki/Akai_S900), [polynominal.com](https://www.polynominal.com/akai-s950/)). Like the S900 it plays samples back at a variable rate rather than interpolating (the S1000 review below contrasts the two). Its filter is a 6th-order Butterworth switched-capacitor low-pass with no resonance ([ALM's MUM M8, a recreation of it](https://www.juno.co.uk/products/alm-busy-circuits-alm-mum-m8-akais-s950/679163-01)). The model: sample data cut to 12 bits, stepped (sample-and-hold) playback at each voice's own rate, so pitched-down samples keep their grit and steps, and the 6-pole Butterworth low-pass at its open setting (16 kHz, an estimate; the real one is set per sample) plus output coupling. STEPPED, 8-BIT, CRUNCH and LED are Amiga features and switch off in this mode.
+* **S950** — 12-bit samples and a variable sample rate up to 48 kHz ([Wikipedia](https://en.wikipedia.org/wiki/Akai_S900), [polynominal.com](https://www.polynominal.com/akai-s950/)). Like the S900 it plays samples back at a variable rate rather than interpolating (the S1000 review below contrasts the two). Its filter is a 6th-order Butterworth switched-capacitor low-pass with no resonance ([ALM's MUM M8, a recreation of it](https://www.juno.co.uk/products/alm-busy-circuits-alm-mum-m8-akais-s950/679163-01)). The model: sample data cut to 12 bits, stepped (sample-and-hold) playback at each voice's own rate, so pitched-down samples keep their grit and steps, and the 6-pole Butterworth low-pass at its open setting (16 kHz, an estimate; the real one is set per sample) plus output coupling. STEPPED, 8-BIT, 8CH GRIT and LED are Amiga features and switch off in this mode.
 * **S1000** — 16-bit, 44.1 kHz, pitched with an interpolation algorithm that a 1988 review found "extremely clean" and brighter than variable-rate playback; its filter is an 18 dB/octave low-pass with no resonance ([Music Technology, Dec 1988](https://www.muzines.co.uk/articles/akai-s1000/2303)). The model: full 16-bit data, interpolated playback and a steep 8th-order reconstruction filter at 19.5 kHz. The per-sample filter isn't part of the mode (use the instrument's PARAMS filter).
 
 Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time. For the full old-sampler sound, also lower the sample's rate (RESAMPLE, with RAW for no filtering).
@@ -559,7 +566,7 @@ Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula v
 
 * `.prv` — Paula's Revenge song with samples (compressed). Format version 13 has chords as `#xy` (v12: the song's own chord table; v11: CHORD, MIDI-out instruments and switching sample instruments off; v10: a plug-in instrument switched off; v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
-* `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` for 4 tracks or `8CHN` for 8 (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
+* `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` when only tracks 1–4 have anything in them, `8CHN` otherwise (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 
 ## Building

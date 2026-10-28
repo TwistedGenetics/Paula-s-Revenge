@@ -81,6 +81,7 @@ public:
     std::function<juce::String (int)> format = [] (int v) { return juce::String (v); };
     int labelChars = 6;     // width reserved for the label
     int valueChars = 3;
+    bool compact = false;   // the transport row: no spare room around the label and the number (text full size)
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -93,6 +94,7 @@ public:
     int preferredWidth (float px) const;
 
 private:
+    float labelWidth (float px) const;
     juce::String label;
     int lo, hi, value;
     int dragStart = 0;

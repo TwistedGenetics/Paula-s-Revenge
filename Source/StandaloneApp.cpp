@@ -423,7 +423,17 @@ private:
         juce::MessageManager::callAsync ([this] { if (follower != nullptr) follower->check(); });
     }
     // the system can switch its output at any time: look twice a second (a cheap query)
-    void timerCallback() override { if (follower != nullptr) follower->check(); }
+    void timerCallback() override
+    {
+        if (follower != nullptr) follower->check();
+        // the window's title: the app and the song (its file's name), * when not saved
+        if (window != nullptr && holder != nullptr)
+            if (auto* proc = dynamic_cast<PaulaProcessor*> (holder->processor.get()))
+            {
+                const juce::String t = getApplicationName() + " - " + juce::String (proc->song.name) + (proc->history.isDirty() ? " *" : "");
+                if (window->getName() != t) window->setName (t);
+            }
+    }
 
     void toggleFullScreen()
     {
