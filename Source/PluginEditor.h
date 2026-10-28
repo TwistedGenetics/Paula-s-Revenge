@@ -38,6 +38,8 @@ public:
     prv::ui::ChoiceBox& getChoice() { return choice; }
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
+    bool bounceSelection (bool withFx);               // the highlighted area to a new instrument
+    void askBounce();                                 // DRY or WITH FX?
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);

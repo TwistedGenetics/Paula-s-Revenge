@@ -99,6 +99,18 @@ void Player::setInstrumentOn (int i, int state)
     if (auto* s = rack.at (i)) s->allNotesOff (chunkPos);
 }
 
+void Player::releaseForTail()
+{
+    for (int t = 0; t < kMaxTracks; ++t)
+    {
+        Voice& v = voices[t];
+        synthRelease (v);
+        if (! v.active || v.instr < 0 || song == nullptr) continue;
+        const auto& in = song->instruments[(size_t) v.instr];
+        if (in.isLooped() || v.regionLoop) releaseVoice (v);   // (a looped sound would go on for ever)
+    }
+}
+
 void Player::resetSwitches()
 {
     // play / stop start again from the BYPASS and ON buttons
@@ -1436,15 +1448,17 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         for (int t = 0; t < kMaxTracks; ++t) { tl[t] = trkL[t]; tr[t] = trkR[t]; }
         // the song's beat tempo (4 lines a beat) for synced delays
         const double bpm = (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed);
+        if (stemTap != nullptr && stemsBeforeMixer)
+            for (int t = 0; t < nt; ++t) stemTap->add (t, trkL[t], trkR[t], numSamples);
         mixerEngine.process (song->mixer, tl, tr, nt, jamL, jamR, left, right, numSamples, bpm);
         for (int i = 0; i < numSamples; ++i) outputStage (left[i], right[i], ledBuf[i]);
-        if (stemTap != nullptr)
+        if (stemTap != nullptr && ! stemsBeforeMixer)
         {
             for (int t = 0; t < nt; ++t) stemTap->add (t, trkL[t], trkR[t], numSamples);
             for (int r = 0; r < kReturns; ++r) stemTap->add (kMaxTracks + r, mixerEngine.returnLeft (r), mixerEngine.returnRight (r), numSamples);
         }
     }
-    if (stemTap != nullptr) stemTap->add (kStems - 1, left, right, numSamples);
+    if (stemTap != nullptr && ! stemsBeforeMixer) stemTap->add (kStems - 1, left, right, numSamples);
 
     for (int t = 0; t < kMaxTracks; ++t)
     {

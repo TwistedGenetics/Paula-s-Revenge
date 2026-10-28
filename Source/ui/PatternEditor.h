@@ -57,6 +57,8 @@ public:
     // mouse selection of notes / effects (also used by tests). Columns count in
     // groups across the tracks: note+instrument, FX1, FX2 (when shown).
     bool hasSelection() const;
+    // the highlighted lines and tracks (false = nothing highlighted)
+    bool selectionArea (int& block, int& line0, int& line1, int& track0, int& track1) const;
     void selectRange (int line0, int line1, int track0, int group0, int track1, int group1);
     void clearSelection();
     void copySelection (bool cut);
@@ -76,6 +78,9 @@ public:
     void pushUndo (int blockIndex, const juce::String& what);
     void pushStructureUndo (const juce::String& what);   // before any change to block numbers / the sequence
     std::function<void (int)> onMoveSequence;   // Alt+Up/Down
+    // the highlighted area: Cmd+B bounces it; a right-click inside it asks what to do
+    std::function<void()> onBounce;
+    std::function<void (int line, int track, int group)> onSelectionMenu;
 
 private:
     PaulaProcessor& proc;

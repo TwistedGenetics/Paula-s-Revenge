@@ -1,6 +1,7 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
 #include "SongFile.h"
+#include "engine/Bounce.h"
 #include "engine/ModuleIO.h"
 #include "Prefs.h"
 
@@ -117,6 +118,17 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     };
 
     pattern.onStateChanged = [this] { refreshAll(); };
+    pattern.onBounce = [this] { askBounce(); };
+    pattern.onSelectionMenu = [this] (int line, int track, int group)
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE DRY (NO FX)", "BOUNCE WITH FX", "EFFECT COMMANDS..." }, [safe, line, track, group] (int a)
+        {
+            if (safe == nullptr) return;
+            if (a == 0 || a == 1) safe->bounceSelection (a == 1);
+            else if (a == 2) safe->pattern.openCommandMenu (line, track, group);
+        });
+    };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
 
     // PARAMS: a plug-in instrument has its own page
@@ -784,6 +796,78 @@ void PaulaEditor::renderTo (const juce::File& file, bool stems)
         setStatus (m);
     }
     else setStatus ("ERROR: " + err);
+}
+
+// ---------------------------------------------------------------------------
+// BOUNCE: the highlighted lines and tracks become a new sample instrument (the
+// instruments that played them, and the pattern, stay as they are)
+void PaulaEditor::askBounce()
+{
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "BOUNCE THE HIGHLIGHTED NOTES", { "DRY (NO FX)", "WITH FX (EQ, INSERTS, FADER, SENDS)" }, [safe] (int a)
+    {
+        if (safe != nullptr && a >= 0) safe->bounceSelection (a == 1);
+    });
+}
+
+bool PaulaEditor::bounceSelection (bool withFx)
+{
+    prv::BounceRange r;
+    if (! pattern.selectionArea (r.block, r.line0, r.line1, r.track0, r.track1))
+    {
+        setStatus ("HIGHLIGHT SOME NOTES FIRST (DRAG OVER THEM)");
+        return false;
+    }
+    r.withFx = withFx;
+    // the first empty instrument slot
+    int slot = -1;
+    for (int i = 0; i < prv::kMaxInstruments && slot < 0; ++i)
+    {
+        const auto& in = proc.song.instruments[(size_t) i];
+        if (! in.hasData() && ! in.isPlugin()) slot = i;
+    }
+    if (slot < 0) { setStatus ("CAN'T BOUNCE: ALL 63 INSTRUMENTS ARE IN USE"); return false; }
+
+    prv::Song copy;
+    prv::PaulaOptions opts;
+    proc.capturePluginStates();
+    proc.withLock ([&] { copy = proc.song; opts = proc.player.options; });
+    prv::BounceResult res;
+    std::string err;
+    const double rate = 44100.0;
+    if (! prv::bounceRange (copy, opts, rate, r, res, proc.synthFactory(), err, proc.pluginFactory()))
+    {
+        setStatus ("CAN'T BOUNCE: " + juce::String (err));
+        return false;
+    }
+
+    prv::Instrument made;
+    const juce::String name = juce::String (withFx ? "BOUNCE+FX T" : "BOUNCE T") + juce::String (r.track0 + 1)
+                            + (r.track1 > r.track0 ? "-" + juce::String (r.track1 + 1) : juce::String())
+                            + " " + juce::String (r.line0).paddedLeft ('0', 3) + "-" + juce::String (r.line1).paddedLeft ('0', 3);
+    made.name = name.substring (0, 22).toStdString();
+    made.rate = rate;
+    made.volume = 64;
+    made.data.resize (res.left.size());
+    made.dataR.resize (res.right.size());
+    bool stereo = false;
+    for (size_t k = 0; k < res.left.size(); ++k)
+    {
+        made.data[k]  = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (res.left[k] * 32767.0f));
+        made.dataR[k] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (res.right[k] * 32767.0f));
+        stereo = stereo || made.data[k] != made.dataR[k];
+    }
+    if (! stereo) made.dataR.clear();
+
+    proc.history.instrument (slot, "BOUNCE " + name);
+    proc.withLock ([&] { proc.song.instruments[(size_t) slot] = std::move (made); });
+    proc.editorState.instrument = slot;
+    juce::String m = "BOUNCED TO INSTRUMENT " + juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2)
+                   + " (" + juce::String (res.left.size() / rate, 2) + " S" + (withFx ? ", WITH FX" : ", DRY") + ") - C-3 PLAYS IT AS RECORDED";
+    if (! res.leftOut.empty()) m << " - MIDI OUT ISN'T IN IT (HARDWARE)";
+    setStatus (m);
+    refreshAll();
+    return true;
 }
 
 // ---------------------------------------------------------------------------

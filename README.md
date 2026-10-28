@@ -108,6 +108,17 @@ Drag across the pattern to select notes and effects: the selection snaps to whol
 * Without a selection, `Cmd+C/X/V` still copy a whole track (add `Shift` for the whole block).
 * A plain click moves the cursor and drops the selection. It's all undoable.
 
+## Bouncing highlighted notes to a sample
+
+Highlight some notes (drag over them; it can cover several tracks), then right-click inside the highlight — or press `Cmd+B` — and pick:
+
+* **BOUNCE DRY (NO FX)** — just the instruments' sound, before the tracks' mixer strips. Use it when the new sample will play through a strip with the same effects.
+* **BOUNCE WITH FX** — after the tracks' strips (EQ, inserts and fader), plus what they send to SEND A / B, so a reverb or delay tail is in it. The master's inserts and the Paula / Akai output stage aren't.
+
+It plays just those lines of just those tracks, from the first highlighted line at the tempo and speed set there. Plug-in instruments are included; MIDI-out instruments can't be (they're hardware). After the last line it records on until the sound has died away (up to 10 seconds), so tails aren't cut. Plug-in delay is taken off the start.
+
+The result is a new instrument in the first empty slot, named like `BOUNCE T1-2 000-015` (`BOUNCE+FX` with FX), at 44.1 kHz, stereo when it's stereo. `C-3` plays it exactly as recorded. It becomes the current instrument. Nothing else changes: the pattern and the instruments that played it stay as they are. Undo removes it.
+
 ## Playing a block
 
 While a block plays (▶ BLOCK, `Space`), picking another block — in the sequence, the BLOCK box, or the BLK corner — carries playback straight over to it **on the same line**, without stopping, so you can audition blocks against each other in time. (A shorter block wraps the line round.)
@@ -255,6 +266,7 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 | `Alt+Delete` | Insert a blank line (pushes the track down) |
 | `Cmd+C / X / V` | Copy / cut / paste the mouse selection, or the track · add `Shift` for the whole block |
 | `Cmd+A` | Select the whole block |
+| `Cmd+B` | Bounce the highlighted notes to a new instrument (asks DRY or WITH FX) |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |

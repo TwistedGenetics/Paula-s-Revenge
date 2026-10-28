@@ -656,6 +656,13 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     if (! cellAt (e.position, line, track, column)) return;
     if (e.mods.isPopupMenu())
     {
+        // right-click inside the highlighted area: what to do with it (bounce...)
+        const int gpt = groupsPerTrack(), c = track * gpt + std::min (groupOfColumn (column), gpt - 1);
+        if (hasSelection() && line >= sel.l0 && line <= sel.l1 && c >= sel.c0 && c <= sel.c1 && onSelectionMenu)
+        {
+            onSelectionMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
+            return;
+        }
         // right-click: pick an effect command from a list (FX2 when clicked there)
         openCommandMenu (line, track, groupOfColumn (column) == 2 ? 2 : 1);
         return;
@@ -735,6 +742,14 @@ void PatternEditor::applyDrag (juce::Point<float> pos)
 
 // ---------------------------------------------------------------- selection
 bool PatternEditor::hasSelection() const { return sel.block >= 0 && sel.block == proc.song.safeBlock (st.block); }
+
+bool PatternEditor::selectionArea (int& block, int& line0, int& line1, int& track0, int& track1) const
+{
+    if (! hasSelection()) return false;
+    const int gpt = groupsPerTrack();
+    block = sel.block; line0 = sel.l0; line1 = sel.l1; track0 = sel.c0 / gpt; track1 = sel.c1 / gpt;
+    return true;
+}
 
 void PatternEditor::selectRange (int line0, int line1, int track0, int group0, int track1, int group1)
 {
@@ -1226,6 +1241,12 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 'x') { if (hasSelection() && ! shift) copySelection (true);  else if (shift) { copyBlock (true); lastCopy = LastCopy::Block; } else { copyTrack (true); lastCopy = LastCopy::Track; } return true; }
         if (ch == 'v') { if (shift) pasteBlock(); else if (lastCopy == LastCopy::Selection) pasteSelection(); else pasteTrack(); return true; }
         if (ch == 'a') { selectAll(); return true; }
+        if (ch == 'b')
+        {
+            if (hasSelection() && onBounce) onBounce();
+            else if (onStatus) onStatus ("HIGHLIGHT SOME NOTES FIRST (DRAG OVER THEM), THEN CMD+B BOUNCES THEM TO A NEW INSTRUMENT");
+            return true;
+        }
         if (code == juce::KeyPress::upKey)   { transposeTrack (shift ? 12 : 1); return true; }
         if (code == juce::KeyPress::downKey) { transposeTrack (shift ? -12 : -1); return true; }
         return false; // let the host have other shortcuts

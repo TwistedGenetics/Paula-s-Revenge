@@ -10,6 +10,7 @@
 #include "engine/Effects.h"
 #include "engine/PluginSynth.h"
 #include "engine/MidiOut.h"
+#include "engine/Bounce.h"
 #include "engine/Commands.h"
 #include "AkaizerGolden.h"
 #include <cstdio>
@@ -1304,6 +1305,61 @@ static void testMidiOut()
     CHECK (find (0x82, 60) && find (0x82, 60)->when == -1);
 }
 
+
+// ---------------------------------------------------------------- v0.12: bounce
+static void testBounce()
+{
+    Song song;
+    song.numTracks = 4;
+    sineInstrument (song.instruments[0]);
+    auto& syn = song.instruments[1];
+    syn.plugin = true; syn.pluginKey = "synth"; syn.pluginName = "SYNTH";
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 0, 1, 0, 0 };                     // the instrument is set before the range...
+    b.at (1, 3) = { 0, 0, 0xF, 0x03 };                // ...and so is speed 3 (on a track outside it)
+    b.at (4, 0) = { 37, 0, 0, 0 };                    // a note with no instrument number
+    b.at (5, 1) = { 37, 2, 0, 0 };                    // the plug-in on track 2
+    b.at (6, 0) = { 0, 0, 0xB, 0x00 };                // (a jump: ignored)
+    b.at (4, 2) = { 49, 1, 0, 0 };                    // track 3: not highlighted
+    std::vector<Ev> log; long long clock = 0;
+    BounceResult res; std::string err;
+    const bool ok = bounceRange (song, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1 }, res,
+                                 [&] (int, const Instrument&, double) { return std::make_unique<LateSynth> (&log, &clock, 0); }, err);
+    const int lineLen = tickSamples() * 3;
+    int ons = 0; for (auto& e : log) if (e.type == 'n') ++ons;
+    std::printf ("bounce: ok %d (%s), %zu samples (4 lines at speed 3 = %d), instruments %zu, synth notes %d, first sound at %d\n",
+                 (int) ok, err.c_str(), res.left.size(), lineLen * 4, res.instruments.size(), ons, firstAbove (res.left, 1e-3f));
+    CHECK (ok && res.instruments.size() == 2 && res.instruments[0] == 0 && res.instruments[1] == 1 && res.leftOut.empty());
+    CHECK (std::abs ((int) res.left.size() - lineLen * 4) < lineLen / 2);   // (the looped sine is let go at the end)
+    CHECK (firstAbove (res.left, 1e-3f) >= 0 && firstAbove (res.left, 1e-3f) < 64);
+    CHECK (ons == 1);
+    // the plug-in's level is in it from line 5 (FakeSynth plays a 0.25 DC)
+    CHECK (res.right.size() == res.left.size());
+    // nothing highlighted with notes
+    BounceResult none;
+    CHECK (! bounceRange (song, PaulaOptions {}, 48000, { 0, 10, 20, 0, 1 }, none, nullptr, err) && ! err.empty());
+    // instruments in the range
+    const auto used = instrumentsInRange (song, { 0, 0, 63, 2, 2 });
+    CHECK (used.size() == 1 && used[0] == 0);
+    // with FX: the track's strip and its sends are in it (a reverb tail makes it longer)
+    {
+        Song fx = song;
+        initFxSlot (fx.mixer.ch[0].inserts[0], FxType::Drive);
+        fx.mixer.ch[0].inserts[0].p[0] = 1.0f; fx.mixer.ch[0].inserts[0].p[4] = 1.0f;
+        fx.mixer.ch[0].send[0] = 1.0f;   // SEND A: a reverb
+        BounceResult dry, wet;
+        CHECK (bounceRange (fx, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, false }, dry, nullptr, err));
+        CHECK (bounceRange (fx, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1, true }, wet, nullptr, err));
+        double diff = 0; for (size_t i = 0; i < std::min (dry.left.size(), wet.left.size()); ++i) diff += std::abs (dry.left[i] - wet.left[i]);
+        std::printf ("bounce: dry %zu samples, with FX %zu samples, difference %.1f\n", dry.left.size(), wet.left.size(), diff);
+        CHECK (wet.left.size() > dry.left.size() + 4800 && diff > 100.0);
+    }
+    // a MIDI-out instrument can't be bounced
+    song.instruments[1].midiOut = true;
+    BounceResult m;
+    CHECK (bounceRange (song, PaulaOptions {}, 48000, { 0, 4, 7, 0, 1 }, m, nullptr, err) && m.leftOut.size() == 1 && m.instruments.size() == 1);
+}
+
 // ---------------------------------------------------------------- v0.9: AKAIZER
 // the same integer-only signal as Tests/tools/akaizer_ref.js makes
 static std::vector<int16_t> akaizerTestInput (int words, uint32_t seed, bool loud)
@@ -1910,6 +1966,7 @@ int main()
     testSampleOnOff();
     testLatency();
     testMidiOut();
+    testBounce();
     testBalance();
     testEnvelopeAndFilter();
     testSongOps();

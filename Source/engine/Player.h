@@ -144,6 +144,9 @@ public:
         virtual void add (int stem, const float* left, const float* right, int numSamples) = 0;
     };
     StemTap* stemTap = nullptr;
+    bool stemsBeforeMixer = false;   // bounces: the tracks before their mixer strips (no master)
+    // bounces: the range has ended - plug-in notes and looped samples are let go (one-shots ring on)
+    void releaseForTail();
     static constexpr int kStems = kMaxTracks + kReturns + 1;
 
     // samples the whole output is late by (plug-in delays, MIDI-out lead)
