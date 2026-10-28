@@ -94,9 +94,11 @@ jobs:
       - name: Show compiler errors
         if: failure()
         run: |
-          grep -A4 "CMake Error" configure.log 2>/dev/null | head -30 | while IFS= read -r line; do echo "::error::${line}"; done
-          grep -E ": (fatal )?error [A-Z]+[0-9]+|error LNK|unresolved external" build.log 2>/dev/null | sort -u | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
-          true
+          set +e +o pipefail
+          { grep -A4 "CMake Error" configure.log; grep -iE "error [A-Z]+[0-9]+|error LNK|unresolved external|fatal error" build.log | sed 's/\[[^]]*vcxproj\]//' | sort -u; } 2>/dev/null | head -50 > errors.txt
+          if [ ! -s errors.txt ]; then tail -30 build.log > errors.txt; fi
+          while IFS= read -r line; do echo "::error::${line}"; done < errors.txt
+          exit 0
 
       - name: Engine tests
         run: ./build/Release/prv_engine_test.exe
