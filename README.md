@@ -127,14 +127,16 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument, with your hardware over MIDI, or with a modular over CV (see below).
 * **PITCH** (±48 semitones, the same as TRNS in the instrument panel) and **FINE** (±100 cents) tune the sample. **TUNE TO C** finds the sample's pitch and sets them so `C-3` plays a C (the nearest one, so it moves 6 semitones at most); the status line says what it heard. Drums with no clear pitch are left alone.
 * **BEAT SYNC** (like Renoise's): the sample (START to END) lasts **LINES** lines at `C-3`, at whatever the tempo and speed are — it's sped up or slowed down (repitched) to fit, live, so it follows BPM / SPD changes and `Fxx`. Other notes play it higher or lower as usual. Switching it on suggests a sensible number of lines for the sample's length. **STRETCH...** opens the sample editor's time stretch set to the same number of lines, to make it fit at its own pitch instead (PREVIEW, then APPLY; BEAT SYNC can stay on).
-* **FX** (under the volume envelope): the instrument's own effects (see Instrument effects).
+* **EQ** and **FX** (the row across the page, above PAN): the instrument's own EQ and its own effects (see Instrument EQ and effects). **EQ** is lit when the instrument has EQ points switched on.
 
-Envelopes and filters run per note on top of the Paula sound. They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
+Envelopes and filters run per note on top of the Paula sound. On a VST3 / AU instrument they work on what the plug-in plays (see Plug-in instruments). They're saved in `.prv` songs and Live sets. A MOD can't hold them (SAVE MOD says so).
 
-## Instrument effects
+## Instrument EQ and effects
 
-Every instrument has **three insert slots of its own**, the same as a mixer strip's: the built-in effects (filter, drive, compressor, delay, reverb, chorus) or a VST3 / AU plug-in. They're on the **FX** row of the instrument's PARAMS page (and of a plug-in instrument's page).
+Every instrument — a sample or a VST3 / AU instrument — has **its own EQ** and **three insert slots of its own**, the same as a mixer strip's: the built-in effects (filter, drive, compressor, delay, reverb, chorus) or a VST3 / AU plug-in. They're on the **EQ / FX** row of the instrument's PARAMS page (and of a plug-in instrument's page).
 
+* **EQ** (or the word **FX**) opens the instrument's **EQ AND EFFECTS** page: the same EQ graph as a mixer track's — up to 8 points, double-click to add one, drag to move, the wheel for Q, right-click for its type (BELL, LOW / HIGH SHELF, HIGH / LOW-PASS), REMOVE or SWITCH OFF, **EQ FLAT** for none — with the instrument's own spectrum behind it. Its 3 effects are on the right (**BUILT-IN EFFECTS**; click one to set it), and **IN THIS ORDER** shows how the sound goes: the sample or plug-in, its filter and envelopes, UTILITY, this EQ, these effects, then its mixer track. **BACK** returns to the instrument.
+* The instrument's EQ is saved in the song (and its changes are undo steps of that instrument), in renders and bounces. It isn't used on MIDI out or CV out instruments.
 * Click a slot to open it on the mixer's effect page (type, settings, knobs, LEARN, plug-in window). **BACK** returns to the instrument. Right-click a slot for OPEN, BYPASS, COPY, PASTE and CLEAR. A lit slot is on; a slot that's bypassed isn't lit.
 * The instrument's sound goes through its effects first, then into the strip of the track it plays on (EQ, the track's inserts, sends, fader). Every note of the instrument goes through the one chain, so a reverb tail or a delay carries on across notes and tracks; the chain's output goes to the track of the instrument's **latest** note.
 * The effects belong to the instrument: they're saved in the song (and Live sets), are undo steps, and go with it when you COPY / PASTE / DUPLICATE the instrument. CLEAR on the instrument clears them too. RENDER WAV and bouncing include them.
@@ -163,8 +165,8 @@ Drag across the pattern to select notes and effects: the selection snaps to whol
 
 Highlight some notes (drag over them; it can cover several tracks), then right-click inside the highlight — or press `Cmd+B` — and pick:
 
-* **NO FX** — just the instruments' sound, before their own effects and the tracks' mixer strips. Use it when the new sample will play through the same effects.
-* **INSTRUMENT FX ONLY** — through the instruments' own inserts (see Instrument effects), but not the mixer.
+* **NO FX** — just the instruments' sound (with their UTILITY and own EQ), before their own effects and the tracks' mixer strips. Use it when the new sample will play through the same effects.
+* **INSTRUMENT FX ONLY** — through the instruments' own inserts (see Instrument EQ and effects), but not the mixer.
 * **MIXER FX ONLY** — after the tracks' strips (EQ, inserts and fader), plus what they send to SEND A / B, so a reverb or delay tail is in it; the instruments' own effects are left out.
 * **ALL FX** — both: the instruments' own effects, then the mixer.
 
@@ -551,6 +553,8 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 
 * Pick the instrument, press **PARAMS**, then **PLUG-IN / MIDI OUT...** and **A VST3 / AU INSTRUMENT**, and double-click a plug-in in the list (RESCAN looks again after you install more). The instrument list shows a note sign in front of the name.
 * **EDIT** (or OPEN PLUG-IN WINDOW) opens the plug-in's own window. **CHANGE PLUG-IN...** swaps it, **BACK TO A SAMPLE** turns the slot back into a normal sample instrument.
+* **FILTER AND ENVELOPES...** opens the PARAMS page for the plug-in: the same **VOL ENVELOPE**, **FILTER** (low / high / band-pass, cutoff, resonance, KEY) and **FILTER ENVELOPE** as a sample has, on the plug-in's sound. They start with each note the song or your keyboard plays on it (from where they are, so there's no click) and release when its last note ends — use VOL ENVELOPE to give a pad a slow fade-in or a drone a release, or the filter envelope for a pluck on any synth. **BACK TO THE PLUG-IN** returns. The button is lit, and the text next to it says what's on (`VOL ENV + LOW 2.0K`), while any of them is on. (They play with the plug-in as a whole, so with several notes at once they follow the newest one.)
+* **EQ** and **FX** on its bottom rows: its own EQ and effects (see Instrument EQ and effects).
 * **OUTPUT** picks the mixer strip it plays into. **AUTO** means the track that played its latest note, so that track's EQ, inserts and sends apply — the same in the song, in RENDER WAV and when you bounce a highlighted part.
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.

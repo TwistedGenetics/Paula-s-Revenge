@@ -80,6 +80,18 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         mixer.openEffect (slot);
     };
     params.onOpenFx = openInstrumentFx;
+    // its own EQ and the 3 effects together (the EQ button on the FX row)
+    auto openEqFx = [this]
+    {
+        fxReturn = proc.editorState.view;
+        setView (View::Mixer);
+        mixer.openInstrument (proc.editorState.instrument);
+    };
+    params.onOpenEqFx = openEqFx;
+    synthPage.onOpenEqFx = openEqFx;
+    // a VST3 / AU instrument's filter and envelopes: the PARAMS page, BACK TO THE PLUG-IN returns
+    synthPage.onOpenShape = [this] { paramsForPlugin = proc.editorState.instrument; setView (View::Params); };
+    params.onBackToPlugin = [this] { paramsForPlugin = -1; setView (View::Synth); };
     params.onFitStretch = [this] (int lines) { setView (View::SampleEdit); sampleEditor.openFit (lines); };
     synthPage.onOpenFx = openInstrumentFx;
     mixer.onBackFromInstrument = [this] { setView (fxReturn == View::Mixer ? View::Params : fxReturn); };
@@ -538,7 +550,8 @@ void PaulaEditor::timerCallback()
         const auto view = proc.editorState.view;
         if ((view == View::Params || view == View::Synth || view == View::CvOut) && cur.isMidiOut()) setView (View::MidiOut);
         else if ((view == View::Params || view == View::Synth || view == View::MidiOut) && cur.isCvOut()) setView (View::CvOut);
-        else if ((view == View::Params || view == View::MidiOut || view == View::CvOut) && cur.isPlugin() && ! cur.isMidiOut() && ! cur.isCvOut()) setView (View::Synth);
+        else if ((view == View::Params || view == View::MidiOut || view == View::CvOut) && cur.isPlugin() && ! cur.isMidiOut() && ! cur.isCvOut()
+                 && ! (view == View::Params && paramsForPlugin == proc.editorState.instrument)) setView (View::Synth);   // (unless its filter / envelopes asked for)
         else if (view == View::CvOut && ! cur.isCvOut()) setView (View::Params);
     }
     recordAutomation();

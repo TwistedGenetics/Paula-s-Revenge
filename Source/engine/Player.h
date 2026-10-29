@@ -311,6 +311,14 @@ private:
     float instL[kMaxInstruments][MixerEngine::kMaxBlock] {}, instR[kMaxInstruments][MixerEngine::kMaxBlock] {};
     bool  instChain[kMaxInstruments] {};
     StereoUtility util[kMaxInstruments];   // each instrument's UTILITY (width, mono below)
+    ChannelEqProcessor instEq[kMaxInstruments];   // each instrument's own EQ
+    // a plug-in instrument's filter and envelopes on its output: per sample, its gate (bit 0) and a new
+    // note (bit 1) as the song played it, then shaped after the plug-in renders
+    struct SynthShape { Voice::EnvState amp, flt; Voice::Svf svf; int note = 37; uint32_t seen = 0; };
+    SynthShape synthShape[kMaxInstruments];
+    uint32_t synthOnSerial[kMaxInstruments] {};
+    uint8_t shapeEvt[kMaxInstruments][MixerEngine::kMaxBlock] {};
+    void shapeSynth (int ins, float* L, float* R, int n);
     float tapL[MixerEngine::kMaxBlock] {}, tapR[MixerEngine::kMaxBlock] {};
     bool  ledBuf[MixerEngine::kMaxBlock] {};
     double samplesPerTick() const;

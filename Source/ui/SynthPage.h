@@ -21,6 +21,8 @@ public:
     std::function<void()> onClose, onChanged, onChords;   // onChords: CHORDS... (the chord table page)
     std::function<void (const juce::String&)> onStatus;
     std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
+    std::function<void()> onOpenEqFx;          // EQ: the instrument's EQ AND EFFECTS page
+    std::function<void()> onOpenShape;         // FILTER AND ENVELOPES...: the PARAMS page for this plug-in
 
     void opened (bool browse);      // browse = show the list of instrument plug-ins
     void refresh();
@@ -67,6 +69,12 @@ private:
     PixButton learnA { "LEARN AUTO A (V)" }, learnB { "LEARN AUTO B (J)" };
     PixButton onBtn { "ON", true };   // the instrument switched on / off
     PixButton chordsBtn { "CHORDS..." };
+    PixButton shapeBtn { "FILTER AND ENVELOPES...", true };   // (lit: one of them is on)
+    juce::Rectangle<float> shapeInfo;
+public:
+    PixButton& shapeButton() { return shapeBtn; }   // (tests)
+    InstrumentFxRow& effectsRow() { return fxRow; }
+private:
     ParamLearner learner;           // what: 0..3 instrument knobs, 10 + k track knobs
     std::map<int, int> heldKeys;
     juce::Rectangle<float> titleArea, infoArea, knobArea[kInstrumentKnobs], trackArea;

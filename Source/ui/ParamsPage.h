@@ -18,6 +18,11 @@ public:
     std::function<void()> onClose, onChanged, onUsePlugin;   // onUsePlugin: PLUG-IN / MIDI OUT...
     std::function<void (const juce::String&)> onStatus;
     std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
+    std::function<void()> onOpenEqFx;          // EQ: the instrument's EQ AND EFFECTS page
+    std::function<void()> onBackToPlugin;      // a VST3 / AU instrument's filter and envelopes: back to its page
+
+    // a VST3 / AU instrument: the same envelopes and filter, on what the plug-in plays (no sample tuning)
+    bool pluginMode() const;
     std::function<void (int lines)> onFitStretch;   // STRETCH TO FIT...: the sample editor's stretch, set to that many lines
 
     // tuning and BEAT SYNC (buttons; tests call them too)
@@ -44,6 +49,9 @@ public:
 private:
     PaulaProcessor& proc;
     InstrumentFxRow fxRow { proc };   // the instrument's own effects (after proc: it uses it)
+public:
+    InstrumentFxRow& effectsRow() { return fxRow; }   // (tests)
+private:
     int shownInstrument = -1;
 
     PixButton envOnBtn { "VOL ENVELOPE", true };

@@ -214,6 +214,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int j = 0; j < kMaxChordNotes; ++j)
         if (v.synthChord[j] >= 0) s->noteOn (v.synthChord[j], v.synthVel, chunkPos);
+    ++synthOnSerial[v.instr]; synthShape[v.instr].note = v.note;   // (its filter / envelopes start again)
     synthBend (v);
 }
 
@@ -227,6 +228,7 @@ void Player::synthRetrigger (Voice& v, int velocityChange)
     for (int c : v.synthChord) if (c >= 0) s->noteOff (c, chunkPos);
     if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int c : v.synthChord) if (c >= 0) s->noteOn (c, v.synthVel, chunkPos);
+    ++synthOnSerial[v.synthInstr];
 }
 
 void Player::synthBend (Voice& v)
@@ -302,6 +304,7 @@ void Player::setSampleRate (double sr)
     updateFilters();
     mixerEngine.prepare (sampleRate);
     for (auto& u : util) u.prepare (sampleRate);
+    for (auto& e : instEq) e.prepare (sampleRate);
     rack.prepare (sampleRate, MixerEngine::kMaxBlock);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
     if (blepTable.rate() != sampleRate) blepTable.build (sampleRate);
@@ -456,6 +459,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
             {
                 j.note = note; j.instr = instrIndex; j.midi = midiNoteFor (note + in.transpose);
                 s->noteOn (j.midi, std::clamp (velocity127, 1, 127), chunkPos);
+                ++synthOnSerial[instrIndex]; synthShape[instrIndex].note = note + in.transpose;
                 return;
             }
         return;
@@ -770,6 +774,68 @@ void Player::releaseVoice (Voice& v)
     };
     rel (v.ampEnv, in.volEnv.release);
     rel (v.fltEnv, in.filterEnv.release);
+}
+
+void Player::shapeSynth (int ins, float* L, float* R, int n)
+{
+    // a VST3 / AU instrument through the PARAMS page's VOL ENVELOPE and filter: the envelopes start
+    // with each new note of it (from where they are, so no click) and release when its last note ends
+    const auto& in = song->instruments[(size_t) ins];
+    auto& sh = synthShape[ins];
+    const double sr = sampleRate;
+    auto release = [sr] (Voice::EnvState& e, float seconds)
+    {
+        if (e.stage == 0 || e.stage == 4) return;
+        e.stage = 4;
+        e.relStep = e.level / (float) std::max (1.0, (double) std::max (0.001f, seconds) * sr);
+    };
+    for (int i = 0; i < n; ++i)
+    {
+        const uint8_t ev = shapeEvt[ins][i];
+        shapeEvt[ins][i] = 0;
+        if (ev & 2) { sh.amp.stage = 1; sh.flt.stage = 1; }
+        else if (! (ev & 1)) { release (sh.amp, in.volEnv.release); release (sh.flt, in.filterEnv.release); }
+        float l = L[i], r = R[i];
+        if (in.volEnv.on)
+        {
+            stepEnv (sh.amp.stage, sh.amp.level, sh.amp.relStep, in.volEnv, sr);
+            l *= sh.amp.level; r *= sh.amp.level;
+        }
+        if (in.filter != FilterType::Off)
+        {
+            stepEnv (sh.flt.stage, sh.flt.level, sh.flt.relStep, in.filterEnv, sr);
+            auto& f = sh.svf;
+            if (f.count-- <= 0)
+            {
+                f.count = 15;
+                const double oct = in.filterEnvAmount * sh.flt.level + in.keyTrack * (sh.note - 37) / 12.0;
+                const double fc = std::clamp ((double) in.cutoff * std::pow (2.0, oct), 20.0, sr * 0.45);
+                const double g = std::tan (kPi * fc / sr);
+                f.k = (float) (2.0 - 1.94 * std::clamp ((double) in.resonance, 0.0, 1.0));
+                f.a1 = (float) (1.0 / (1.0 + g * (g + f.k)));
+                f.a2 = (float) (g * f.a1);
+                f.a3 = (float) (g * f.a2);
+            }
+            const auto type = in.filter;
+            auto run = [&f, type] (float x, float& ic1, float& ic2)
+            {
+                const float v3 = x - ic2;
+                const float v1 = f.a1 * ic1 + f.a2 * v3;
+                const float v2 = ic2 + f.a2 * ic1 + f.a3 * v3;
+                ic1 = 2.0f * v1 - ic1;
+                ic2 = 2.0f * v2 - ic2;
+                switch (type)
+                {
+                    case FilterType::HighPass: return x - f.k * v1 - v2;
+                    case FilterType::BandPass: return v1;
+                    default:                   return v2;
+                }
+            };
+            l = run (l, f.ic1L, f.ic2L);
+            r = run (r, f.ic1R, f.ic2R);
+        }
+        L[i] = l; R[i] = r;
+    }
 }
 
 void Player::shapeVoice (Voice& v, float& l, float& r)
@@ -1451,9 +1517,16 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     // with a mixer in use each track goes to its own buffer first
     // (plug-in instruments always go through the mixer: they play into a track's strip)
     // (an instrument's UTILITY needs its sound on its own, so it goes that way too)
+    // (and its own EQ, and a plug-in instrument's filter / envelopes)
     bool anyUtility = false;
+    int shaped[kMaxInstruments], numShaped = 0;
     if (song != nullptr)
-        for (int ins = 0; ins < kMaxInstruments; ++ins) anyUtility = anyUtility || song->instruments[(size_t) ins].hasUtility();
+        for (int ins = 0; ins < kMaxInstruments; ++ins)
+        {
+            const auto& in = song->instruments[(size_t) ins];
+            anyUtility = anyUtility || in.hasUtility() || in.hasEq() || in.shapesSynth();
+            if (in.shapesSynth() && rack.at (ins) != nullptr) shaped[numShaped++] = ins;
+        }
     // (and while the EQ's spectrum shows a channel: it's taken from the channel's strip)
     const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility
                                                || mixerEngine.chTap.source.load (std::memory_order_relaxed) >= 0);
@@ -1471,7 +1544,8 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     bool anyChain = false;
     for (int ins = 0; ins < kMaxInstruments; ++ins)
     {
-        instChain[ins] = mixActive && ((! skipInstrumentFx && song->mixer.instrumentChain (ins)) || song->instruments[(size_t) ins].hasUtility());
+        const auto& cin = song->instruments[(size_t) ins];
+        instChain[ins] = mixActive && ((! skipInstrumentFx && song->mixer.instrumentChain (ins)) || cin.hasUtility() || cin.hasEq());
         if (! instChain[ins]) continue;
         anyChain = true;
         std::fill (instL[ins], instL[ins] + numSamples, 0.0f);
@@ -1534,6 +1608,18 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             cvRunner.process (*song, cv, i, ppq, beatBpm / 60.0 / sampleRate, playing, playing && ! cvWasPlaying, cvTrig, cvRel, cvKnobA, cvKnobB);
             cvWasPlaying = playing;
             for (int t = 0; t < kMaxTracks; ++t) cvTrig[t] = cvRel[t] = false;
+        }
+
+        // plug-in instruments with a filter / envelopes: their gate and new notes, sample by sample
+        for (int k = 0; k < numShaped; ++k)
+        {
+            const int ins = shaped[k];
+            bool gate = false;
+            for (int t = 0; t < kVoices && ! gate; ++t) gate = voices[t].synthNote >= 0 && voices[t].synthInstr == ins;
+            for (const auto& j : jamSynth) gate = gate || (j.note >= 0 && j.instr == ins);
+            const bool trig = synthOnSerial[ins] != synthShape[ins].seen;
+            synthShape[ins].seen = synthOnSerial[ins];
+            shapeEvt[ins][i] = (uint8_t) ((gate ? 1 : 0) | (trig ? 2 : 0));
         }
 
         float valL[kVoices] = {}, valR[kVoices] = {};
@@ -1681,6 +1767,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (s == nullptr) continue;
             s->render (synthL, synthR, numSamples);
             if (cvOn) s->renderCv (cv, numSamples);   // (a CV OUT instrument: its voltages)
+            if (song->instruments[(size_t) ins].shapesSynth()) shapeSynth (ins, synthL, synthR, numSamples);
             const int t = synthOutputTrack (ins);
             if (! instrumentIsOn (ins)) continue;   // (still run, so it's ready when switched back on)
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
@@ -1711,6 +1798,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (! instChain[ins]) continue;
             const auto& in = song->instruments[(size_t) ins];
             if (in.hasUtility()) util[ins].process (instL[ins], instR[ins], numSamples, in.utilWidth, in.utilMonoHz, in.utilSteep);
+            if (in.hasEq()) instEq[ins].process (instL[ins], instR[ins], numSamples, in.eq);
             if (! skipInstrumentFx) mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
             if (ins == tapIns) { std::copy (instL[ins], instL[ins] + numSamples, tapL); std::copy (instR[ins], instR[ins] + numSamples, tapR); }
             const int t = synthOutputTrack (ins);

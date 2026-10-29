@@ -15,12 +15,14 @@ public:
     ~EqGraph() override;
 
     int  track = 0;                 // the channel it edits
+    int  instrument = -1;           // ... or, when 0 or more, this instrument's own EQ
     int  selected = -1;             // the selected point (-1 = none)
     bool showSpectrum = true;
     std::function<void()> onChanged;                        // the EQ changed (controls follow)
     std::function<void (const juce::String&)> onStatus;
 
     void setTrack (int t);
+    void setInstrument (int ins);   // edit an instrument's own EQ (its spectrum is the instrument alone)
     void tick();                    // ~30 a second: the spectrum
     void selectFirst();             // the first point (or none)
 
@@ -77,6 +79,9 @@ private:
     std::vector<float> tapBuf = std::vector<float> (4096, 0.0f), db;
     uint32_t lastCount = 0;
 
+    AudioTap& tap();
+    int  tapSource() const { return instrument >= 0 ? instrument : track; }
+    void record (const juce::String& label, bool merge);
     ChannelEq& eq();
     const ChannelEq& eq() const;
     juce::String label (int band, const juce::String& what) const;

@@ -619,7 +619,10 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     backBtn.onClick = [this]
     {
         // an instrument's own insert: back to that instrument's page
+        // (or, from its EQ / FX page, back to that)
+        if (currentPage == Page::Effect && isInstrumentSlot (fxSlot) && effectReturn == Page::Channel && chInstrument >= 0) { openInstrument (chInstrument); return; }
         if (currentPage == Page::Effect && isInstrumentSlot (fxSlot) && onBackFromInstrument) { onBackFromInstrument(); return; }
+        if (currentPage == Page::Channel && chInstrument >= 0 && onBackFromInstrument) { onBackFromInstrument(); return; }
         if (currentPage == Page::Effect && effectReturn == Page::Channel) openChannel (chTrack);
         else showStrips();
     };
@@ -668,7 +671,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     ptFreq.format = [] (float v) { return hzText (mixmap::sliderToFreq (v)); };
     ptGain.format = [] (float v) { return dbSigned (mixmap::sliderToGain (v)); };
     ptQ.format = [] (float v) { return juce::String (mixmap::sliderToQ (v), 2); };
-    auto band = [this]() -> EqBand* { const int b = eqGraph.selected; return b >= 0 && b < kEqBands && proc.song.mixer.ch[chTrack].eq.band[b].used ? &proc.song.mixer.ch[chTrack].eq.band[b] : nullptr; };
+    auto band = [this]() -> EqBand* { const int b = eqGraph.selected; return b >= 0 && b < kEqBands && curEq().band[b].used ? &curEq().band[b] : nullptr; };
     ptFreq.onChange = [this, band] (float v) { if (auto* e = band()) { eqGraph.movePoint (eqGraph.selected, mixmap::sliderToFreq (v), e->gain, true); } };
     ptGain.onChange = [this, band] (float v) { if (auto* e = band()) { eqGraph.movePoint (eqGraph.selected, e->freq, mixmap::sliderToGain (v), true); } };
     ptQ.onChange    = [this, band] (float v) { if (band() != nullptr) { eqGraph.setQ (eqGraph.selected, mixmap::sliderToQ (v), true); } };
@@ -695,7 +698,12 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         addChildComponent (c);
     eqFlatBtn.onClick = [this]
     {
-        edit ("TRACK " + juce::String (chTrack + 1) + " EQ FLAT", false, [this] (MixerSettings& m) { m.ch[chTrack].eq = ChannelEq {}; });
+        if (chInstrument >= 0)
+        {
+            proc.history.instrument (chInstrument, "EQ FLAT");
+            proc.withLock ([&] { proc.song.instruments[(size_t) chInstrument].eq = ChannelEq {}; });
+        }
+        else edit ("TRACK " + juce::String (chTrack + 1) + " EQ FLAT", false, [this] (MixerSettings& m) { m.ch[chTrack].eq = ChannelEq {}; });
         eqGraph.selectFirst();
         refreshPoint();
     };
@@ -704,7 +712,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     {
         chInsert[k].onClick = [this, k]
         {
-            const int s = trackSlot (chTrack, k);
+            const int s = chInstrument >= 0 ? instrumentSlot (chInstrument, k) : trackSlot (chTrack, k);
             if (juce::ModifierKeys::currentModifiers.isShiftDown()) toggleBypass (s);
             else { openEffect (s); effectReturn = Page::Channel; }
         };
@@ -938,8 +946,24 @@ void MixerPage::showStrips()
     refresh();
 }
 
+ChannelEq& MixerPage::curEq()
+{
+    if (chInstrument >= 0) return proc.song.instruments[(size_t) chInstrument].eq;
+    return proc.song.mixer.ch[chTrack].eq;
+}
+
+void MixerPage::openInstrument (int ins)
+{
+    chInstrument = juce::jlimit (0, kMaxInstruments - 1, ins);
+    currentPage = Page::Channel;
+    effectReturn = Page::Strips;
+    updateVisibility();
+    refresh();
+}
+
 void MixerPage::openChannel (int track)
 {
+    chInstrument = -1;
     chTrack = juce::jlimit (0, std::max (0, proc.song.numTracks - 1), track);
     currentPage = Page::Channel;
     updateVisibility();
@@ -967,8 +991,9 @@ void MixerPage::updateVisibility()
     closeBtn.setVisible (true);
     resetAllBtn.setVisible (strip);
     backBtn.setVisible (! strip);
-    prevBtn.setVisible (! strip);
-    nextBtn.setVisible (! strip);
+    const bool insPage = ch && chInstrument >= 0;   // (an instrument's own EQ / FX: no sends, fader or knobs)
+    prevBtn.setVisible (! strip && ! insPage);
+    nextBtn.setVisible (! strip && ! insPage);
     const int nt = proc.song.numTracks;
     for (int i = 0; i < (int) strips.size(); ++i)
         strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || i < nt));
@@ -977,10 +1002,10 @@ void MixerPage::updateVisibility()
     for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &eqSpecBtn, &ptFreq, &ptGain, &ptQ, &eqFlatBtn })
         c->setVisible (ch);
     for (auto& b : chInsert) b.setVisible (ch);
-    for (auto& s : chSend) s.setVisible (ch);
-    for (auto& b : chPre) b.setVisible (ch);
-    chFader.setVisible (ch);
-    chClearA.setVisible (ch); chClearB.setVisible (ch);
+    for (auto& s : chSend) s.setVisible (ch && ! insPage);
+    for (auto& b : chPre) b.setVisible (ch && ! insPage);
+    chFader.setVisible (ch && ! insPage);
+    chClearA.setVisible (ch && ! insPage); chClearB.setVisible (ch && ! insPage);
     learner.cancel();
     for (auto& b : typeBtn) b.setVisible (fx);
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList,
@@ -1010,7 +1035,7 @@ void MixerPage::refresh()
 
 void MixerPage::refreshPoint()
 {
-    const auto& q = proc.song.mixer.ch[chTrack].eq;
+    const auto& q = curEq();
     const int b = eqGraph.selected;
     const bool has = b >= 0 && b < kEqBands && q.band[b].used;
     const EqBand e = has ? q.band[b] : EqBand {};
@@ -1033,12 +1058,13 @@ void MixerPage::refreshPoint()
 void MixerPage::refreshChannel()
 {
     const auto& c = proc.song.mixer.ch[chTrack];
-    if (eqGraph.track != chTrack) eqGraph.setTrack (chTrack);
-    if (eqGraph.selected >= 0 && ! c.eq.band[eqGraph.selected].used) eqGraph.selectFirst();
+    if (chInstrument >= 0) { if (eqGraph.instrument != chInstrument) eqGraph.setInstrument (chInstrument); }
+    else if (eqGraph.track != chTrack || eqGraph.instrument >= 0) eqGraph.setTrack (chTrack);
+    if (eqGraph.selected >= 0 && ! curEq().band[eqGraph.selected].used) eqGraph.selectFirst();
     refreshPoint();
     for (int k = 0; k < kInserts; ++k)
     {
-        const auto& s = c.inserts[k];
+        const auto& s = chInstrument >= 0 ? proc.song.mixer.inst[chInstrument][k] : c.inserts[k];
         chInsert[k].setButtonText (juce::String (k + 1) + ": " + (s.type == FxType::None ? juce::String ("EMPTY")
                                    : s.type == FxType::Plugin ? juce::String (s.pluginName) : juce::String (fxName (s.type)))
                                    + (s.type != FxType::None && s.bypass ? " (OFF)" : ""));
@@ -1359,7 +1385,11 @@ juce::String MixerPage::pageTitle() const
 {
     switch (currentPage)
     {
-        case Page::Channel: return "MIXER - TRACK " + juce::String (chTrack + 1) + " CHANNEL";
+        case Page::Channel:
+            if (chInstrument >= 0)
+                return "INSTRUMENT " + juce::String::toHexString (chInstrument + 1).toUpperCase().paddedLeft ('0', 2) + " "
+                     + juce::String (proc.song.instruments[(size_t) chInstrument].name).toUpperCase() + " - EQ AND EFFECTS";
+            return "MIXER - TRACK " + juce::String (chTrack + 1) + " CHANNEL";
         case Page::Effect:  return "MIXER - " + slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1);
         default:
         {
@@ -1403,11 +1433,33 @@ void MixerPage::paint (juce::Graphics& g)
     if (currentPage == Page::Channel)
     {
         {
-            const auto& q = proc.song.mixer.ch[chTrack].eq;
+            const auto& q = const_cast<MixerPage*> (this)->curEq();
             const int b = eqGraph.selected;
             Theme::panelBox (g, bandBox, b >= 0 && q.band[b].used ? "EQ POINT " + juce::String (b + 1) + " OF " + juce::String (q.points()) : juce::String ("EQ"), Theme::palFor (*this));
         }
-        Theme::panelBox (g, chInsertsBox, "INSERTS", Theme::palFor (*this));
+        Theme::panelBox (g, chInsertsBox, chInstrument >= 0 ? "BUILT-IN EFFECTS" : "INSERTS", Theme::palFor (*this));
+        if (chInstrument >= 0)
+        {
+            // how the instrument's sound goes through
+            Theme::panelBox (g, chSendsBox, "IN THIS ORDER", Theme::palFor (*this));
+            auto r = chSendsBox.reduced (px * 3);
+            r.removeFromTop (px * 10);
+            const auto& in = proc.song.instruments[(size_t) chInstrument];
+            const bool plug = in.isPlugin();
+            juce::StringArray lines { plug ? "1 THE PLUG-IN" : "1 THE SAMPLE",
+                                      in.volEnv.on || in.filter != FilterType::Off ? "2 FILTER, ENVELOPES" : "2 FILTER, ENVELOPES (OFF)",
+                                      in.hasUtility() ? "3 UTILITY" : "3 UTILITY (OFF)",
+                                      in.hasEq() ? "4 THIS EQ" : "4 THIS EQ (FLAT)",
+                                      "5 THESE EFFECTS", "6 ITS MIXER TRACK" };
+            const float lh = px * 11;
+            for (auto& l : lines)
+            {
+                if (r.getHeight() < lh) break;
+                auto fitT = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+                PixelFont::drawLeft (g, fitT (l, r.getWidth()), r.removeFromTop (lh), px, l.contains ("(") ? Theme::palFor (*this).faint : Theme::palFor (*this).ink);
+            }
+            return;
+        }
         Theme::panelBox (g, chSendsBox, "SENDS AND FADER", Theme::palFor (*this));
         Theme::panelBox (g, chAutoBox, "AUTOMATION KNOBS", Theme::palFor (*this));
         {
@@ -1548,7 +1600,13 @@ void MixerPage::layoutChannel (juce::Rectangle<int> r)
         for (auto& b : chInsert) { b.setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap); }
     }
     right.removeFromTop (gap * 2);
-    chSendsBox = right.removeFromTop (titleH + (rowH + gap) * 3 + gap * 2).toFloat();
+    if (chInstrument >= 0)
+    {
+        // (an instrument's own page: what happens in which order, under its effects)
+        chSendsBox = right.removeFromTop (std::min (right.getHeight(), titleH + (int) (px * 11) * 7 + gap * 4)).toFloat();
+        chAutoBox = {};
+    }
+    else chSendsBox = right.removeFromTop (titleH + (rowH + gap) * 3 + gap * 2).toFloat();
     {
         auto in = chSendsBox.toNearestInt().reduced (gap);
         in.removeFromTop (titleH);

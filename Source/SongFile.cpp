@@ -11,14 +11,15 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 22;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 23;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
-                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE
+                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE,
+                                  // v23: the instruments' own EQ
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -338,6 +339,23 @@ juce::MemoryBlock writeSong (const Song& song)
     }
     // v22: GROOVE
     raw.writeByte ((char) song.grooveKind); raw.writeByte ((char) song.grooveAmount);
+    // v23: the instruments' own EQ (only those with points)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.eq.points() > 0) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& eq = song.instruments[(size_t) i].eq;
+            if (eq.points() == 0) continue;
+            raw.writeByte ((char) i);
+            for (const auto& b : eq.band)
+            {
+                raw.writeByte ((char) ((b.used ? 1 : 0) | (b.on ? 2 : 0))); raw.writeByte ((char) b.type);
+                raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
+            }
+        }
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -701,6 +719,26 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         {
             s.grooveKind = (uint8_t) std::clamp ((int) (uint8_t) in.readByte(), 0, kGrooveKinds - 1);
             s.grooveAmount = std::clamp ((int) (uint8_t) in.readByte(), 0, 100);
+        }
+        if (version >= 23 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                ChannelEq eq;
+                for (auto& b : eq.band)
+                {
+                    const int f = (int) (uint8_t) in.readByte();
+                    b.used = (f & 1) != 0; b.on = b.used && (f & 2) != 0;
+                    b.type = (EqType) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) EqType::Count - 1);
+                    b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
+                    b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
+                    b.q = readFloat (in, 0.1f, 10.0f, 1.0f);
+                    if (! b.used) b = {};
+                }
+                if (i < kMaxInstruments) s.instruments[(size_t) i].eq = eq;
+            }
         }
     }
     else if (version == 11)

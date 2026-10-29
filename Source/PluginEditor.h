@@ -160,6 +160,7 @@ private:
     prv::ui::CvSourcesPage cvSources;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View fxReturn = PaulaProcessor::EditorState::View::Params;
+    int paramsForPlugin = -1;   // the plug-in instrument whose filter / envelopes the PARAMS page shows
     PaulaProcessor::EditorState::View chordsReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View helpReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::ArrangePage arrange;

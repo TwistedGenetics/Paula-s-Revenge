@@ -3220,6 +3220,107 @@ static void testGrooveAndBreakTools()
     }
 }
 
+// v0.29: each instrument's own EQ; a VST3 / AU instrument's filter and envelopes
+static void testInstrumentEqAndSynthShape()
+{
+    {
+        // a sample instrument's EQ: a high-pass at 2 kHz takes most of a 100 Hz square away
+        Song s = oneShot (square (100, 9600));
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        auto peak = [] (const std::vector<float>& v) { float m = 0; for (size_t i = 2000; i < v.size(); ++i) m = std::max (m, std::abs (v[i])); return m; };
+        double e0 = 0, e1 = 0;
+        auto L = renderMix (s, 9600, false);
+        for (size_t i = 2000; i < L.size(); ++i) e0 += L[i] * L[i];
+        CHECK (! s.instruments[0].hasEq());
+        s.instruments[0].eq.band[0] = { true, true, EqType::HighPass, 2000.0f, 0.0f, 0.7f };
+        CHECK (s.instruments[0].hasEq());
+        L = renderMix (s, 9600, false);
+        for (size_t i = 2000; i < L.size(); ++i) e1 += L[i] * L[i];
+        std::printf ("instrument EQ: high-pass 2 kHz on a 100 Hz square: energy x%.3f (peak %.3f)\n", e1 / e0, peak (L));
+        CHECK (e0 > 1 && e1 / e0 < 0.2);
+        s.instruments[0].eq.band[0].on = false;   // (switched off: as before)
+        L = renderMix (s, 9600, false);
+        double e2 = 0; for (size_t i = 2000; i < L.size(); ++i) e2 += L[i] * L[i];
+        CHECK (std::abs (e2 / e0 - 1.0) < 1e-3);
+        s.instruments[0].eq.band[0].on = true;
+        s.instruments[0].plugin = s.instruments[0].midiOut = true;
+        CHECK (! s.instruments[0].hasEq());   // (not on MIDI out)
+    }
+    // a plug-in instrument that always plays a 1 kHz sine: the envelope shapes it from its notes
+    struct SineSynth : PluginSynth
+    {
+        double ph = 0;
+        void prepare (double, int) override {}
+        void noteOn (int, int, int) override {}
+        void noteOff (int, int) override {}
+        void allNotesOff (int) override {}
+        void pitchBend (int, int) override {}
+        void controller (int, int, int) override {}
+        void setParameter (int, float) override {}
+        void render (float* l, float* r, int n) override
+        { for (int i = 0; i < n; ++i) { l[i] = r[i] = 0.25f * (float) std::sin (ph); ph += 2 * 3.14159265358979 * 1000.0 / 48000.0; } }
+    };
+    auto run = [&] (Song& song, std::vector<float>& out, int n)
+    {
+        auto pp = std::make_unique<Player>(); Player& p = *pp;
+        p.setSampleRate (48000); p.setSong (&song);
+        p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<SineSynth>(); };
+        p.synths().syncNow (song, 48000);
+        p.playBlock (0);
+        out.assign ((size_t) n, 0.0f);
+        std::vector<float> R ((size_t) n);
+        for (int done = 0; done < n; done += 480) p.render (out.data() + done, R.data() + done, 480);
+    };
+    auto lvl = [] (const std::vector<float>& v, int at) { double e = 0; for (int i = at; i < at + 480; ++i) e += v[(size_t) i] * v[(size_t) i]; return (float) std::sqrt (e / 480); };
+    Song song;
+    song.numTracks = 4;
+    auto& in = song.instruments[0];
+    in.plugin = true; in.pluginKey = "synth"; in.pluginName = "SYNTH";
+    const int line = (int) std::lround (48000 * 2.5 / 125) * 6;
+    song.blocks[0].at (2, 0) = { 37, 1, 0, 0 };
+    song.blocks[0].at (6, 0) = { kNoteOff, 0, 0, 0 };
+    song.blocks[0].at (10, 0) = { 49, 1, 0, 0 };
+    const int n = line * 14;
+    std::vector<float> flat, env;
+    run (song, flat, n);
+    const float ref = lvl (flat, line * 4);
+    CHECK (! in.shapesSynth() && ref > 0.05f && lvl (flat, line / 2) > 0.05f);   // (unshaped: always on)
+    in.volEnv = { true, 0.01f, 0.0f, 1.0f, 0.05f };
+    CHECK (in.shapesSynth());
+    run (song, env, n);
+    const float before = lvl (env, line / 2), held = lvl (env, line * 4);
+    const float rel = lvl (env, line * 6 + 960), gone = lvl (env, line * 8), again = lvl (env, line * 12);
+    std::printf ("synth envelope: before %.4f, held %.3f (unshaped %.3f), 20-30 ms into release %.3f, after %.4f, next note %.3f\n",
+                 before, held, ref, rel, gone, again);
+    CHECK (before < 1e-4f && std::abs (held - ref) < 0.01f * ref);
+    CHECK (rel > 0.2f * ref && rel < 0.8f * ref && gone < 1e-4f && std::abs (again - ref) < 0.01f * ref);
+    // the filter: a high-pass at 8 kHz leaves little of the 1 kHz tone; a low-pass at 20 kHz keeps it
+    in.volEnv.on = false;
+    in.filter = FilterType::HighPass; in.cutoff = 8000.0f; in.resonance = 0.0f;
+    CHECK (in.shapesSynth());
+    run (song, env, n);
+    const float hp = lvl (env, line * 4);
+    in.filter = FilterType::LowPass; in.cutoff = 20000.0f;
+    run (song, env, n);
+    const float lp = lvl (env, line * 4);
+    // a low-pass at 250 Hz with the filter envelope opening it 4 octaves on each note: louder just after a note
+    in.cutoff = 250.0f; in.filterEnvAmount = 4.0f; in.filterEnv = { true, 0.001f, 0.15f, 0.0f, 0.1f };
+    run (song, env, n);
+    const float open = lvl (env, line * 2 + 240), shut = lvl (env, line * 5);
+    std::printf ("synth filter: high-pass 8k x%.3f, low-pass 20k x%.3f; 250 Hz + envelope: opened %.3f, closed %.3f\n", hp / ref, lp / ref, open, shut);
+    CHECK (hp < 0.1f * ref && std::abs (lp / ref - 1.0f) < 0.05f && open > 2.0f * shut);
+    // and its own EQ: a high-pass point at 8 kHz does the same after it
+    in.filter = FilterType::Off;
+    in.eq.band[0] = { true, true, EqType::HighPass, 8000.0f, 0.0f, 0.7f };
+    CHECK (in.hasEq());
+    run (song, env, n);
+    std::printf ("synth EQ: high-pass 8k x%.3f\n", lvl (env, line * 4) / ref);
+    CHECK (lvl (env, line * 4) < 0.1f * ref);
+    // MIDI out / CV out: never shaped
+    in.eq = {}; in.volEnv.on = true; in.midiOut = true;
+    CHECK (! in.shapesSynth() && ! in.hasEq());
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3251,6 +3352,7 @@ int main()
     testEqPointsAndUtility();
     testCombine();
     testGrooveAndBreakTools();
+    testInstrumentEqAndSynthShape();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.28</span>
+  <span class="ver">MANUAL &middot; V0.29</span>
 </header>
 
 <div class="app">
@@ -432,7 +432,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="accent t3"></div>
   <p><span class="b">PARAMS</span> opens the current instrument's page. Everything starts off or neutral, so MODs and older songs sound exactly as they did.</p>
   <figure>
-    <div class="frame sunken"><img src="img/params.png" alt="The PARAMS page with volume envelope, filter, filter envelope, the pan and UTILITY rows (WIDTH, MONO, VOL), the FX row under the envelope with a drive and a delay, and the ON, TRACK and LEARN buttons along the bottom." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/params.png" alt="The PARAMS page with volume envelope, filter, filter envelope, the pan and UTILITY rows (WIDTH, MONO, VOL), the EQ and FX row across the page with a drive and a delay, and the ON, TRACK and LEARN buttons along the bottom." width="1440" height="900" loading="lazy"></div>
     <figcaption>PARAMS: envelope, filter, pan and UTILITY, and the ON button</figcaption>
   </figure>
   <ul>
@@ -447,9 +447,15 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">ON</span> switches the instrument off and on. To switch it from the pattern, pick a track, press <span class="b">LEARN A (V)</span> or <span class="b">LEARN B (J)</span>, then click ON: that track's <code>V00</code> switches it off and <code>V01</code>–<code>VFF</code> on.</li>
     <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
   </ul>
-  <h3>Instrument effects</h3>
-  <p>Every instrument has <span class="b">three insert slots of its own</span>, like a mixer strip's: the built-in filter, drive, compressor, delay, reverb and chorus, or a VST3 / AU plug-in. They're on the <span class="b">FX</span> row, under the volume envelope in the picture above (and on a plug-in instrument's page).</p>
+  <h3>Instrument EQ and effects</h3>
+  <p>Every instrument &mdash; a sample or a VST3 / AU instrument &mdash; has <span class="b">its own EQ</span> and <span class="b">three insert slots of its own</span>, like a mixer strip's: the built-in filter, drive, compressor, delay, reverb and chorus, or a VST3 / AU plug-in. They're on the <span class="b">EQ</span> / <span class="b">FX</span> row across the PARAMS page in the picture above (and on a plug-in instrument's page).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/instrument_eq.png" alt="An instrument's EQ AND EFFECTS page: the EQ graph with a bell boost at 120 Hz and a dip at 3 kHz over the instrument's spectrum, the selected point's controls under it, and on the right its three BUILT-IN EFFECTS slots and the IN THIS ORDER list." width="1440" height="900" loading="lazy"></div>
+    <figcaption>EQ opens the instrument's own EQ AND EFFECTS page</figcaption>
+  </figure>
   <ul>
+    <li><span class="b">EQ</span> (lit when the instrument has EQ points on) opens the <b>EQ AND EFFECTS</b> page: the mixer's EQ graph for this instrument alone &mdash; up to 8 points, double-click to add one, drag, the wheel for Q, right-click for its type, <span class="b">EQ FLAT</span> for none &mdash; with the instrument's own spectrum behind it. Its 3 effects are on the right, and <b>IN THIS ORDER</b> shows the way the sound goes: the sample or plug-in, filter and envelopes, UTILITY, this EQ, these effects, then its mixer track. <span class="b">BACK</span> returns to the instrument.</li>
+    <li>The EQ is saved in the song, its changes are undo steps of the instrument, and renders and bounces include it. Not on MIDI out or CV out.</li>
     <li>Click a slot to open it on the mixer's effect page; <span class="b">BACK</span> returns to the instrument. Right-click for OPEN, BYPASS, COPY, PASTE and CLEAR. A lit slot is on.</li>
     <li>The sound goes through the instrument's effects first, then into the strip of the track it plays on. Every note goes through the one chain, so a delay or reverb carries on across notes; its output goes to the track of the instrument's <b>latest</b> note.</li>
     <li>The effects belong to the instrument: saved in the song, undo steps, and copied with it (COPY / PASTE / DUPLICATE). RENDER WAV and bouncing include them. A plug-in's own delay on an instrument slot isn't compensated.</li>
@@ -555,8 +561,14 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <div><figure><div class="frame sunken"><img src="img/source_choice.png" alt="The choice box: A VST3 / AU INSTRUMENT, MIDI OUT TO HARDWARE, CANCEL." width="1440" height="900" loading="lazy"></div><figcaption>Plug-in or MIDI out?</figcaption></figure></div>
     <div><figure><div class="frame sunken"><img src="img/synth.png" alt="A plug-in instrument's page with OUTPUT, BEND and ON, four learnable knobs and the track's automation knobs." width="1440" height="900" loading="lazy"></div><figcaption>A plug-in instrument's page</figcaption></figure></div>
   </div>
+  <figure>
+    <div class="frame sunken"><img src="img/synth_shape.png" alt="The PARAMS page for a plug-in instrument, titled FILTER AND ENVELOPES: VOL ENVELOPE on, the filter on LOW, the filter envelope, the EQ and FX row, and BACK TO THE PLUG-IN." width="1440" height="900" loading="lazy"></div>
+    <figcaption>FILTER AND ENVELOPES... on a VST3 / AU instrument</figcaption>
+  </figure>
   <ul>
     <li><span class="b">EDIT</span> opens the plug-in's own window. The laptop keys keep playing it while that window is in front.</li>
+    <li><span class="b">FILTER AND ENVELOPES...</span> opens the PARAMS page for the plug-in: the same <span class="b">VOL ENVELOPE</span>, <span class="b">FILTER</span> and <span class="b">FILTER ENVELOPE</span> as a sample, on the plug-in's sound. They start with each note played on it (from where they are, no click) and release when its last note ends &mdash; a slow fade-in for a pad, a pluck from any synth. <span class="b">BACK TO THE PLUG-IN</span> returns; the button is lit, with what's on written next to it.</li>
+    <li><span class="b">EQ</span> and <span class="b">FX</span> on its bottom rows: its own EQ and effects (see <a href="#params">Instrument EQ and effects</a>).</li>
     <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the track that played its latest note (the same in the song, a render and a bounce). <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
     <li>Notes play one at a time per track. <code>Cxx</code> is velocity, pitch commands become pitch bend, <code>Oxx</code> is the mod wheel, and <code>ECx</code> <code>EDx</code> <code>Nxx</code> <code>Kxx</code> <code>Mxx</code> <code>E9x</code> <code>Rxy</code> work. Sample-only commands are ignored.</li>
     <li>Chords: <code>#xy</code> on a note's line plays chord slot <code>xy</code> from the song's chord table, held. See <a href="#chords">Chords</a>.</li>
@@ -841,7 +853,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.28</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.29</footer>
 </main>
 </div>
 </body></html>

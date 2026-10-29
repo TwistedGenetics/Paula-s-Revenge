@@ -9,6 +9,10 @@ namespace { const char* kKnobLetters[kInstrumentKnobs] = { "L", "Q", "H", "W" };
 SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
 {
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
+    fxRow.onOpenPage = [this] { if (onOpenEqFx) onOpenEqFx(); };
+    shapeBtn.setClickingTogglesState (false);
+    shapeBtn.onClick = [this] { if (onOpenShape) onOpenShape(); };
+    addChildComponent (shapeBtn);
     fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
     addAndMakeVisible (fxRow);
     utility.onChanged = [this] { if (onChanged) onChanged(); };
@@ -204,6 +208,8 @@ void SynthPage::refresh()
     fxRow.setVisible (! browsing && ! inst().isMidiOut());
     utility.setVisible (! browsing && ! inst().isMidiOut() && ! inst().isCvOut());
     utility.refresh();
+    shapeBtn.setVisible (plug && ! inst().isMidiOut() && ! inst().isCvOut());
+    shapeBtn.setToggleState (inst().shapesSynth(), juce::dontSendNotification);
     list.setVisible (browsing);
     search.setVisible (browsing);
     rescanBtn.setVisible (browsing);
@@ -361,6 +367,20 @@ void SynthPage::paint (juce::Graphics& g)
                               ? "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": PICK A PLUG-IN" : title,
                          titleArea, px, Theme::palFor (*this).ink);
     if (utility.isVisible()) PixelFont::drawLeft (g, "UTILITY", utilLabel, px, Theme::palFor (*this).ink);
+    if (shapeBtn.isVisible())
+    {
+        // what the filter and envelopes are doing to it
+        const auto& in = inst();
+        juce::String t;
+        if (in.volEnv.on) t << "VOL ENV";
+        if (in.filter != FilterType::Off)
+            t << (t.isEmpty() ? "" : " + ") << (in.filter == FilterType::LowPass ? "LOW" : in.filter == FilterType::HighPass ? "HIGH" : "BAND") << " "
+              << (in.cutoff < 1000.0f ? juce::String (juce::roundToInt (in.cutoff)) + "HZ" : juce::String (in.cutoff / 1000.0f, 1) + "K");
+        if (t.isEmpty()) t = "OFF";
+        const int n = (int) (shapeInfo.getWidth() / (px * PixelFont::kCellW));
+        if (t.length() > n) t = t.substring (0, std::max (2, n - 2)) + "..";
+        PixelFont::drawLeft (g, t, shapeInfo, px, in.shapesSynth() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
+    }
 
     if (browsing)
     {
@@ -442,6 +462,12 @@ void SynthPage::resized()
         auto row = r.removeFromBottom (rowH);   // its UTILITY
         utilLabel = row.removeFromLeft (charsW (8)).toFloat();
         utility.setBounds (row);
+    }
+    r.removeFromBottom (gap);
+    {
+        auto row = r.removeFromBottom (rowH);   // its filter and envelopes (on the PARAMS page)
+        shapeBtn.setBounds (row.removeFromLeft (std::min (row.getWidth() / 2 + charsW (2), charsW (23)))); row.removeFromLeft (gap * 2);
+        shapeInfo = row.toFloat();
     }
     r.removeFromBottom (gap * 2);
     r.removeFromTop (gap);

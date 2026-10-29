@@ -91,6 +91,8 @@ public:
     void tick();            // meters
     void showStrips();
     void openChannel (int track);
+    void openInstrument (int ins);   // an instrument's own EQ and its 3 insert effects (BACK: its page)
+    int  channelInstrument() const { return chInstrument; }   // (-1: a mixer track)
     void openEffect (int slot);
     int  channelTrack() const { return chTrack; }
     int  effectSlot() const { return fxSlot; }
@@ -117,7 +119,8 @@ private:
     PaulaProcessor& proc;
     std::map<int, int> heldKeys;   // key code -> note being played (the computer keyboard plays the instrument)
     Page currentPage = Page::Strips, effectReturn = Page::Strips;
-    int chTrack = 0, fxSlot = 0;
+    int chTrack = 0, fxSlot = 0, chInstrument = -1;
+    ChannelEq& curEq();
 
     // header
     PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" };

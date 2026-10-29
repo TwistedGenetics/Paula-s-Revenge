@@ -1,6 +1,7 @@
 // Paula's Revenge - an instrument's own effects: 3 insert slots (the mixer's built-in effects or
 // a VST3 / AU plug-in) that its sound goes through before the strip of the track it plays on.
-// A row on the instrument's pages; clicking a slot opens it on the mixer's effect page.
+// A row on the instrument's pages; clicking a slot opens it on the mixer's effect page. EQ (and
+// the FX label) open the instrument's EQ AND EFFECTS page: its own EQ points and these 3 slots.
 #pragma once
 
 #include <JuceHeader.h>
@@ -22,9 +23,14 @@ public:
             b.onRightClick = [this, k] { menu (k); };
             addAndMakeVisible (b);
         }
+        eqBtn.setClickingTogglesState (false);
+        eqBtn.onClick = [this] { if (onOpenPage) onOpenPage(); };
+        addAndMakeVisible (eqBtn);
     }
 
     std::function<void (int slot)> onOpen;                    // the slot (in the mixer's numbering) to edit
+    std::function<void()> onOpenPage;                         // EQ: the instrument's EQ AND EFFECTS page
+    bool showEq = true;                                       // (not for a CV OUT instrument)
     std::function<void (const juce::String&)> onStatus;
 
     int instrument() const { return juce::jlimit (0, kMixInstruments - 1, proc.editorState.instrument); }
@@ -48,6 +54,11 @@ public:
             slots[k].setButtonText (slotText (s, k));
             slots[k].setToggleState (s.active(), juce::dontSendNotification);
         }
+        const auto& in = proc.song.instruments[(size_t) i];
+        showEq = ! in.isCvOut() && ! in.isMidiOut();
+        eqBtn.setVisible (showEq);
+        eqBtn.setToggleState (in.hasEq(), juce::dontSendNotification);   // (lit: it has points switched on)
+        resized();
         repaint();
     }
 
@@ -55,19 +66,28 @@ public:
     {
         PixelFont::drawLeft (g, "FX", labelArea.toFloat(), Theme::px, Theme::palFor (*this).ink);
     }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (labelArea.contains (e.getPosition()) && showEq && onOpenPage) onOpenPage();   // (FX: the whole page too)
+    }
 
     void resized() override
     {
         const float px = Theme::px;
         auto r = getLocalBounds();
-        labelArea = r.removeFromLeft ((int) (px * 6 * 3 + px * 2));
         const int gap = (int) std::max (2.0f, px);
+        if (showEq) { eqBtn.setBounds (r.removeFromLeft ((int) (px * 6 * 3 + px * 4))); r.removeFromLeft (gap * 2); }
+        labelArea = r.removeFromLeft ((int) (px * 6 * 3 + px * 2));
         const int w = (r.getWidth() - gap * (kInserts - 1)) / kInserts;
         for (int k = 0; k < kInserts; ++k) { slots[k].setBounds (r.removeFromLeft (w)); r.removeFromLeft (gap); }
     }
 
 private:
     PaulaProcessor& proc;
+    PixButton eqBtn { "EQ", true };
+public:
+    PixButton& eqButton() { return eqBtn; }   // (tests)
+private:
     PixButton slots[kInserts] { PixButton ("1 ---", true), PixButton ("2 ---", true), PixButton ("3 ---", true) };
     juce::Rectangle<int> labelArea;
     static FxSlot& clip() { static FxSlot c; return c; }

@@ -176,6 +176,12 @@ struct Instrument
     int   utilMonoHz = 0;                   // 0 = off, else 20..500: everything below it mono
     bool  utilSteep = false;                // MONO BELOW at 48 dB/oct (LR8) instead of 24 (LR4): the lows fully mono sooner
     bool  hasUtility() const { return ! isMidiOut() && ! isCvOut() && (utilWidth != 1.0f || utilMonoHz > 0); }
+    // the instrument's own EQ (up to 8 points, as a mixer channel's), after the UTILITY, before its inserts
+    ChannelEq eq;
+    bool  hasEq() const { return ! isMidiOut() && ! isCvOut() && eq.anyOn(); }
+    // a VST3 / AU instrument's filter and envelopes work on its output: the envelopes start with each
+    // note of it and release when its last note ends
+    bool  shapesSynth() const { return isPlugin() && ! isMidiOut() && ! isCvOut() && (volEnv.on || filter != FilterType::Off); }
 
     // any instrument can be switched off (the ON button): its notes are silent
     bool switchedOff = false;

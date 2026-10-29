@@ -26,12 +26,28 @@ EqGraph::EqGraph (PaulaProcessor& p) : proc (p)
 
 EqGraph::~EqGraph()
 {
-    auto& tap = proc.player.mixer().chTap;
-    if (tap.source.load() == track) tap.source.store (-1);
+    auto& t = tap();
+    if (t.source.load() == tapSource()) t.source.store (-1);
 }
 
-ChannelEq& EqGraph::eq() { return proc.song.mixer.ch[juce::jlimit (0, kMixTracks - 1, track)].eq; }
-const ChannelEq& EqGraph::eq() const { return proc.song.mixer.ch[juce::jlimit (0, kMixTracks - 1, track)].eq; }
+AudioTap& EqGraph::tap() { return instrument >= 0 ? proc.player.insTap : proc.player.mixer().chTap; }
+
+void EqGraph::record (const juce::String& what, bool merge)
+{
+    if (instrument >= 0) proc.history.instrument (instrument, what, merge);
+    else proc.history.mixer (what, merge);
+}
+
+ChannelEq& EqGraph::eq()
+{
+    if (instrument >= 0) return proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, instrument)].eq;
+    return proc.song.mixer.ch[juce::jlimit (0, kMixTracks - 1, track)].eq;
+}
+const ChannelEq& EqGraph::eq() const
+{
+    if (instrument >= 0) return proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, instrument)].eq;
+    return proc.song.mixer.ch[juce::jlimit (0, kMixTracks - 1, track)].eq;
+}
 
 juce::String EqGraph::hzText (float hz) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " HZ" : juce::String (hz / 1000.0f, hz < 10000.0f ? 2 : 1) + " KHZ"; }
 juce::String EqGraph::dbText (float db) { return (db > 0.0f ? "+" : "") + juce::String (db, 1) + " DB"; }
@@ -48,11 +64,26 @@ juce::String EqGraph::pointText (int b) const
 
 juce::String EqGraph::label (int b, const juce::String& what) const
 {
+    if (instrument >= 0) return "EQ POINT " + juce::String (b + 1) + (what.isNotEmpty() ? " " + what : juce::String());
     return "TRACK " + juce::String (track + 1) + " EQ POINT " + juce::String (b + 1) + (what.isNotEmpty() ? " " + what : juce::String());
+}
+
+void EqGraph::setInstrument (int ins)
+{
+    if (instrument < 0) { auto& ct = proc.player.mixer().chTap; if (ct.source.load() == track) ct.source.store (-1); }
+    instrument = juce::jlimit (0, kMaxInstruments - 1, ins);
+    track = instrument % 8;   // (its colour)
+    proc.player.insTap.source.store (isVisible() ? instrument : -1);
+    std::fill (cols.begin(), cols.end(), (float) kSpecLow);
+    std::fill (peaks.begin(), peaks.end(), (float) kSpecLow);
+    lastCount = 0;
+    selectFirst();
 }
 
 void EqGraph::setTrack (int t)
 {
+    if (instrument >= 0) { auto& it = proc.player.insTap; if (it.source.load() == instrument) it.source.store (-1); }
+    instrument = -1;
     track = juce::jlimit (0, kMixTracks - 1, t);
     proc.player.mixer().chTap.source.store (isVisible() ? track : -1);
     std::fill (cols.begin(), cols.end(), (float) kSpecLow);
@@ -70,9 +101,9 @@ void EqGraph::selectFirst()
 
 void EqGraph::visibilityChanged()
 {
-    auto& tap = proc.player.mixer().chTap;
-    if (isVisible()) tap.source.store (track);
-    else if (tap.source.load() == track) tap.source.store (-1);
+    auto& t = tap();
+    if (isVisible()) t.source.store (tapSource());
+    else if (t.source.load() == tapSource()) t.source.store (-1);
 }
 
 void EqGraph::resized()
@@ -127,7 +158,7 @@ int EqGraph::addPointAt (juce::Point<float> where)
         return -1;
     }
     const float hz = std::round (xToHz (where.x)), db = yToDb (where.y);
-    proc.history.mixer ("TRACK " + juce::String (track + 1) + " EQ ADD POINT", false);
+    record (instrument >= 0 ? juce::String ("EQ ADD POINT") : "TRACK " + juce::String (track + 1) + " EQ ADD POINT", false);
     int b = -1;
     proc.withLock ([&] { b = eq().add (hz, db); });
     selected = b;
@@ -139,7 +170,7 @@ int EqGraph::addPointAt (juce::Point<float> where)
 void EqGraph::movePoint (int b, float hz, float db, bool merge)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used) return;
-    proc.history.mixer (label (b, "MOVE"), merge);
+    record (label (b, "MOVE"), merge);
     proc.withLock ([&]
     {
         auto& e = eq().band[b];
@@ -153,7 +184,7 @@ void EqGraph::movePoint (int b, float hz, float db, bool merge)
 void EqGraph::setQ (int b, float q, bool merge)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used || ! eq().band[b].hasQ()) return;
-    proc.history.mixer (label (b, "Q"), merge);
+    record (label (b, "Q"), merge);
     proc.withLock ([&] { eq().band[b].q = juce::jlimit (0.3f, 8.0f, q); eq().band[b].on = true; });
     edited();
 }
@@ -161,7 +192,7 @@ void EqGraph::setQ (int b, float q, bool merge)
 void EqGraph::setType (int b, EqType t)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used) return;
-    proc.history.mixer (label (b, juce::String (eqTypeName (t))), false);
+    record (label (b, juce::String (eqTypeName (t))), false);
     proc.withLock ([&] { auto& e = eq().band[b]; e.type = t; if (! e.hasGain()) e.gain = 0.0f; e.on = true; });
     edited();
 }
@@ -169,7 +200,7 @@ void EqGraph::setType (int b, EqType t)
 void EqGraph::resetGain (int b)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used) return;
-    proc.history.mixer (label (b, "RESET GAIN"), false);
+    record (label (b, "RESET GAIN"), false);
     proc.withLock ([&] { eq().band[b].gain = 0.0f; });
     edited();
 }
@@ -177,7 +208,7 @@ void EqGraph::resetGain (int b)
 void EqGraph::setOn (int b, bool on)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used) return;
-    proc.history.mixer (label (b, on ? "ON" : "OFF"), false);
+    record (label (b, on ? "ON" : "OFF"), false);
     proc.withLock ([&] { eq().band[b].on = on; });
     edited();
 }
@@ -185,7 +216,7 @@ void EqGraph::setOn (int b, bool on)
 void EqGraph::removePoint (int b)
 {
     if (b < 0 || b >= kEqBands || ! eq().band[b].used) return;
-    proc.history.mixer (label (b, "REMOVED"), false);
+    record (label (b, "REMOVED"), false);
     proc.withLock ([&] { eq().remove (b); });
     if (selected == b) selectFirst();
     if (onStatus) onStatus ("EQ POINT " + juce::String (b + 1) + " REMOVED");
@@ -325,12 +356,12 @@ void EqGraph::tick()
     // (visible all the way up: isShowing() also wants a window on screen)
     for (auto* c = static_cast<juce::Component*> (this); c->getParentComponent() != nullptr; c = c->getParentComponent()) if (! c->isVisible()) return;
     if (! showSpectrum) return;
-    auto& tap = proc.player.mixer().chTap;
-    if (tap.source.load() != track) { tap.source.store (track); return; }
-    const uint32_t c = tap.count();
+    auto& tp = tap();
+    if (tp.source.load() != tapSource()) { tp.source.store (tapSource()); return; }
+    const uint32_t c = tp.count();
     if (c == lastCount) return;   // (stopped: it stays as it was)
     lastCount = c;
-    const int got = tap.read (tapBuf.data(), (int) tapBuf.size());
+    const int got = tp.read (tapBuf.data(), (int) tapBuf.size());
     analyse (tapBuf.data(), got);
     repaint();
 }

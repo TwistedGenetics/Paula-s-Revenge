@@ -38,6 +38,7 @@ namespace
 ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 {
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
+    fxRow.onOpenPage = [this] { if (onOpenEqFx) onOpenEqFx(); };
     fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
     utility.onChanged = [this] { if (onChanged) onChanged(); };
     utility.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
@@ -112,7 +113,11 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
     tuneBtn.onClick = [this] { tuneToC(); };
     syncBtn.onClick = [this] { setBeatSync (syncBtn.getToggleState()); };
     fitBtn.onClick = [this] { if (onFitStretch) onFitStretch (linesBox.getValue()); };
-    pluginBtn.onClick = [this] { if (onUsePlugin) onUsePlugin(); };
+    pluginBtn.onClick = [this]
+    {
+        if (pluginMode()) { if (onBackToPlugin) onBackToPlugin(); }
+        else if (onUsePlugin) onUsePlugin();
+    };
     onBtn.onClick = [this] { toggleOn(); };
     learnA.onClick = [this] { armLearn (0); };
     learnB.onClick = [this] { armLearn (1); };
@@ -235,9 +240,22 @@ void ParamsPage::armLearn (int knob)
     refresh();
 }
 
+bool ParamsPage::pluginMode() const
+{
+    const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+    return in.isPlugin() && ! in.isMidiOut() && ! in.isCvOut();
+}
+
 void ParamsPage::refresh()
 {
     fxRow.refresh();
+    {
+        // a VST3 / AU instrument: no sample tuning, BEAT SYNC or pan here; back to its page instead
+        const bool pm = pluginMode();
+        for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &amigaBtn, &pan })
+            c->setVisible (! pm);
+        pluginBtn.setButtonText (pm ? "BACK TO THE PLUG-IN" : "PLUG-IN / MIDI OUT...");
+    }
     utility.refresh();
     if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
@@ -321,6 +339,9 @@ void ParamsPage::resized()
         utility.setBounds (inner.removeFromTop (rowH));
     }
     r.removeFromBottom (gap * 2);
+    // the instrument's own EQ and effects: a row across the page (room for the effects' names)
+    fxRow.setBounds (r.removeFromBottom (rowH));
+    r.removeFromBottom (gap * 2);
 
     const int colGap = gap * 3;
     auto left = r.removeFromLeft ((r.getWidth() - colGap) / 2);
@@ -335,8 +356,6 @@ void ParamsPage::resized()
     };
 
     // the instrument's own effects, tuning and BEAT SYNC: under the volume envelope (its graph has the room)
-    fxRow.setBounds (left.removeFromBottom (rowH));
-    left.removeFromBottom (gap * 2);
     {
         auto row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
         linesBox.setBounds (row.removeFromLeft (linesBox.preferredWidth (px))); row.removeFromLeft (gap);
@@ -406,6 +425,7 @@ void ParamsPage::paint (juce::Graphics& g)
     const auto& in = inst();
     const juce::String idx = juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2);
     juce::String t = "INSTRUMENT " + idx + "  " + (in.name.empty() ? juce::String (in.hasData() ? "(NO NAME)" : "(EMPTY)") : juce::String (in.name));
+    if (pluginMode()) t = "INSTRUMENT " + idx + "  " + juce::String (in.name.empty() ? in.pluginName : in.name) + " - FILTER AND ENVELOPES";
     float tp = px;
     while (tp > 1.5f && PixelFont::textWidth (t, tp) > titleArea.getWidth()) tp -= 0.5f;
     PixelFont::drawLeft (g, t, titleArea, tp, Theme::palFor (*this).ink);
@@ -414,6 +434,15 @@ void ParamsPage::paint (juce::Graphics& g)
     Theme::panelBox (g, filterBox, "FILTER", Theme::palFor (*this));
     Theme::panelBox (g, fenvBox, "FILTER ENVELOPE", Theme::palFor (*this));
     Theme::panelBox (g, panBox, {}, Theme::palFor (*this));
+    if (pluginMode())
+    {
+        // (where PAN goes for a sample: what these do to a plug-in)
+        auto r = amigaBtn.getBounds().getUnion (pan.getBounds()).toFloat();
+        juce::String h = "ON THE PLUG-IN'S SOUND: THEY START WITH EACH NOTE";
+        const int n = (int) (r.getWidth() / (px * PixelFont::kCellW));
+        if (h.length() > n) h = "THEY START WITH EACH NOTE";
+        PixelFont::drawLeft (g, h, r, px, Theme::palFor (*this).ink);
+    }
     drawEnvelope (g, envGraph, in.volEnv, in.volEnv.on);
 
     if (hasKeyboardFocus (true))
