@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.27</span>
+  <span class="ver">MANUAL &middot; V0.28</span>
 </header>
 
 <div class="app">
@@ -388,6 +388,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>Each instrument has a RATE: the speed it plays at on <code>C-3</code>. Samples load at their own rate, so they sound as recorded. <span class="b">RATE</span> changes it without touching the data (lower rate, lower and slower); <span class="b">RESAMPLE</span> converts the data to a new rate and keeps the pitch, with <span class="b">RAW</span> for the rough, unfiltered old-sampler way.</p>
   <h3>Slicing</h3>
   <p><span class="b">SLICE</span> opens the slicer. <span class="b">AUTO</span> finds the hits (<span class="b">SENS</span> sets how quiet), <span class="b">EVEN</span> cuts equal slices. Drag a tab to move a slice point, double-click the wave to add one, <kbd>Alt</kbd>-click a tab to remove it. With <span class="b">SLICE TO KEYS</span> on, <code>C-3</code> plays slice 1, <code>C#3</code> slice 2 and so on; without it, <code>Sxx</code> picks the slice.</p>
+  <h3>Groove and break tools</h3>
+  <ul>
+    <li><b>CHOP TO PATTERN</b> (right-click an instrument): the break is sliced by its hits (if it has no slices yet) and laid out as notes on the cursor's track, each slice on the line where it falls, with SLICE TO KEYS on.</li>
+    <li><b>Right-click a highlight</b>: <span class="b">REVERSE THE LINES</span>, <span class="b">STUTTER</span> (the first quarter over and over), <span class="b">RATCHET</span> (rolls that speed up across it, <code>R40</code> to <code>R10</code>) and <span class="b">RE-SEQUENCE THE SLICES</span> (the rhythm stays, the slices shuffle; again for another order).</li>
+    <li><span class="b">GROOVE</span> (bottom row): SWING 16THS, SWING 8THS, LAZY BREAK, PUSHED HATS or HUMANISE, at 25&ndash;100%. Some lines' notes play a little late as the song plays; the pattern isn't changed. Notes with their own <code>Mxx</code>, <code>EDx</code> or a slide keep their timing.</li>
+  </ul>
   <h3>Time stretch</h3>
   <p><span class="b">STRETCH</span> opens the old-sampler stretch: <b>CLASSIC</b> (the Akai sound, matched to recordings of the real thing), <b>REVISED</b> (cleaner joins), <b>HARD</b> (no blending) and <b>AKAIZER</b> (Akaizer v1.2's granular method, rebuilt). Set TIME %, SEMI and CENTS and the CYCLE length; <span class="b">FIT TO LINES</span> makes the selection last a number of lines at the song's tempo. <span class="b">PREVIEW</span>, then <span class="b">APPLY</span>.</p>
   <h3>Sampling: recording audio</h3>
@@ -835,7 +841,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.27</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.28</footer>
 </main>
 </div>
 </body></html>

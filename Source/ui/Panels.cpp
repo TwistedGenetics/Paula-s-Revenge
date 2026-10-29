@@ -2,6 +2,8 @@
 #include "Panels.h"
 #include "../SongFile.h"
 #include "../engine/SongOps.h"
+#include "../engine/Groove.h"
+#include "../engine/Slicer.h"
 #include "ChoiceBox.h"
 
 namespace prv::ui
@@ -1197,6 +1199,34 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
         { "SAMPLE (RECORD AUDIO)...", [safe] { if (safe != nullptr && safe->openSample) safe->openSample(); } },
         { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
+        { "CHOP TO PATTERN (TRACK " + juce::String (proc.editorState.track + 1) + ")", [safe, r] { if (safe != nullptr) safe->chopToPattern (r); } },
     });
+}
+
+int InstrumentPanel::chopToPattern (int r)
+{
+    // a break, sliced (found by its hits when it has no slices yet), laid out as notes on the
+    // cursor's track of the current block, each slice where it falls in the break
+    auto& st = proc.editorState;
+    const auto& in = proc.song.instruments[(size_t) r];
+    const auto hex = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+    if (! in.hasData()) { status ("INSTRUMENT " + hex + " HAS NO SAMPLE TO CHOP"); return 0; }
+    if (in.numSlices() < 2)
+    {
+        auto sl = detectSlices (in.data, in.dataR, in.rate > 0 ? in.rate : kAmigaC3Rate, 0.5f, 32);
+        if (sl.size() < 2) sl = evenSlices ((int) in.data.size(), 16);
+        proc.history.instrument (r, "SLICE FOR CHOP");
+        proc.withLock ([&] { proc.song.instruments[(size_t) r].slices = sl; });
+    }
+    const int blk = proc.song.safeBlock (st.block);
+    proc.history.block (blk, "CHOP TO PATTERN");
+    int placed = 0;
+    const int lines = in.syncLines > 0 ? in.syncLines : 0;
+    proc.withLock ([&] { placed = prv::chopToPattern (proc.song, r, blk, st.track, lines); });
+    status (placed > 0 ? "CHOPPED " + hex + " INTO " + juce::String (placed) + " SLICES ON TRACK " + juce::String (st.track + 1)
+                         + " (SLICE TO KEYS ON: C-3 = SLICE 1) - HIGHLIGHT THEM AND RIGHT-CLICK TO RE-SEQUENCE"
+                       : juce::String ("NOTHING TO CHOP"));
+    changed();
+    return placed;
 }
 } // namespace prv::ui

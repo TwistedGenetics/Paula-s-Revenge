@@ -179,6 +179,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void loadSample();
+    int  chopToPattern (int instrument);   // CHOP TO PATTERN (right-click an instrument); also tests
     std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
 
 private:

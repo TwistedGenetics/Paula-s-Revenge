@@ -62,6 +62,7 @@ public:
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     prv::ui::Spectrum& getSpectrum() { return spectrum; }
+    prv::ui::InstrumentPanel& getInstruments() { return instruments; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
     // the File menu (the standalone's menu bar; tests)
     void newSong();
@@ -73,7 +74,9 @@ public:
     void exportSamples();
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
     void setFollowInstrument (bool on);
-    void showSeparationMenu();                        // SEP: right-click a machine button (or the View menu)
+    void showSeparationMenu();
+    void showGrooveMenu();                            // GROOVE (bottom row): the song's feel, then how much
+    void setGroove (int kind, int amount);                        // SEP: right-click a machine button (or the View menu)
     void setSeparation (float v01);
     float separation() const { return sepSlider.value; }               // FOLLOW INSTRUMENT: a click on a note picks its instrument
     void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
@@ -136,7 +139,7 @@ private:
     // song strip
     PixButton viewBtn { "BIG VIEW", true };
     PixButton mixerBtn { "MIXER", true };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;

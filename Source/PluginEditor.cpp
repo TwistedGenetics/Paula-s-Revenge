@@ -3,6 +3,7 @@
 #include "ui/ChoiceBox.h"
 #include "ui/MeterColours.h"
 #include "engine/Capture.h"
+#include "engine/Groove.h"
 #include "SongFile.h"
 #include "engine/Bounce.h"
 #include "engine/ModuleIO.h"
@@ -88,6 +89,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     for (auto& a : recSeenInst) for (auto& v : a) v = -1.0f;
     for (auto& a : recLastTrack) for (auto& v : a) v = -1;
     for (auto& a : recLastInst) for (auto& v : a) v = -1;
+    grooveBtn.setClickingTogglesState (false);
+    grooveBtn.onClick = [this] { showGrooveMenu(); };
     recAutoBtn.onClick = [this, &st]
     {
         st.recAuto = recAutoBtn.getToggleState();
@@ -201,12 +204,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onSelectionMenu = [this] (int line, int track, int group)
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
-        choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE: NO FX", "BOUNCE: INSTRUMENT FX ONLY", "BOUNCE: MIXER FX ONLY", "BOUNCE: ALL FX", "EFFECT COMMANDS..." },
+        choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE: NO FX", "BOUNCE: INSTRUMENT FX ONLY", "BOUNCE: MIXER FX ONLY", "BOUNCE: ALL FX", "EFFECT COMMANDS...",
+                                                        "REVERSE THE LINES", "STUTTER (THE FIRST QUARTER, OVER AND OVER)", "RATCHET (ROLLS THAT SPEED UP)", "RE-SEQUENCE THE SLICES (SHUFFLE)" },
                      [safe, line, track, group] (int a)
         {
             if (safe == nullptr) return;
             if (a >= 0 && a <= 3) safe->bounceSelection (a);
             else if (a == 4) safe->pattern.openCommandMenu (line, track, group);
+            else if (a >= 5 && a <= 8) { safe->pattern.breakTool (a - 5); safe->refreshAll(); }
         });
     };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -311,7 +316,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
-            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
+            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
 
@@ -481,6 +486,7 @@ void PaulaEditor::refreshAll()
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
     recAutoBtn.setToggleState (st.recAuto, juce::dontSendNotification);
+    grooveBtn.setToggleState (proc.song.grooveKind != 0, juce::dontSendNotification);
     if (! st.showFx2) st.column = std::min (st.column, 5);
 
     proc.jamInstrument = st.instrument;
@@ -687,6 +693,7 @@ void PaulaEditor::resized()
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
     recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
+    grooveBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -805,6 +812,36 @@ void PaulaEditor::showSeparationMenu()
         items.push_back ({ juce::String (v == now ? "> " : "  ") + juce::String (v) + "%" + (v == 0 ? " (MONO)" : v == 20 ? " (DEFAULT)" : v == 100 ? " (HARD AMIGA)" : ""),
                            [safe, v] { if (safe) safe->setSeparation (v / 100.0f); } });
     prv::ui::showMenu ("STEREO SEPARATION (SEP)", items);
+}
+
+void PaulaEditor::showGrooveMenu()
+{
+    // GROOVE: the song's feel (notes on some lines a little late as it plays), then how much
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    juce::StringArray kinds;
+    const int now = proc.song.grooveKind;
+    for (int k = 0; k < prv::kGrooveKinds; ++k) kinds.add (juce::String (k == now ? "> " : "  ") + prv::grooveName ((prv::GrooveKind) k));
+    choice.show (*this, "GROOVE (THE SONG'S FEEL)", kinds, [safe] (int k)
+    {
+        if (safe == nullptr || k < 0) return;
+        if (k == 0) { safe->setGroove (0, safe->proc.song.grooveAmount); return; }
+        juce::StringArray amounts;
+        for (int a : { 25, 50, 66, 75, 100 }) amounts.add (juce::String (a) + "%" + (a == safe->proc.song.grooveAmount ? " (NOW)" : ""));
+        safe->choice.show (*safe, juce::String ("HOW MUCH ") + prv::grooveName ((prv::GrooveKind) k) + "?", amounts, [safe, k] (int a)
+        {
+            static const int pct[] = { 25, 50, 66, 75, 100 };
+            if (safe != nullptr && a >= 0 && a < 5) safe->setGroove (k, pct[a]);
+        });
+    });
+}
+
+void PaulaEditor::setGroove (int kind, int amount)
+{
+    proc.history.settings ("GROOVE");
+    proc.withLock ([&] { proc.song.grooveKind = (uint8_t) juce::jlimit (0, prv::kGrooveKinds - 1, kind); proc.song.grooveAmount = juce::jlimit (0, 100, amount); });
+    refreshAll();
+    setStatus (kind == 0 ? juce::String ("GROOVE OFF: EVERY NOTE ON ITS LINE")
+                         : "GROOVE: " + juce::String (prv::grooveName ((prv::GrooveKind) kind)) + " " + juce::String (amount) + "% (AS IT PLAYS; THE PATTERN ISN'T CHANGED)");
 }
 
 void PaulaEditor::setSeparation (float v)

@@ -1,5 +1,6 @@
 // Paula's Revenge - replayer and Paula-style output stage
 #include "Player.h"
+#include "Groove.h"
 
 namespace prv
 {
@@ -872,6 +873,14 @@ void Player::processCell (int ch, const Cell& cell)
     {
         v.microCell = cell;
         v.microDelay = (long long) (lineSamples() * (p / 128.0));
+    }
+    else if (const double gro = (! (edDelay && hasNotePart) && cell.note > 0 && cell.note <= kNoteMax && song->grooveKind != 0)
+                                    ? grooveOffset ((GrooveKind) song->grooveKind, song->grooveAmount, line, ch) : 0.0;
+             gro > 0.004 && ! (cell.cmd == 0x3 || cell.cmd == 0x5 || cell.cmd2 == 0x3 || cell.cmd2 == 0x5))
+    {
+        // GROOVE: this line's notes a little late (as a micro-move would)
+        v.microCell = cell;
+        v.microDelay = (long long) (lineSamples() * gro);
     }
     else if (edDelay && hasNotePart)
     {

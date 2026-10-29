@@ -324,6 +324,22 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 
 
 **Loop handles**: the **S** and **E** handles at the top of the waveform set the loop start and end. With no loop they wait at the two ends of the sample ("DRAG S OR E TO LOOP"); drag either one in and the loop switches on. While you drag a handle the loop plays so you can hear the join. Exact numbers go in START / END below; LOOP switches it off again.
+## Groove and break tools
+
+* **GROOVE** (bottom row; lit when on): the song's feel. Pick one, then how much (25, 50, 66, 75 or 100%). Notes on some lines play a little late — the pattern itself isn't changed, it's applied as the song plays (and in renders and bounces):
+  * **SWING 16THS** — every second line late (at 100%, two thirds of a line: a triplet shuffle; 50% is a light swing).
+  * **SWING 8THS** — lines 2 and 6 of every 8 late.
+  * **LAZY BREAK** — a laid-back break: the beats on time, everything between dragging a little.
+  * **PUSHED HATS** — the off 16ths on tracks 2, 4, 6, 8 a touch late.
+  * **HUMANISE** — a small drift per line and track (the same every time, so it doesn't wander).
+  * A note with its own `Mxx`, `EDx` or a slide keeps its timing. Saved in the song; undo takes it back.
+* **CHOP TO PATTERN** (right-click an instrument): a break, sliced — by its hits, when it has no slices yet — and laid out as notes on the cursor's track of the current block, each slice on the line where it falls in the break (over the block's lines, or BEAT SYNC's LINES when that's set). SLICE TO KEYS goes on, so `C-3` is slice 1, `C#3` slice 2… Two undo steps: the notes, then the slicing.
+* **Right-click a highlight** for the break tools (as well as BOUNCE and the effect commands):
+  * **REVERSE THE LINES** — the highlighted lines last first.
+  * **STUTTER** — the first quarter of the highlight over and over to its end.
+  * **RATCHET** — every note gets a roll that speeds up across the highlight (`R40` at the start down to `R10` at the end), in a free effect column (an occupied one is kept).
+  * **RE-SEQUENCE THE SLICES** — the slice notes shuffled: the rhythm stays, which slice plays changes (a slice 1 on the downbeat stays put). Again for another order; undo goes back.
+
 ## Slicing
 
 **SLICE** in the sample editor opens the slicer:

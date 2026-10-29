@@ -4,20 +4,21 @@
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/CvOut.h"
+#include "engine/Groove.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 21;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 22;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
-                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY
+                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -335,6 +336,8 @@ juce::MemoryBlock writeSong (const Song& song)
         raw.writeShortBigEndian ((short) used);
         for (int i = 0; i < kMaxInstruments; ++i) if (song.instruments[(size_t) i].utilSteep) raw.writeByte ((char) i);
     }
+    // v22: GROOVE
+    raw.writeByte ((char) song.grooveKind); raw.writeByte ((char) song.grooveAmount);
 
     juce::MemoryOutputStream packed;
     {
@@ -693,6 +696,11 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 const int i = (int) (uint8_t) in.readByte();
                 if (i < kMaxInstruments) s.instruments[(size_t) i].utilSteep = true;
             }
+        }
+        if (version >= 22 && ! in.isExhausted())
+        {
+            s.grooveKind = (uint8_t) std::clamp ((int) (uint8_t) in.readByte(), 0, kGrooveKinds - 1);
+            s.grooveAmount = std::clamp ((int) (uint8_t) in.readByte(), 0, 100);
         }
     }
     else if (version == 11)

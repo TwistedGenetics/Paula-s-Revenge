@@ -58,6 +58,7 @@ private:
         int trackPan[prv::kMaxTracks] {};
         prv::ChordTable chords; bool chordsLegacy = false;   // (the song's chord table)
         prv::CvSource cvSources[prv::kCvSources]; float cvFullScale = 10.0f; int cvDelayMs = 0;   // (the CV SOURCES page)
+        uint8_t grooveKind = 0; int grooveAmount = 50;
     };
     struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; std::vector<prv::SongSection> sections; prv::ChordTable chords; bool chordsLegacy = false; };
     struct Entry

@@ -234,6 +234,8 @@ struct Song
     CvSource cvSources[kCvSources];    // CV SOURCES (all off by default)
     float cvFullScale = 10.0f;         // the volts at full scale for the CV SOURCES (ES-9: 10)
     int   cvDelayMs = 0;               // CV DELAY: -100..+100 ms. Positive: the voltages later; negative: the music (outputs 1-2) later
+    uint8_t grooveKind = 0;            // GROOVE: a GrooveKind (0 = off): some lines' notes a little late, as it plays
+    int   grooveAmount = 50;           // 0..100 %
     std::array<Instrument, kMaxInstruments> instruments;
     ChordTable chords;                 // 0xy on a CHORD instrument's note plays slot xy; saved in the song
     bool chordsLegacy = false;         // (a v0.11 song: 0xy = two intervals, x and y semitones up)
@@ -253,6 +255,7 @@ struct Song
         for (auto& c : cvSources) c = CvSource {};
         cvFullScale = 10.0f;
         cvDelayMs = 0;
+        grooveKind = 0; grooveAmount = 50;
         for (auto& i : instruments) i.clear();
         chords = defaultChordTable();
         chordsLegacy = false;

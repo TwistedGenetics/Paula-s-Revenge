@@ -42,6 +42,7 @@ History::Entry History::capture (Kind kind, int index) const
             s->chords = song.chords; s->chordsLegacy = song.chordsLegacy;
             std::copy (std::begin (song.cvSources), std::end (song.cvSources), s->cvSources);
             s->cvFullScale = song.cvFullScale; s->cvDelayMs = song.cvDelayMs;
+            s->grooveKind = song.grooveKind; s->grooveAmount = song.grooveAmount;
             e.settings = s;
             e.bytes = sizeof (Settings);
             break;
@@ -151,6 +152,7 @@ void History::apply (Entry& e)
                 song.chords = s.chords; song.chordsLegacy = s.chordsLegacy;
                 std::copy (std::begin (s.cvSources), std::end (s.cvSources), song.cvSources);
                 song.cvFullScale = s.cvFullScale; song.cvDelayMs = s.cvDelayMs;
+                song.grooveKind = s.grooveKind; song.grooveAmount = s.grooveAmount;
                 if (! proc.player.isPlaying()) proc.player.setLed (s.led);
             });
             break;

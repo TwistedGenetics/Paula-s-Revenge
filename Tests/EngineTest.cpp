@@ -7,6 +7,7 @@
 #include "engine/Recorder.h"
 #include "engine/SampleTools.h"
 #include "engine/CvOut.h"
+#include "engine/Groove.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -3153,6 +3154,72 @@ static void testCombine()
     CHECK (combinePositions (t, 1, 1) == -1);
 }
 
+// v0.28: GROOVE and the break tools
+static void testGrooveAndBreakTools()
+{
+    // groove offsets
+    CHECK (grooveOffset (GrooveKind::Off, 100, 1, 0) == 0.0);
+    CHECK (grooveOffset (GrooveKind::Swing16, 100, 0, 0) == 0.0 && std::abs (grooveOffset (GrooveKind::Swing16, 100, 1, 0) - 0.667) < 1e-9);
+    CHECK (std::abs (grooveOffset (GrooveKind::Swing16, 50, 3, 2) - 0.3335) < 1e-9 && grooveOffset (GrooveKind::Swing16, 0, 3, 2) == 0.0);
+    CHECK (grooveOffset (GrooveKind::Swing8, 100, 2, 0) > 0.6 && grooveOffset (GrooveKind::Swing8, 100, 1, 0) == 0.0);
+    CHECK (grooveOffset (GrooveKind::Humanise, 100, 5, 3) == grooveOffset (GrooveKind::Humanise, 100, 5, 3) && grooveOffset (GrooveKind::Humanise, 100, 5, 3) < 0.19);
+    // played: swing 16ths at 100% puts line 1's note 2/3 of a line late
+    {
+        auto onsetOf = [] (int kind, int amount)
+        {
+            Song s = oneShot (square (100, 4800), false);
+            s.blocks[0].at (1, 0) = { 37, 1, 0, 0 };
+            s.grooveKind = (uint8_t) kind; s.grooveAmount = amount;
+            auto L = renderTrack (s, 48000);
+            return firstSound (L);
+        };
+        const int straight = onsetOf (0, 0), swung = onsetOf ((int) GrooveKind::Swing16, 100);
+        Player p; Song s; s.tempo = 125; s.speed = 6; p.setSampleRate (48000); p.setSong (&s);
+        const double lineSamples = 48000.0 * 2.5 / 125.0 * 6;   // (6 ticks of 2.5/BPM s)
+        std::printf ("groove: line 1 straight at %d, swung at %d (%.0f later; 2/3 of a line = %.0f)\n", straight, swung, (double) (swung - straight), lineSamples * 0.667);
+        CHECK (straight > 0 && std::abs ((swung - straight) - lineSamples * 0.667) < 200);
+    }
+    // CHOP TO PATTERN
+    {
+        Song s;
+        auto& in = s.instruments[2];
+        in.data.assign (16000, 1000);
+        in.slices = { 0, 2000, 4000, 8000, 12000 };
+        s.blocks[0].lines = 64;
+        s.blocks[0].at (5, 1) = { 50, 1, 0, 0 };   // (a note there goes)
+        const int n = chopToPattern (s, 2, 0, 1, 16);
+        std::printf ("chop: %d slices at lines", n);
+        for (int l = 0; l < 16; ++l) if (s.blocks[0].at (l, 1).note) std::printf (" %d=%d", l, s.blocks[0].at (l, 1).note - kSliceC3 + 1);
+        std::printf ("\n");
+        CHECK (n == 5 && in.sliceKeys);
+        CHECK (s.blocks[0].at (0, 1).note == kSliceC3 && s.blocks[0].at (2, 1).note == kSliceC3 + 1 && s.blocks[0].at (4, 1).note == kSliceC3 + 2
+               && s.blocks[0].at (8, 1).note == kSliceC3 + 3 && s.blocks[0].at (12, 1).note == kSliceC3 + 4 && s.blocks[0].at (5, 1).note == 0);
+        CHECK (s.blocks[0].at (0, 1).instr == 3);
+        // RE-SEQUENCE: the rhythm stays, the order changes; slice 1 on the downbeat stays
+        Block b = s.blocks[0];
+        const int changed = resequenceSlices (b, 0, 15, 1, 1, 12345);
+        std::vector<int> before, after;
+        for (int l = 0; l < 16; ++l) { if (s.blocks[0].at (l, 1).note) before.push_back (s.blocks[0].at (l, 1).note); if (b.at (l, 1).note) after.push_back (b.at (l, 1).note); }
+        auto sb = before, sa = after; std::sort (sb.begin(), sb.end()); std::sort (sa.begin(), sa.end());
+        CHECK (changed > 0 && sb == sa && after != before && b.at (0, 1).note == kSliceC3);
+        for (int l = 0; l < 16; ++l) CHECK ((b.at (l, 1).note != 0) == (s.blocks[0].at (l, 1).note != 0));
+    }
+    // REVERSE, STUTTER, RATCHET
+    {
+        Block b; b.lines = 16;
+        for (int l = 0; l < 8; ++l) b.at (l, 0) = { (uint8_t) (37 + l), 1, 0, 0 };
+        Block r = b; reverseLines (r, 0, 7, 0, 0);
+        CHECK (r.at (0, 0).note == 44 && r.at (7, 0).note == 37 && r.at (8, 0).note == 0);
+        Block st = b; stutterLines (st, 0, 7, 0, 0);   // (the first 2 lines, over and over)
+        CHECK (st.at (2, 0).note == 37 && st.at (3, 0).note == 38 && st.at (6, 0).note == 37 && st.at (7, 0).note == 38);
+        Block ra = b; ra.at (3, 0).cmd = 0xC; ra.at (3, 0).param = 0x20;
+        const int k = ratchetNotes (ra, 0, 7, 0, 0);
+        const uint8_t R = cmdLetter ('R');
+        CHECK (k == 8 && ra.at (0, 0).cmd == R && ra.at (0, 0).param == 0x40 && ra.at (7, 0).param == 0x10);
+        CHECK (ra.at (3, 0).cmd == 0xC && ra.at (3, 0).cmd2 == R);   // (the volume command kept)
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3183,6 +3250,7 @@ int main()
     testCvOut();
     testEqPointsAndUtility();
     testCombine();
+    testGrooveAndBreakTools();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

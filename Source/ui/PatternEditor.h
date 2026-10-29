@@ -86,6 +86,8 @@ public:
     // mouse selection of notes / effects (also used by tests). Columns count in
     // groups across the tracks: note+instrument, FX1, FX2 (when shown).
     bool hasSelection() const;
+    // BREAK TOOLS on the highlighted part (right-click it): 0 REVERSE, 1 STUTTER, 2 RATCHET, 3 RE-SEQUENCE SLICES
+    juce::String breakTool (int tool);
     // the highlighted lines and tracks (false = nothing highlighted)
     bool selectionArea (int& block, int& line0, int& line1, int& track0, int& track1) const;
     void selectRange (int line0, int line1, int track0, int group0, int track1, int group1);
@@ -117,7 +119,8 @@ private:
 
     int panDragTrack = -1;
     int loopDragFrom = -1;              // dragging over the line numbers
-    struct Selection { int block = -1, l0 = 0, l1 = 0, c0 = 0, c1 = 0; } sel;   // c = track * groups + group
+    struct Selection { int block = -1, l0 = 0, l1 = 0, c0 = 0, c1 = 0; } sel;
+    uint32_t reseqCount = 0;   // c = track * groups + group
     struct ClipCell { int line, track, group; Cell cell; };
     struct SelClip { std::vector<ClipCell> cells; int lines = 0; } selClip;
     enum class LastCopy { None, Track, Block, Selection } lastCopy = LastCopy::None;

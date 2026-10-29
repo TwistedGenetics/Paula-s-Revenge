@@ -1,5 +1,6 @@
 // Paula's Revenge - the pattern (block) editor
 #include "PatternEditor.h"
+#include "../engine/Groove.h"
 #include "ChoiceBox.h"
 #include "MeterColours.h"
 #include "ChordColours.h"
@@ -1709,6 +1710,40 @@ void PatternEditor::noteRecorded (int note, int group)
     const int serial = group != 0 ? -group : ++noteSerial;
     if (st.track >= 0 && st.track < kMaxTracks) trackSerial[st.track] = serial;
     held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument, group, serial };
+}
+
+juce::String PatternEditor::breakTool (int tool)
+{
+    if (! hasSelection()) return "HIGHLIGHT SOME LINES FIRST";
+    const int gpt = groupsPerTrack();
+    const int blk = proc.song.safeBlock (sel.block >= 0 ? sel.block : st.block);
+    const int l0 = sel.l0, l1 = sel.l1, t0 = sel.c0 / gpt, t1 = sel.c1 / gpt;
+    static const char* names[] = { "REVERSE LINES", "STUTTER", "RATCHET", "RE-SEQUENCE SLICES" };
+    if (tool < 0 || tool > 3) return {};
+    pushUndo (blk, names[tool]);
+    juce::String m;
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        const int n = l1 - l0 + 1;
+        switch (tool)
+        {
+            case 0: prv::reverseLines (b, l0, l1, t0, t1); m = "REVERSED " + juce::String (n) + " LINES (THE LAST FIRST)"; break;
+            case 1: prv::stutterLines (b, l0, l1, t0, t1); m = "STUTTER: THE FIRST " + juce::String (std::max (1, n / 4)) + " LINES OVER AND OVER"; break;
+            case 2: { const int k = prv::ratchetNotes (b, l0, l1, t0, t1); m = juce::String (k) + " NOTES RATCHETED (ROLLS SPEEDING UP: R40 TO R10)"; break; }
+            case 3:
+            {
+                const int k = prv::resequenceSlices (b, l0, l1, t0, t1, (uint32_t) juce::Time::getMillisecondCounter() ^ (uint32_t) ++reseqCount * 7919u);
+                m = k > 0 ? "RE-SEQUENCED: " + juce::String (k) + " SLICES SHUFFLED (AGAIN FOR ANOTHER, UNDO TO GO BACK)"
+                          : juce::String ("NO SLICE NOTES THERE (CHOP A BREAK TO THE PATTERN FIRST)");
+                break;
+            }
+            default: break;
+        }
+    });
+    changed();
+    if (onStatus) onStatus (m);
+    return m;
 }
 
 bool PatternEditor::followInstrument()          { return prv::prefs().getBoolValue ("followInstrument", true); }
