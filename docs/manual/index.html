@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.23</span>
+  <span class="ver">MANUAL &middot; V0.24</span>
 </header>
 
 <div class="app">
@@ -138,11 +138,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><a href="#plugins"><span class="n">009</span><span>Plug-ins</span></a></li>
     <li><a href="#auto"><span class="n">010</span><span>Automation</span></a></li>
     <li><a href="#midi"><span class="n">011</span><span>MIDI out</span></a></li>
-    <li><a href="#chords"><span class="n">012</span><span>Chords</span></a></li>
-    <li><a href="#bounce"><span class="n">013</span><span>Bouncing</span></a></li>
-    <li><a href="#render"><span class="n">014</span><span>Rendering</span></a></li>
-    <li><a href="#files"><span class="n">015</span><span>Saving &amp; files</span></a></li>
-    <li><a href="#keys"><span class="n">016</span><span>Keys</span></a></li>
+    <li><a href="#cv"><span class="n">012</span><span>CV out (modular)</span></a></li>
+    <li><a href="#chords"><span class="n">013</span><span>Chords</span></a></li>
+    <li><a href="#bounce"><span class="n">014</span><span>Bouncing</span></a></li>
+    <li><a href="#render"><span class="n">015</span><span>Rendering</span></a></li>
+    <li><a href="#files"><span class="n">016</span><span>Saving &amp; files</span></a></li>
+    <li><a href="#keys"><span class="n">017</span><span>Keys</span></a></li>
   </ol>
 </nav>
 
@@ -574,7 +575,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <section class="ch raised" id="midi">
   <h2>MIDI OUT</h2>
   <div class="accent t4"></div>
-  <p>An instrument can play your hardware (an MPC, a microKORG, an NTS-1) over MIDI. Press <span class="b">PARAMS</span>, <span class="b">PLUG-IN / MIDI OUT...</span>, <span class="b">MIDI OUT TO HARDWARE</span>, then double-click a MIDI output.</p>
+  <p>An instrument can play your hardware (an MPC, a microKORG, an NTS-1) over MIDI. Press <span class="b">PARAMS</span>, <span class="b">PLUG-IN / MIDI OUT...</span>, <span class="b">MIDI OUT TO HARDWARE</span>, then double-click a MIDI output. (For a modular, see <a href="#cv">CV out</a>.)</p>
   <figure>
     <div class="frame sunken"><img src="img/midi.png" alt="A MIDI-out instrument's page: device, CHANNEL, BEND, ON, DELAY, SEND MIDI CLOCK, four CC knobs with SEND bars and LEARN CC, and the track's automation knobs." width="1440" height="900" loading="lazy"></div>
     <figcaption>A MIDI-out instrument's page</figcaption>
@@ -592,6 +593,53 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     </tbody>
   </table></div>
   <p>Notes, velocity, pitch bend, the mod wheel and the timing commands work as for plug-in instruments. If the device isn't connected, the instrument shows <code>!NAME</code>, sends nothing and keeps its settings; <span class="b">CHANGE DEVICE...</span> and the same device again reconnects it. MIDI-out instruments aren't in renders or bounces (they're hardware).</p>
+</section>
+
+<!-- ============================================================ 011b -->
+<section class="ch raised" id="cv">
+  <h2>CV OUT TO A MODULAR</h2>
+  <div class="accent t3"></div>
+  <p>With a <b>DC-coupled</b> interface (an Expert Sleepers <b>ES-9</b>, or anything that can put out steady voltages) Paula's Revenge plays and clocks a Eurorack modular. Ordinary interfaces block DC, so CV won't work through them.</p>
+  <ol class="steps">
+    <li>Choose the interface in <b>Audio/MIDI Settings…</b>. With more than 2 outputs the app switches them all on (up to 16), in order: output 5 in the app is the interface's output 5. Outputs <b>1–2 are the music</b>; CV goes on <b>3–16</b>.</li>
+    <li>Press <span class="b">PARAMS</span>, <span class="b">PLUG-IN / MIDI OUT...</span>, <span class="b">CV OUT TO A MODULAR (ES-9)</span>.</li>
+    <li>Patch the PITCH and GATE outputs to an oscillator and an envelope, and play.</li>
+  </ol>
+  <figure>
+    <div class="frame sunken"><img src="img/cv_out.png" alt="A CV OUT instrument's page: PITCH OUT, GATE OUT, VEL OUT, MOD OUT, FULL SCALE, GATE, OCTAVE, BEND, INPUT, TUNER, AUTO-TUNE, CLEAR MAP, and the tuning map's points in cents." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A CV OUT instrument after AUTO-TUNE: the map's points, in cents from 1&nbsp;V/octave</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">PITCH OUT</span></td><td>1&nbsp;V / octave, <code>C-3</code> = 0&nbsp;V</td></tr>
+      <tr><td><span class="b">GATE OUT</span></td><td>High while a note plays, at the <span class="b">GATE</span> level</td></tr>
+      <tr><td><span class="b">VEL OUT</span></td><td>The note's velocity (or <code>Cxx</code>) as 0&nbsp;V to the gate level</td></tr>
+      <tr><td><span class="b">MOD OUT</span></td><td>The <code>Lxx</code> knob as a voltage</td></tr>
+      <tr><td><span class="b">FULL SCALE</span></td><td>The volts the interface puts out at full level: 10&nbsp;V for the ES-9</td></tr>
+      <tr><td><span class="b">OCTAVE</span> <span class="b">BEND</span></td><td>Shift the pitch by octaves; the range pitch commands bend over</td></tr>
+      <tr><td><span class="b">INPUT</span> <span class="b">TUNER</span></td><td>INPUT is where the oscillator comes back in. TUNER holds <code>C-3</code>'s voltage with the gate open and shows the pitch it hears: tune the oscillator to a C</td></tr>
+      <tr><td><span class="b">AUTO-TUNE</span></td><td>Steps the pitch CV from −2.5 to +2.5&nbsp;V, measures each step (about 10 seconds; leave the oscillator alone) and makes a <b>map</b>: every note is then sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1&nbsp;V / octave. The map is saved with the instrument; <span class="b">CLEAR MAP</span> goes back to plain 1&nbsp;V / octave</td></tr>
+    </tbody>
+  </table></div>
+  <p>It's mono: the newest note wins, a released key goes back to one still held, and a new note while the gate is open closes it for 2&nbsp;ms so envelopes start again. <code>OFF</code> closes the gate; slides, vibrato and pitch bends move the pitch CV. It plays in step with the song, sample by sample, but it isn't in renders or bounces.</p>
+  <h3>CV sources</h3>
+  <p><span class="b">CV SOURCES...</span> (on the CV OUT page) gives the song up to 8 voltages of its own, each on an output, saved in the song.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/cv_sources.png" alt="The CV SOURCES page: a clock, an LFO, an envelope, a knob and a run gate, each on its own output, with their settings." width="1440" height="900" loading="lazy"></div>
+    <figcaption>CV SOURCES: clock, LFO, envelope, knob and run</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>SOURCE</th><th>WHAT IT SENDS</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">CLOCK</span></td><td>Pulses while playing: PULSES/BEAT 4 = 16ths, 24 = 24&nbsp;ppqn</td></tr>
+      <tr><td><span class="b">RESET</span> <span class="b">RUN</span></td><td>A pulse as play starts; high while playing</td></tr>
+      <tr><td><span class="b">LFO</span></td><td>Sine, triangle, saw, square or random, BEATS a cycle in step with the song, with DEPTH and CENTRE</td></tr>
+      <tr><td><span class="b">ENVELOPE</span></td><td>Attack, decay, sustain, release (ms), started by each note on its TRACK and released by OFF, up to PEAK</td></tr>
+      <tr><td><span class="b">KNOB</span></td><td>A track's <code>Vxx</code> (AUTO A) or <code>Jxx</code> (AUTO B) as a voltage between BOTTOM and TOP (<code>Yxx</code> glides it): automation for the modular</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Safety.</b> Voltages are clamped to the interface's range. STOP closes every gate and drops RUN; STOP twice (panic) also lets go of a tuner or AUTO-TUNE voltage.</p>
 </section>
 
 <!-- ============================================================ 012 -->
@@ -772,7 +820,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.23</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.24</footer>
 </main>
 </div>
 </body></html>

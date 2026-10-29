@@ -4,6 +4,7 @@
 #include "Song.h"
 #include "Mixer.h"
 #include "PluginSynth.h"
+#include "CvOut.h"
 #include "DelayLine.h"
 #include "Blep.h"
 #include <atomic>
@@ -159,6 +160,7 @@ public:
     void resetSwitches();   // automated on/off of effects and instruments back to their buttons
     int  instrumentOnOverride (int instrument) const { return instrument >= 0 && instrument < kMaxInstruments ? instOnOv[instrument] : -1; }
     bool forceMixPath = false;    // tests (and stem renders): use the mixer path even when flat
+    CvBus cv;                     // CV out: the app points this at the interface's outputs for each render (all null: no CV)
 
     // the value an automation knob was last set to by the pattern (-1 = not yet); kind 0 = track knob, 1 = instrument knob
     float laneValue (int kind, int a, int b) const
@@ -257,6 +259,9 @@ private:
     // plug-in instruments
     SynthRack rack;
     int  chunkPos = 0;                          // sample offset of events inside the current chunk
+    CvSourceRunner cvRunner;                    // the song's CV SOURCES
+    bool cvTrig[kMaxTracks] {}, cvRel[kMaxTracks] {}, cvWasPlaying = false;
+    float cvKnobA[kMaxTracks] {}, cvKnobB[kMaxTracks] {};
     int  synthTrack[kMaxInstruments] {};        // the track that played the instrument's latest note (AUTO output; its inserts' output)
     struct JamSynth { int note = -1, instr = -1, midi = -1; };
     JamSynth jamSynth[16];

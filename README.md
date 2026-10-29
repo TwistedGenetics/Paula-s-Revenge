@@ -117,7 +117,7 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **Pan**: AMIGA L/R follows the track layout above; switch it off and use PAN to give the instrument its own position.
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
 * **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
-* **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument or with your hardware instead of the sample (see below).
+* **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument, with your hardware over MIDI, or with a modular over CV (see below).
 * **PITCH** (±48 semitones, the same as TRNS in the instrument panel) and **FINE** (±100 cents) tune the sample. **TUNE TO C** finds the sample's pitch and sets them so `C-3` plays a C (the nearest one, so it moves 6 semitones at most); the status line says what it heard. Drums with no clear pitch are left alone.
 * **BEAT SYNC** (like Renoise's): the sample (START to END) lasts **LINES** lines at `C-3`, at whatever the tempo and speed are — it's sped up or slowed down (repitched) to fit, live, so it follows BPM / SPD changes and `Fxx`. Other notes play it higher or lower as usual. Switching it on suggests a sensible number of lines for the sample's length. **STRETCH...** opens the sample editor's time stretch set to the same number of lines, to make it fit at its own pitch instead (PREVIEW, then APPLY; BEAT SYNC can stay on).
 * **FX** (under the volume envelope): the instrument's own effects (see Instrument effects).
@@ -568,6 +568,22 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 * STOP sends note-offs for everything sounding plus All Notes Off on its channels. **PANIC** on its page (or STOP while already stopped) does that for every MIDI output.
 * All its settings are saved in the song and changes are undo steps. If the device isn't connected, the instrument shows `!NAME`, sends nothing and keeps its settings; CHANGE DEVICE... and the same device again reconnects it.
 * It isn't in RENDER WAV (see Rendering).
+
+## CV out to a modular (ES-9)
+
+With a **DC-coupled** audio interface — an Expert Sleepers **ES-9** or anything that can put out steady voltages — Paula's Revenge plays and clocks a Eurorack modular, like Ableton's CV Tools.
+
+* **Setting up:** choose the interface in Audio/MIDI Settings. With more than 2 outputs the app switches them all on (up to 16), in order, so "output 5" in the app is the interface's output 5. Outputs **1–2 are the music**; CV goes on **3–16**. (Keep all its outputs and inputs on in Audio/MIDI Settings, or the numbers move.) Ordinary interfaces block DC: CV won't work through them.
+* **A CV OUT instrument:** PARAMS → **PLUG-IN / MIDI OUT...** → **CV OUT TO A MODULAR (ES-9)**. Its page sets **PITCH OUT** (1 V / octave, `C-3` = 0 V), **GATE OUT**, **VEL OUT** (velocity / `Cxx` as 0 V to the gate level) and **MOD OUT** (the `Lxx` knob as a voltage), **FULL SCALE** (the volts the interface puts out at full level; 10 V for the ES-9), **GATE** (the gate's level), **OCTAVE** and **BEND** (the range pitch commands bend over).
+* Notes in the pattern (and the computer keys or a MIDI keyboard on its page) play the modular: mono, the newest note wins, a released key goes back to one still held (legato), and a new note while the gate is open closes it for 2 ms so envelopes start again. `OFF` closes the gate; slides, vibrato and chords' root bend the pitch CV. It plays in step with the song, sample by sample. It isn't in RENDER WAV.
+* **TUNER and AUTO-TUNE:** set **INPUT** to the interface input the oscillator comes back on. **TUNER** holds `C-3`'s voltage with the gate open and shows the pitch it hears (note, cents, a needle): tune the oscillator to a C. **AUTO-TUNE** then steps the pitch CV from −2.5 V to +2.5 V, measures the pitch at each step (about 10 seconds; leave the oscillator alone) and makes a **map**: from then on every note is sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1 V / octave (or the interface's own scaling). The page shows how far each measured point is from 1 V / octave. The map is saved in the song with the instrument (and copied with it); **CLEAR MAP** goes back to plain 1 V / octave.
+* **CV SOURCES...** (on the page; saved in the song): up to 8 voltages of the song's own, each on an output:
+  * **CLOCK** — pulses while playing (PULSES/BEAT: 4 = 16ths, 24 = 24 ppqn), **RESET** — a pulse as play starts, **RUN** — high while playing (all at LEVEL);
+  * **LFO** — sine, triangle, saw, square or random, BEATS a cycle in step with the song, DEPTH and CENTRE;
+  * **ENVELOPE** — attack, decay, sustain, release (ms), started by each note on its TRACK and released by OFF, up to PEAK;
+  * **KNOB** — a track's `Vxx` (AUTO A) or `Jxx` (AUTO B) from the pattern as a voltage between BOTTOM and TOP (`Yxx` glides it) — automation for the modular.
+  * **FULL SCALE** at the top is the interface's (10 V for the ES-9).
+* **Safety:** the voltages are clamped to the interface's range; STOP closes every gate and drops RUN, and STOP twice (panic) also releases a tuner or AUTO-TUNE voltage.
 
 ## Credits
 

@@ -9,6 +9,7 @@
 
 namespace prv
 {
+struct CvBus;
 // Events are timed by a sample offset into the next render() call.
 class PluginSynth
 {
@@ -28,6 +29,8 @@ public:
     virtual void update (const Instrument&) {}                     // the instrument's settings (each block)
     // MIDI clock (MIDI-out instruments): kind 0 = one clock (24 a beat), 1 = start at `ppq` beats, 2 = stop
     virtual void clock (int /*kind*/, double /*ppq*/, int /*offset*/) {}
+    // CV OUT instruments: their voltages into the interface's outputs (after render, the same block)
+    virtual void renderCv (struct CvBus&, int /*numSamples*/) {}
 };
 
 // The plug-in instruments of a song, one per instrument slot (made outside the audio lock)

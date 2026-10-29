@@ -17,7 +17,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
-      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), samplePage (p), outMeter (p)
+      spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), samplePage (p), cvPage (p), cvSources (p), outMeter (p)
 {
     auto& st = proc.editorState;
     Theme::setSkin (st.darkSkin);
@@ -59,6 +59,16 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     samplePage.onAudioSettings = [this] { if (openAudioSettings) openAudioSettings(); else setStatus ("AUDIO/MIDI SETTINGS: IN THE APP MENU"); };
     samplePage.onEdit = [this] { setView (View::SampleEdit); };
     addChildComponent (samplePage);
+    // CV out to a modular (ES-9)
+    cvPage.onClose = [this] { setView (View::Pattern); };
+    cvPage.onChanged = [this] { refreshAll(); };
+    cvPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    cvPage.onSources = [this] { setView (View::CvSources); };
+    cvPage.onChords = [this] { openChords(); };
+    addChildComponent (cvPage);
+    cvSources.onClose = [this] { setView (proc.song.instruments[(size_t) proc.editorState.instrument].isCvOut() ? View::CvOut : View::Pattern); };
+    cvSources.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    addChildComponent (cvSources);
     // an instrument's own effects: edited on the mixer's effect page, BACK returns here
     auto openInstrumentFx = [this] (int slot)
     {
@@ -197,7 +207,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     instruments.openParams = [this]
     {
         const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
-        setView (in.isMidiOut() ? View::MidiOut : in.isPlugin() ? View::Synth : View::Params);
+        setView (in.isMidiOut() ? View::MidiOut : in.isCvOut() ? View::CvOut : in.isPlugin() ? View::Synth : View::Params);
     };
     sequence.openArrange = [this] { setView (View::Arrange); };
     sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -215,6 +225,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::Help:       help.grabKeyboardFocus(); break;
             case View::Chords:     chords.grabKeyboardFocus(); break;
             case View::Sample:     samplePage.grabKeyboardFocus(); break;
+            case View::CvOut:      cvPage.grabKeyboardFocus(); break;
+            case View::CvSources:  cvSources.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
         }
     };
@@ -233,11 +245,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     params.onUsePlugin = [this]
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
-        choice.show (*this, "PLAY THIS INSTRUMENT WITH", { "A VST3 / AU INSTRUMENT", "MIDI OUT TO HARDWARE" }, [safe] (int a)
+        choice.show (*this, "PLAY THIS INSTRUMENT WITH", { "A VST3 / AU INSTRUMENT", "MIDI OUT TO HARDWARE", "CV OUT TO A MODULAR (ES-9)" }, [safe] (int a)
         {
             if (safe == nullptr || a < 0) return;
             if (a == 0) { safe->setView (View::Synth); safe->synthPage.opened (true); }
-            else { safe->setView (View::MidiOut); safe->midiPage.opened (true); }
+            else if (a == 1) { safe->setView (View::MidiOut); safe->midiPage.opened (true); }
+            else safe->makeCvOut();
         });
     };
     params.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -264,6 +277,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         // EDIT on a plug-in instrument opens the plug-in's own window
         const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
         if (in.isMidiOut()) setView (View::MidiOut);
+        else if (in.isCvOut()) setView (View::CvOut);
         else if (in.isPlugin()) synthPage.openWindow();
         else setView (View::SampleEdit);
     };
@@ -352,7 +366,8 @@ void PaulaEditor::setView (View v)
     if (st.view == View::Params && v != View::Params) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
-    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords; };
+    if (st.view == View::CvOut && v != View::CvOut) proc.withLock ([&] { proc.player.jamAllOff(); });
+    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources; };
     const bool layoutChange = wide (st.view) != wide (v);
     st.view = v;
     if (layoutChange) resized();
@@ -367,6 +382,8 @@ void PaulaEditor::setView (View v)
     help.setVisible (v == View::Help);
     chords.setVisible (v == View::Chords);
     samplePage.setVisible (v == View::Sample);
+    cvPage.setVisible (v == View::CvOut);
+    cvSources.setVisible (v == View::CvSources);
     helpBtn.setToggleState (v == View::Help, juce::dontSendNotification);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
@@ -379,6 +396,8 @@ void PaulaEditor::setView (View v)
     else if (v == View::Help) help.opened();
     else if (v == View::Chords) chords.opened();
     else if (v == View::Sample) samplePage.opened();
+    else if (v == View::CvOut) cvPage.opened();
+    else if (v == View::CvSources) cvSources.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -482,12 +501,15 @@ void PaulaEditor::timerCallback()
     // SAMPLE: its meter, and a take finishing even while another page is showing
     if (samplePage.isVisible() || proc.recorder.state() != prv::TakeRecorder::State::Idle) samplePage.tick();
     if (midiPage.isVisible()) midiPage.tick();
+    if (cvPage.isVisible()) cvPage.tick();
     // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
     {
         const auto& cur = proc.song.instruments[(size_t) proc.editorState.instrument];
         const auto view = proc.editorState.view;
-        if ((view == View::Params || view == View::Synth) && cur.isMidiOut()) setView (View::MidiOut);
-        else if ((view == View::Params || view == View::MidiOut) && cur.isPlugin() && ! cur.isMidiOut()) setView (View::Synth);
+        if ((view == View::Params || view == View::Synth || view == View::CvOut) && cur.isMidiOut()) setView (View::MidiOut);
+        else if ((view == View::Params || view == View::Synth || view == View::MidiOut) && cur.isCvOut()) setView (View::CvOut);
+        else if ((view == View::Params || view == View::MidiOut || view == View::CvOut) && cur.isPlugin() && ! cur.isMidiOut() && ! cur.isCvOut()) setView (View::Synth);
+        else if (view == View::CvOut && ! cur.isCvOut()) setView (View::Params);
     }
     recordAutomation();
     if (arrange.isVisible()) arrange.tick();
@@ -668,7 +690,8 @@ void PaulaEditor::resized()
     if (st.view == View::Mixer) mixer.setBounds (main);
     help.setBounds (main);
     chords.setBounds (main);
-    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords;
+    cvSources.setBounds (main);
+    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources;
     const bool panels = showPanels && ! wideView;
     sequence.setVisible (panels);
     blockPanel.setVisible (panels);
@@ -698,6 +721,23 @@ void PaulaEditor::resized()
     midiPage.setBounds (main);
     arrange.setBounds (main);
     samplePage.setBounds (main);
+    cvPage.setBounds (main);
+}
+
+void PaulaEditor::makeCvOut()
+{
+    // this instrument plays a modular through the interface's outputs
+    const int i = proc.editorState.instrument;
+    proc.history.instrument (i, "CV OUT");
+    proc.withLock ([&] {
+        auto& in = proc.song.instruments[(size_t) i];
+        in.plugin = true; in.cvOut = true; in.midiOut = false; in.pluginKey = "CV:"; in.pluginName = "CV OUT";
+        if (in.name.empty() || in.hasData()) in.name = "CV OUT";
+        in.bendRange = 12;
+    });
+    proc.updateMixerEffects();
+    refreshAll();
+    setView (View::CvOut);
 }
 
 void PaulaEditor::openChords (int slot)
@@ -902,6 +942,8 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Help:       return help.keyPressed (k);
         case View::Chords:     return chords.keyPressed (k);
         case View::Sample:     return samplePage.keyPressed (k);
+        case View::CvOut:      return cvPage.keyPressed (k);
+        case View::CvSources:  return cvSources.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }

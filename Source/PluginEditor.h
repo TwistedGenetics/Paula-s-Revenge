@@ -18,6 +18,7 @@
 #include "ui/SamplePage.h"
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
+#include "ui/CvPage.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -42,6 +43,9 @@ public:
     prv::ui::HelpPage& getHelp() { return help; }
     prv::ui::ChordsPage& getChords() { return chords; }
     prv::ui::SamplePage& getSamplePage() { return samplePage; }
+    prv::ui::CvOutPage& getCvPage() { return cvPage; }
+    prv::ui::CvSourcesPage& getCvSources() { return cvSources; }
+    void makeCvOut();                                 // the current instrument plays a modular (CV OUT)
     void openChords (int slot = -1);                  // CHORDS (Cmd+3; EDIT CHORDS... in the chord list)
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
@@ -134,6 +138,8 @@ private:
     prv::ui::HelpPage help;
     prv::ui::ChordsPage chords;
     prv::ui::SamplePage samplePage;
+    prv::ui::CvOutPage cvPage;
+    prv::ui::CvSourcesPage cvSources;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View fxReturn = PaulaProcessor::EditorState::View::Params;
     PaulaProcessor::EditorState::View chordsReturn = PaulaProcessor::EditorState::View::Pattern;

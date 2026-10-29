@@ -158,6 +158,18 @@ struct Instrument
     bool midiClock = false;                 // send MIDI clock and start / stop to the device
     bool isMidiOut() const { return plugin && midiOut; }
 
+    // CV OUT to a modular (a DC-coupled interface like the Expert Sleepers ES-9): pitch (1 V/oct,
+    // through the calibration map when there is one), gate, velocity and a mod voltage on the
+    // interface's outputs (1-16; 1-2 are the music). plugin is true as well; pluginKey = "CV:"
+    bool cvOut = false;
+    int  cvPitchOut = 3, cvGateOut = 4, cvVelOut = 0, cvModOut = 0;   // 0 = not used
+    float cvFullScale = 10.0f;              // the volts the interface puts out at full scale (ES-9: 10)
+    float cvGateVolts = 5.0f;               // a gate's (and a trigger's) level
+    int  cvOctave = 0;                      // -4..+4: the notes an octave or more up / down
+    std::vector<float> cvMapNotes, cvMapVolts;   // AUTO-TUNE: measured (pitch as a MIDI note, volts), sorted; empty = 1 V/oct, C-3 = 0 V
+    std::string cvMapName;                  // the synth it was measured on
+    bool isCvOut() const { return plugin && cvOut; }
+
     // any instrument can be switched off (the ON button): its notes are silent
     bool switchedOff = false;
 
@@ -168,6 +180,29 @@ struct Instrument
     bool isStereo() const { return ! dataR.empty() && dataR.size() == data.size(); }
     bool isLooped() const { return loopLength >= 4 && loopStart >= 0 && loopStart + loopLength <= (int) data.size(); }
     void clear() { *this = Instrument{}; }
+};
+
+// CV SOURCES: voltages the song sends to a modular on the interface's outputs (ES-9 style)
+constexpr int kCvSources = 8;
+constexpr int kCvOutputs = 16;   // the interface's outputs (1-2 are the music)
+enum class CvKind : uint8_t { Off = 0, Clock, Reset, Run, Lfo, Env, Knob, Count };
+struct CvSource
+{
+    CvKind kind = CvKind::Off;
+    int   out = 0;                 // the output, 1..16 (0 = none)
+    float volts = 5.0f;            // CLOCK / RESET / RUN: the level; LFO: depth; ENV: the peak; KNOB: the top
+    float low = 0.0f;              // LFO: centre; KNOB: the bottom
+    int   ppqn = 4;                // CLOCK: pulses a beat (1-24)
+    int   shape = 0;               // LFO: 0 sine, 1 triangle, 2 saw, 3 square, 4 random
+    float beats = 4.0f;            // LFO: beats a cycle (0.25-64)
+    int   track = 0;               // ENV: the track whose notes trigger it; KNOB: the track whose AUTO A / B sets it
+    int   knob = 0;                // KNOB: 0 = AUTO A (Vxx), 1 = AUTO B (Jxx)
+    float attack = 0.01f, decay = 0.2f, sustain = 0.5f, release = 0.3f;   // ENV (seconds; sustain 0..1)
+    bool operator== (const CvSource& o) const
+    {
+        return kind == o.kind && out == o.out && volts == o.volts && low == o.low && ppqn == o.ppqn && shape == o.shape && beats == o.beats
+            && track == o.track && knob == o.knob && attack == o.attack && decay == o.decay && sustain == o.sustain && release == o.release;
+    }
 };
 
 // A labelled divider in the song order: the section starts at sequence position `pos`
@@ -189,6 +224,8 @@ struct Song
     std::vector<int> sequence;         // block indices
     std::vector<SongSection> sections; // sorted by pos, at most one per position
     MixerSettings mixer;               // flat by default: plays exactly as without a mixer
+    CvSource cvSources[kCvSources];    // CV SOURCES (all off by default)
+    float cvFullScale = 10.0f;         // the volts at full scale for the CV SOURCES (ES-9: 10)
     std::array<Instrument, kMaxInstruments> instruments;
     ChordTable chords;                 // 0xy on a CHORD instrument's note plays slot xy; saved in the song
     bool chordsLegacy = false;         // (a v0.11 song: 0xy = two intervals, x and y semitones up)
@@ -205,6 +242,8 @@ struct Song
         sequence.assign (1, 0);
         sections.clear();
         mixer = MixerSettings {};
+        for (auto& c : cvSources) c = CvSource {};
+        cvFullScale = 10.0f;
         for (auto& i : instruments) i.clear();
         chords = defaultChordTable();
         chordsLegacy = false;

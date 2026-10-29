@@ -8,13 +8,13 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 18;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 19;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
-                                  // v17: block names, v18: START / END, cents, BEAT SYNC
+                                  // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -286,6 +286,30 @@ juce::MemoryBlock writeSong (const Song& song)
             raw.writeByte ((char) i);
             raw.writeInt (in.playStart); raw.writeInt (in.playEnd);
             raw.writeShort ((short) in.cents); raw.writeShort ((short) in.syncLines);
+        }
+    }
+    // v19: CV OUT instruments and the CV SOURCES
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.cvOut) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (! in.cvOut) continue;
+            raw.writeByte ((char) i);
+            for (int o : { in.cvPitchOut, in.cvGateOut, in.cvVelOut, in.cvModOut, in.cvOctave }) raw.writeByte ((char) o);
+            raw.writeFloat (in.cvFullScale); raw.writeFloat (in.cvGateVolts);
+            writeStr (raw, in.cvMapName);
+            raw.writeShortBigEndian ((short) in.cvMapNotes.size());
+            for (size_t k = 0; k < in.cvMapNotes.size(); ++k) { raw.writeFloat (in.cvMapNotes[k]); raw.writeFloat (k < in.cvMapVolts.size() ? in.cvMapVolts[k] : 0.0f); }
+        }
+        raw.writeFloat (song.cvFullScale);
+        for (const auto& c : song.cvSources)
+        {
+            raw.writeByte ((char) c.kind); raw.writeByte ((char) c.out); raw.writeByte ((char) c.ppqn); raw.writeByte ((char) c.shape);
+            raw.writeByte ((char) c.track); raw.writeByte ((char) c.knob);
+            for (float f : { c.volts, c.low, c.beats, c.attack, c.decay, c.sustain, c.release }) raw.writeFloat (f);
         }
     }
 
@@ -570,6 +594,42 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 ins.playEnd = std::clamp (b, 0, len);
                 ins.cents = std::clamp (c, -100, 100);
                 ins.syncLines = std::clamp (l, 0, 512);
+            }
+        }
+        if (version >= 19 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                int o[5];
+                for (auto& x : o) x = (int) (int8_t) in.readByte();
+                const float fs = in.readFloat(), gv = in.readFloat();
+                auto mapName = readStr (in);
+                const int pts = (int) (uint16_t) in.readShortBigEndian();
+                std::vector<float> mn, mv;
+                for (int k = 0; k < pts && ! in.isExhausted(); ++k) { mn.push_back (in.readFloat()); mv.push_back (in.readFloat()); }
+                if (i >= kMaxInstruments) continue;
+                auto& ins = s.instruments[(size_t) i];
+                ins.cvOut = true; ins.plugin = true; ins.pluginKey = "CV:";
+                ins.cvPitchOut = std::clamp (o[0], 0, kCvOutputs); ins.cvGateOut = std::clamp (o[1], 0, kCvOutputs);
+                ins.cvVelOut = std::clamp (o[2], 0, kCvOutputs); ins.cvModOut = std::clamp (o[3], 0, kCvOutputs);
+                ins.cvOctave = std::clamp (o[4], -4, 4);
+                ins.cvFullScale = std::clamp (fs, 1.0f, 20.0f); ins.cvGateVolts = std::clamp (gv, 0.5f, 12.0f);
+                ins.cvMapName = mapName; ins.cvMapNotes = mn; ins.cvMapVolts = mv;
+            }
+            s.cvFullScale = std::clamp (in.readFloat(), 1.0f, 20.0f);
+            for (auto& c : s.cvSources)
+            {
+                if (in.isExhausted()) break;
+                c.kind = (CvKind) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) CvKind::Count - 1);
+                c.out = std::clamp ((int) (uint8_t) in.readByte(), 0, kCvOutputs);
+                c.ppqn = std::clamp ((int) (uint8_t) in.readByte(), 1, 96);
+                c.shape = std::clamp ((int) (uint8_t) in.readByte(), 0, 4);
+                c.track = std::clamp ((int) (uint8_t) in.readByte(), 0, kMaxTracks - 1);
+                c.knob = std::clamp ((int) (uint8_t) in.readByte(), 0, 1);
+                c.volts = in.readFloat(); c.low = in.readFloat(); c.beats = in.readFloat();
+                c.attack = in.readFloat(); c.decay = in.readFloat(); c.sustain = in.readFloat(); c.release = in.readFloat();
             }
         }
     }

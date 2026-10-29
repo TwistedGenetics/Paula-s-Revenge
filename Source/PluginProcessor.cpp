@@ -36,7 +36,9 @@ namespace
 
 PaulaProcessor::PaulaProcessor()
     : AudioProcessor (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
-                                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+                                        .withInput ("CV In", juce::AudioChannelSet::discreteChannels (prv::kCvOutputs - 2), true)
+                                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                                        .withOutput ("CV Out", juce::AudioChannelSet::discreteChannels (prv::kCvOutputs - 2), true))
 {
     addStarterInstruments (song);
     song.chords = globalChords;
@@ -46,6 +48,7 @@ PaulaProcessor::PaulaProcessor()
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
     player.synths().factory = [this] (int i, const prv::Instrument& in, double sr)
     {
+        if (in.isCvOut()) return std::unique_ptr<prv::PluginSynth> (std::make_unique<prv::CvOutSynth>());
         return in.isMidiOut() ? midiHost.createSynth (in, sr) : pluginHost.createSynth (i, in, sr);
     };
 }
@@ -55,7 +58,7 @@ std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, do
     // (renders leave MIDI-out instruments out)
     return [this] (int i, const prv::Instrument& in, double sr) -> std::unique_ptr<prv::PluginSynth>
     {
-        return in.isMidiOut() ? nullptr : pluginHost.createSynth (i, in, sr);
+        return in.isMidiOut() || in.isCvOut() ? nullptr : pluginHost.createSynth (i, in, sr);
     };
 }
 
@@ -75,7 +78,10 @@ void PaulaProcessor::midiPanic()
 {
     withLock ([&] {
         for (int i = 0; i < prv::kMaxInstruments; ++i)
+        {
             if (auto* m = midiAt (i)) m->allNotesOff (0);
+            if (auto* c = cvAt (i)) { c->allNotesOff (0); c->setTesting (false, 0); }   // (CV: gates low)
+        }
     });
 }
 
@@ -136,7 +142,12 @@ bool PaulaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo()) return false;
     // the input (SAMPLE): stereo, mono or none
     const auto in = layouts.getMainInputChannelSet();
-    return in.isDisabled() || in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono();
+    if (! (in.isDisabled() || in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono())) return false;
+    // CV In / CV Out (an ES-9's other channels): off, or up to 14 more
+    for (const auto* list : { &layouts.inputBuses, &layouts.outputBuses })
+        for (int b = 1; b < list->size(); ++b)
+            if ((*list)[b].size() > prv::kCvOutputs - 2) return false;
+    return true;
 }
 
 void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -151,6 +162,7 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     scratchR.allocate ((size_t) scratchSize, true);
     allocateVintage (scratchSize);
     vintage.prepare (sampleRate, scratchSize);
+    for (auto& b : cvBuf) b.allocate ((size_t) scratchSize, true);
 }
 
 void PaulaProcessor::allocateVintage (int n)
@@ -333,11 +345,21 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         inL.allocate ((size_t) n, true);
         inR.allocate ((size_t) n, true);
         allocateVintage (n);
+        for (auto& b : cvBuf) b.allocate ((size_t) n, true);
     }
     // the input (SAMPLE), before the buffer becomes the output: mono goes to both sides
     {
-        const int ins = std::min (getTotalNumInputChannels(), buffer.getNumChannels());
+        const int ins = std::min (getMainBusNumInputChannels(), buffer.getNumChannels());
         inputChannels.store (ins, std::memory_order_relaxed);
+        // AUTO-TUNE / the tuner: the input the modular comes back on
+        const int tin = cvTuneInput.load (std::memory_order_relaxed) - 1;
+        if (tin >= 0 && tin < std::min (getTotalNumInputChannels(), buffer.getNumChannels()))
+        {
+            const float* src = buffer.getReadPointer (tin);
+            int w = tuneWrite.load (std::memory_order_relaxed);
+            for (int i = 0; i < n; ++i) { tuneRing[(size_t) w] = src[i]; w = (w + 1) % kTuneRing; }
+            tuneWrite.store (w, std::memory_order_release);
+        }
         const float g = inputGain.load (std::memory_order_relaxed);
         if (ins >= 1) juce::FloatVectorOperations::multiply (inL.get(), buffer.getReadPointer (0), g, n);
         else juce::FloatVectorOperations::clear (inL.get(), n);
@@ -361,12 +383,22 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         if (playing) ph.samples = ph.samples.load() + n;
     }
 
+    // CV out (an ES-9): the voltages go to the interface's outputs 3-16, when the song uses any
+    bool cvUsed = false;
+    for (const auto& c : song.cvSources) cvUsed = cvUsed || (c.kind != prv::CvKind::Off && c.out >= 3);
+    for (const auto& in : song.instruments) cvUsed = cvUsed || in.isCvOut();
+    const int devOuts = buffer.getNumChannels();
+    if (cvUsed) for (int k = 2; k < prv::kCvOutputs; ++k) juce::FloatVectorOperations::clear (cvBuf[k].get(), n);
+    for (int k = 0; k < prv::kCvOutputs; ++k) player.cv.out[k] = nullptr;
+    cvActive.store (cvUsed && devOuts > 2, std::memory_order_relaxed);
+
     // render in slices between MIDI events so notes land sample-accurately
     int done = 0;
     auto renderTo = [&] (int end)
     {
         if (end > done)
         {
+            if (cvUsed) for (int k = 2; k < prv::kCvOutputs; ++k) player.cv.out[k] = cvBuf[k].get() + done;
             player.render (scratchL.get() + done, scratchR.get() + done, end - done);
             done = end;
         }
@@ -485,6 +517,9 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         buffer.copyFrom (0, 0, scratchL.get(), n, 0.5f);
         buffer.addFrom (0, 0, scratchR.get(), n, 0.5f);
     }
+    // the voltages: outputs 3-16 (the device's channels, in order)
+    if (cvUsed) for (int k = 2; k < std::min (devOuts, prv::kCvOutputs); ++k) buffer.copyFrom (k, 0, cvBuf[k].get(), n);
+    for (int k = 0; k < prv::kCvOutputs; ++k) player.cv.out[k] = nullptr;
 }
 
 juce::AudioProcessorEditor* PaulaProcessor::createEditor()
@@ -579,3 +614,25 @@ void PaulaProcessor::setFullVelocity (bool on)
     fullVelocity = on;
     prv::prefs().setValue ("fullVelocity", on);
 }
+
+// ---------------------------------------------------------------------------
+// AUTO-TUNE / the tuner
+int PaulaProcessor::tuneSamples (std::vector<float>& out, int count) const
+{
+    count = juce::jlimit (0, kTuneRing, count);
+    out.resize ((size_t) count);
+    const int w = tuneWrite.load (std::memory_order_acquire);
+    for (int i = 0; i < count; ++i) out[(size_t) i] = tuneRing[(size_t) ((w - count + i + kTuneRing) % kTuneRing)];
+    return count;
+}
+
+prv::CvOutSynth* PaulaProcessor::cvAt (int i) const
+{
+    return dynamic_cast<prv::CvOutSynth*> (const_cast<PaulaProcessor*> (this)->player.synths().at (i));
+}
+
+void PaulaProcessor::setCvTest (int instrument, bool on, double volts)
+{
+    withLock ([&] { if (auto* c = cvAt (instrument)) c->setTesting (on, volts); });
+}
+

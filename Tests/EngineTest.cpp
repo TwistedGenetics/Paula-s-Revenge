@@ -6,6 +6,7 @@
 #include "engine/ChordDetect.h"
 #include "engine/Recorder.h"
 #include "engine/SampleTools.h"
+#include "engine/CvOut.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -2353,6 +2354,114 @@ static void testCapture()
     }
 }
 
+static void testCvOut()
+{
+    // 1 V / octave, C-3 (MIDI 60) at 0 V, with no map
+    Instrument in; in.cvOut = true; in.plugin = true; in.pluginKey = "CV:";
+    CHECK (std::abs (cvVoltsFor (in, 60) - 0.0) < 1e-9 && std::abs (cvVoltsFor (in, 72) - 1.0) < 1e-9 && std::abs (cvVoltsFor (in, 54) + 0.5) < 1e-9);
+    in.cvOctave = 1;
+    CHECK (std::abs (cvVoltsFor (in, 60) - 1.0) < 1e-9);
+    in.cvOctave = 0;
+    CHECK (cvSample (5.0, 10.0) == 0.5f && cvSample (15.0, 10.0) == 1.0f && cvSample (-12.0, 10.0) == -1.0f);
+
+    // AUTO-TUNE against an oscillator that isn't 1 V / octave (3% wide, bending sharp up high),
+    // with one bad reading (an octave out)
+    auto osc = [] (double v) { return 261.63 * std::pow (2.0, 1.03 * v + 0.02 * v * v); };
+    std::vector<double> vs, hz;
+    for (double v = -2.0; v <= 2.5 + 1e-9; v += 0.25) { vs.push_back (v); hz.push_back (osc (v)); }
+    hz[7] *= 2.0;
+    std::vector<float> mn, mv;
+    CHECK (solveCvMap (vs, hz, mn, mv) && mn.size() == vs.size() - 1);
+    in.cvMapNotes = mn; in.cvMapVolts = mv;
+    double worst = 0;
+    for (int note = 40; note <= 95; ++note)
+    {
+        const double played = 69.0 + 12.0 * std::log2 (osc (cvVoltsFor (in, note)) / 440.0);
+        worst = std::max (worst, std::abs (played - note) * 100.0);
+    }
+    double plain = 0;
+    for (int note = 40; note <= 95; ++note) plain = std::max (plain, std::abs (69.0 + 12.0 * std::log2 (osc ((note - 60) / 12.0) / 440.0) - note) * 100.0);
+    std::printf ("AUTO-TUNE: worst %.2f cents off with the map (without it %.0f cents)\n", worst, plain);
+    CHECK (worst < 3.0 && plain > 50.0);
+    CHECK (! solveCvMap ({ 0.0, 1.0 }, { 100.0, 200.0 }, mn, mv));
+
+    // the CV OUT instrument: pitch, gate (and a short gap for a new note), velocity, bend
+    {
+        Instrument ci = in; ci.cvMapNotes.clear(); ci.cvMapVolts.clear();
+        ci.cvPitchOut = 3; ci.cvGateOut = 4; ci.cvVelOut = 5; ci.bendRange = 12;
+        CvOutSynth s; s.prepare (48000, 512); s.update (ci);
+        std::vector<float> o3 (512), o4 (512), o5 (512);
+        CvBus bus; bus.out[2] = o3.data(); bus.out[3] = o4.data(); bus.out[4] = o5.data();
+        s.noteOn (72, 127, 10);
+        s.noteOn (76, 64, 200);       // legato over the first: a 2 ms gap in the gate
+        s.noteOff (76, 400);          // back to 72, still held
+        s.renderCv (bus, 512);
+        CHECK (o4[5] == 0.0f && o4[20] == 0.5f && std::abs (o3[20] - 0.1f) < 1e-6f);
+        CHECK (o4[201] == 0.0f && o4[300] == 0.5f && std::abs (o3[300] - (16.0 / 12.0) / 10.0) < 1e-5);
+        CHECK (std::abs (o3[450] - 0.1f) < 1e-6f && o4[450] == 0.5f && std::abs (o5[300] - 0.5f * 64 / 127) < 1e-5);
+        s.pitchBend (16383, 0);       // +12 semitones (almost)
+        s.noteOff (72, 100);
+        s.renderCv (bus, 512);
+        CHECK (std::abs (o3[50] - (1.0 + 16383.0 / 8192.0 - 1.0) * 0.1f * 1.0f) < 0.01f && o4[200] == 0.0f);
+        // the tuner: a voltage held, the gate open
+        s.setTesting (true, 0.25);
+        s.renderCv (bus, 512);
+        CHECK (std::abs (o3[10] - 0.025f) < 1e-6f && o4[10] == 0.5f);
+    }
+
+    // through the player: a CV OUT instrument in the pattern, and CV SOURCES
+    {
+        Song song; song.numTracks = 8; song.tempo = 125; song.speed = 6;
+        auto& ci = song.instruments[0]; ci = in; ci.cvMapNotes.clear(); ci.cvMapVolts.clear(); ci.cvPitchOut = 3; ci.cvGateOut = 4; ci.name = "MODULAR";
+        song.blocks[0].at (0, 0) = Cell { 49, 1, 0, 0 };              // C-4 (MIDI 72): 1 V
+        song.blocks[0].at (0, 1) = Cell { 0, 0, prv::cmdLetter ('V'), 0x80 };   // track 2's AUTO A to half way
+        song.blocks[0].at (2, 2) = Cell { 37, 2, 0, 0 };              // a sample note on track 3: the ENV
+        song.instruments[1].data.assign (8000, 1000);
+        song.sequence = { 0 };
+        auto& clk = song.cvSources[0]; clk.kind = CvKind::Clock; clk.out = 5; clk.ppqn = 4; clk.volts = 5;
+        auto& rst = song.cvSources[1]; rst.kind = CvKind::Reset; rst.out = 6;
+        auto& run = song.cvSources[2]; run.kind = CvKind::Run; run.out = 7;
+        auto& lfo = song.cvSources[3]; lfo.kind = CvKind::Lfo; lfo.out = 8; lfo.shape = 0; lfo.beats = 1; lfo.volts = 2; lfo.low = 0;
+        auto& env = song.cvSources[4]; env.kind = CvKind::Env; env.out = 9; env.track = 2; env.volts = 8; env.attack = 0.01f; env.decay = 0.1f; env.sustain = 0.5f;
+        auto& kb = song.cvSources[5]; kb.kind = CvKind::Knob; kb.out = 10; kb.track = 1; kb.knob = 0; kb.low = 0; kb.volts = 10;
+        Player p; p.setSampleRate (48000);
+        p.synths().factory = [] (int, const Instrument& x, double) -> std::unique_ptr<PluginSynth> { return x.isCvOut() ? std::make_unique<CvOutSynth>() : nullptr; };
+        p.synths().syncNow (song, 48000);
+        p.synths().prepare (48000, 1024);
+        p.setSong (&song);
+        const int n = 48000;   // 1 s = about 2 beats at 125
+        std::vector<std::vector<float>> outs (16, std::vector<float> ((size_t) n, 0.0f));
+        for (int k = 2; k < 16; ++k) p.cv.out[k] = outs[(size_t) k].data();
+        std::vector<float> L ((size_t) n), R ((size_t) n);
+        p.playSong (0, 0);
+        p.render (L.data(), R.data(), n);
+        auto edges = [&] (int out) { int e = 0; for (int i = 1; i < n; ++i) if (outs[(size_t) out - 1][(size_t) i] > 0.1f && outs[(size_t) out - 1][(size_t) i - 1] <= 0.1f) ++e; if (outs[(size_t) out - 1][0] > 0.1f) ++e; return e; };
+        const double beats = 125.0 / 60.0;   // a second of 125 BPM
+        std::printf ("CV in the player: pitch %.3f (1 V = 0.1), gate %.2f; clock %d pulses (expect ~%.0f), reset %d, run %.2f\n",
+                     outs[2][24000], outs[3][24000], edges (5), beats * 4, edges (6), outs[6][24000]);
+        CHECK (std::abs (outs[2][24000] - 0.1f) < 1e-5f && outs[3][24000] == 0.5f);
+        CHECK (std::abs (edges (5) - beats * 4) <= 1.0 && edges (6) == 1 && outs[6][24000] == 0.5f);
+        // the LFO: 1 beat a cycle, +-2 V
+        float lmax = -1, lmin = 1; for (int i = 0; i < n; ++i) { lmax = std::max (lmax, outs[7][(size_t) i]); lmin = std::min (lmin, outs[7][(size_t) i]); }
+        CHECK (std::abs (lmax - 0.2f) < 0.005f && std::abs (lmin + 0.2f) < 0.005f);
+        int zc = 0; for (int i = 1; i < n; ++i) if ((outs[7][(size_t) i - 1] < 0) != (outs[7][(size_t) i] < 0)) ++zc;
+        CHECK (std::abs (zc - beats * 2) <= 1.5);
+        // the ENV: starts with track 3's note (line 2), up to 8 V, down to the sustain
+        const int line2 = (int) (2 * 6 * 48000 * 2.5 / 125);
+        float emax = 0; for (int i = 0; i < n; ++i) emax = std::max (emax, outs[8][(size_t) i]);
+        std::printf ("ENV: before its note %.3f, peak %.3f, later %.3f\n", outs[8][(size_t) line2 - 100], emax, outs[8][(size_t) n - 1]);
+        CHECK (outs[8][(size_t) line2 - 100] == 0.0f && std::abs (emax - 0.8f) < 0.01f && std::abs (outs[8][(size_t) n - 1] - 0.4f) < 0.01f);
+        // the KNOB: track 2's V80 = half way, 0..10 V
+        std::printf ("KNOB: %.3f\n", outs[9][(size_t) n - 1]);
+        CHECK (std::abs (outs[9][(size_t) n - 1] - 128.0f / 255.0f) < 0.01f);   // (10 V of 10 V full scale x 128 / 255)
+        // stopped: gates low, RUN low
+        p.stop();
+        std::fill (outs[3].begin(), outs[3].end(), 1.0f);
+        p.render (L.data(), R.data(), 1024);
+        CHECK (outs[3][500] == 0.0f && outs[6][500] == 0.0f);
+    }
+}
+
 static void testSampleTools()
 {
     std::vector<int16_t> d (1000, 1000);
@@ -2898,6 +3007,7 @@ int main()
     testVintageSampling();
     testRangeCentsSync();
     testSampleTools();
+    testCvOut();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

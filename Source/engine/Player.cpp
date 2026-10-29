@@ -157,6 +157,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
 {
     const auto& in = song->instruments[(size_t) v.instr];
     if (ch >= 0 && ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts'; a muted track's note doesn't take it)
+    if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;
     synthRelease (v);   // one note at a time on a track, as with samples
     uint8_t p = 0;
     int note = (int) cell.note + in.transpose;
@@ -295,6 +296,7 @@ void Player::setSampleRate (double sr)
 {
     sampleRate = sr > 0 ? sr : 44100.0;
     limRelease = (float) (1.0 - std::exp (-1.0 / (0.15 * sampleRate)));
+    cvRunner.prepare (sampleRate);
     limGain = 1.0f;
     updateFilters();
     mixerEngine.prepare (sampleRate);
@@ -641,6 +643,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     }
     v.fadeOut = 0;
     if (ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track; not a muted one)
+    if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;   // (CV SOURCES: an ENV starts)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;
@@ -751,6 +754,7 @@ void Player::startShaping (Voice& v)
 
 void Player::releaseVoice (Voice& v)
 {
+    if (&v >= voices && &v < voices + kMaxTracks) cvRel[&v - voices] = true;   // (CV SOURCES: an ENV's release)
     synthRelease (v);
     if (! v.active || v.instr < 0 || song == nullptr) { v.active = false; return; }
     const auto& in = song->instruments[(size_t) v.instr];
@@ -1343,6 +1347,7 @@ void Player::render (float* left, float* right, int numSamples)
     for (int done = 0; done < numSamples;)
     {
         const int n = std::min (numSamples - done, MixerEngine::kMaxBlock);
+        cv.base = done;
         renderChunk (left + done, right + done, n);
         done += n;
     }
@@ -1450,6 +1455,9 @@ void Player::renderChunk (float* left, float* right, int numSamples)
 
     float peaks[kMaxTracks] = {};
     const int nt = song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0;
+    const bool cvOn = song != nullptr && cv.any();
+    if (cvOn)
+        for (int t = 0; t < kMaxTracks; ++t) { cvKnobA[t] = trackLanes[t][0].cur; cvKnobB[t] = trackLanes[t][1].cur; }
     const float sep = std::clamp (options.stereoSep, 0.0f, 1.0f);
 
     auto addPanned = [&] (float s, float pos, float& L, float& R)
@@ -1490,6 +1498,16 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                     v.microDelay = -1;
                 }
             }
+        }
+
+        // CV SOURCES (a modular on the interface's outputs): clock, reset, run, LFO, envelope, knob
+        if (cvOn)
+        {
+            const bool playing = mode != Mode::Stopped;
+            const double beatBpm = (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed);
+            cvRunner.process (*song, cv, i, ppq, beatBpm / 60.0 / sampleRate, playing, playing && ! cvWasPlaying, cvTrig, cvRel, cvKnobA, cvKnobB);
+            cvWasPlaying = playing;
+            for (int t = 0; t < kMaxTracks; ++t) cvTrig[t] = cvRel[t] = false;
         }
 
         float valL[kVoices] = {}, valR[kVoices] = {};
@@ -1626,6 +1644,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             auto* s = rack.at (ins);
             if (s == nullptr) continue;
             s->render (synthL, synthR, numSamples);
+            if (cvOn) s->renderCv (cv, numSamples);   // (a CV OUT instrument: its voltages)
             const int t = synthOutputTrack (ins);
             if (! instrumentIsOn (ins)) continue;   // (still run, so it's ready when switched back on)
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;

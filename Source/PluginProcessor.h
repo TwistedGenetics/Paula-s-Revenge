@@ -91,6 +91,17 @@ public:
     prv::VintageAdc vintage;                    // SAMPLE's AMIGA / S950 modes (CLEAN: off)
     void setVintage (const prv::VintageSettings&);
     void allocateVintage (int n);
+
+    // CV out (an ES-9's outputs 3-16) and AUTO-TUNE's input
+    juce::HeapBlock<float> cvBuf[prv::kCvOutputs];
+    std::atomic<bool> cvActive { false };       // the song sends CV and the device has the outputs for it
+    std::atomic<int>  cvTuneInput { 0 };        // the device input (1-16) the tuner listens to; 0 = none
+    static constexpr int kTuneRing = 16384;
+    float tuneRing[kTuneRing] {};
+    std::atomic<int> tuneWrite { 0 };
+    int tuneSamples (std::vector<float>& out, int count) const;   // the latest input from the tuner's channel
+    prv::CvOutSynth* cvAt (int instrument) const;
+    void setCvTest (int instrument, bool on, double volts);      // hold a voltage, gate open (the tuner, AUTO-TUNE)
     enum RecSource { SourceInput = 0, SourceResample = 1 };
     std::atomic<int>   recSource { SourceInput };
     std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
@@ -119,7 +130,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)
         bool showSpectrum = true;

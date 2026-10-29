@@ -453,11 +453,41 @@ private:
         auto* dev = dm.getCurrentAudioDevice();
         if (dev == nullptr) return;
         auto setup = dm.getAudioDeviceSetup();
-        if (dev->getOutputChannelNames().size() >= 2 && setup.outputChannels.countNumberOfSetBits() < 2)
+        bool change = false;
+        const int outs = dev->getOutputChannelNames().size(), ins = dev->getInputChannelNames().size();
+        if (outs >= 2 && setup.outputChannels.countNumberOfSetBits() < 2)
         {
             setup.useDefaultOutputChannels = false;
             setup.outputChannels.clear();
             setup.outputChannels.setRange (0, 2, true);
+            change = true;
+        }
+        // CV out (an ES-9): with more than 2 outputs, all of them on (up to 16), in order, so
+        // "output 5" in the app is the interface's output 5; the same for its inputs (AUTO-TUNE)
+        if (outs > 2)
+        {
+            const int want = std::min (outs, prv::kCvOutputs);
+            if (setup.outputChannels.countNumberOfSetBits() != want || setup.outputChannels.findNextSetBit (0) != 0)
+            {
+                setup.useDefaultOutputChannels = false;
+                setup.outputChannels.clear();
+                setup.outputChannels.setRange (0, want, true);
+                change = true;
+            }
+        }
+        if (ins > 2)
+        {
+            const int want = std::min (ins, prv::kCvOutputs);
+            if (setup.inputChannels.countNumberOfSetBits() != want || setup.inputChannels.findNextSetBit (0) != 0)
+            {
+                setup.useDefaultInputChannels = false;
+                setup.inputChannels.clear();
+                setup.inputChannels.setRange (0, want, true);
+                change = true;
+            }
+        }
+        if (change)
+        {
             dm.setAudioDeviceSetup (setup, true);
             holder->saveAudioDeviceState();
         }
