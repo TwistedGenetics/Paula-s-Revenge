@@ -89,7 +89,7 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 | Fader | −INF to +6 dB, with the meter beside it (red above 0 dB). Drag the cap; `Shift` = fine; double-click = 0 dB; the wheel moves it ½ dB a notch |
 | M / S | Mute / solo (the same as clicking the track names) |
 
-**Channel page** — the EQ: a response curve with up to **8 points** on it, and the channel's live **spectrum** behind the curve (what the track sounds like after its EQ, while it plays; it stays put when you stop; **SPECTRUM** switches it off).
+**Channel page** — the EQ: a response curve with up to **8 points** on it, and the channel's live **spectrum** behind the curve (what the track sounds like after its EQ, while it plays, smoothed to 1/6 octave with a +4.5 dB/octave tilt so a mix reads flat, and a faint peak-hold line; it stays put when you stop; **SPECTRUM** switches it off). **Right-click SPECTRUM** (or an empty part of the graph) to pick its colour: ICE, CYAN, GREEN, LIME, AMBER, ORANGE, MAGENTA or VIOLET (remembered).
 * **Double-click** an empty part of the graph to add a point exactly there: below 80 Hz it's a LOW SHELF, above 10 kHz a HIGH SHELF, anywhere else a BELL. It's selected, ready to drag.
 * **Drag** a point: left / right is its frequency, up / down its gain (a high- or low-pass only moves left and right; hold Shift to move up and down only). A big readout shows the frequency, gain and Q while you drag. The whole drag is one undo step.
 * **Mouse wheel** over a bell sets its Q. **Right-click** a point: BELL, LOW SHELF, HIGH SHELF, HIGH-PASS, LOW-PASS, SWITCH OFF / ON, RESET GAIN, REMOVE POINT. **Delete** removes the selected point. Clicking a point that's off switches it on (an off point is drawn hollow).

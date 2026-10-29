@@ -8,7 +8,12 @@ namespace prv::ui
 {
 namespace
 {
-    constexpr double kSpecLow = -78.0, kSpecHigh = -6.0;   // what the spectrum's height shows (dB)
+    constexpr double kSpecLow = -84.0, kSpecHigh = -6.0;   // what the spectrum's height shows (dB, after the tilt)
+    struct SpecColour { const char* name; juce::uint32 dark, light; };
+    const SpecColour kSpecColours[] = {
+        { "ICE",     0xffa8c8e8, 0xff3a5f86 }, { "CYAN",   0xff36d6e7, 0xff0b7d8c }, { "GREEN",  0xff5fdc7a, 0xff1f7f3a },
+        { "LIME",    0xffc4e85a, 0xff5f7d10 }, { "AMBER",  0xffffc24a, 0xff9a6400 }, { "ORANGE", 0xffff8a3d, 0xffb04a0c },
+        { "MAGENTA", 0xffff5fc8, 0xffa0247a }, { "VIOLET", 0xffa98bff, 0xff5a3fb8 } };
     const char* kTypeShort[] = { "BELL", "LOW SHELF", "HIGH SHELF", "HIGH-PASS", "LOW-PASS" };
 }
 
@@ -51,6 +56,7 @@ void EqGraph::setTrack (int t)
     track = juce::jlimit (0, kMixTracks - 1, t);
     proc.player.mixer().chTap.source.store (isVisible() ? track : -1);
     std::fill (cols.begin(), cols.end(), (float) kSpecLow);
+    std::fill (peaks.begin(), peaks.end(), (float) kSpecLow);
     lastCount = 0;
     selectFirst();
 }
@@ -73,6 +79,8 @@ void EqGraph::resized()
 {
     plot = getLocalBounds().toFloat().reduced (Theme::px * 2);
     cols.assign ((size_t) std::max (1, (int) plot.getWidth()), (float) kSpecLow);
+    peaks.assign (cols.size(), (float) kSpecLow);
+    holds.assign (cols.size(), 0);
 }
 
 // ---- mapping: 20 Hz .. 20 kHz across, -18 .. +18 dB up
@@ -201,7 +209,7 @@ void EqGraph::mouseDown (const juce::MouseEvent& e)
 {
     if (auto* p = getParentComponent()) p->grabKeyboardFocus();   // (Delete removes the selected point)
     const int b = hitPoint (e.position);
-    if (b < 0) return;
+    if (b < 0) { if (e.mods.isPopupMenu()) showColourMenu(); return; }
     selected = b;
     if (e.mods.isPopupMenu()) { repaint(); if (onChanged) onChanged(); showPointMenu (b); return; }
     dragBand = b; dragMoved = false;
@@ -261,6 +269,25 @@ void EqGraph::mouseMove (const juce::MouseEvent& e)
 void EqGraph::mouseExit (const juce::MouseEvent&) { if (hover >= 0) { hover = -1; repaint(); } }
 
 // ---- spectrum
+juce::String EqGraph::spectrumColourName (int i) { return kSpecColours[juce::jlimit (0, kSpectrumColours - 1, i)].name; }
+juce::Colour EqGraph::spectrumColourFor (int i, bool dark) { const auto& c = kSpecColours[juce::jlimit (0, kSpectrumColours - 1, i)]; return juce::Colour (dark ? c.dark : c.light); }
+int EqGraph::spectrumColour() { return juce::jlimit (0, kSpectrumColours - 1, prefs().getIntValue ("eqSpectrumColour", 0)); }
+void EqGraph::setSpectrumColour (int i)
+{
+    prefs().setValue ("eqSpectrumColour", juce::jlimit (0, kSpectrumColours - 1, i));
+    prefs().saveIfNeeded();
+    if (onStatus) onStatus ("SPECTRUM COLOUR: " + spectrumColourName (i));
+    repaint();
+}
+void EqGraph::showColourMenu()
+{
+    juce::Component::SafePointer<EqGraph> safe (this);
+    std::vector<MenuItem> items;
+    for (int i = 0; i < kSpectrumColours; ++i)
+        items.push_back ({ juce::String (i == spectrumColour() ? "> " : "  ") + spectrumColourName (i), [safe, i] { if (safe) safe->setSpectrumColour (i); } });
+    showMenu ("SPECTRUM COLOUR", items);
+}
+
 void EqGraph::feedSpectrum (const float* s, int n) { analyse (s, n); repaint(); }
 
 void EqGraph::analyse (const float* s, int n)
@@ -270,16 +297,26 @@ void EqGraph::analyse (const float* s, int n)
     if (n < size) return;
     spectrumDb (s + (n - size), size, db);
     const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+    const double binHz = rate / size;
     const int w = (int) cols.size();
     for (int x = 0; x < w; ++x)
     {
-        const double f1 = 20.0 * std::pow (1000.0, (double) x / w), f2 = 20.0 * std::pow (1000.0, (double) (x + 1) / w);
-        const int i1 = juce::jlimit (1, size / 2, (int) (f1 * size / rate));
-        const int i2 = juce::jlimit (i1, size / 2, (int) (f2 * size / rate));
-        float m = -200.0f;
-        for (int i = i1; i <= i2; ++i) m = std::max (m, db[(size_t) i]);
-        m += 3.0f * (float) std::log2 (std::max (1.0, f1 / 1000.0));   // (a gentle tilt so the highs show)
-        cols[(size_t) x] = std::max (m, cols[(size_t) x] - 1.5f);       // falls slowly
+        // 1/6-octave smoothing: the average power over a band around the column's frequency
+        // (narrow enough to see notes, wide enough not to flicker), then a +4.5 dB/octave tilt
+        // round 1 kHz so a mix reads flat, as on a studio analyser
+        const double fc = 20.0 * std::pow (1000.0, (x + 0.5) / w);
+        const double lo = fc * 0.9439, hi = fc * 1.0595;   // (2^-1/12, 2^1/12)
+        int i1 = (int) std::floor (lo / binHz), i2 = (int) std::ceil (hi / binHz);
+        i1 = juce::jlimit (1, size / 2, i1); i2 = juce::jlimit (i1, size / 2, i2);
+        double pw = 0;
+        for (int i = i1; i <= i2; ++i) pw += std::pow (10.0, db[(size_t) i] / 10.0);
+        float m = (float) (10.0 * std::log10 (std::max (1e-12, pw / (i2 - i1 + 1))));
+        m += 4.5f * (float) std::log2 (fc / 1000.0);
+        auto& c = cols[(size_t) x];
+        c = m > c ? m : std::max (m, c - 1.2f);            // up at once, down calmly (~36 dB a second)
+        auto& pk = peaks[(size_t) x];
+        if (c >= pk) { pk = c; holds[(size_t) x] = 45; }   // peak hold: 1.5 s, then it falls
+        else if (--holds[(size_t) x] < 0) pk = std::max (c, pk - 0.6f);
     }
 }
 
@@ -309,34 +346,64 @@ void EqGraph::paint (juce::Graphics& g)
     const auto in = plot;
     const auto tc = sk.track[track % 8];
 
-    // the spectrum, under everything
-    if (showSpectrum && ! cols.empty())
+    // grid: decades and the steps between them faint, the main ones a little stronger, labelled
     {
-        juce::Path area;
-        area.startNewSubPath (in.getX(), in.getBottom());
-        for (size_t x = 0; x < cols.size(); ++x)
+        const auto minor = sk.rule.withAlpha (sk.dark ? 0.45f : 0.22f), major = sk.rule.withAlpha (sk.dark ? 1.0f : 0.6f);
+        for (double dec : { 10.0, 100.0, 1000.0, 10000.0 })
+            for (int k = 2; k <= 9; ++k)
+            {
+                const double hz = dec * k;
+                if (hz < 20.0 || hz > 20000.0) continue;
+                g.setColour (k == 2 || k == 5 ? major : minor);
+                g.fillRect (hzToX (hz), in.getY(), 1.0f, in.getHeight());
+            }
+        g.setColour (major);
+        for (double hz : { 100.0, 1000.0, 10000.0 }) g.fillRect (hzToX (hz), in.getY(), 1.0f, in.getHeight());
+        for (double d : { -18.0, -12.0, -6.0, 6.0, 12.0, 18.0 })
         {
-            const float v = (float) juce::jlimit (0.0, 1.0, (cols[x] - kSpecLow) / (kSpecHigh - kSpecLow));
-            area.lineTo (in.getX() + (float) x, in.getBottom() - v * in.getHeight());
+            g.setColour (std::abs (d) == 12.0 || std::abs (d) == 6.0 ? major : minor);
+            g.fillRect (in.getX(), dbToY (d), in.getWidth(), 1.0f);
         }
-        area.lineTo (in.getRight(), in.getBottom());
-        area.closeSubPath();
-        g.setColour (sk.text.withAlpha (0.13f));
-        g.fillPath (area);
     }
 
-    // grid
-    g.setColour (sk.rule);
-    for (double hz : { 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0 })
-        g.fillRect (hzToX (hz), in.getY(), 1.0f, in.getHeight());
-    for (double d : { -12.0, -6.0, 6.0, 12.0 })
-        g.fillRect (in.getX(), dbToY (d), in.getWidth(), 1.0f);
+    // the spectrum, behind the curve: a soft gradient fill, a crisp edge, and a faint peak-hold line
+    if (showSpectrum && ! cols.empty())
+    {
+        const auto sc = spectrumColourFor (spectrumColour(), sk.dark);
+        auto yOf = [&] (float dbv) { return in.getBottom() - (float) juce::jlimit (0.0, 1.0, (dbv - kSpecLow) / (kSpecHigh - kSpecLow)) * in.getHeight(); };
+        juce::Path edge, area, peak;
+        const int step = std::max (1, (int) (px * 0.75f));
+        for (size_t x = 0; x < cols.size(); x += (size_t) step)
+        {
+            const float xx = in.getX() + (float) x, y = yOf (cols[x]), yp = yOf (peaks[x]);
+            if (x == 0) { edge.startNewSubPath (xx, y); peak.startNewSubPath (xx, yp); }
+            else { edge.lineTo (xx, y); peak.lineTo (xx, yp); }
+        }
+        edge.lineTo (in.getRight(), yOf (cols.back()));
+        peak.lineTo (in.getRight(), yOf (peaks.back()));
+        area = edge;
+        area.lineTo (in.getRight(), in.getBottom());
+        area.lineTo (in.getX(), in.getBottom());
+        area.closeSubPath();
+        g.saveState();
+        g.reduceClipRegion (in.toNearestInt());
+        g.setGradientFill (juce::ColourGradient (sc.withAlpha (sk.dark ? 0.42f : 0.30f), 0.0f, in.getY(), sc.withAlpha (0.04f), 0.0f, in.getBottom(), false));
+        g.fillPath (area);
+        g.setColour (sc.withAlpha (sk.dark ? 0.32f : 0.40f));
+        g.strokePath (peak, juce::PathStrokeType (1.0f));
+        g.setColour (sc.withAlpha (0.85f));
+        g.strokePath (edge, juce::PathStrokeType (std::max (1.0f, px * 0.5f), juce::PathStrokeType::curved));
+        g.restoreState();
+    }
+
+    // labels over the grid: Hz along the bottom, dB at the right
     g.setColour (sk.dim);
     g.fillRect (in.getX(), dbToY (0.0), in.getWidth(), std::max (1.0f, px * 0.5f));
-    for (auto [hz, t] : { std::pair<double, const char*> { 100.0, "100" }, { 1000.0, "1K" }, { 10000.0, "10K" } })
-        PixelFont::draw (g, t, hzToX (hz) + px, in.getBottom() - px * 8, px, sk.dim);
-    PixelFont::draw (g, "+12", in.getX() + px, dbToY (12.0) - px * 8.5f, px, sk.dim);
-    PixelFont::draw (g, "-12", in.getX() + px, dbToY (-12.0) + px * 1.0f, px, sk.dim);
+    for (auto [hz, t] : { std::pair<double, const char*> { 50.0, "50" }, { 100.0, "100" }, { 200.0, "200" }, { 500.0, "500" },
+                          { 1000.0, "1K" }, { 2000.0, "2K" }, { 5000.0, "5K" }, { 10000.0, "10K" } })
+        PixelFont::draw (g, t, hzToX (hz) + px * 2, in.getBottom() - px * 8, px, sk.dim);
+    for (auto [d, t] : { std::pair<double, const char*> { 12.0, "+12" }, { 6.0, "+6" }, { -6.0, "-6" }, { -12.0, "-12" } })
+        PixelFont::draw (g, t, in.getRight() - PixelFont::textWidth (t, px) - px, dbToY (d) - px * 8.0f, px, sk.dim);
 
     // the response
     const auto& q = eq();
@@ -350,8 +417,17 @@ void EqGraph::paint (juce::Graphics& g)
         const float x = in.getX() + in.getWidth() * (float) i / (float) steps, y = dbToY (d);
         if (i == 0) path.startNewSubPath (x, y); else path.lineTo (x, y);
     }
+    // the curve: a light fill to 0 dB under it, then the line
+    {
+        juce::Path fill (path);
+        fill.lineTo (in.getRight(), dbToY (0.0));
+        fill.lineTo (in.getX(), dbToY (0.0));
+        fill.closeSubPath();
+        g.setColour (tc.withAlpha (0.16f));
+        g.fillPath (fill);
+    }
     g.setColour (tc);
-    g.strokePath (path, juce::PathStrokeType (std::max (1.5f, px)));
+    g.strokePath (path, juce::PathStrokeType (std::max (2.0f, px * 0.9f), juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     // the points: a numbered square each, in its own colour; off ones hollow
     const float s = px * 9;

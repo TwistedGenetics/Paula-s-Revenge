@@ -42,6 +42,14 @@ public:
     const std::vector<float>& spectrumColumns() const { return cols; }   // (tests)
     void feedSpectrum (const float* samples, int n);        // tests: as if the channel played this
 
+    // the spectrum's colour: one of 8 (remembered); right-click the graph (or SPECTRUM) to pick
+    static constexpr int kSpectrumColours = 8;
+    static juce::String spectrumColourName (int i);
+    static juce::Colour spectrumColourFor (int i, bool darkSkin);
+    static int  spectrumColour();
+    void setSpectrumColour (int i);
+    void showColourMenu();
+
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -64,6 +72,8 @@ private:
     bool dragMoved = false;
     float wheelAccum = 0;
     std::vector<float> cols;        // spectrum: dB per pixel column (smoothed)
+    std::vector<float> peaks;       // peak hold, per column
+    std::vector<int>   holds;       // ticks left before a peak falls
     std::vector<float> tapBuf = std::vector<float> (4096, 0.0f), db;
     uint32_t lastCount = 0;
 

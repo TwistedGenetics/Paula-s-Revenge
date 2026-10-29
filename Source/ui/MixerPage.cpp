@@ -684,6 +684,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         showMenu ("EQ POINT " + juce::String (eqGraph.selected + 1), items);
     };
     eqSpecBtn.setToggleState (eqGraph.showSpectrum, juce::dontSendNotification);
+    eqSpecBtn.onRightClick = [this] { eqGraph.showColourMenu(); };   // (its colour: one of 8)
     eqSpecBtn.onClick = [this]
     {
         eqGraph.showSpectrum = eqSpecBtn.getToggleState();
