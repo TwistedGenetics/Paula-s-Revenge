@@ -10,6 +10,9 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
     fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
     addAndMakeVisible (fxRow);
+    utility.onChanged = [this] { if (onChanged) onChanged(); };
+    utility.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    addChildComponent (utility);
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
@@ -184,6 +187,8 @@ void SynthPage::refresh()
     fxRow.refresh();
     const bool plug = inst().isPlugin() && ! browsing;
     fxRow.setVisible (! browsing && ! inst().isMidiOut());
+    utility.setVisible (! browsing && ! inst().isMidiOut() && ! inst().isCvOut());
+    utility.refresh();
     list.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
@@ -335,6 +340,7 @@ void SynthPage::paint (juce::Graphics& g)
                              + (browsing ? juce::String (": PICK A VST3 / AU INSTRUMENT") : juce::String (": PLUG-IN INSTRUMENT"));
     PixelFont::drawLeft (g, title, titleArea, px, Theme::palFor (*this).ink);
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+    if (utility.isVisible()) PixelFont::drawLeft (g, "UTILITY", utilLabel, px, Theme::palFor (*this).ink);
 
     if (browsing)
     {
@@ -408,6 +414,12 @@ void SynthPage::resized()
     r.removeFromBottom (gap);
     fxRow.setBounds (r.removeFromBottom (rowH));   // the instrument's own effects
     r.removeFromBottom (gap);
+    {
+        auto row = r.removeFromBottom (rowH);   // its UTILITY
+        utilLabel = row.removeFromLeft (charsW (8)).toFloat();
+        utility.setBounds (row);
+    }
+    r.removeFromBottom (gap * 2);
     r.removeFromTop (gap);
     {
         auto row = r.removeFromTop (rowH);

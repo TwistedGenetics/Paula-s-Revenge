@@ -5,6 +5,7 @@
 #include "../PluginProcessor.h"
 #include "Widgets.h"
 #include "InstrumentFx.h"
+#include "UtilityStrip.h"
 
 namespace prv::ui
 {
@@ -56,6 +57,10 @@ private:
     PixButton tuneBtn { "TUNE TO C" }, syncBtn { "BEAT SYNC", true }, fitBtn { "STRETCH..." };
     PixButton amigaBtn { "AMIGA L/R", true };
     PixSlider pan { "PAN" };
+    UtilityStrip utility { proc };   // WIDTH, MONO BELOW, VOL (= the instrument's VOL)
+public:
+    UtilityStrip& utilityStrip() { return utility; }   // (tests)
+private:
 
     PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, resetBtn { "RESET ALL" }, closeBtn { "CLOSE" },
               pluginBtn { "PLUG-IN / MIDI OUT..." };

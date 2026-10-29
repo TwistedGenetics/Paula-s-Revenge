@@ -300,6 +300,7 @@ void Player::setSampleRate (double sr)
     limGain = 1.0f;
     updateFilters();
     mixerEngine.prepare (sampleRate);
+    for (auto& u : util) u.prepare (sampleRate);
     rack.prepare (sampleRate, MixerEngine::kMaxBlock);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
     if (blepTable.rate() != sampleRate) blepTable.build (sampleRate);
@@ -1440,12 +1441,28 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     }
     // with a mixer in use each track goes to its own buffer first
     // (plug-in instruments always go through the mixer: they play into a track's strip)
-    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any());
-    // instruments with their own inserts: gathered on their own first
+    // (an instrument's UTILITY needs its sound on its own, so it goes that way too)
+    bool anyUtility = false;
+    if (song != nullptr)
+        for (int ins = 0; ins < kMaxInstruments; ++ins) anyUtility = anyUtility || song->instruments[(size_t) ins].hasUtility();
+    // (and while the EQ's spectrum shows a channel: it's taken from the channel's strip)
+    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility
+                                               || mixerEngine.chTap.source.load (std::memory_order_relaxed) >= 0);
+    // the EQ's spectrum display: one instrument's sound (tapIns), copied as it goes past
+    const bool tapsLive = mode != Mode::Stopped || [&]
+    {
+        for (int j = kMaxTracks; j < kVoices; ++j) if (voices[j].active) return true;
+        for (const auto& js : jamSynth) if (js.note >= 0) return true;
+        return false;
+    }();
+    mixerEngine.tapsLive = tapsLive;
+    const int tapIns = tapsLive && song != nullptr ? insTap.source.load (std::memory_order_relaxed) : -1;
+    if (tapIns >= 0) { std::fill (tapL, tapL + numSamples, 0.0f); std::fill (tapR, tapR + numSamples, 0.0f); }
+    // instruments with their own inserts (or a UTILITY): gathered on their own first
     bool anyChain = false;
     for (int ins = 0; ins < kMaxInstruments; ++ins)
     {
-        instChain[ins] = mixActive && ! skipInstrumentFx && song->mixer.instrumentChain (ins);
+        instChain[ins] = mixActive && ((! skipInstrumentFx && song->mixer.instrumentChain (ins)) || song->instruments[(size_t) ins].hasUtility());
         if (! instChain[ins]) continue;
         anyChain = true;
         std::fill (instL[ins], instL[ins] + numSamples, 0.0f);
@@ -1577,7 +1594,11 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             else addPanned (valL[j] * 0.7f, p, vl, vr);
             // (an instrument with inserts: through them, like its notes in the pattern)
             if (const int vi = chainOf (j); vi >= 0) { instL[vi][i] += vl; instR[vi][i] += vr; }
-            else { jl += vl; jr += vr; }
+            else
+            {
+                jl += vl; jr += vr;
+                if (tapIns >= 0 && voices[j].instr == tapIns) { tapL[i] += vl; tapR[i] += vr; }
+            }
         }
 
         if (mixActive)
@@ -1599,7 +1620,10 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             {
                 float tl = tls[t], tr = trs[t];
                 if (t < nt)
+                {
                     if (const int vi = chainOf (t); vi >= 0) { instL[vi][i] += tl; instR[vi][i] += tr; tl = tr = 0; }
+                    else if (tapIns >= 0 && voices[t].instr == tapIns) { tapL[i] += tl; tapR[i] += tr; }
+                }
                 trkL[t][i] = tl; trkR[t][i] = tr;
             }
             jamL[i] = jl; jamR[i] = jr;
@@ -1611,6 +1635,9 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         // 8CH GRIT: each pair sharing a Paula channel (1+5, 2+6, 3+7, 4+8) mixed the OctaMED way -
         // halved into 8 bits together - then brought back up to full level
         float L = 0, R = 0;
+        if (tapIns >= 0)
+            for (int t = 0; t < nt; ++t)
+                if (voices[t].instr == tapIns) addVoice (t, 1.0f, sidePan (t), tapL[i], tapR[i]);
         if (options.crunches())
         {
             for (int a = 0; a < 4; ++a)
@@ -1655,6 +1682,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 for (int i = 0; i < numSamples; ++i) { instL[ins][i] += synthL[i] * g; instR[ins][i] += synthR[i] * g; }
                 continue;
             }
+            if (ins == tapIns) for (int i = 0; i < numSamples; ++i) { tapL[i] += synthL[i] * g; tapR[i] += synthR[i] * g; }
             float pk = 0;
             for (int i = 0; i < numSamples; ++i)
             {
@@ -1672,7 +1700,10 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         for (int ins = 0; ins < kMaxInstruments; ++ins)
         {
             if (! instChain[ins]) continue;
-            mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
+            const auto& in = song->instruments[(size_t) ins];
+            if (in.hasUtility()) util[ins].process (instL[ins], instR[ins], numSamples, in.utilWidth, in.utilMonoHz);
+            if (! skipInstrumentFx) mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
+            if (ins == tapIns) { std::copy (instL[ins], instL[ins] + numSamples, tapL); std::copy (instR[ins], instR[ins] + numSamples, tapR); }
             const int t = synthOutputTrack (ins);
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;
             float pk = 0;
@@ -1701,6 +1732,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         }
     }
     if (stemTap != nullptr && ! stemsBeforeMixer) stemTap->add (kStems - 1, left, right, numSamples);
+    if (tapIns >= 0) insTap.push (tapL, tapR, numSamples);
 
     for (int t = 0; t < kMaxTracks; ++t)
     {

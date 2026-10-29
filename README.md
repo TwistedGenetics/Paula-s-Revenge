@@ -82,14 +82,19 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 | Strip part | What it does |
 |---|---|
 | Name | Click a track's name (or **EQ**) for its channel page |
-| EQ | Lit when any EQ band is on |
+| EQ | Lit when any EQ point is on |
 | 3 insert slots | Click a slot to open its effect page. `Shift`-click bypasses / un-bypasses it (a bypassed slot is dimmed) |
 | A, B | How much goes to send A / send B. `AP` / `BP` = sent pre-fader. Drag sideways; double-click = off |
 | PAN | The track's pan (the same one as the bar under the track name). Double-click = AUTO |
 | Fader | −INF to +6 dB, with the meter beside it (red above 0 dB). Drag the cap; `Shift` = fine; double-click = 0 dB; the wheel moves it ½ dB a notch |
 | M / S | Mute / solo (the same as clicking the track names) |
 
-**Channel page** — a response curve and five EQ bands: HIGH-PASS, LOW SHELF, MID 1, MID 2 (bells with Q) and HIGH SHELF. Click a band's name to switch it on; moving one of its bars switches it on too. EQ FLAT resets them. On the right: the track's three inserts, the two sends with PRE (pre-fader) switches, and the fader. `<` `>` (or ← →) step through the tracks.
+**Channel page** — the EQ: a response curve with up to **8 points** on it, and the channel's live **spectrum** behind the curve (what the track sounds like after its EQ, while it plays; it stays put when you stop; **SPECTRUM** switches it off).
+* **Double-click** an empty part of the graph to add a point exactly there: below 80 Hz it's a LOW SHELF, above 10 kHz a HIGH SHELF, anywhere else a BELL. It's selected, ready to drag.
+* **Drag** a point: left / right is its frequency, up / down its gain (a high- or low-pass only moves left and right; hold Shift to move up and down only). A big readout shows the frequency, gain and Q while you drag. The whole drag is one undo step.
+* **Mouse wheel** over a bell sets its Q. **Right-click** a point: BELL, LOW SHELF, HIGH SHELF, HIGH-PASS, LOW-PASS, SWITCH OFF / ON, RESET GAIN, REMOVE POINT. **Delete** removes the selected point. Clicking a point that's off switches it on (an off point is drawn hollow).
+* Under the graph, the selected point's controls: its type, ON, REMOVE POINT, and FREQ, GAIN and Q bars (they follow the point, and the point follows them). **EQ FLAT** removes every point. With 8 points a double-click does nothing and the status line says `EQ FULL: 8 POINTS`.
+* A new channel starts with no points (flat). Songs from before v0.25 keep the bands they had switched on, where they were, and sound the same. On the right: the track's three inserts, the two sends with PRE (pre-fader) switches, and the fader. `<` `>` (or ← →) step through the tracks.
 
 **Effect page** — pick the slot's effect: FILTER (resonant low/band/high-pass), DRIVE (drive, bit crush, sample-rate reduction, tone), COMP (compressor, with MIX for parallel compression), DELAY (time in ms, or SYNC to the song's tempo from 1/32 to 1/2, dotted and triplet; feedback, tone, PING-pong), REVERB (size, damping, width, pre-delay) and CHORUS. Every page has BYPASS and DEFAULTS. `<` `>` step through all the slots.
 
@@ -115,6 +120,8 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **Filter**: OFF / LOW / HIGH / BAND pass, CUT (20 Hz – 20 kHz), RES, AMT (how far the filter envelope moves the cutoff, ±8 octaves), KEY (how much the cutoff follows the note).
 * **Filter envelope**: ATK, DEC, SUS, REL.
 * **Pan**: AMIGA L/R follows the track layout above; switch it off and use PAN to give the instrument its own position.
+* **UTILITY** (the row under PAN; also on a plug-in instrument's page): **WIDTH** 0% (mono) to 200% (wider), as mid / side; **MONO** makes everything below a frequency mono (OFF, or `<20HZ` to `<500HZ`, with a smooth 24 dB/octave crossover so nothing thins out at the split) — the classic "mono the bass" move; **VOL** is the instrument's VOL itself, so moving either one moves the other (and undo takes them back together). It works before the instrument's own effects, on samples and VST3 / AU instruments (not MIDI out or CV out). At 100% and OFF it does nothing. Saved in the song, in renders and bounces. (With **8CH GRIT** on, a sliver of the grit lands on the paired track, as on the real thing, so a mono instrument there isn't 100% mono.)
+* **Spectrum at instrument level**: while PARAMS or a plug-in instrument's page is up, the spectrum strip under it shows just that instrument's sound (after its UTILITY and its own effects), marked `INSTRUMENT 01 ONLY`.
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
 * **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
 * **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument, with your hardware over MIDI, or with a modular over CV (see below).
@@ -188,7 +195,7 @@ One history covers everything: notes and effects, block lengths, the sequence an
 * **Move positions**: drag the highlight (or the selected position) to a new place, press ▲ / ▼, or use `Alt+↑` / `Alt+↓` in the pattern. (Section dividers stay where they are when you move positions.)
 * **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into the **next free block** and points position 1 at it. The next free block is the lowest-numbered block that's empty and not used anywhere in the song, or else a new block at the end. No other block numbers change and the song order keeps its length. Now you can change the copy without touching the other places block 2 is used. The status line says which block it used.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
-* **Block names**: double-click a position (or right-click → **BLOCK NAME...**) to name the block it plays (`AMEN CHOP`, `REESE`…). The name shows after the block number in the sequence list, before any section name (a long one is cut short with `..`). Every position playing that block shows it. Saved in the song, undoable, copied by CLONE.
+* **Block names**: double-click a position (or right-click → **BLOCK NAME...**) to name the block it plays (`AMEN CHOP`, `REESE`…). The name takes the place of the word BLOCK in the sequence list — `000  AMEN CHOP  003  DROP` — with a gap before the block number (which never changes) and a gap before the section name. A name too long for its space scrolls along on the playing, highlighted or pointed-at row. Every position playing that block shows it, and the BLOCK panel's title shows the current block's name. Saved in the song, undoable, copied by CLONE.
 * UNDO / REDO (`Cmd+Z` / `Cmd+Shift+Z`) undo and redo all of these.
 
 ## Song sections
@@ -373,6 +380,7 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
   * played while the song or block was playing: each note on the line where you played it, in the block that was playing, with `Mxx` micro-moves for notes that were well off the beat. **One take is one time round**: each time playback goes back to the start (the end of the song, a looping block, the loop lines) a new take begins, so loops never pile up on each other. CAPTURE takes the latest time round that had notes in it: play on the 2nd time round, let it go round 5 more times without playing, and CAPTURE still writes the 2nd. A note held over the wrap gets its `OFF` where you let go, early in the block, so it rings over the loop as played;
   * played while stopped: from the cursor, at the song's BPM and speed, the first note on the cursor line (the notes since your last pause of more than 4 seconds).
   * Notes go on the cursor's track; chords that match the chord table go in as one note + `#xy` (see below), other notes played together spread across the next free tracks. It never writes over a note (it moves along, or skips and says how many). Plug-in and MIDI-out notes get their note-offs. After a capture it starts listening afresh.
+* **FOLLOW INSTRUMENT** (on to start with; right-click EDIT, or the View menu): clicking a note in the pattern — its note, instrument number or effect columns — picks its instrument in the INSTRUMENTS list (scrolling to it). A cell without an instrument number uses the last one above it on that track; clicking an empty cell changes nothing. It works in both halves (tracks 1–4 / 5–8). It's remembered.
 * **FULL VEL** (title bar; also right-click EDIT and the View menu): ignores how hard you hit the keys on a MIDI keyboard — every note plays and records at full velocity (127). Off: the keyboard's velocity is used. It's remembered.
 * **Chords you play** (DETECT CHORDS, on to start with): on a plug-in or MIDI-out instrument, notes pressed together (within 60 ms) that match a slot in the song's chord table go in as **one note, the root, with `#xy`** on one track — when recording with EDIT on, and when CAPTURE writes them in. See Chords.
 

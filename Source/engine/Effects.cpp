@@ -334,23 +334,25 @@ std::unique_ptr<Effect> makeEffect (FxType t)
 }
 
 // ==================================================================== EQ
-ChannelEqProcessor::Coeffs ChannelEqProcessor::design (int band, const EqBand& b, double sr)
+ChannelEqProcessor::Coeffs ChannelEqProcessor::design (const EqBand& b, double sr)
 {
     Coeffs c;
     const double f = std::clamp ((double) b.freq, 10.0, sr * 0.45);
     const double w = kTwoPi * f / sr, cw = std::cos (w), sw = std::sin (w);
     const double A = std::pow (10.0, b.gain / 40.0);
     double b0, b1, b2, a0, a1, a2;
-    if (band == kEqHighPass)
+    if (b.type == EqType::HighPass || b.type == EqType::LowPass)
     {
         const double alpha = sw / (2.0 * 0.7071);
-        b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2; a0 = 1 + alpha; a1 = -2 * cw; a2 = 1 - alpha;
+        if (b.type == EqType::HighPass) { b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2; }
+        else                            { b0 = (1 - cw) / 2; b1 = 1 - cw;    b2 = (1 - cw) / 2; }
+        a0 = 1 + alpha; a1 = -2 * cw; a2 = 1 - alpha;
     }
-    else if (band == kEqLowShelf || band == kEqHighShelf)
+    else if (b.type == EqType::LowShelf || b.type == EqType::HighShelf)
     {
         const double alpha = sw / 2.0 * std::sqrt (2.0);   // shelf slope 1
         const double sq = 2.0 * std::sqrt (A) * alpha;
-        if (band == kEqLowShelf)
+        if (b.type == EqType::LowShelf)
         {
             b0 = A * ((A + 1) - (A - 1) * cw + sq); b1 = 2 * A * ((A - 1) - (A + 1) * cw); b2 = A * ((A + 1) - (A - 1) * cw - sq);
             a0 = (A + 1) + (A - 1) * cw + sq; a1 = -2 * ((A - 1) + (A + 1) * cw); a2 = (A + 1) + (A - 1) * cw - sq;
@@ -380,14 +382,14 @@ void ChannelEqProcessor::process (float* L, float* R, int n, const ChannelEq& eq
     for (int k = 0; k < kEqBands; ++k)
         if (dirty || ! (eq.band[k] == last.band[k]))
         {
-            if (eq.band[k].on && ! last.band[k].on) { s[k][0] = {}; s[k][1] = {}; }
-            c[k] = design (k, eq.band[k], sr);
+            if (eq.band[k].active() && ! (last.band[k].active() && last.band[k].type == eq.band[k].type)) { s[k][0] = {}; s[k][1] = {}; }
+            c[k] = design (eq.band[k], sr);
         }
     last = eq; dirty = false;
     float* ch[2] = { L, R };
     for (int k = 0; k < kEqBands; ++k)
     {
-        if (! eq.band[k].on) continue;
+        if (! eq.band[k].active()) continue;
         const Coeffs& q = c[k];
         for (int cc = 0; cc < 2; ++cc)
         {
@@ -412,8 +414,8 @@ double ChannelEqProcessor::responseDb (const ChannelEq& eq, double freq, double 
     double db = 0.0;
     for (int k = 0; k < kEqBands; ++k)
     {
-        if (! eq.band[k].on) continue;
-        const Coeffs q = design (k, eq.band[k], sr);
+        if (! eq.band[k].active()) continue;
+        const Coeffs q = design (eq.band[k], sr);
         const auto h = (q.b0 + q.b1 * z1 + q.b2 * z2) / (1.0 + q.a1 * z1 + q.a2 * z2);
         db += 20.0 * std::log10 (std::max (1e-9, std::abs (h)));
     }

@@ -11,6 +11,7 @@ namespace prv::ui
 // Scrollable list drawn with the pixel font (sequence + instrument lists)
 class PixList : public juce::Component, private juce::Timer
 {
+    struct Ticker : juce::Timer { std::function<void()> fn; void timerCallback() override { if (fn) fn(); } } ticker;   // (scrolling names)
 public:
     std::function<int()> getNumRows;
     std::function<juce::String (int)> getRowText;
@@ -38,6 +39,13 @@ public:
     std::function<void (int)> onTagClick;
     std::function<juce::String (int)> getRowName;    // a name shown after the row's text, before any section label
     float tagZoneX = -1;                             // x where the label zone starts (-1 = none)
+    // NAME ZONE (the sequence): the row's name drawn from nameX to nameEndX (too long: it scrolls, on the
+    // playing / selected / hovered row), then getRowNumber's text at numberX, then the section zone
+    std::function<juce::String (int)> getRowNumber;
+    float nameX = -1, nameEndX = -1, numberX = -1;
+    float nameScroll (int row, const juce::String& name) const;   // how far (pixels) the name is scrolled now
+    static double& testClockMs() { static double t = -1.0; return t; }   // tests: the time the scrolling uses (-1 = the real one)
+    int  hoverRow = -1;
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;

@@ -170,6 +170,12 @@ struct Instrument
     std::string cvMapName;                  // the synth it was measured on
     bool isCvOut() const { return plugin && cvOut; }
 
+    // UTILITY (samples and VST3 / AU instruments): stereo WIDTH and MONO BELOW, before the instrument's
+    // inserts. Its VOLUME is the instrument's VOL itself. At the defaults it does nothing.
+    float utilWidth = 1.0f;                 // 0 (mono) .. 2 (200%)
+    int   utilMonoHz = 0;                   // 0 = off, else 20..500: everything below it mono
+    bool  hasUtility() const { return ! isMidiOut() && ! isCvOut() && (utilWidth != 1.0f || utilMonoHz > 0); }
+
     // any instrument can be switched off (the ON button): its notes are silent
     bool switchedOff = false;
 

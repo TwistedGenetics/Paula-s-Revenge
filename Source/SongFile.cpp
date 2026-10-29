@@ -8,13 +8,14 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 19;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 20;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
-                                  // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out
+                                  // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
+                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -188,9 +189,9 @@ juce::MemoryBlock writeSong (const Song& song)
         for (const auto& c : m.ch)
         {
             raw.writeFloatBigEndian (c.volumeDb);
-            for (const auto& b : c.eq.band)
+            for (const auto& b : c.eq.band)   // (v20: 8 points, each used / on / its type)
             {
-                raw.writeByte (b.on ? 1 : 0);
+                raw.writeByte ((char) ((b.used ? 1 : 0) | (b.on ? 2 : 0))); raw.writeByte ((char) b.type);
                 raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
             }
             for (const auto& sl : c.inserts) writeSlot (raw, sl);
@@ -310,6 +311,18 @@ juce::MemoryBlock writeSong (const Song& song)
             raw.writeByte ((char) c.kind); raw.writeByte ((char) c.out); raw.writeByte ((char) c.ppqn); raw.writeByte ((char) c.shape);
             raw.writeByte ((char) c.track); raw.writeByte ((char) c.knob);
             for (float f : { c.volts, c.low, c.beats, c.attack, c.decay, c.sustain, c.release }) raw.writeFloat (f);
+        }
+    }
+    // v20: the instruments' UTILITY (the EQ's points are in the mixer, above)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.utilWidth != 1.0f || in.utilMonoHz != 0) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (in.utilWidth == 1.0f && in.utilMonoHz == 0) continue;
+            raw.writeByte ((char) i); raw.writeFloat (in.utilWidth); raw.writeShort ((short) in.utilMonoHz);
         }
     }
 
@@ -452,12 +465,27 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         for (auto& c : m.ch)
         {
             c.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
-            for (auto& b : c.eq.band)
+            c.eq = ChannelEq {};
+            if (version >= 20)
+                for (auto& b : c.eq.band)
+                {
+                    const int f = (int) (uint8_t) in.readByte();
+                    b.used = (f & 1) != 0; b.on = b.used && (f & 2) != 0;
+                    b.type = (EqType) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) EqType::Count - 1);
+                    b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
+                    b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
+                    b.q = readFloat (in, 0.1f, 10.0f, 1.0f);
+                    if (! b.used) b = {};
+                }
+            else
             {
-                b.on = in.readByte() != 0;
-                b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
-                b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
-                b.q = readFloat (in, 0.1f, 10.0f, 0.7f);
+                // the old five fixed bands: the ones in use become points where they were
+                for (int k = 0; k < kEqOldBands; ++k)
+                {
+                    const bool on = in.readByte() != 0;
+                    const float f = readFloat (in, 10.0f, 22000.0f, 1000.0f), g = readFloat (in, -24.0f, 24.0f, 0.0f), q = readFloat (in, 0.1f, 10.0f, 0.7f);
+                    c.eq.band[k] = eqBandFromOld (k, on, f, g, q);
+                }
             }
             for (auto& sl : c.inserts) readSlot (in, sl, version);
             for (int k = 0; k < kSends; ++k) { c.send[k] = readFloat (in, 0.0f, 1.0f, 0.0f); c.sendPre[k] = in.readByte() != 0; }
@@ -630,6 +658,20 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 c.knob = std::clamp ((int) (uint8_t) in.readByte(), 0, 1);
                 c.volts = in.readFloat(); c.low = in.readFloat(); c.beats = in.readFloat();
                 c.attack = in.readFloat(); c.decay = in.readFloat(); c.sustain = in.readFloat(); c.release = in.readFloat();
+            }
+        }
+        if (version >= 20 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const float w = in.readFloat();
+                const int hz = in.readShort();
+                if (i >= kMaxInstruments) continue;
+                auto& ins = s.instruments[(size_t) i];
+                ins.utilWidth = std::isfinite (w) ? std::clamp (w, 0.0f, 2.0f) : 1.0f;
+                ins.utilMonoHz = hz <= 0 ? 0 : std::clamp (hz, 20, 500);
             }
         }
     }

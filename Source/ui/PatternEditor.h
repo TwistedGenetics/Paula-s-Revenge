@@ -193,6 +193,15 @@ public:
     void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
     static bool detectChords();                                  // DETECT CHORDS (prefs, on by default)
+    static bool followInstrument();                              // FOLLOW INSTRUMENT: a click on a note picks its instrument (prefs, on)
+    static void setFollowInstrument (bool);
+    int  followInstrumentAt (int line, int track) const;         // what a click there picks: the cell's instrument (its own, else the last above); -1 = an empty cell
+    std::function<void (int instrument)> onFollowInstrument;
+    juce::Point<float> cellCentre (int line, int track, int column) const   // (tests) where a cell is drawn now
+    {
+        const float px = fontPx();
+        return { colX (track - firstTrack(), column) + px * PixelFont::kCellW * 0.5f, headerH() + ((float) line - (float) viewTop + 0.5f) * rowH() };
+    }
     static bool recordNoteOffs();                                // NOTE-OFFS: recording writes OFFs at all (prefs, on)
     static void setRecordNoteOffs (bool);
     static void setDetectChords (bool);

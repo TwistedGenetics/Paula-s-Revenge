@@ -42,10 +42,34 @@ void Spectrum::analyse()
     }
 }
 
+void Spectrum::setInstrument (int ins)
+{
+    if (ins == onlyInstrument) return;
+    auto& tap = proc.player.insTap;
+    if (onlyInstrument >= 0 && tap.source.load() == onlyInstrument) tap.source.store (-1);
+    onlyInstrument = ins;
+    if (ins >= 0) tap.source.store (ins);
+    lastTapCount = 0;
+    std::fill (ring.begin(), ring.end(), 0.0f);
+    std::fill (std::begin (bands), std::end (bands), 0.0f);
+    std::fill (std::begin (peaks), std::end (peaks), 0.0f);
+    repaint();
+}
+
 void Spectrum::tick()
 {
-    const int got = proc.readScope (incoming.data(), (int) incoming.size());
-    feed (incoming.data(), got);
+    const int got = proc.readScope (incoming.data(), (int) incoming.size());   // (always drained)
+    if (onlyInstrument >= 0)
+    {
+        auto& tap = proc.player.insTap;
+        tap.source.store (onlyInstrument);
+        const uint32_t c = tap.count();
+        if (c == lastTapCount) { repaint(); return; }   // (stopped: it stays as it was)
+        lastTapCount = c;
+        const int n = tap.read (incoming.data(), kSize);
+        feed (incoming.data(), n);
+    }
+    else feed (incoming.data(), got);
     analyse();
     repaint();
 }
@@ -81,6 +105,14 @@ void Spectrum::paint (juce::Graphics& g)
     }
     g.setColour (sk.dim);
     g.fillRect (inner.getX(), inner.getBottom(), inner.getWidth(), 1.0f);
+    if (onlyInstrument >= 0)
+    {
+        const juce::String t = "INSTRUMENT " + juce::String::toHexString (onlyInstrument + 1).toUpperCase().paddedLeft ('0', 2) + " ONLY";
+        auto box = juce::Rectangle<float> (PixelFont::textWidth (t, px) + px * 4, px * 10).withPosition (inner.getX(), inner.getY());
+        g.setColour (sk.bg);
+        g.fillRect (box);
+        PixelFont::draw (g, t, box.getX() + px * 2, box.getY() + px * 1.5f, px, sk.text);
+    }
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
 }
 

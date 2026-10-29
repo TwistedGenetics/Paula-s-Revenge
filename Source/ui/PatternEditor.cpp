@@ -932,6 +932,9 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
         else openCommandMenu (line, track, group);
         return;
     }
+    // FOLLOW INSTRUMENT: clicking a note (or its commands) picks its instrument in the list
+    if (followInstrument() && onFollowInstrument)
+        if (const int ins = followInstrumentAt (line, track); ins >= 0) onFollowInstrument (ins);
     if (e.mods.isShiftDown())
     {
         // shift+click: select from the cursor to here
@@ -1708,6 +1711,19 @@ void PatternEditor::noteRecorded (int note, int group)
     const int serial = group != 0 ? -group : ++noteSerial;
     if (st.track >= 0 && st.track < kMaxTracks) trackSerial[st.track] = serial;
     held[note] = { proc.song.safeBlock (st.block), st.line, st.track, st.instrument, group, serial };
+}
+
+bool PatternEditor::followInstrument()          { return prv::prefs().getBoolValue ("followInstrument", true); }
+void PatternEditor::setFollowInstrument (bool on) { prv::prefs().setValue ("followInstrument", on); prv::prefs().saveIfNeeded(); }
+
+int PatternEditor::followInstrumentAt (int line, int track) const
+{
+    const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
+    if (track < 0 || track >= kMaxTracks || line < 0 || line >= b.lines) return -1;
+    const auto& c = b.at (line, track);
+    if (c.note == 0 && c.instr == 0 && c.cmd == 0 && c.param == 0 && c.cmd2 == 0 && c.param2 == 0) return -1;   // (an empty cell)
+    const int i = instrumentAt (line, track);
+    return i >= 0 && i < kMaxInstruments ? i : -1;
 }
 
 bool PatternEditor::recordNoteOffs()          { return prv::prefs().getBoolValue ("recordNoteOffs", true); }

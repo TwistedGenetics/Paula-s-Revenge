@@ -149,6 +149,9 @@ public:
 
     // the mixer (EQ, inserts, sends) used when the song's mixer isn't flat
     MixerEngine& mixer() { return mixerEngine; }
+    // the EQ's spectrum display at instrument level: that instrument's sound (after its UTILITY and
+    // its own inserts), on its own (source = instrument index, -1 = none wanted)
+    AudioTap insTap;
     // the song's plug-in instruments
     SynthRack& synths() { return rack; }
     // which track's mixer strip a plug-in instrument plays into right now
@@ -307,6 +310,8 @@ private:
     // instruments with their own inserts: their audio is gathered here, through the inserts, then to a track
     float instL[kMaxInstruments][MixerEngine::kMaxBlock] {}, instR[kMaxInstruments][MixerEngine::kMaxBlock] {};
     bool  instChain[kMaxInstruments] {};
+    StereoUtility util[kMaxInstruments];   // each instrument's UTILITY (width, mono below)
+    float tapL[MixerEngine::kMaxBlock] {}, tapR[MixerEngine::kMaxBlock] {};
     bool  ledBuf[MixerEngine::kMaxBlock] {};
     double samplesPerTick() const;
     void renderVoice (Voice& v, double inc, float& outL, float& outR, int ch);

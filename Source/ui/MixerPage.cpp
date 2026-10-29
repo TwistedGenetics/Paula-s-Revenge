@@ -27,7 +27,6 @@ namespace
 {
     juce::String hzText (float hz) { return hz < 1000.0f ? juce::String (juce::roundToInt (hz)) + " HZ" : juce::String (hz / 1000.0f, hz < 10000.0f ? 2 : 1) + " KHZ"; }
     juce::String dbSigned (float db) { return (db > 0.0f ? "+" : "") + juce::String (db, 1) + " DB"; }
-    const char* kBandNames[kEqBands] = { "HIGH-PASS", "LOW SHELF", "MID 1", "MID 2", "HIGH SHELF" };
 }
 
 // ---------------------------------------------------------------------------
@@ -610,7 +609,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
-MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
+MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
 {
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
@@ -658,40 +657,46 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p)
     for (auto& s : strips) addChildComponent (*s);
 
     // ---- channel page
-    for (int b = 0; b < kEqBands; ++b)
+    // the EQ: the graph's points, and the selected point's controls under it
+    eqGraph.onChanged = [this] { refreshPoint(); };
+    eqGraph.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    addChildComponent (eqGraph);
+    ptGain.bipolar = true;
+    ptFreq.defaultValue = mixmap::freqToSlider (1000.0f);
+    ptGain.defaultValue = mixmap::gainToSlider (0.0f);
+    ptQ.defaultValue = mixmap::qToSlider (1.0f);
+    ptFreq.format = [] (float v) { return hzText (mixmap::sliderToFreq (v)); };
+    ptGain.format = [] (float v) { return dbSigned (mixmap::sliderToGain (v)); };
+    ptQ.format = [] (float v) { return juce::String (mixmap::sliderToQ (v), 2); };
+    auto band = [this]() -> EqBand* { const int b = eqGraph.selected; return b >= 0 && b < kEqBands && proc.song.mixer.ch[chTrack].eq.band[b].used ? &proc.song.mixer.ch[chTrack].eq.band[b] : nullptr; };
+    ptFreq.onChange = [this, band] (float v) { if (auto* e = band()) { eqGraph.movePoint (eqGraph.selected, mixmap::sliderToFreq (v), e->gain, true); } };
+    ptGain.onChange = [this, band] (float v) { if (auto* e = band()) { eqGraph.movePoint (eqGraph.selected, e->freq, mixmap::sliderToGain (v), true); } };
+    ptQ.onChange    = [this, band] (float v) { if (band() != nullptr) { eqGraph.setQ (eqGraph.selected, mixmap::sliderToQ (v), true); } };
+    ptOn.onClick = [this, band] { if (band() != nullptr) eqGraph.setOn (eqGraph.selected, ptOn.getToggleState()); else refreshPoint(); };
+    ptRemove.onClick = [this] { eqGraph.removePoint (eqGraph.selected); };
+    ptType.onClick = [this, band]
     {
-        bandFreq[b] = std::make_unique<MiniBar> ("FREQ");
-        bandGain[b] = std::make_unique<MiniBar> ("GAIN");
-        bandQ[b]    = std::make_unique<MiniBar> ("Q");
-        bandGain[b]->bipolar = true;
-        const ChannelEq defaults;
-        bandFreq[b]->defaultValue = mixmap::freqToSlider (defaults.band[b].freq);
-        bandGain[b]->defaultValue = mixmap::gainToSlider (0.0f);
-        bandQ[b]->defaultValue = mixmap::qToSlider (defaults.band[b].q);
-        bandFreq[b]->format = [] (float v) { return hzText (mixmap::sliderToFreq (v)); };
-        bandGain[b]->format = [] (float v) { return dbSigned (mixmap::sliderToGain (v)); };
-        bandQ[b]->format = [] (float v) { return juce::String (mixmap::sliderToQ (v), 2); };
-        auto label = [this, b] (const char* what) { return "TRACK " + juce::String (chTrack + 1) + " " + kBandNames[b] + " " + what; };
-        bandOn[b].onClick = [this, b, label]
-        {
-            const bool on = bandOn[b].getToggleState();
-            edit (label (on ? "ON" : "OFF"), false, [this, b, on] (MixerSettings& m) { m.ch[chTrack].eq.band[b].on = on; });
-        };
-        // moving a band's control switches the band on
-        bandFreq[b]->onDragStart = [this, b, label] { proc.history.mixer (label ("FREQ"), true); };
-        bandGain[b]->onDragStart = [this, b, label] { proc.history.mixer (label ("GAIN"), true); };
-        bandQ[b]->onDragStart    = [this, b, label] { proc.history.mixer (label ("Q"), true); };
-        bandFreq[b]->onChange = [this, b] (float v) { proc.withLock ([&] { auto& e = proc.song.mixer.ch[chTrack].eq.band[b]; e.freq = mixmap::sliderToFreq (v); e.on = true; }); refreshChannel(); };
-        bandGain[b]->onChange = [this, b] (float v) { proc.withLock ([&] { auto& e = proc.song.mixer.ch[chTrack].eq.band[b]; e.gain = mixmap::sliderToGain (v); e.on = true; }); refreshChannel(); };
-        bandQ[b]->onChange    = [this, b] (float v) { proc.withLock ([&] { auto& e = proc.song.mixer.ch[chTrack].eq.band[b]; e.q = mixmap::sliderToQ (v); e.on = true; }); refreshChannel(); };
-        addChildComponent (bandOn[b]);
-        addChildComponent (*bandFreq[b]);
-        if (b != kEqHighPass) addChildComponent (*bandGain[b]);
-        if (b == kEqMid1 || b == kEqMid2) addChildComponent (*bandQ[b]);
-    }
+        if (band() == nullptr) return;
+        juce::Component::SafePointer<MixerPage> safe (this);
+        std::vector<MenuItem> items;
+        for (int t = 0; t < (int) EqType::Count; ++t)
+            items.push_back ({ juce::String (eqTypeName ((EqType) t)), [safe, t] { if (safe) safe->eqGraph.setType (safe->eqGraph.selected, (EqType) t); } });
+        showMenu ("EQ POINT " + juce::String (eqGraph.selected + 1), items);
+    };
+    eqSpecBtn.setToggleState (eqGraph.showSpectrum, juce::dontSendNotification);
+    eqSpecBtn.onClick = [this]
+    {
+        eqGraph.showSpectrum = eqSpecBtn.getToggleState();
+        prefs().setValue ("eqSpectrum", eqGraph.showSpectrum); prefs().saveIfNeeded();
+        eqGraph.repaint();
+    };
+    for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &eqSpecBtn, &ptFreq, &ptGain, &ptQ })
+        addChildComponent (c);
     eqFlatBtn.onClick = [this]
     {
         edit ("TRACK " + juce::String (chTrack + 1) + " EQ FLAT", false, [this] (MixerSettings& m) { m.ch[chTrack].eq = ChannelEq {}; });
+        eqGraph.selectFirst();
+        refreshPoint();
     };
     addChildComponent (eqFlatBtn);
     for (int k = 0; k < kInserts; ++k)
@@ -955,14 +960,9 @@ void MixerPage::updateVisibility()
     const int nt = proc.song.numTracks;
     for (int i = 0; i < (int) strips.size(); ++i)
         strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || i < nt));
-    for (int b = 0; b < kEqBands; ++b)
-    {
-        bandOn[b].setVisible (ch);
-        bandFreq[b]->setVisible (ch);
-        bandGain[b]->setVisible (ch && b != kEqHighPass);
-        bandQ[b]->setVisible (ch && (b == kEqMid1 || b == kEqMid2));
-    }
-    eqFlatBtn.setVisible (ch);
+    eqGraph.setVisible (ch);
+    for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &eqSpecBtn, &ptFreq, &ptGain, &ptQ, &eqFlatBtn })
+        c->setVisible (ch);
     for (auto& b : chInsert) b.setVisible (ch);
     for (auto& s : chSend) s.setVisible (ch);
     for (auto& b : chPre) b.setVisible (ch);
@@ -995,18 +995,34 @@ void MixerPage::refresh()
     repaint();
 }
 
+void MixerPage::refreshPoint()
+{
+    const auto& q = proc.song.mixer.ch[chTrack].eq;
+    const int b = eqGraph.selected;
+    const bool has = b >= 0 && b < kEqBands && q.band[b].used;
+    const EqBand e = has ? q.band[b] : EqBand {};
+    ptType.setButtonText (has ? juce::String (eqTypeName (e.type)) : juce::String ("NO POINT"));
+    ptOn.setToggleState (has && e.on, juce::dontSendNotification);
+    ptFreq.setValue (mixmap::freqToSlider (e.freq));
+    ptGain.setValue (mixmap::gainToSlider (e.gain));
+    ptQ.setValue (mixmap::qToSlider (e.q));
+    for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &ptFreq }) c->setEnabled (has);
+    ptGain.setEnabled (has && e.hasGain());
+    ptQ.setEnabled (has && e.hasQ());
+    ptGain.showFill = has && e.hasGain();
+    ptQ.showFill = has && e.hasQ();
+    for (auto* c : std::initializer_list<juce::Component*> { &ptFreq, &ptGain, &ptQ }) c->setAlpha (c->isEnabled() && e.on ? 1.0f : 0.45f);
+    eqFlatBtn.setEnabled (q.points() > 0);
+    eqGraph.repaint();
+    repaint (bandBox.toNearestInt());
+}
+
 void MixerPage::refreshChannel()
 {
     const auto& c = proc.song.mixer.ch[chTrack];
-    for (int b = 0; b < kEqBands; ++b)
-    {
-        const auto& e = c.eq.band[b];
-        bandOn[b].setToggleState (e.on, juce::dontSendNotification);
-        bandFreq[b]->setValue (mixmap::freqToSlider (e.freq));
-        bandGain[b]->setValue (mixmap::gainToSlider (e.gain));
-        bandQ[b]->setValue (mixmap::qToSlider (e.q));
-        for (auto* s : { bandFreq[b].get(), bandGain[b].get(), bandQ[b].get() }) s->setAlpha (e.on ? 1.0f : 0.5f);
-    }
+    if (eqGraph.track != chTrack) eqGraph.setTrack (chTrack);
+    if (eqGraph.selected >= 0 && ! c.eq.band[eqGraph.selected].used) eqGraph.selectFirst();
+    refreshPoint();
     for (int k = 0; k < kInserts; ++k)
     {
         const auto& s = c.inserts[k];
@@ -1021,7 +1037,7 @@ void MixerPage::refreshChannel()
         chPre[s].setToggleState (c.sendPre[s], juce::dontSendNotification);
     }
     chFader.setValue (FaderMeter::dbToPos (c.volumeDb));
-    repaint (eqGraph.toNearestInt().expanded (4));
+    eqGraph.repaint();
 }
 
 void MixerPage::refreshEffect()
@@ -1196,6 +1212,7 @@ void MixerPage::tick()
     }
     else
     {
+        if (currentPage == Page::Channel) eqGraph.tick();
         // keep the meters from holding stale peaks while another page is up
         auto& mx = proc.player.mixer();
         for (auto& p : mx.trackPeak) p.exchange (0.0f);
@@ -1215,6 +1232,11 @@ bool MixerPage::keyPressed (const juce::KeyPress& k)
     if (k.getKeyCode() == juce::KeyPress::spaceKey)
     {
         if (onPlayStop) onPlayStop (k.getModifiers().isShiftDown());
+        return true;
+    }
+    if (currentPage == Page::Channel && (k == juce::KeyPress::deleteKey || k == juce::KeyPress::backspaceKey))
+    {
+        eqGraph.removePoint (eqGraph.selected);
         return true;
     }
     if (currentPage != Page::Strips)
@@ -1343,7 +1365,11 @@ void MixerPage::paint (juce::Graphics& g)
     }
     if (currentPage == Page::Channel)
     {
-        Theme::panelBox (g, bandBox, "EQ", Theme::palFor (*this));
+        {
+            const auto& q = proc.song.mixer.ch[chTrack].eq;
+            const int b = eqGraph.selected;
+            Theme::panelBox (g, bandBox, b >= 0 && q.band[b].used ? "EQ POINT " + juce::String (b + 1) + " OF " + juce::String (q.points()) : juce::String ("EQ"), Theme::palFor (*this));
+        }
         Theme::panelBox (g, chInsertsBox, "INSERTS", Theme::palFor (*this));
         Theme::panelBox (g, chSendsBox, "SENDS AND FADER", Theme::palFor (*this));
         Theme::panelBox (g, chAutoBox, "AUTOMATION KNOBS", Theme::palFor (*this));
@@ -1358,7 +1384,6 @@ void MixerPage::paint (juce::Graphics& g)
             PixelFont::drawLeft (g, fitT ("A (V): " + (a.valid() ? juce::String (a.name) : juce::String ("NOT SET")), chAutoA.getWidth() - px * 2), chAutoA.withTrimmedLeft (px), px, a.valid() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
             PixelFont::drawLeft (g, fitT ("B (J): " + (b.valid() ? juce::String (b.name) : juce::String ("NOT SET")), chAutoB.getWidth() - px * 2), chAutoB.withTrimmedLeft (px), px, b.valid() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
         }
-        paintEqGraph (g, eqGraph);
         return;
     }
     // effect page: parameter names next to the controls are in the sliders; info line
@@ -1419,55 +1444,6 @@ void MixerPage::paint (juce::Graphics& g)
             PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, (&l == &lines.getReference (0)) ? Theme::palFor (*this).ink : Theme::palFor (*this).ink);
         }
     }
-}
-
-void MixerPage::paintEqGraph (juce::Graphics& g, juce::Rectangle<float> r)
-{
-    const auto& sk = Theme::skin;
-    const float px = Theme::px;
-    g.setColour (sk.bg);
-    g.fillRect (r);
-    auto in = r.reduced (px * 2);
-    auto xOf = [&] (double hz) { return in.getX() + in.getWidth() * (float) (std::log10 (hz / 20.0) / 3.0); };
-    auto yOf = [&] (double db) { return in.getCentreY() - in.getHeight() * 0.5f * (float) (juce::jlimit (-20.0, 20.0, db) / 20.0); };
-    // grid
-    g.setColour (sk.rule);
-    for (double hz : { 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0 })
-        g.fillRect (xOf (hz), in.getY(), 1.0f, in.getHeight());
-    for (double db : { -12.0, -6.0, 6.0, 12.0 })
-        g.fillRect (in.getX(), yOf (db), in.getWidth(), 1.0f);
-    g.setColour (sk.dim);
-    g.fillRect (in.getX(), yOf (0.0), in.getWidth(), std::max (1.0f, px * 0.5f));
-    for (auto [hz, t] : { std::pair<double, const char*> { 100.0, "100" }, { 1000.0, "1K" }, { 10000.0, "10K" } })
-        PixelFont::draw (g, t, xOf (hz) + px, in.getBottom() - px * 8, px, sk.dim);
-    PixelFont::draw (g, "+12", in.getX() + px, yOf (12.0) - px * 8.5f, px, sk.dim);
-    PixelFont::draw (g, "-12", in.getX() + px, yOf (-12.0) + px * 1.0f, px, sk.dim);
-
-    // the response
-    const auto& eq = proc.song.mixer.ch[chTrack].eq;
-    const double sr = 48000.0;
-    juce::Path path;
-    const int steps = std::max (32, (int) in.getWidth() / 2);
-    for (int i = 0; i <= steps; ++i)
-    {
-        const double hz = 20.0 * std::pow (1000.0, (double) i / steps);
-        const double db = eq.anyOn() ? ChannelEqProcessor::responseDb (eq, std::min (hz, sr * 0.49), sr) : 0.0;
-        const float x = in.getX() + in.getWidth() * (float) i / (float) steps, y = yOf (db);
-        if (i == 0) path.startNewSubPath (x, y); else path.lineTo (x, y);
-    }
-    g.setColour (sk.track[chTrack]);
-    g.strokePath (path, juce::PathStrokeType (std::max (1.5f, px)));
-    // band handles
-    for (int b = 0; b < kEqBands; ++b)
-    {
-        const auto& band = eq.band[b];
-        if (! band.on) continue;
-        const double db = ChannelEqProcessor::responseDb (eq, std::min ((double) band.freq, sr * 0.49), sr);
-        auto dot = juce::Rectangle<float> (px * 3, px * 3).withCentre ({ xOf (band.freq), yOf (db) });
-        g.setColour (sk.text);
-        g.fillRect (dot);
-    }
-    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
 }
 
 void MixerPage::resized()
@@ -1558,26 +1534,31 @@ void MixerPage::layoutChannel (juce::Rectangle<int> r)
         chClearB.setBounds (rb.removeFromRight (charsW (5))); chAutoB = rb.toFloat();
     }
 
-    // left: graph on top, then one row per band
-    const int bandsH = titleH + (rowH + gap) * (kEqBands + 1) + gap * 2;
+    // left: the graph on top, the selected point's controls under it
+    const int bandsH = titleH + (rowH + gap) * 2 + gap * 3;
     auto graph = r.removeFromTop (std::max (rowH * 3, r.getHeight() - bandsH - gap * 2));
-    eqGraph = graph.toFloat();
+    eqGraph.setBounds (graph);
     r.removeFromTop (gap * 2);
     bandBox = r.removeFromTop (bandsH).toFloat();
     auto in = bandBox.toNearestInt().reduced (gap);
     in.removeFromTop (titleH);
-    const int onW = charsW (10);
-    for (int b = 0; b < kEqBands; ++b)
     {
-        auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
-        bandOn[b].setBounds (row.removeFromLeft (onW)); row.removeFromLeft (gap * 2);
-        const int qW = charsW (7);
-        const int w = (row.getWidth() - qW - gap * 4) / 2;
-        bandFreq[b]->setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap * 2);
-        bandGain[b]->setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap * 2);
-        bandQ[b]->setBounds (row);
+        // its type, on / off, remove; the whole EQ: flat, the spectrum
+        auto row = in.removeFromTop (rowH); in.removeFromTop (gap * 2);
+        ptType.setBounds (row.removeFromLeft (charsW (10))); row.removeFromLeft (gap);
+        ptOn.setBounds (row.removeFromLeft (charsW (3))); row.removeFromLeft (gap);
+        ptRemove.setBounds (row.removeFromLeft (charsW (12)));
+        eqSpecBtn.setBounds (row.removeFromRight (charsW (8))); row.removeFromRight (gap);
+        eqFlatBtn.setBounds (row.removeFromRight (charsW (7)));
+        ptInfoArea = {};
     }
-    eqFlatBtn.setBounds (in.removeFromTop (rowH).removeFromLeft (onW));
+    {
+        auto row = in.removeFromTop (rowH);
+        const int w = (row.getWidth() - gap * 4) / 3;
+        ptFreq.setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap * 2);
+        ptGain.setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap * 2);
+        ptQ.setBounds (row);
+    }
 }
 
 void MixerPage::layoutEffect (juce::Rectangle<int> r)

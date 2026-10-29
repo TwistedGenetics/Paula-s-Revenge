@@ -6,6 +6,7 @@
 #include "Widgets.h"
 #include "Learn.h"
 #include "Panels.h"
+#include "EqGraph.h"
 
 namespace prv::ui
 {
@@ -124,14 +125,19 @@ private:
     std::vector<std::unique_ptr<MixStrip>> strips;   // 8 tracks, 2 returns, master
 
     // channel page
-    PixButton bandOn[kEqBands] { PixButton ("HIGH-PASS", true), PixButton ("LOW SHELF", true), PixButton ("MID 1", true), PixButton ("MID 2", true), PixButton ("HIGH SHELF", true) };
-    std::unique_ptr<MiniBar> bandFreq[kEqBands], bandGain[kEqBands], bandQ[kEqBands];
-    PixButton eqFlatBtn { "EQ FLAT" };
+    EqGraph eqGraph;
+    PixButton ptType { "BELL" }, ptOn { "ON", true }, ptRemove { "REMOVE POINT" }, eqFlatBtn { "EQ FLAT" }, eqSpecBtn { "SPECTRUM", true };
+    MiniBar ptFreq { "FREQ" }, ptGain { "GAIN" }, ptQ { "Q" };
+    juce::Rectangle<float> ptInfoArea;
+    void refreshPoint();
+public:
+    EqGraph& eqGraphView() { return eqGraph; }   // (tests)
+private:
     PixButton chInsert[kInserts] { PixButton ("---"), PixButton ("---"), PixButton ("---") };
     PixSlider chSend[kSends] { PixSlider ("SEND A"), PixSlider ("SEND B") };
     PixButton chPre[kSends] { PixButton ("PRE", true), PixButton ("PRE", true) };
     PixSlider chFader { "FADER" };
-    juce::Rectangle<float> eqGraph, chInsertsBox, chSendsBox, bandBox;
+    juce::Rectangle<float> chInsertsBox, chSendsBox, bandBox;
 
     // effect page
     PixButton typeBtn[kBuiltinFxTypes] { PixButton ("EMPTY", true), PixButton ("FILTER", true), PixButton ("DRIVE", true), PixButton ("COMP", true),
@@ -184,7 +190,6 @@ private:
     juce::String pageTitle() const;
     juce::String delayText() const;
     int shownDelay = -1;
-    void paintEqGraph (juce::Graphics&, juce::Rectangle<float>);
     static juce::String effectInfo (FxType);
 };
 

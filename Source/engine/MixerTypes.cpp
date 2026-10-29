@@ -58,6 +58,35 @@ bool MixerSettings::isFlat() const
     return true;   // (returns only hear what's sent to them)
 }
 
+std::string eqTypeName (EqType t)
+{
+    switch (t)
+    {
+        case EqType::Bell:      return "BELL";
+        case EqType::LowShelf:  return "LOW SHELF";
+        case EqType::HighShelf: return "HIGH SHELF";
+        case EqType::HighPass:  return "HIGH-PASS";
+        case EqType::LowPass:   return "LOW-PASS";
+        default:                return "";
+    }
+}
+
+EqType eqTypeForFreq (float hz)
+{
+    return hz < 80.0f ? EqType::LowShelf : (hz > 10000.0f ? EqType::HighShelf : EqType::Bell);
+}
+
+EqBand eqBandFromOld (int k, bool on, float freq, float gain, float q)
+{
+    static const EqType types[kEqOldBands] = { EqType::HighPass, EqType::LowShelf, EqType::Bell, EqType::Bell, EqType::HighShelf };
+    EqBand b;
+    if (! on || k < 0 || k >= kEqOldBands) return b;
+    b.used = b.on = true;
+    b.type = types[k];
+    b.freq = freq; b.gain = b.hasGain() ? gain : 0.0f; b.q = q;
+    return b;
+}
+
 std::string fxName (FxType t)
 {
     switch (t)

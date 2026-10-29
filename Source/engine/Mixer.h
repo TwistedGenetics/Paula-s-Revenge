@@ -4,6 +4,7 @@
 #include "MixerTypes.h"
 #include "Effects.h"
 #include "DelayLine.h"
+#include "Utility.h"
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -54,6 +55,11 @@ public:
     {
         if (ins >= 0 && ins < kMixInstruments) runInserts (m.inst[ins], instrumentSlot (ins, 0), L, R, n, bpm);
     }
+
+    // the EQ's spectrum display: the channel it shows (source = track), after its EQ;
+    // the Player sets tapsLive while the song (or a note) plays, so the display freezes when it stops
+    AudioTap chTap;
+    bool tapsLive = false;
 
     // meters (peaks since the UI last read them)
     std::atomic<float> trackPeak[kMixTracks] {}, returnPeak[kReturns] {}, masterPeakL { 0 }, masterPeakR { 0 };

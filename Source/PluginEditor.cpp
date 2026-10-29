@@ -115,7 +115,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                                            prv::ui::PatternEditor::detectChords() ? "DETECT CHORDS: ON (TURN OFF)" : "DETECT CHORDS: OFF (TURN ON)",
                                            "CAPTURE WHAT I PLAYED (CMD+R)",
                                            prv::ui::PatternEditor::recordNoteOffs() ? "NOTE-OFFS: ON (TURN OFF - NO OFFS RECORDED AT ALL)" : "NOTE-OFFS: OFF (TURN ON)",
-                                           proc.fullVelocity.load() ? "FULL VEL: ON (TURN OFF - USE THE KEYBOARD'S VELOCITY)" : "FULL VEL: OFF (TURN ON - EVERY NOTE AT 127)" },
+                                           proc.fullVelocity.load() ? "FULL VEL: ON (TURN OFF - USE THE KEYBOARD'S VELOCITY)" : "FULL VEL: OFF (TURN ON - EVERY NOTE AT 127)",
+                                           prv::ui::PatternEditor::followInstrument() ? "FOLLOW INSTRUMENT: ON (TURN OFF)" : "FOLLOW INSTRUMENT: OFF (TURN ON)" },
                      [safe] (int a)
         {
             if (safe == nullptr) return;
@@ -136,6 +137,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             else if (a == 2) safe->captureNow();
             else if (a == 3) safe->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs());
             else if (a == 4) safe->setFullVelocity (! safe->proc.fullVelocity.load());
+            else if (a == 5) safe->setFollowInstrument (! prv::ui::PatternEditor::followInstrument());
         });
     };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
@@ -182,6 +184,13 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     pattern.onStateChanged = [this] { refreshAll(); };
     pattern.onBounce = [this] { askBounce(); };
+    pattern.onFollowInstrument = [this] (int ins)
+    {
+        if (proc.editorState.instrument == ins) return;
+        proc.editorState.instrument = ins;
+        proc.jamInstrument = ins;
+        refreshAll();
+    };
     pattern.onSelectionMenu = [this] (int line, int track, int group)
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
@@ -493,7 +502,14 @@ void PaulaEditor::timerCallback()
         if ((f == nullptr || f == this) && isShowing() && getPeer() != nullptr && getPeer()->isFocused()) pattern.grabKeyboardFocus();
     }
     pattern.tick();
-    if (spectrum.isVisible()) spectrum.tick();
+    if (spectrum.isVisible())
+    {
+        // at instrument level (its PARAMS or plug-in page) the strip shows just that instrument
+        const auto v = proc.editorState.view;
+        spectrum.setInstrument (v == View::Params || v == View::Synth ? proc.editorState.instrument : -1);
+        spectrum.tick();
+    }
+    else spectrum.setInstrument (-1);
     if (sampleEditor.isVisible()) sampleEditor.tick();
     if (browser.isVisible()) browser.tick();
     if (params.isVisible()) params.tick();
@@ -766,6 +782,13 @@ void PaulaEditor::setFullVelocity (bool on)
     proc.setFullVelocity (on);
     fullVelBtn.setToggleState (on, juce::dontSendNotification);
     setStatus (on ? "FULL VEL: EVERY NOTE YOU PLAY GOES IN AT FULL VELOCITY (127)" : "FULL VEL OFF: NOTES USE THE KEYBOARD'S VELOCITY");
+}
+
+void PaulaEditor::setFollowInstrument (bool on)
+{
+    prv::ui::PatternEditor::setFollowInstrument (on);
+    setStatus (on ? "FOLLOW INSTRUMENT: CLICKING A NOTE PICKS ITS INSTRUMENT IN THE LIST"
+                  : "FOLLOW INSTRUMENT OFF: CLICKING A NOTE LEAVES THE INSTRUMENT AS IT IS");
 }
 
 void PaulaEditor::setNoteOffs (bool on)

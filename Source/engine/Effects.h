@@ -22,7 +22,7 @@ public:
 
 std::unique_ptr<Effect> makeEffect (FxType);
 
-// Five-band channel EQ (high-pass, low shelf, two bells, high shelf), stereo
+// The channel EQ: up to 8 points (bells, shelves, high- and low-pass), stereo
 class ChannelEqProcessor
 {
 public:
@@ -35,7 +35,7 @@ public:
 private:
     struct Coeffs { double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0; };
     struct State { double z1 = 0, z2 = 0; };
-    static Coeffs design (int band, const EqBand& b, double sampleRate);
+    static Coeffs design (const EqBand& b, double sampleRate);
     double sr = 48000.0;
     ChannelEq last;
     bool dirty = true;

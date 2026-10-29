@@ -31,6 +31,7 @@ void PixList::paint (juce::Graphics& g)
     const int n = getNumRows ? getNumRows() : 0;
     scroll = juce::jlimit (0, maxScroll(), scroll);
     juce::RectangleList<float> text, dim;
+    bool anyScroll = false;
     for (int i = 0; i < visibleRows() + 1; ++i)
     {
         const int row = scroll + i;
@@ -63,7 +64,28 @@ void PixList::paint (juce::Graphics& g)
             g.fillRect (px * 5.5f, rr.getY(), px * 1.5f, rh);
         }
         const juce::String tag = getRowTag ? getRowTag (row) : juce::String();
-        if (getRowName && tagZoneX >= 0)
+        if (getRowName && getRowNumber && nameX >= 0)
+        {
+            // the name in its zone (scrolling when it doesn't fit), then the block number
+            const juce::String nm = getRowName (row);
+            const float zoneW = nameEndX - nameX;
+            if (nm.isNotEmpty() && zoneW > px * 6)
+            {
+                const float off = nameScroll (row, nm);
+                if (PixelFont::textWidth (nm, px) > zoneW && (row == playing || row == selected || row == hoverRow)) anyScroll = true;
+                g.saveState();
+                g.reduceClipRegion (juce::Rectangle<float> (nameX, rr.getY(), zoneW, rh).toNearestInt());
+                PixelFont::draw (g, nm, nameX - off, ty, px, isRowDim (row) ? Theme::skin.dim : Theme::skin.text);
+                g.restoreState();
+                if (PixelFont::textWidth (nm, px) > zoneW && off < PixelFont::textWidth (nm, px) - zoneW - 0.5f)
+                {
+                    g.setColour (Theme::skin.dim);   // (more to come: a mark at the zone's right edge)
+                    g.fillRect (nameEndX - px * 0.5f, rr.getY() + px * 2, px * 0.5f, rh - px * 4);
+                }
+            }
+            PixelFont::addText (isRowDim (row) ? dim : text, getRowNumber (row), numberX, ty, px);
+        }
+        else if (getRowName && tagZoneX >= 0)
         {
             // the block's name, cut short so it never runs into the section label
             juce::String nm = getRowName (row);
@@ -98,6 +120,9 @@ void PixList::paint (juce::Graphics& g)
     g.setColour (Theme::skin.text);
     g.fillRectList (text);
     g.restoreState();
+    // a long name on the playing / selected / hovered row scrolls: keep repainting while it does
+    if (anyScroll && testClockMs() < 0) { if (! ticker.isTimerRunning()) { ticker.fn = [this] { repaint(); }; ticker.startTimerHz (30); } }
+    else ticker.stopTimer();
 
     // drop marker while dragging a row
     if (reordering && ! rangeDragging && dropRow >= 0)
@@ -136,6 +161,21 @@ void PixList::scrollBy (int rows)
 {
     scroll = juce::jlimit (0, maxScroll(), scroll + rows);
     repaint();
+}
+
+float PixList::nameScroll (int row, const juce::String& name) const
+{
+    // only the playing, selected or hovered row scrolls: wait, glide to the end, wait, jump back
+    const float px = Theme::px;
+    const float over = PixelFont::textWidth (name, px) - (nameEndX - nameX);
+    if (over <= 0.0f || ! (row == playing || row == selected || row == hoverRow)) return 0.0f;
+    const double speed = px * 6.0 / 0.16;              // a character every 0.16 s
+    const double wait = 1200.0, glide = over / speed * 1000.0;
+    const double now = testClockMs() >= 0 ? testClockMs() : juce::Time::getMillisecondCounterHiRes();
+    const double t = std::fmod (now, wait * 2.0 + glide);
+    if (t < wait) return 0.0f;
+    if (t < wait + glide) return (float) ((t - wait) / glide * over);
+    return over;
 }
 
 void PixList::timerCallback()
@@ -215,6 +255,8 @@ void PixList::mouseMove (const juce::MouseEvent& e)
 {
     const int row = rowAt (e.position.y);
     const int n = getNumRows ? getNumRows() : 0;
+    const int hr = row >= 0 && row < n && ! barArea().contains (e.position) ? row : -1;
+    if (hr != hoverRow) { hoverRow = hr; repaint(); }
     const int h = (tagZoneX >= 0 && e.position.x >= tagZoneX && ! barArea().contains (e.position) && row >= 0 && row < n) ? row : -1;
     if (h != hoverTagRow) { hoverTagRow = h; repaint(); }
     if (onHover) onHover (row >= 0 && row < n && ! barArea().contains (e.position) ? row : -1);
@@ -222,6 +264,7 @@ void PixList::mouseMove (const juce::MouseEvent& e)
 
 void PixList::mouseExit (const juce::MouseEvent&)
 {
+    if (hoverRow >= 0) { hoverRow = -1; repaint(); }
     if (hoverTagRow >= 0) { hoverTagRow = -1; repaint(); }
 }
 
@@ -256,7 +299,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     list.getNumRows = [this] { return (int) proc.song.sequence.size(); };
     list.getRowText = [this] (int r)
     {
-        return juce::String (r).paddedLeft ('0', 3) + "  BLOCK " + juce::String (proc.song.sequence[(size_t) r]).paddedLeft ('0', 3);
+        return juce::String (r).paddedLeft ('0', 3);   // (then the block's name and number: getRowName / getRowNumber)
     };
     ops.onDone = [this] (const juce::String& m) { this->changed(); if (onStatus && m.isNotEmpty()) onStatus (m); };
     setWantsKeyboardFocus (true);
@@ -312,7 +355,13 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     list.getRowName = [this] (int r)
     {
         if (r < 0 || r >= (int) proc.song.sequence.size()) return juce::String();
-        return juce::String (proc.song.blocks[(size_t) proc.song.safeBlock (proc.song.sequence[(size_t) r])].name).toUpperCase();
+        const auto nm = juce::String (proc.song.blocks[(size_t) proc.song.safeBlock (proc.song.sequence[(size_t) r])].name).toUpperCase().trim();
+        return nm.isEmpty() ? juce::String ("BLOCK") : nm;   // (the name takes the place of the word BLOCK)
+    };
+    list.getRowNumber = [this] (int r)
+    {
+        if (r < 0 || r >= (int) proc.song.sequence.size()) return juce::String();
+        return juce::String (proc.song.sequence[(size_t) r]).paddedLeft ('0', 3);
     };
     list.onDoubleClick = [this] (int r) { nameBlockAt (r); };
     list.onTagClick = [this] (int r)
@@ -513,8 +562,18 @@ void SequencePanel::resized()
     loopSectBtn.setBounds (row3);
 
     list.setBounds (r);
-    // section labels go right of "000  BLOCK 000"
-    list.tagZoneX = px * 8.0f + PixelFont::textWidth ("000  BLOCK 000 ", px);
+    // each row: "000  NAME....  000  SECTION": the position, the block's name (BLOCK when it has none) in a zone
+    // that takes about half of what's left, the block number (it never changes), then the section label
+    {
+        const float cell = px * PixelFont::kCellW;
+        const float listW = (float) r.getWidth() - px * 9;   // (less the scrollbar)
+        list.nameX = px * 8.0f + PixelFont::textWidth ("000  ", px);
+        const float rest = listW - list.nameX - PixelFont::textWidth (" 000  ", px);
+        const int nameChars = juce::jlimit (5, 18, (int) (rest * 0.55f / cell));
+        list.nameEndX = list.nameX + nameChars * cell;
+        list.numberX = list.nameEndX + cell;
+        list.tagZoneX = list.numberX + PixelFont::textWidth ("000 ", px);
+    }
 }
 
 // =========================================================================== Sections
@@ -705,9 +764,17 @@ void BlockPanel::refresh()
     current.setValue (proc.song.safeBlock (st.block));
     lines.setValue (proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].lines);
     countLabel.setText ("OF " + juce::String ((int) proc.song.blocks.size()).paddedLeft ('0', 3));
+    repaint();   // (the title shows the block's name)
 }
 
-void BlockPanel::paint (juce::Graphics& g) { Theme::panelBox (g, getLocalBounds().toFloat(), "BLOCK"); }
+void BlockPanel::paint (juce::Graphics& g)
+{
+    // the title carries the block's name when it has one and it fits
+    const auto nm = juce::String (proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)].name).toUpperCase().trim();
+    juce::String title = "BLOCK";
+    if (nm.isNotEmpty() && PixelFont::textWidth ("BLOCK: " + nm, Theme::px) < getWidth() - Theme::px * 24) title = "BLOCK: " + nm;
+    Theme::panelBox (g, getLocalBounds().toFloat(), title);
+}
 
 void BlockPanel::resized()
 {

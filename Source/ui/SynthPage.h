@@ -7,6 +7,7 @@
 #include "InstrumentFx.h"
 #include "Panels.h"
 #include "Learn.h"
+#include "UtilityStrip.h"
 
 namespace prv::ui
 {
@@ -32,6 +33,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
 
     // tests
+    UtilityStrip& utilityStrip() { return utility; }
     bool isBrowsing() const { return browsing; }
     int  choiceCount() const { return (int) choices.size(); }
     void choose (int row);
@@ -44,6 +46,8 @@ public:
 private:
     PaulaProcessor& proc;
     InstrumentFxRow fxRow { proc };   // the instrument's own effects (after proc: it uses it)
+    UtilityStrip utility { proc };   // WIDTH, MONO BELOW, VOL (= the instrument's VOL)
+    juce::Rectangle<float> utilLabel;
     bool browsing = false;
     int shown = -1;
     PixList list;

@@ -14,6 +14,9 @@ public:
     void tick();                 // ~30x a second
     void paint (juce::Graphics&) override;
     void feed (const float* samples, int n);   // used by tests
+    // at instrument level (its PARAMS or plug-in page): just that instrument's sound (-1 = everything)
+    void setInstrument (int ins);
+    int  instrument() const { return onlyInstrument; }
     void mouseDown (const juce::MouseEvent&) override;
     std::function<void()> onColourMenu;        // right-click: the spectrum's colour
 
@@ -28,6 +31,8 @@ private:
     float bands[kBands] {}, peaks[kBands] {};
     int peakHold[kBands] {};
     std::vector<float> incoming = std::vector<float> (8192, 0.0f);
+    int onlyInstrument = -1;
+    uint32_t lastTapCount = 0;
     void analyse();
 };
 // Left/right output level meter: two bars with "L" and "R" so the balance is obvious

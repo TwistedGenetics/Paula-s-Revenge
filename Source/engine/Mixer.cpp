@@ -172,6 +172,7 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         float* L = tL[t];
         float* R = tR[t];
         if (c.eq.anyOn()) eq[t].process (L, R, n, c.eq);
+        if (tapsLive && chTap.source.load (std::memory_order_relaxed) == t) chTap.push (L, R, n);
         runInserts (c.inserts, trackSlot (t, 0), L, R, n, bpm);
         trackAlign[t].process (L, R, n, maxLat - lat[t] + extraDelay);
         const float g = dbToGain (c.volumeDb);

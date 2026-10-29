@@ -39,6 +39,9 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 {
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
     fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    utility.onChanged = [this] { if (onChanged) onChanged(); };
+    utility.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    addAndMakeVisible (utility);
     addAndMakeVisible (fxRow);
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
@@ -235,6 +238,7 @@ void ParamsPage::armLearn (int knob)
 void ParamsPage::refresh()
 {
     fxRow.refresh();
+    utility.refresh();
     if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
     const auto& in = inst();
@@ -306,12 +310,15 @@ void ParamsPage::resized()
     }
     r.removeFromBottom (gap * 2);
 
-    auto panRow = r.removeFromBottom (rowH + (int) (px * 14));
+    // pan and the UTILITY: two rows in a box without a title (the filter envelope above keeps its room)
+    auto panRow = r.removeFromBottom (rowH * 2 + gap * 6);
     panBox = panRow.toFloat();
     {
-        auto inner = panRow.reduced (gap * 2).withTrimmedTop ((int) (px * 11));
-        amigaBtn.setBounds (inner.removeFromLeft (inner.getWidth() / 3)); inner.removeFromLeft (gap * 3);
-        pan.setBounds (inner);
+        auto inner = panRow.reduced (gap * 2);
+        auto top = inner.removeFromTop (rowH); inner.removeFromTop (gap * 2);
+        amigaBtn.setBounds (top.removeFromLeft (top.getWidth() / 3)); top.removeFromLeft (gap * 3);
+        pan.setBounds (top);
+        utility.setBounds (inner.removeFromTop (rowH));
     }
     r.removeFromBottom (gap * 2);
 
@@ -406,7 +413,7 @@ void ParamsPage::paint (juce::Graphics& g)
     Theme::panelBox (g, envBox, "VOLUME", Theme::palFor (*this));
     Theme::panelBox (g, filterBox, "FILTER", Theme::palFor (*this));
     Theme::panelBox (g, fenvBox, "FILTER ENVELOPE", Theme::palFor (*this));
-    Theme::panelBox (g, panBox, "PAN", Theme::palFor (*this));
+    Theme::panelBox (g, panBox, {}, Theme::palFor (*this));
     drawEnvelope (g, envGraph, in.volEnv, in.volEnv.on);
 
     if (hasKeyboardFocus (true))

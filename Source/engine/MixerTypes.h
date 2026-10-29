@@ -52,29 +52,56 @@ struct FxSlot
     }
 };
 
-enum EqBandIndex { kEqHighPass = 0, kEqLowShelf, kEqMid1, kEqMid2, kEqHighShelf, kEqBands };
+// The channel EQ: up to 8 points, each a bell, a shelf or a pass filter, added where you double-click
+// the graph. A new channel's EQ is empty (flat).
+constexpr int kEqBands = 8;
+constexpr int kEqOldBands = 5;   // songs before v20: HIGH-PASS, LOW SHELF, MID 1, MID 2, HIGH SHELF
+enum class EqType : uint8_t { Bell = 0, LowShelf, HighShelf, HighPass, LowPass, Count };
+constexpr float kEqMinHz = 20.0f, kEqMaxHz = 20000.0f, kEqMaxDb = 18.0f;
 
 struct EqBand
 {
-    bool  on = false;
-    float freq = 1000.0f;   // Hz
-    float gain = 0.0f;      // dB (not used by the high-pass)
-    float q = 0.7f;         // mids only
-    bool operator== (const EqBand& o) const { return on == o.on && freq == o.freq && gain == o.gain && q == o.q; }
+    bool   used = false;            // a point on the graph
+    bool   on = false;              // (a used point can be switched off and keep its settings)
+    EqType type = EqType::Bell;
+    float  freq = 1000.0f;          // Hz
+    float  gain = 0.0f;             // dB (not used by the pass filters)
+    float  q = 1.0f;                // bells only
+    bool active() const { return used && on; }
+    bool hasGain() const { return type != EqType::HighPass && type != EqType::LowPass; }
+    bool hasQ() const { return type == EqType::Bell; }
+    bool operator== (const EqBand& o) const { return used == o.used && on == o.on && type == o.type && freq == o.freq && gain == o.gain && q == o.q; }
 };
+
+std::string eqTypeName (EqType);          // "BELL", "LOW SHELF"...
+EqType eqTypeForFreq (float hz);
+// an EQ band from a song before v20 (fixed band k: HIGH-PASS, LOW SHELF, MID 1, MID 2, HIGH SHELF);
+// in use only if it was on
+EqBand eqBandFromOld (int k, bool on, float freq, float gain, float q);          // what a point added there is: a low shelf below 80 Hz, a high shelf above 10 kHz, else a bell
 
 struct ChannelEq
 {
     EqBand band[kEqBands];
-    ChannelEq()
+    bool anyOn() const { for (const auto& b : band) if (b.active()) return true; return false; }
+    int  points() const { int n = 0; for (const auto& b : band) if (b.used) ++n; return n; }
+    // a new point there (switched on); -1 when all 8 are in use
+    int  add (float hz, float db)
     {
-        band[kEqHighPass]  = { false, 40.0f, 0.0f, 0.7f };
-        band[kEqLowShelf]  = { false, 120.0f, 0.0f, 0.7f };
-        band[kEqMid1]      = { false, 500.0f, 0.0f, 1.0f };
-        band[kEqMid2]      = { false, 2500.0f, 0.0f, 1.0f };
-        band[kEqHighShelf] = { false, 8000.0f, 0.0f, 0.7f };
+        for (int i = 0; i < kEqBands; ++i)
+            if (! band[i].used)
+            {
+                EqBand& b = band[i];
+                b = {};
+                b.used = b.on = true;
+                b.type = eqTypeForFreq (hz);
+                b.freq = hz < kEqMinHz ? kEqMinHz : (hz > kEqMaxHz ? kEqMaxHz : hz);
+                b.gain = b.hasGain() ? (db < -kEqMaxDb ? -kEqMaxDb : (db > kEqMaxDb ? kEqMaxDb : db)) : 0.0f;
+                b.q = 1.0f;
+                return i;
+            }
+        return -1;
     }
-    bool anyOn() const { for (const auto& b : band) if (b.on) return true; return false; }
+    void remove (int i) { if (i >= 0 && i < kEqBands) band[i] = {}; }
 };
 
 struct ChannelStrip

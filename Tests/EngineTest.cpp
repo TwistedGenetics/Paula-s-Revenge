@@ -1946,7 +1946,7 @@ static void testMixer()
         MixerSettings m;
         CHECK (m.isFlat());
         m.ch[2].send[0] = 0.1f; CHECK (! m.isFlat());
-        m = MixerSettings {}; m.ch[0].eq.band[kEqMid1].on = true; CHECK (! m.isFlat());
+        m = MixerSettings {}; m.ch[0].eq.add (1000.0f, 3.0f); CHECK (! m.isFlat());
         m = MixerSettings {}; initFxSlot (m.ch[1].inserts[2], FxType::Delay); CHECK (! m.isFlat());
         m.ch[1].inserts[2].bypass = true; CHECK (m.isFlat());
         CHECK (m.ret[0].inserts[0].type == FxType::Reverb && m.ret[1].inserts[0].type == FxType::Delay);
@@ -1978,9 +1978,9 @@ static void testMixer()
     // EQ curve and processing
     {
         ChannelEq eq;
-        eq.band[kEqMid1] = { true, 1000.0f, 12.0f, 1.0f };
-        eq.band[kEqLowShelf] = { true, 120.0f, -6.0f, 0.7f };
-        eq.band[kEqHighPass] = { true, 40.0f, 0.0f, 0.7f };
+        eq.band[0] = { true, true, EqType::Bell, 1000.0f, 12.0f, 1.0f };
+        eq.band[3] = { true, true, EqType::LowShelf, 120.0f, -6.0f, 0.7f };
+        eq.band[5] = { true, true, EqType::HighPass, 40.0f, 0.0f, 0.7f };
         const double at1k = ChannelEqProcessor::responseDb (eq, 1000, 48000), at30 = ChannelEqProcessor::responseDb (eq, 25, 48000),
                      at10k = ChannelEqProcessor::responseDb (eq, 10000, 48000), at80 = ChannelEqProcessor::responseDb (eq, 80, 48000);
         std::printf ("EQ: 1k %.1f dB, 80 Hz %.1f dB, 25 Hz %.1f dB, 10k %.1f dB\n", at1k, at80, at30, at10k);
@@ -2980,6 +2980,140 @@ static void testChordDetect()
     CHECK (r5.chords == 1 && r5.places[0].track == 1 && r5.places[0].chordSlot == 0x02);
 }
 
+// v0.25: EQ points (add by place, types, the 8 limit, old songs' bands), UTILITY, spectrum tap and FFT
+static void testEqPointsAndUtility()
+{
+    const double kPiT = 3.14159265358979;
+    {
+        ChannelEq eq;
+        CHECK (eq.points() == 0 && ! eq.anyOn());
+        const int a = eq.add (1000.0f, 6.0f), b = eq.add (50.0f, -3.0f), c = eq.add (12000.0f, 4.0f);
+        CHECK (a == 0 && b == 1 && c == 2);
+        CHECK (eq.band[a].type == EqType::Bell && eq.band[b].type == EqType::LowShelf && eq.band[c].type == EqType::HighShelf);
+        CHECK (eq.band[a].freq == 1000.0f && eq.band[a].gain == 6.0f && eq.band[a].q == 1.0f && eq.band[a].active());
+        CHECK (eqTypeForFreq (79.0f) == EqType::LowShelf && eqTypeForFreq (80.0f) == EqType::Bell && eqTypeForFreq (10001.0f) == EqType::HighShelf);
+        CHECK (std::abs (ChannelEqProcessor::responseDb (eq, 1000, 48000) - 6.0) < 0.6);
+        // clamped to the graph
+        ChannelEq e2; const int k = e2.add (5.0f, 40.0f);
+        CHECK (e2.band[k].freq == kEqMinHz && e2.band[k].gain == kEqMaxDb);
+        // 8 at most
+        for (int i = 3; i < kEqBands; ++i) CHECK (eq.add (300.0f + i * 100.0f, 1.0f) == i);
+        CHECK (eq.points() == 8 && eq.add (500.0f, 1.0f) == -1);
+        // remove, and putting it back restores it exactly (what undo does)
+        const ChannelEq before = eq;
+        eq.remove (4);
+        CHECK (eq.points() == 7 && ! eq.band[4].used);
+        CHECK (eq.add (777.0f, 2.0f) == 4);   // (the free slot is reused)
+        eq.band[4] = before.band[4];
+        bool same = true; for (int i = 0; i < kEqBands; ++i) same = same && eq.band[i] == before.band[i];
+        CHECK (same);
+        // a low-pass cuts above, a high-pass below
+        ChannelEq lp; lp.band[0] = { true, true, EqType::LowPass, 1000.0f, 0.0f, 1.0f };
+        CHECK (ChannelEqProcessor::responseDb (lp, 100, 48000) > -0.5 && ChannelEqProcessor::responseDb (lp, 10000, 48000) < -35);
+        std::printf ("EQ points: 8 max, LP 1k: 100 Hz %.2f dB, 10 kHz %.1f dB\n", ChannelEqProcessor::responseDb (lp, 100, 48000), ChannelEqProcessor::responseDb (lp, 10000, 48000));
+    }
+    {
+        // a v0.24 song's five bands: the ones on become points where they were, and sound the same
+        ChannelEq old;
+        old.band[0] = eqBandFromOld (0, true, 40.0f, 5.0f, 0.7f);    // HIGH-PASS (gain not used)
+        old.band[1] = eqBandFromOld (1, false, 120.0f, 0.0f, 0.7f);  // off: not a point
+        old.band[2] = eqBandFromOld (2, true, 500.0f, -4.0f, 2.0f);
+        old.band[4] = eqBandFromOld (4, true, 8000.0f, 3.0f, 0.7f);
+        CHECK (old.points() == 3 && ! old.band[1].used);
+        CHECK (old.band[0].type == EqType::HighPass && old.band[0].gain == 0.0f && old.band[2].type == EqType::Bell && old.band[4].type == EqType::HighShelf);
+        // the old high-pass was a 2nd-order Butterworth: -3 dB at its frequency
+        const double hp40 = ChannelEqProcessor::responseDb (old, 40, 48000);
+        CHECK (hp40 < -2.5 && hp40 > -3.7);
+        CHECK (std::abs (ChannelEqProcessor::responseDb (old, 500, 48000) - (-4.0)) < 0.5);
+        CHECK (std::abs (ChannelEqProcessor::responseDb (old, 20000, 48000) - 3.0) < 0.5);
+    }
+    {
+        // UTILITY
+        const int n = 48000;
+        auto tone = [&] (double hz, float l, float r, std::vector<float>& L, std::vector<float>& R)
+        {
+            L.assign ((size_t) n, 0.0f); R.assign ((size_t) n, 0.0f);
+            for (int i = 0; i < n; ++i) { const float v = (float) std::sin (2 * kPiT * hz * i / 48000.0); L[(size_t) i] = v * l; R[(size_t) i] = v * r; }
+        };
+        auto rms = [&] (const std::vector<float>& v) { double e = 0; for (int i = n / 2; i < n; ++i) e += v[(size_t) i] * v[(size_t) i]; return std::sqrt (e / (n / 2)); };
+        std::vector<float> L, R;
+        StereoUtility u; u.prepare (48000);
+        tone (440, 0.8f, 0.2f, L, R); u.process (L.data(), R.data(), n, 0.0f, 0);
+        double diff = 0; for (int i = 0; i < n; ++i) diff = std::max (diff, (double) std::abs (L[(size_t) i] - R[(size_t) i]));
+        CHECK (diff < 1e-6);
+        tone (440, 0.8f, 0.2f, L, R); u.process (L.data(), R.data(), n, 2.0f, 0);
+        // side was 0.3, mid 0.5: at 200% side 0.6 -> L 1.1, R -0.1
+        CHECK (std::abs (rms (L) / (1.1 / std::sqrt (2.0)) - 1.0) < 0.01 && std::abs (rms (R) / (0.1 / std::sqrt (2.0)) - 1.0) < 0.02);
+        tone (440, 0.8f, 0.2f, L, R); const auto L0 = L; u.process (L.data(), R.data(), n, 1.0f, 0);
+        CHECK (L == L0);   // the defaults change nothing
+        // MONO BELOW 120 Hz: a 50 Hz tone on the left only comes out on both; a 2 kHz one stays left
+        StereoUtility m; m.prepare (48000);
+        tone (50, 1.0f, 0.0f, L, R); m.process (L.data(), R.data(), n, 1.0f, 120);
+        const double lo = rms (R) / rms (L);
+        m.reset();
+        tone (2000, 1.0f, 0.0f, L, R); m.process (L.data(), R.data(), n, 1.0f, 120);
+        const double hi = rms (R) / rms (L);
+        // and the two halves add back flat: a mono 120 Hz tone keeps its level
+        m.reset();
+        tone (120, 0.5f, 0.5f, L, R); m.process (L.data(), R.data(), n, 1.0f, 120);
+        const double flat = rms (L) / (0.5 / std::sqrt (2.0));
+        std::printf ("UTILITY: mono below 120 Hz: 50 Hz R/L %.3f, 2 kHz R/L %.4f, 120 Hz mono level x%.3f\n", lo, hi, flat);
+        CHECK (lo > 0.9 && hi < 0.01 && std::abs (flat - 1.0) < 0.01);
+    }
+    {
+        // UTILITY in the player: WIDTH 0 on a stereo sample makes left = right
+        Song s = oneShot (square (100, 4800));
+        s.instruments[0].dataR = s.instruments[0].data;
+        for (auto& v : s.instruments[0].dataR) v = (int16_t) (v / 4);
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        std::vector<float> R;
+        auto L = renderMix (s, 9600, false, PaulaOptions::Model::Clean, &R);
+        double d0 = 0; for (int i = 2000; i < 9600; ++i) d0 = std::max (d0, (double) std::abs (L[(size_t) i] - R[(size_t) i]));
+        s.instruments[0].utilWidth = 0.0f;
+        CHECK (s.instruments[0].hasUtility());
+        L = renderMix (s, 9600, false, PaulaOptions::Model::Clean, &R);
+        double d1 = 0, e = 0; for (int i = 2000; i < 9600; ++i) { d1 = std::max (d1, (double) std::abs (L[(size_t) i] - R[(size_t) i])); e += std::abs (L[(size_t) i]); }
+        std::printf ("UTILITY in the player: L-R %.3f, at width 0 %.2e\n", d0, d1);
+        CHECK (d0 > 0.05 && d1 < 1e-5 && e > 10);
+        // not on MIDI out / CV out instruments
+        s.instruments[0].plugin = s.instruments[0].cvOut = true;
+        CHECK (! s.instruments[0].hasUtility());
+    }
+    {
+        // the spectrum: an instrument's tap gets its sound while playing; the FFT finds the tone
+        Song s = oneShot (square (100, 4800));
+        s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.insTap.source = 0;
+        p.mixer().chTap.source = 0;
+        p.forceMixPath = true; p.mixer().syncEffectsNow (s.mixer);
+        std::vector<float> L (4096), R (4096);
+        p.render (L.data(), R.data(), 4096);   // stopped: nothing
+        CHECK (p.insTap.count() == 0 && p.mixer().chTap.count() == 0);
+        p.playBlock (0);
+        for (int k = 0; k < 4; ++k) p.render (L.data(), R.data(), 4096);
+        CHECK (p.insTap.count() >= 8192 && p.mixer().chTap.count() >= 8192);
+        std::vector<float> buf (4096);
+        CHECK (p.insTap.read (buf.data(), 4096) == 4096);
+        float pk = 0; for (float v : buf) pk = std::max (pk, std::abs (v));
+        CHECK (pk > 0.05f);
+        // another instrument: nothing
+        Player q; q.setSampleRate (48000); q.setSong (&s); q.insTap.source = 5; q.playBlock (0);
+        q.render (L.data(), R.data(), 4096);
+        float qpk = 0; const int got = q.insTap.read (buf.data(), 4096);
+        for (int i = 0; i < got; ++i) qpk = std::max (qpk, std::abs (buf[(size_t) i]));
+        CHECK (got == 4096 && qpk == 0.0f);
+
+        std::vector<float> sine (4096), db;
+        for (int i = 0; i < 4096; ++i) sine[(size_t) i] = 0.5f * (float) std::sin (2 * kPiT * 1000.0 * i / 48000.0);
+        spectrumDb (sine.data(), 4096, db);
+        int best = 0; for (int k = 1; k < (int) db.size(); ++k) if (db[(size_t) k] > db[(size_t) best]) best = k;
+        const double hz = best * 48000.0 / 4096;
+        std::printf ("spectrum: 1 kHz sine peaks at %.0f Hz, %.1f dB; 5 kHz %.1f dB\n", hz, db[(size_t) best], db[(size_t) (5000 * 4096 / 48000)]);
+        CHECK (std::abs (hz - 1000.0) < 12.0 && db[(size_t) best] > -8.0 && db[(size_t) best] < -4.0 && db[(size_t) (5000 * 4096 / 48000)] < -60.0);
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3008,6 +3142,7 @@ int main()
     testRangeCentsSync();
     testSampleTools();
     testCvOut();
+    testEqPointsAndUtility();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

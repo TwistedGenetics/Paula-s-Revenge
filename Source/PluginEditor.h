@@ -60,6 +60,7 @@ public:
     void toggleSample();                              // Cmd+4: open it, or close it
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
+    prv::ui::Spectrum& getSpectrum() { return spectrum; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
     // the File menu (the standalone's menu bar; tests)
     void newSong();
@@ -70,6 +71,7 @@ public:
     void exportWav();
     void exportSamples();
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
+    void setFollowInstrument (bool on);               // FOLLOW INSTRUMENT: a click on a note picks its instrument
     void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
     bool fullVelocityOn() const { return proc.fullVelocity.load(); }
     bool writeSongTo (const juce::File&);             // SAVE to that file (the song takes the file's name)
