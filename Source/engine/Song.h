@@ -174,6 +174,7 @@ struct Instrument
     // inserts. Its VOLUME is the instrument's VOL itself. At the defaults it does nothing.
     float utilWidth = 1.0f;                 // 0 (mono) .. 2 (200%)
     int   utilMonoHz = 0;                   // 0 = off, else 20..500: everything below it mono
+    bool  utilSteep = false;                // MONO BELOW at 48 dB/oct (LR8) instead of 24 (LR4): the lows fully mono sooner
     bool  hasUtility() const { return ! isMidiOut() && ! isCvOut() && (utilWidth != 1.0f || utilMonoHz > 0); }
 
     // any instrument can be switched off (the ON button): its notes are silent
@@ -232,6 +233,7 @@ struct Song
     MixerSettings mixer;               // flat by default: plays exactly as without a mixer
     CvSource cvSources[kCvSources];    // CV SOURCES (all off by default)
     float cvFullScale = 10.0f;         // the volts at full scale for the CV SOURCES (ES-9: 10)
+    int   cvDelayMs = 0;               // CV DELAY: -100..+100 ms. Positive: the voltages later; negative: the music (outputs 1-2) later
     std::array<Instrument, kMaxInstruments> instruments;
     ChordTable chords;                 // 0xy on a CHORD instrument's note plays slot xy; saved in the song
     bool chordsLegacy = false;         // (a v0.11 song: 0xy = two intervals, x and y semitones up)
@@ -250,6 +252,7 @@ struct Song
         mixer = MixerSettings {};
         for (auto& c : cvSources) c = CvSource {};
         cvFullScale = 10.0f;
+        cvDelayMs = 0;
         for (auto& i : instruments) i.clear();
         chords = defaultChordTable();
         chordsLegacy = false;

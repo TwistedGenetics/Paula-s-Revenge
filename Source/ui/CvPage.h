@@ -35,6 +35,9 @@ public:
     void calibrate();                    // AUTO-TUNE: step through the voltages, measure, make the map
     void stopCalibration (const juce::String& why);
     void clearMap();
+    void showMapMenu();                  // MAP...: the maps AUTO-TUNE kept (by the instrument's name), CLEAR MAP
+    static juce::StringArray savedMaps();
+    bool loadMap (const juce::String& name);
     bool isCalibrating() const { return calStep >= 0; }
     bool tunerOn() const { return tuning; }
     double tunerHz() const { return lastHz; }
@@ -49,7 +52,7 @@ private:
               velBox { "VEL OUT", 0, kCvOutputs, 0 }, modBox { "MOD OUT", 0, kCvOutputs, 0 };
     NumberBox scaleBox { "FULL SCALE", 10, 200, 100 }, gateVBox { "GATE", 5, 120, 50 }, octBox { "OCTAVE", -4, 4, 0 }, bendBox { "BEND", 1, 48, 12 };
     NumberBox inputBox { "INPUT", 0, kCvOutputs, 0 };
-    PixButton tunerBtn { "TUNER", true }, calBtn { "AUTO-TUNE" }, clearBtn { "CLEAR MAP" };
+    PixButton tunerBtn { "TUNER", true }, calBtn { "AUTO-TUNE" }, clearBtn { "MAP..." };   // MAP...: LOAD a saved map, CLEAR
     PixButton sourcesBtn { "CV SOURCES..." }, chordsBtn { "CHORDS..." }, sampleBtn { "BACK TO A SAMPLE" }, closeBtn { "CLOSE" }, onBtn { "ON", true };
     juce::Rectangle<float> titleArea, infoArea, tunerArea, mapArea;
     std::map<int, int> heldKeys;
@@ -94,9 +97,12 @@ private:
         juce::Rectangle<float> label;
     };
     Row rows[kCvSources];
-    NumberBox scaleBox { "FULL SCALE", 10, 200, 100 };
+    NumberBox scaleBox { "FULL SCALE", 10, 200, 100 }, delayBox { "CV DELAY", -100, 100, 0 };
     PixButton closeBtn { "CLOSE" };
     juce::Rectangle<float> titleArea, helpArea;
+public:
+    void setDelay (int ms) { delayBox.setValue (ms, true); }   // (tests)
+private:
     template <typename Fn> void edit (int source, const juce::String& what, Fn&& fn);
     void layoutRow (int i, juce::Rectangle<int> r);
     void chooseKind (int i);

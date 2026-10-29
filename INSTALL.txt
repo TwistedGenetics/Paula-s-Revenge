@@ -6,6 +6,9 @@ Then in Terminal (downloaded files are quarantined by macOS):
 
   xattr -dr com.apple.quarantine "/Applications/Paula's Revenge.app"
 
+(Builds signed with a Developer ID and notarised by Apple open straight
+away and don't need this step.)
+
 Open it from Applications. Audio and MIDI devices are under
 Paula's Revenge > Audio/MIDI Settings... (Cmd+,).
 

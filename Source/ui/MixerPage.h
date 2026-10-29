@@ -8,6 +8,7 @@
 #include "Panels.h"
 #include "EqGraph.h"
 #include "PluginSearch.h"
+#include "Spectrum.h"
 
 namespace prv::ui
 {
@@ -163,9 +164,11 @@ private:
     PixButton pluginBtn { "PLUG-IN...", true }, rescanBtn { "RESCAN" }, editPluginBtn { "OPEN PLUG-IN WINDOW" }, listCloseBtn { "BACK TO THE EFFECT" };
     PixList pluginList;
     PluginSearchBar pluginSearch;   // type to search, favourites
+    Spectrum instSpectrum { proc };   // an instrument's own effect: that instrument's sound
     int listedPluginTotal = -1;
 public:
     PluginSearchBar& pluginSearchBar() { return pluginSearch; }   // (tests)
+    Spectrum& instrumentSpectrum() { return instSpectrum; }
     juce::String pluginRowText (int row) const { return row >= 0 && row < (int) pluginChoices.size() ? PluginSearchBar::rowText (pluginChoices[(size_t) row]) : juce::String(); }
 private:
     std::vector<juce::PluginDescription> pluginChoices;

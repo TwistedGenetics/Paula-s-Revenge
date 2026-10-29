@@ -120,8 +120,8 @@ PARAMS in the instrument panel opens a page for the current instrument. Everythi
 * **Filter**: OFF / LOW / HIGH / BAND pass, CUT (20 Hz – 20 kHz), RES, AMT (how far the filter envelope moves the cutoff, ±8 octaves), KEY (how much the cutoff follows the note).
 * **Filter envelope**: ATK, DEC, SUS, REL.
 * **Pan**: AMIGA L/R follows the track layout above; switch it off and use PAN to give the instrument its own position.
-* **UTILITY** (the row under PAN; also on a plug-in instrument's page): **WIDTH** 0% (mono) to 200% (wider), as mid / side; **MONO** makes everything below a frequency mono (OFF, or `<20HZ` to `<500HZ`, with a smooth 24 dB/octave crossover so nothing thins out at the split) — the classic "mono the bass" move; **VOL** is the instrument's VOL itself, so moving either one moves the other (and undo takes them back together). It works before the instrument's own effects, on samples and VST3 / AU instruments (not MIDI out or CV out). At 100% and OFF it does nothing. Saved in the song, in renders and bounces. (With **8CH GRIT** on, a sliver of the grit lands on the paired track, as on the real thing, so a mono instrument there isn't 100% mono.)
-* **Spectrum at instrument level**: while PARAMS or a plug-in instrument's page is up, the spectrum strip under it shows just that instrument's sound (after its UTILITY and its own effects), marked `INSTRUMENT 01 ONLY`.
+* **UTILITY** (the row under PAN; also on a plug-in instrument's page): **WIDTH** 0% (mono) to 200% (wider), as mid / side; **MONO** makes everything below a frequency mono (OFF, or `<20HZ` to `<500HZ`, with a smooth 24 dB/octave crossover so nothing thins out at the split; **STEEP** makes it 48 dB/octave, so the bass is fully mono right up to the split) — the classic "mono the bass" move; **VOL** is the instrument's VOL itself, so moving either one moves the other (and undo takes them back together). It works before the instrument's own effects, on samples and VST3 / AU instruments (not MIDI out or CV out). At 100% and OFF it does nothing. Saved in the song, in renders and bounces. (With **8CH GRIT** on, a sliver of the grit lands on the paired track, as on the real thing, so a mono instrument there isn't 100% mono.)
+* **Spectrum at instrument level**: while PARAMS or a plug-in instrument's page is up, the spectrum strip under it shows just that instrument's sound (after its UTILITY and its own effects), marked `INSTRUMENT 01 ONLY`. Editing one of the instrument's own effects in the mixer shows it there too, along the bottom.
 * **HOLD TO PLAY**, or play the computer keyboard, to hear it. RESET ALL puts everything back. Double-click any slider for its default.
 * **ON** (bottom left) switches the instrument off and on. While it's off its notes don't play (anything sounding fades out over 5 ms, so there's no click), and the instrument list shows it dimmed with `OFF`. To switch it from the pattern, pick a track in the **TRACK** box, press **LEARN A (V)** or **LEARN B (J)**, then click ON: that track's `Vxx` / `Jxx` becomes the instrument's `ON/OFF` (`00` = off, `01`–`FF` = on).
 * **PLUG-IN / MIDI OUT...** plays this instrument with a VST3 / AU instrument, with your hardware over MIDI, or with a modular over CV (see below).
@@ -216,6 +216,10 @@ Mark the parts of a song (intro, drop, break…) with dividers in the sequence:
 **The song's name is its file's name**: SAVE AS `amen roller.prv` and the song is called `AMEN ROLLER` (shown at the top); load a `.prv` and it takes that file's name. It's also in the window's title bar. A new song is `UNTITLED` until it's saved. MODs keep the name inside them until you save them as `.prv`.
 
 **SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
+
+**Autosave and crash recovery** (the app): every two minutes, when something has changed, a copy of the song goes into the app's own folder (written in the background, so the music doesn't stutter; the one before is kept too). If the app doesn't close properly — a crash, a plug-in taking it down, the power going — it asks next time: **RECOVER** the song (as it was at the last autosave, still pointing at its own file and marked unsaved, so SAVE puts it back where it belongs) or **START AS NORMAL** (the autosave is kept until the next one). A normal quit never asks. The folder: `~/Library/Application Support/Paula's Revenge/Autosave` on a Mac, `%APPDATA%\Paula's Revenge\Autosave` on a PC.
+
+The window's title shows the song, a `*` for unsaved changes, and the block you're editing — `[BLOCK 003: AMEN CHOP]`.
 
 v0.6 also fixes LOAD for `.prv` songs: earlier versions mistook a saved song for an old SoundTracker module and loaded rubbish. Songs inside Live sets were never affected, and old `.prv` files load correctly now.
 
@@ -580,7 +584,7 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 * Messages are timed from the audio and sent by the device's own thread at the moment the audio is heard.
 * STOP sends note-offs for everything sounding plus All Notes Off on its channels. **PANIC** on its page (or STOP while already stopped) does that for every MIDI output.
 * All its settings are saved in the song and changes are undo steps. If the device isn't connected, the instrument shows `!NAME`, sends nothing and keeps its settings; CHANGE DEVICE... and the same device again reconnects it.
-* It isn't in RENDER WAV (see Rendering).
+* RENDER WAV writes its voltages into their own files (see CV out below).
 
 ## CV out to a modular (ES-9)
 
@@ -588,14 +592,16 @@ With a **DC-coupled** audio interface — an Expert Sleepers **ES-9** or anythin
 
 * **Setting up:** choose the interface in Audio/MIDI Settings. With more than 2 outputs the app switches them all on (up to 16), in order, so "output 5" in the app is the interface's output 5. Outputs **1–2 are the music**; CV goes on **3–16**. (Keep all its outputs and inputs on in Audio/MIDI Settings, or the numbers move.) Ordinary interfaces block DC: CV won't work through them.
 * **A CV OUT instrument:** PARAMS → **PLUG-IN / MIDI OUT...** → **CV OUT TO A MODULAR (ES-9)**. Its page sets **PITCH OUT** (1 V / octave, `C-3` = 0 V), **GATE OUT**, **VEL OUT** (velocity / `Cxx` as 0 V to the gate level) and **MOD OUT** (the `Lxx` knob as a voltage), **FULL SCALE** (the volts the interface puts out at full level; 10 V for the ES-9), **GATE** (the gate's level), **OCTAVE** and **BEND** (the range pitch commands bend over).
-* Notes in the pattern (and the computer keys or a MIDI keyboard on its page) play the modular: mono, the newest note wins, a released key goes back to one still held (legato), and a new note while the gate is open closes it for 2 ms so envelopes start again. `OFF` closes the gate; slides, vibrato and chords' root bend the pitch CV. It plays in step with the song, sample by sample. It isn't in RENDER WAV.
-* **TUNER and AUTO-TUNE:** set **INPUT** to the interface input the oscillator comes back on. **TUNER** holds `C-3`'s voltage with the gate open and shows the pitch it hears (note, cents, a needle): tune the oscillator to a C. **AUTO-TUNE** then steps the pitch CV from −2.5 V to +2.5 V, measures the pitch at each step (about 10 seconds; leave the oscillator alone) and makes a **map**: from then on every note is sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1 V / octave (or the interface's own scaling). The page shows how far each measured point is from 1 V / octave. The map is saved in the song with the instrument (and copied with it); **CLEAR MAP** goes back to plain 1 V / octave.
+* Notes in the pattern (and the computer keys or a MIDI keyboard on its page) play the modular: mono, the newest note wins, a released key goes back to one still held (legato), and a new note while the gate is open closes it for 2 ms so envelopes start again. `OFF` closes the gate; slides, vibrato and chords' root bend the pitch CV. It plays in step with the song, sample by sample.
+* **TUNER and AUTO-TUNE:** set **INPUT** to the interface input the oscillator comes back on. **TUNER** holds `C-3`'s voltage with the gate open and shows the pitch it hears (note, cents, a needle): tune the oscillator to a C. **AUTO-TUNE** then steps the pitch CV from −2.5 V to +2.5 V, measures the pitch at each step (about 10 seconds; leave the oscillator alone) and makes a **map**: from then on every note is sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1 V / octave (or the interface's own scaling). The page shows how far each measured point is from 1 V / octave. The map is saved in the song with the instrument (and copied with it); **MAP...** loads a map AUTO-TUNE made before (each is kept on this computer under the instrument's name, so name the CV OUT instrument after the synth — `MOOG`, `PLAITS` — before AUTO-TUNE), or CLEAR MAP goes back to plain 1 V / octave.
 * **CV SOURCES...** (on the page; saved in the song): up to 8 voltages of the song's own, each on an output:
   * **CLOCK** — pulses while playing (PULSES/BEAT: 4 = 16ths, 24 = 24 ppqn), **RESET** — a pulse as play starts, **RUN** — high while playing (all at LEVEL);
   * **LFO** — sine, triangle, saw, square or random, BEATS a cycle in step with the song, DEPTH and CENTRE;
   * **ENVELOPE** — attack, decay, sustain, release (ms), started by each note on its TRACK and released by OFF, up to PEAK;
   * **KNOB** — a track's `Vxx` (AUTO A) or `Jxx` (AUTO B) from the pattern as a voltage between BOTTOM and TOP (`Yxx` glides it) — automation for the modular.
   * **FULL SCALE** at the top is the interface's (10 V for the ES-9).
+  * **CV DELAY** (beside it, −100 to +100 ms): lines the modular up with the music. Positive: the voltages go later. Negative: the music on outputs 1–2 goes later instead — for a modular you hear back through the interface's inputs, which arrives late. Saved in the song.
+* **RENDER WAV** writes the CV too: one 32-bit float WAV per output the song uses, next to the render (or in the stems folder) — `song CV OUT 3.wav`, `song CV OUT 4.wav`… — the same length as the audio, 1.0 = the interface's full scale. Play them back out of the ES-9 from a DAW and the modular plays the song.
 * **Safety:** the voltages are clamped to the interface's range; STOP closes every gate and drops RUN, and STOP twice (panic) also releases a tuner or AUTO-TUNE voltage.
 
 ## Credits
@@ -610,6 +616,8 @@ Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula v
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 
 ## Building
+
+Release builds can be signed and notarised automatically: see [docs/SIGNING.md](docs/SIGNING.md) for the certificates and the GitHub secrets.
 
 Actions does this on every push to `main`. Locally:
 

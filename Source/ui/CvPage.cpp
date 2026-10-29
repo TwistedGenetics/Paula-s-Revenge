@@ -74,7 +74,7 @@ CvOutPage::CvOutPage (PaulaProcessor& p) : proc (p)
     inputBox.onChange = [this] (int v) { proc.cvTuneInput = v; prv::prefs().setValue ("cvTuneInput", v); repaint(); };
     tunerBtn.onClick = [this] { setTuner (tunerBtn.getToggleState()); };
     calBtn.onClick = [this] { if (isCalibrating()) stopCalibration ("AUTO-TUNE STOPPED"); else calibrate(); };
-    clearBtn.onClick = [this] { clearMap(); };
+    clearBtn.onClick = [this] { showMapMenu(); };
     sourcesBtn.onClick = [this] { if (onSources) onSources(); };
     chordsBtn.onClick = [this] { if (onChords) onChords(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
@@ -136,7 +136,6 @@ void CvOutPage::refresh()
     tunerBtn.setToggleState (tuning, juce::dontSendNotification);
     calBtn.setButtonText (isCalibrating() ? "STOP" : "AUTO-TUNE");
     calBtn.setToggleState (isCalibrating(), juce::dontSendNotification);
-    clearBtn.setEnabled (! in.cvMapNotes.empty());
     const bool on = proc.player.instrumentIsOn (proc.editorState.instrument);
     onBtn.setToggleState (on, juce::dontSendNotification);
     onBtn.setButtonText (on ? "ON" : "OFF");
@@ -201,6 +200,43 @@ void CvOutPage::stopCalibration (const juce::String& why)
     hold (false, 0);
     refresh();
     if (why.isNotEmpty() && onStatus) onStatus (why);
+}
+
+juce::StringArray CvOutPage::savedMaps()
+{
+    juce::StringArray names;
+    const auto& all = prv::prefs().getAllProperties();
+    for (int i = 0; i < all.size(); ++i)
+        if (all.getAllKeys()[i].startsWith ("cvMap:")) names.add (all.getAllKeys()[i].fromFirstOccurrenceOf ("cvMap:", false, false));
+    names.sortNatural();
+    return names;
+}
+
+bool CvOutPage::loadMap (const juce::String& name)
+{
+    const auto text = prv::prefs().getValue ("cvMap:" + name);
+    std::vector<float> mn, mv;
+    for (auto& pair : juce::StringArray::fromTokens (text, " ", ""))
+        if (pair.contains (":")) { mn.push_back (pair.upToFirstOccurrenceOf (":", false, false).getFloatValue()); mv.push_back (pair.fromFirstOccurrenceOf (":", false, false).getFloatValue()); }
+    if (mn.size() < 2) { if (onStatus) onStatus ("THAT MAP IS EMPTY"); return false; }
+    edit ("LOAD CV MAP " + name, [&] (Instrument& in) { in.cvMapNotes = mn; in.cvMapVolts = mv; in.cvMapName = name.toStdString(); });
+    if (onStatus) onStatus ("MAP " + name + " LOADED: " + juce::String ((int) mn.size()) + " POINTS - NOTES PLAY IN TUNE ON THAT SYNTH");
+    refresh();
+    if (onChanged) onChanged();
+    return true;
+}
+
+void CvOutPage::showMapMenu()
+{
+    // the maps AUTO-TUNE kept, by the name the instrument had (name the CV OUT instrument after
+    // the synth before AUTO-TUNE: MOOG, PLAITS...), and CLEAR MAP
+    juce::Component::SafePointer<CvOutPage> safe (this);
+    std::vector<MenuItem> items;
+    for (auto& n : savedMaps())
+        items.push_back ({ "LOAD " + n + (n == juce::String (inst().cvMapName) ? " (IN USE)" : ""), [safe, n] { if (safe) safe->loadMap (n); } });
+    if (! inst().cvMapNotes.empty()) items.push_back ({ "CLEAR MAP (BACK TO 1 V / OCTAVE)", [safe] { if (safe) safe->clearMap(); } });
+    if (items.empty()) { if (onStatus) onStatus ("NO MAPS YET: AUTO-TUNE MAKES ONE, KEPT BY THE INSTRUMENT'S NAME"); return; }
+    showMenu ("CV MAPS", items);
 }
 
 void CvOutPage::clearMap()
@@ -388,7 +424,7 @@ void CvOutPage::resized()
         inputBox.setBounds (row.removeFromLeft (inputBox.preferredWidth (px))); row.removeFromLeft (gap * 2);
         tunerBtn.setBounds (row.removeFromLeft (charsW (5))); row.removeFromLeft (gap);
         calBtn.setBounds (row.removeFromLeft (charsW (9))); row.removeFromLeft (gap);
-        clearBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (9))));
+        clearBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (6))));
     }
     auto bottom = r.removeFromBottom (rowH);
     r.removeFromBottom (gap);
@@ -460,6 +496,17 @@ CvSourcesPage::CvSourcesPage (PaulaProcessor& p) : proc (p)
         proc.history.settings ("CV FULL SCALE", true);
         proc.withLock ([&] { proc.song.cvFullScale = v / 10.0f; });
     };
+    delayBox.labelChars = 8; delayBox.valueChars = 5;
+    delayBox.format = [] (int v) { return (v > 0 ? "+" : "") + juce::String (v) + "MS"; };
+    delayBox.onChange = [this] (int v)
+    {
+        proc.history.settings ("CV DELAY", true);
+        proc.withLock ([&] { proc.song.cvDelayMs = v; });
+        if (onStatus) onStatus (v == 0 ? juce::String ("CV DELAY 0: VOLTAGES AND MUSIC LEAVE TOGETHER")
+                                       : v > 0 ? "CV DELAY: THE VOLTAGES GO " + juce::String (v) + " MS LATER"
+                                               : "CV DELAY: THE MUSIC (1-2) GOES " + juce::String (-v) + " MS LATER, FOR A MODULAR HEARD BACK THROUGH THE INPUTS");
+    };
+    addAndMakeVisible (delayBox);
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     addAndMakeVisible (scaleBox);
     addAndMakeVisible (closeBtn);
@@ -512,6 +559,7 @@ void CvSourcesPage::chooseShape (int i)
 void CvSourcesPage::refresh()
 {
     scaleBox.setValue (juce::roundToInt (proc.song.cvFullScale * 10));
+    delayBox.setValue (proc.song.cvDelayMs);
     for (int i = 0; i < kCvSources; ++i)
     {
         auto& row = rows[i];
@@ -599,7 +647,8 @@ void CvSourcesPage::resized()
     auto r = getLocalBounds().reduced (gap * 2);
     auto head = r.removeFromTop (rowH);
     closeBtn.setBounds (head.removeFromRight (charsW (5))); head.removeFromRight (gap * 2);
-    scaleBox.setBounds (head.removeFromRight (scaleBox.preferredWidth (px)));
+    scaleBox.setBounds (head.removeFromRight (scaleBox.preferredWidth (px))); head.removeFromRight (gap * 3);
+    delayBox.setBounds (head.removeFromRight (delayBox.preferredWidth (px))); head.removeFromRight (gap * 2);
     titleArea = head.toFloat();
     r.removeFromTop (gap * 3);
     for (int i = 0; i < kCvSources; ++i) { layoutRow (i, r.removeFromTop (rowH)); r.removeFromTop (gap * 2); }
@@ -611,7 +660,11 @@ void CvSourcesPage::paint (juce::Graphics& g)
     const auto& pal = Theme::palFor (*this);
     const float px = Theme::px;
     g.fillAll (pal.panel);
-    PixelFont::drawLeft (g, "CV SOURCES: VOLTAGES THE SONG SENDS TO THE MODULAR", titleArea, px, pal.ink);
+    {
+        juce::String t = "CV SOURCES: VOLTAGES THE SONG SENDS TO THE MODULAR";
+        if (PixelFont::textWidth (t, px) > titleArea.getWidth()) t = "CV SOURCES";
+        PixelFont::drawLeft (g, t, titleArea, px, pal.ink);
+    }
     for (int i = 0; i < kCvSources; ++i) PixelFont::drawLeft (g, juce::String (i + 1), rows[i].label, px, pal.ink);
     juce::StringArray help {
         "CLOCK: PULSES WHILE PLAYING (4 A BEAT = 16THS)",

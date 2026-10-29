@@ -539,6 +539,7 @@ void PaulaEditor::timerCallback()
     if (arrange.isVisible()) arrange.tick();
     if (mixer.isVisible()) mixer.tick();
     outMeter.tick();
+    if (autosave != nullptr) autosave->tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
     const int seqNow = proc.player.uiSeqPos.load();
@@ -1064,6 +1065,49 @@ bool PaulaEditor::loadSongFrom (const juce::File& file)
     return true;
 }
 
+void PaulaEditor::startAutosave()
+{
+    autosave = std::make_unique<prv::Autosave> (proc);
+    if (! autosave->startSession()) return;
+    // the last session didn't end cleanly: offer its autosave back
+    const auto when = autosave->savedAt();
+    const auto from = prv::Autosave::savedFrom();
+    const juce::String name = from.isNotEmpty() ? juce::File (from).getFileNameWithoutExtension().toUpperCase() : juce::String ("AN UNSAVED SONG");
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    juce::Timer::callAfterDelay (500, [safe, when, name]
+    {
+        if (safe == nullptr) return;
+        safe->choice.show (*safe, "PAULA'S REVENGE DIDN'T CLOSE PROPERLY LAST TIME",
+                           { "RECOVER " + name + " (AUTOSAVED " + when.formatted ("%H:%M").toUpperCase() + ", " + when.formatted ("%d %b").toUpperCase() + ")",
+                             "START AS NORMAL (THE AUTOSAVE IS KEPT UNTIL THE NEXT ONE)" },
+                           [safe] (int a) { if (safe != nullptr && a == 0) safe->recoverAutosave(); });
+    });
+}
+
+void PaulaEditor::endAutosave()
+{
+    if (autosave != nullptr) autosave->waitForIt();
+    prv::Autosave::endSession();
+}
+
+bool PaulaEditor::recoverAutosave()
+{
+    const auto file = prv::Autosave::songFile();
+    if (! file.existsAsFile()) { setStatus ("NO AUTOSAVE TO RECOVER"); return false; }
+    const auto from = prv::Autosave::savedFrom();
+    const auto when = file.getLastModificationTime();
+    if (! loadSongFrom (file)) return false;
+    // back as the song it was: its own file (if it had one), with changes not saved there yet
+    auto& st = proc.editorState;
+    st.currentFile = from;
+    proc.withLock ([&] { proc.song.name = from.isNotEmpty() ? songNameFor (juce::File (from)).toStdString() : std::string(); });
+    proc.history.markChanged();
+    if (autosave != nullptr) autosave->tick (true);   // (and that's the new autosave)
+    setStatus ("RECOVERED THE AUTOSAVE FROM " + when.formatted ("%H:%M").toUpperCase() + " - SAVE IT TO KEEP IT");
+    refreshAll();
+    return true;
+}
+
 bool PaulaEditor::writeSongTo (const juce::File& file)
 {
     // the song is called what its file is called
@@ -1177,11 +1221,12 @@ void PaulaEditor::renderTo (const juce::File& file, bool stems)
     proc.capturePluginStates();   // plug-ins render with their current settings
     proc.withLock ([&] { copy = proc.song; opts = proc.player.options; });
     juce::String err;
-    juce::StringArray leftOut;
+    juce::StringArray leftOut, cvFiles;
     const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
-    if (prv::renderSongToWav (copy, opts, rate, file, err, proc.pluginFactory(), proc.synthFactory(), stems, &leftOut))
+    if (prv::renderSongToWav (copy, opts, rate, file, err, proc.pluginFactory(), proc.synthFactory(), stems, &leftOut, &cvFiles))
     {
         juce::String m = stems ? "RENDERED STEMS INTO " + prv::stemFolderFor (file).getFileName() : "RENDERED " + file.getFileName();
+        if (! cvFiles.isEmpty()) m << " + " << cvFiles.size() << " CV FILE" << (cvFiles.size() == 1 ? "" : "S") << " (CV OUT 3...)";
         if (! leftOut.isEmpty()) m << " - LEFT OUT (MIDI OUT, HARDWARE): " << leftOut.joinIntoString (", ");
         setStatus (m);
     }

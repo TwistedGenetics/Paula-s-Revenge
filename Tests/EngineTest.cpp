@@ -3059,6 +3059,18 @@ static void testEqPointsAndUtility()
         const double flat = rms (L) / (0.5 / std::sqrt (2.0));
         std::printf ("UTILITY: mono below 120 Hz: 50 Hz R/L %.3f, 2 kHz R/L %.4f, 120 Hz mono level x%.3f\n", lo, hi, flat);
         CHECK (lo > 0.9 && hi < 0.01 && std::abs (flat - 1.0) < 0.01);
+        // STEEP (LR8, 48 dB/oct): the 50 Hz tone fully mono, the halves still add back flat
+        StereoUtility st; st.prepare (48000);
+        tone (50, 1.0f, 0.0f, L, R); st.process (L.data(), R.data(), n, 1.0f, 120, true);
+        const double lo8 = rms (R) / rms (L);
+        st.reset();
+        tone (2000, 1.0f, 0.0f, L, R); st.process (L.data(), R.data(), n, 1.0f, 120, true);
+        const double hi8 = rms (R) / rms (L);
+        st.reset();
+        tone (120, 0.5f, 0.5f, L, R); st.process (L.data(), R.data(), n, 1.0f, 120, true);
+        const double flat8 = rms (L) / (0.5 / std::sqrt (2.0));
+        std::printf ("UTILITY steep: 50 Hz R/L %.4f, 2 kHz R/L %.5f, 120 Hz mono level x%.3f\n", lo8, hi8, flat8);
+        CHECK (lo8 > 0.995 && hi8 < 0.001 && std::abs (flat8 - 1.0) < 0.01);
     }
     {
         // UTILITY in the player: WIDTH 0 on a stereo sample makes left = right

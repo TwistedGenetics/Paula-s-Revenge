@@ -40,6 +40,8 @@ History::Entry History::capture (Kind kind, int index) const
             s->led = song.ledFilterAtStart;
             std::copy (std::begin (song.trackPan), std::end (song.trackPan), s->trackPan);
             s->chords = song.chords; s->chordsLegacy = song.chordsLegacy;
+            std::copy (std::begin (song.cvSources), std::end (song.cvSources), s->cvSources);
+            s->cvFullScale = song.cvFullScale; s->cvDelayMs = song.cvDelayMs;
             e.settings = s;
             e.bytes = sizeof (Settings);
             break;
@@ -147,6 +149,8 @@ void History::apply (Entry& e)
                 song.ledFilterAtStart = s.led;
                 std::copy (std::begin (s.trackPan), std::end (s.trackPan), song.trackPan);
                 song.chords = s.chords; song.chordsLegacy = s.chordsLegacy;
+                std::copy (std::begin (s.cvSources), std::end (s.cvSources), song.cvSources);
+                song.cvFullScale = s.cvFullScale; song.cvDelayMs = s.cvDelayMs;
                 if (! proc.player.isPlaying()) proc.player.setLed (s.led);
             });
             break;

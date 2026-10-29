@@ -1701,7 +1701,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         {
             if (! instChain[ins]) continue;
             const auto& in = song->instruments[(size_t) ins];
-            if (in.hasUtility()) util[ins].process (instL[ins], instR[ins], numSamples, in.utilWidth, in.utilMonoHz);
+            if (in.hasUtility()) util[ins].process (instL[ins], instR[ins], numSamples, in.utilWidth, in.utilMonoHz, in.utilSteep);
             if (! skipInstrumentFx) mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
             if (ins == tapIns) { std::copy (instL[ins], instL[ins] + numSamples, tapL); std::copy (instR[ins], instR[ins] + numSamples, tapR); }
             const int t = synthOutputTrack (ins);

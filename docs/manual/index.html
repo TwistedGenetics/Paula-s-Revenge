@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.26.1</span>
+  <span class="ver">MANUAL &middot; V0.27</span>
 </header>
 
 <div class="app">
@@ -433,7 +433,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Volume envelope:</b> <span class="b">VOL ENVELOPE</span> on, then ATK, DEC, SUS, REL (1 ms – 10 s). With it on, a note-off starts the release instead of cutting the note.</li>
     <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL.</li>
     <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
-    <li><b>UTILITY</b> (the row under PAN, and on a plug-in instrument's page): <span class="b">WIDTH</span> 0% (mono) to 200%; <span class="b">MONO</span> makes everything below a frequency mono (OFF, or <code>&lt;20HZ</code> to <code>&lt;500HZ</code>, a smooth 24&nbsp;dB/octave crossover) &mdash; mono the bass; <span class="b">VOL</span> is the instrument's VOL itself, so moving either one moves the other. Before the instrument's own effects; not on MIDI out or CV out. At 100% and OFF it does nothing.</li>
+    <li><b>UTILITY</b> (the row under PAN, and on a plug-in instrument's page): <span class="b">WIDTH</span> 0% (mono) to 200%; <span class="b">MONO</span> makes everything below a frequency mono (OFF, or <code>&lt;20HZ</code> to <code>&lt;500HZ</code>, a smooth 24&nbsp;dB/octave crossover, or 48 with <span class="b">STEEP</span>) &mdash; mono the bass; <span class="b">VOL</span> is the instrument's VOL itself, so moving either one moves the other. Before the instrument's own effects; not on MIDI out or CV out. At 100% and OFF it does nothing.</li>
     <li><b>Spectrum:</b> while PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
     <li><b>Tuning:</b> <span class="b">PITCH</span> (±48 semitones) and <span class="b">FINE</span> (±100 cents). <span class="b">TUNE TO C</span> listens to the sample and sets them so <code>C-3</code> plays a C.</li>
     <li><b>BEAT SYNC</b> (like Renoise): the sample lasts <span class="b">LINES</span> lines at <code>C-3</code> at any tempo, repitched live to fit. <span class="b">STRETCH...</span> opens the time stretch set to those lines, to fit it at its own pitch instead.</li>
@@ -618,7 +618,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>Patch the PITCH and GATE outputs to an oscillator and an envelope, and play.</li>
   </ol>
   <figure>
-    <div class="frame sunken"><img src="img/cv_out.png" alt="A CV OUT instrument's page: PITCH OUT, GATE OUT, VEL OUT, MOD OUT, FULL SCALE, GATE, OCTAVE, BEND, INPUT, TUNER, AUTO-TUNE, CLEAR MAP, and the tuning map's points in cents." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/cv_out.png" alt="A CV OUT instrument's page: PITCH OUT, GATE OUT, VEL OUT, MOD OUT, FULL SCALE, GATE, OCTAVE, BEND, INPUT, TUNER, AUTO-TUNE, MAP..., and the tuning map's points in cents." width="1440" height="900" loading="lazy"></div>
     <figcaption>A CV OUT instrument after AUTO-TUNE: the map's points, in cents from 1&nbsp;V/octave</figcaption>
   </figure>
   <div class="tbl sunken"><table>
@@ -631,10 +631,10 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">FULL SCALE</span></td><td>The volts the interface puts out at full level: 10&nbsp;V for the ES-9</td></tr>
       <tr><td><span class="b">OCTAVE</span> <span class="b">BEND</span></td><td>Shift the pitch by octaves; the range pitch commands bend over</td></tr>
       <tr><td><span class="b">INPUT</span> <span class="b">TUNER</span></td><td>INPUT is where the oscillator comes back in. TUNER holds <code>C-3</code>'s voltage with the gate open and shows the pitch it hears: tune the oscillator to a C</td></tr>
-      <tr><td><span class="b">AUTO-TUNE</span></td><td>Steps the pitch CV from −2.5 to +2.5&nbsp;V, measures each step (about 10 seconds; leave the oscillator alone) and makes a <b>map</b>: every note is then sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1&nbsp;V / octave. The map is saved with the instrument; <span class="b">CLEAR MAP</span> goes back to plain 1&nbsp;V / octave</td></tr>
+      <tr><td><span class="b">AUTO-TUNE</span></td><td>Steps the pitch CV from −2.5 to +2.5&nbsp;V, measures each step (about 10 seconds; leave the oscillator alone) and makes a <b>map</b>: every note is then sent at the voltage that plays it in tune, even on an oscillator that isn't exactly 1&nbsp;V / octave. The map is saved with the instrument, and kept on this computer under the instrument's name (name it after the synth first); <span class="b">MAP...</span> loads one of those, or CLEAR MAP goes back to plain 1&nbsp;V / octave</td></tr>
     </tbody>
   </table></div>
-  <p>It's mono: the newest note wins, a released key goes back to one still held, and a new note while the gate is open closes it for 2&nbsp;ms so envelopes start again. <code>OFF</code> closes the gate; slides, vibrato and pitch bends move the pitch CV. It plays in step with the song, sample by sample, but it isn't in renders or bounces.</p>
+  <p>It's mono: the newest note wins, a released key goes back to one still held, and a new note while the gate is open closes it for 2&nbsp;ms so envelopes start again. <code>OFF</code> closes the gate; slides, vibrato and pitch bends move the pitch CV. It plays in step with the song, sample by sample. <span class="b">RENDER WAV</span> writes the voltages too: one 32-bit float WAV per output used (<code>song CV OUT 3.wav</code>…), the same length as the audio. It isn't in bounces.</p>
   <h3>CV sources</h3>
   <p><span class="b">CV SOURCES...</span> (on the CV OUT page) gives the song up to 8 voltages of its own, each on an output, saved in the song.</p>
   <figure>
@@ -651,6 +651,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">KNOB</span></td><td>A track's <code>Vxx</code> (AUTO A) or <code>Jxx</code> (AUTO B) as a voltage between BOTTOM and TOP (<code>Yxx</code> glides it): automation for the modular</td></tr>
     </tbody>
   </table></div>
+  <p><span class="b">CV DELAY</span> (top of CV SOURCES, &minus;100 to +100&nbsp;ms) lines the modular up with the music: positive sends the voltages later; negative sends the music on 1&ndash;2 later, for a modular heard back through the inputs.</p>
   <p><b>Safety.</b> Voltages are clamped to the interface's range. STOP closes every gate and drops RUN; STOP twice (panic) also lets go of a tuner or AUTO-TUNE voltage.</p>
 </section>
 
@@ -792,6 +793,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>A <code>.prv</code> song holds everything: every sample (stereo too), the mixer, plug-in settings, automation, MIDI-out settings, its chord table. You can move or delete the original WAVs.</li>
     <li><span class="b">LOAD</span> also opens ProTracker-style <code>.mod</code> files (4, 6 and 8 channels) and MED / OctaMED <code>MMD0</code> / <code>MMD1</code> modules.</li>
     <li>Songs saved by older versions always load.</li>
+    <li><b>Autosave:</b> every two minutes, when something changed, a copy of the song goes into the app's own folder (in the background). If the app doesn't close properly &mdash; a crash, a plug-in taking it down &mdash; next time it offers <span class="b">RECOVER</span> (the song as it was, still pointing at its own file, marked unsaved) or <span class="b">START AS NORMAL</span>. A normal quit never asks.</li>
+    <li>The window's title shows the song, <code>*</code> for unsaved changes, and the block you're editing.</li>
   </ul>
 </section>
 
@@ -832,7 +835,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.26.1</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.27</footer>
 </main>
 </div>
 </body></html>

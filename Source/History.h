@@ -40,6 +40,7 @@ public:
     bool isDirty() const { return current != saved; }
     void markSaved() { saved = current; }
     void markChanged() { current = nextId++; }   // a change that isn't undoable
+    uint64_t changeId() const { return current; }  // moves on with every change (autosave)
 
     // called after undo/redo with "UNDO: <what>" / "REDO: <what>"
     std::function<void (const juce::String&)> onRestored;
@@ -56,6 +57,7 @@ private:
         bool led = false;
         int trackPan[prv::kMaxTracks] {};
         prv::ChordTable chords; bool chordsLegacy = false;   // (the song's chord table)
+        prv::CvSource cvSources[prv::kCvSources]; float cvFullScale = 10.0f; int cvDelayMs = 0;   // (the CV SOURCES page)
     };
     struct Structure { std::vector<prv::Block> blocks; std::vector<int> sequence; std::vector<prv::SongSection> sections; prv::ChordTable chords; bool chordsLegacy = false; };
     struct Entry

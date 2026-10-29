@@ -30,12 +30,16 @@ bool decodeAudioFile (const juce::File& file, std::vector<float>& left, std::vec
 // quiet for a second, at most 20 s). `pluginFactory` makes plug-in slots' effects (none =
 // plug-in slots pass audio through). stems = one file per used track, SEND A, SEND B and
 // the master, in a folder next to `file` ("<name> STEMS"); all the same length. MIDI-out
-// instruments can't be rendered: their names go in `leftOut`.
+// instruments can't be rendered: their names go in `leftOut`. CV (CV OUT instruments and the
+// CV SOURCES) goes into one 32-bit float WAV per output used, "<name> CV OUT 3.wav"..., beside the
+// file (or in the stems folder), the same length: their files go in `cvFiles`.
 bool renderSongToWav (const Song& song, const PaulaOptions& options, double sampleRate,
                       const juce::File& file, juce::String& error,
                       std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory = nullptr,
                       std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory = nullptr,
-                      bool stems = false, juce::StringArray* leftOut = nullptr);
+                      bool stems = false, juce::StringArray* leftOut = nullptr, juce::StringArray* cvFiles = nullptr);
+// the interface outputs (3-16) a song's CV uses
+std::vector<int> usedCvOutputs (const Song&);
 // an instrument's sample as a 16-bit WAV (stereo kept) at the rate C-3 plays it at
 bool writeInstrumentWav (const Instrument&, const juce::File&, juce::String& error);
 juce::File stemFolderFor (const juce::File& file);

@@ -4,6 +4,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "ui/Widgets.h"
+#include "Autosave.h"
 #include "ui/PatternEditor.h"
 #include "ui/Panels.h"
 #include "ui/Spectrum.h"
@@ -79,6 +80,12 @@ public:
     bool fullVelocityOn() const { return proc.fullVelocity.load(); }
     bool writeSongTo (const juce::File&);             // SAVE to that file (the song takes the file's name)
     bool loadSongFrom (const juce::File&);            // LOAD from that file
+    // autosave (the standalone app): every couple of minutes when something changed; after a
+    // crash it offers the autosave back
+    void startAutosave();
+    void endAutosave();                               // a clean quit
+    bool recoverAutosave();                           // (the RECOVER answer; tests too)
+    prv::Autosave* getAutosave() { return autosave.get(); }
     bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
@@ -124,6 +131,7 @@ private:
     PixLabel  ledLabel { {}, false };
     PixSlider sepSlider { "SEP" }, volSlider { "VOL" };   // (not shown: they hold SEP and VOL)
     NumberBox volBox { "VOL", 0, 200, 100 };
+    std::unique_ptr<prv::Autosave> autosave;
 
     // song strip
     PixButton viewBtn { "BIG VIEW", true };

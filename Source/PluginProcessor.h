@@ -94,6 +94,7 @@ public:
 
     // CV out (an ES-9's outputs 3-16) and AUTO-TUNE's input
     juce::HeapBlock<float> cvBuf[prv::kCvOutputs];
+    prv::DelayLine cvDelayLine[prv::kCvOutputs / 2], musicDelayLine;   // CV DELAY
     std::atomic<bool> cvActive { false };       // the song sends CV and the device has the outputs for it
     std::atomic<int>  cvTuneInput { 0 };        // the device input (1-16) the tuner listens to; 0 = none
     static constexpr int kTuneRing = 16384;

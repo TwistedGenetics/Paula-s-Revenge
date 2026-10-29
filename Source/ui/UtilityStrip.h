@@ -24,7 +24,9 @@ public:
         width.onChange = [this] (float v) { setWidth (v * 2.0f); };
         mono.onChange  = [this] (float v) { setMonoBelow (sliderToHz (v)); };
         vol.onChange   = [this] (float v) { setVolume (juce::roundToInt (v * 64.0f)); };
+        steepBtn.onClick = [this] { setSteep (steepBtn.getToggleState()); };
         for (auto* s : { &width, &mono, &vol }) addAndMakeVisible (s);
+        addAndMakeVisible (steepBtn);
     }
 
     std::function<void()> onChanged;
@@ -43,6 +45,12 @@ public:
         edit ("UTILITY MONO BELOW", [hz] (Instrument& in) { in.utilMonoHz = hz; });
         if (onStatus) onStatus (hz == 0 ? juce::String ("MONO BELOW: OFF") : "MONO BELOW " + juce::String (hz) + " HZ: THE LOWS IN THE MIDDLE");
     }
+    void setSteep (bool on)
+    {
+        edit ("UTILITY MONO SLOPE", [on] (Instrument& in) { in.utilSteep = on; });
+        if (onStatus) onStatus (on ? "MONO BELOW: STEEP (48 DB/OCT) - THE LOWS GO FULLY MONO CLOSE TO THE SPLIT"
+                                   : "MONO BELOW: GENTLE (24 DB/OCT)");
+    }
     void setVolume (int v)
     {
         v = juce::jlimit (0, 64, v);
@@ -59,17 +67,20 @@ public:
         width.setValue (in.utilWidth * 0.5f);
         mono.setValue (hzToSlider (in.utilMonoHz));
         vol.setValue (in.volume / 64.0f);
+        steepBtn.setToggleState (in.utilSteep, juce::dontSendNotification);
         const bool can = ! in.isMidiOut() && ! in.isCvOut();
-        for (auto* s : { &width, &mono }) { s->setEnabled (can); s->setAlpha (can ? 1.0f : 0.4f); }
+        for (auto* s : std::initializer_list<juce::Component*> { &width, &mono, &steepBtn }) { s->setEnabled (can); s->setAlpha (can ? 1.0f : 0.4f); }
     }
 
     void resized() override
     {
         auto r = getLocalBounds();
         const int gap = (int) std::max (2.0f, Theme::px * 1.5f);
-        const int room = r.getWidth() - gap * 8;
-        width.setBounds (r.removeFromLeft (room * 36 / 100)); r.removeFromLeft (gap * 4);
-        mono.setBounds (r.removeFromLeft (room * 38 / 100)); r.removeFromLeft (gap * 4);
+        const int steepW = (int) (Theme::px * 6 * 5 + Theme::px * 4);
+        const int room = r.getWidth() - gap * 10 - steepW;
+        width.setBounds (r.removeFromLeft (room * 33 / 100)); r.removeFromLeft (gap * 4);
+        mono.setBounds (r.removeFromLeft (room * 40 / 100)); r.removeFromLeft (gap);
+        steepBtn.setBounds (r.removeFromLeft (steepW)); r.removeFromLeft (gap * 4);
         vol.setBounds (r);
     }
 
@@ -87,6 +98,7 @@ public:
     }
 
     PixSlider width { "WIDTH" }, mono { "MONO" }, vol { "VOL" };
+    PixButton steepBtn { "STEEP", true };   // MONO at 48 dB/oct
 
 private:
     PaulaProcessor& proc;

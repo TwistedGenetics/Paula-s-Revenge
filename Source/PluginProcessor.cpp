@@ -163,6 +163,11 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     allocateVintage (scratchSize);
     vintage.prepare (sampleRate, scratchSize);
     for (auto& b : cvBuf) b.allocate ((size_t) scratchSize, true);
+    {
+        const int maxD = (int) (sampleRate * 0.1) + 1;   // CV DELAY: up to 100 ms either way
+        for (auto& d : cvDelayLine) d.setMax (maxD);
+        musicDelayLine.setMax (maxD);
+    }
 }
 
 void PaulaProcessor::allocateVintage (int n)
@@ -518,6 +523,12 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         buffer.addFrom (0, 0, scratchR.get(), n, 0.5f);
     }
     // the voltages: outputs 3-16 (the device's channels, in order)
+    // CV DELAY: the voltages later (positive), or the music on 1-2 later (negative), to line a modular up
+    const int cvDelay = (int) std::lround (std::abs (song.cvDelayMs) * 0.001 * currentRate);
+    if (cvUsed && song.cvDelayMs > 0)
+        for (int k = 2; k + 1 < prv::kCvOutputs; k += 2) cvDelayLine[k / 2].process (cvBuf[k].get(), cvBuf[k + 1].get(), n, cvDelay);
+    if (cvUsed && song.cvDelayMs < 0 && buffer.getNumChannels() >= 2)
+        musicDelayLine.process (buffer.getWritePointer (0), buffer.getWritePointer (1), n, cvDelay);
     if (cvUsed) for (int k = 2; k < std::min (devOuts, prv::kCvOutputs); ++k) buffer.copyFrom (k, 0, cvBuf[k].get(), n);
     for (int k = 0; k < prv::kCvOutputs; ++k) player.cv.out[k] = nullptr;
 }

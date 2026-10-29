@@ -181,6 +181,7 @@ public:
         window = std::make_unique<MainWindow> (getApplicationName(), *holder->processor, appProperties.getUserSettings());
         window->addKeyListener (commands.getKeyMappings());
         if (auto* ed = editor()) ed->openAudioSettings = [this] { if (holder != nullptr) holder->showAudioSettingsDialog(); };
+        if (auto* ed = editor()) ed->startAutosave();   // (and, after a crash, the offer to recover)
         window->setVisible (true);
 
        #if JUCE_MAC
@@ -208,6 +209,7 @@ public:
         if (window != nullptr) { window->setMenuBar (nullptr); window->setLookAndFeel (nullptr); }
        #endif
         if (holder != nullptr) holder->savePluginState();
+        if (auto* ed = editor()) ed->endAutosave();   // a clean quit
         window = nullptr;
         holder = nullptr;
         appProperties.saveIfNeeded();
@@ -442,7 +444,11 @@ private:
         if (window != nullptr && holder != nullptr)
             if (auto* proc = dynamic_cast<PaulaProcessor*> (holder->processor.get()))
             {
-                const juce::String t = getApplicationName() + " - " + juce::String (proc->song.name) + (proc->history.isDirty() ? " *" : "");
+                // ... and the block being edited, by its name when it has one
+                const int b = proc->song.safeBlock (proc->editorState.block);
+                const juce::String bn = juce::String (proc->song.blocks[(size_t) b].name).trim().toUpperCase();
+                const juce::String t = getApplicationName() + " - " + juce::String (proc->song.name) + (proc->history.isDirty() ? " *" : "")
+                                     + "  [BLOCK " + juce::String (b).paddedLeft ('0', 3) + (bn.isNotEmpty() ? ": " + bn : juce::String()) + "]";
                 if (window->getName() != t) window->setName (t);
             }
     }

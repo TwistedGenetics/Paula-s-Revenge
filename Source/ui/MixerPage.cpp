@@ -779,6 +779,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     pluginSearch.onChanged = [this] { refreshPluginList(); };
     pluginSearch.selected = [this]() -> const juce::PluginDescription* { return pluginList.selected >= 0 && pluginList.selected < (int) pluginChoices.size() ? &pluginChoices[(size_t) pluginList.selected] : nullptr; };
     addChildComponent (pluginSearch);
+    addChildComponent (instSpectrum);
     pluginList.onDoubleClick = [this] (int r) { choosePlugin (r); };
     proc.pluginHost.onScanFinished = [this] { refreshPluginList(); if (onStatus) onStatus (proc.pluginHost.scanStatus()); };
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
@@ -972,6 +973,7 @@ void MixerPage::updateVisibility()
     for (int i = 0; i < (int) strips.size(); ++i)
         strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || i < nt));
     eqGraph.setVisible (ch);
+    if (! fx) { instSpectrum.setVisible (false); instSpectrum.setInstrument (-1); }
     for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &eqSpecBtn, &ptFreq, &ptGain, &ptQ, &eqFlatBtn })
         c->setVisible (ch);
     for (auto& b : chInsert) b.setVisible (ch);
@@ -1065,6 +1067,8 @@ void MixerPage::refreshEffect()
     learnBBtn.setToggleState (learner.armed && learner.what == 1, juce::dontSendNotification);
     pluginList.setVisible (fx && browsingPlugins);
     pluginSearch.setVisible (fx && browsingPlugins);
+    instSpectrum.setVisible (fx && ! browsingPlugins && isInstrumentSlot (fxSlot));
+    if (! instSpectrum.isVisible()) instSpectrum.setInstrument (-1);
     rescanBtn.setVisible (fx && browsingPlugins);
     listCloseBtn.setVisible (fx && browsingPlugins);
     editPluginBtn.setVisible (fx && isPlugin && ! browsingPlugins);
@@ -1228,6 +1232,11 @@ void MixerPage::tick()
     else
     {
         if (currentPage == Page::Channel) eqGraph.tick();
+        if (currentPage == Page::Effect && instSpectrum.isVisible())
+        {
+            instSpectrum.setInstrument ((fxSlot - kMixerSlots) / kInserts);
+            instSpectrum.tick();
+        }
         // keep the meters from holding stale peaks while another page is up
         auto& mx = proc.player.mixer();
         for (auto& p : mx.trackPeak) p.exchange (0.0f);
@@ -1631,6 +1640,12 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
         r.removeFromTop (gap);
         pluginList.setBounds (r);
         return;
+    }
+    // an instrument's own effect: that instrument's spectrum along the bottom
+    if (isInstrumentSlot (fxSlot))
+    {
+        instSpectrum.setBounds (r.removeFromBottom ((int) (px * 22)));
+        r.removeFromBottom (gap * 2);
     }
     const auto& s = proc.song.mixer.slot (fxSlot);
     if (s.type == FxType::Plugin)

@@ -38,10 +38,42 @@ jobs:
       - name: Engine tests
         run: ./build/prv_engine_test
 
-      - name: Ad-hoc sign
+      # Signed with a Developer ID and notarised when the repo has the secrets (see docs/SIGNING.md);
+      # otherwise ad-hoc, as before (INSTALL.txt then tells you how to clear the quarantine)
+      - name: Sign (and notarise)
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          ART="build/PaulasRevenge_artefacts/Release"
-          codesign --force --deep --sign - "$ART/Standalone/Paula's Revenge.app"
+          APP="build/PaulasRevenge_artefacts/Release/Standalone/Paula's Revenge.app"
+          if [ -z "$MACOS_CERT_P12" ] || [ -z "$MACOS_SIGN_IDENTITY" ]; then
+            echo "No Developer ID secrets: ad-hoc signing"
+            codesign --force --deep --sign - "$APP"
+            exit 0
+          fi
+          KEYCHAIN="$RUNNER_TEMP/sign.keychain-db"
+          KCPASS="$(uuidgen)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KCPASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KCPASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KCPASS" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          codesign --force --deep --options runtime --timestamp --entitlements Packaging/Entitlements.plist --sign "$MACOS_SIGN_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarise.zip"
+            xcrun notarytool submit "$RUNNER_TEMP/notarise.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+            xcrun stapler staple "$APP"
+            spctl --assess --type execute --verbose "$APP"
+          else
+            echo "Signed, but no notarisation secrets: not notarised"
+          fi
 
       - name: Check the app starts
         run: |
@@ -106,6 +138,19 @@ jobs:
 
       - name: Engine tests
         run: ./build/prv_engine_test.exe
+
+      # Signed with your code-signing certificate when the repo has the secrets (see docs/SIGNING.md)
+      - name: Sign
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          EXE="build/PaulasRevenge_artefacts/Release/Standalone/Paula's Revenge.exe"
+          if [ -z "$WINDOWS_CERT_PFX" ]; then echo "No code-signing secrets: not signed"; exit 0; fi
+          echo "$WINDOWS_CERT_PFX" | base64 --decode > "$RUNNER_TEMP/cert.pfx"
+          signtool.exe sign /f "$RUNNER_TEMP/cert.pfx" /p "$WINDOWS_CERT_PASSWORD" /fd sha256 /tr http://timestamp.digicert.com /td sha256 /d "Paula's Revenge" "$EXE"
+          signtool.exe verify /pa "$EXE"
+          rm -f "$RUNNER_TEMP/cert.pfx"
 
       - name: Package
         run: |

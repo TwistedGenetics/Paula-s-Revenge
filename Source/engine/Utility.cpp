@@ -14,23 +14,29 @@ void StereoUtility::reset()
     for (auto& c : hp) for (auto& b : c) b.z1 = b.z2 = 0;
 }
 
-void StereoUtility::design (int hz)
+void StereoUtility::design (int hz, bool steep)
 {
     const double f = std::clamp ((double) hz, 10.0, sr * 0.45);
-    const double w = 2.0 * kPi * f / sr, cw = std::cos (w), alpha = std::sin (w) / (2.0 * 0.70710678118654752);
-    const double a0 = 1 + alpha;
-    for (int c = 0; c < 2; ++c)
-        for (int s = 0; s < 2; ++s)
+    const double w = 2.0 * kPi * f / sr, cw = std::cos (w), sw = std::sin (w);
+    // LR4 = a 2nd-order Butterworth twice; LR8 = a 4th-order Butterworth (Q 0.5412, 1.3066) twice
+    const double qs4[4] = { 0.70710678118654752, 0.70710678118654752, 0, 0 };
+    const double qs8[4] = { 0.54119610014619698, 1.30656296487637652, 0.54119610014619698, 1.30656296487637652 };
+    const double* qs = steep ? qs8 : qs4;
+    for (int st = 0; st < (steep ? 4 : 2); ++st)
+    {
+        const double alpha = sw / (2.0 * qs[st]), a0 = 1 + alpha;
+        for (int c = 0; c < 2; ++c)
         {
-            auto& l = lp[c][s];
+            auto& l = lp[c][st];
             l.b0 = (1 - cw) / 2 / a0; l.b1 = (1 - cw) / a0; l.b2 = (1 - cw) / 2 / a0; l.a1 = -2 * cw / a0; l.a2 = (1 - alpha) / a0;
-            auto& h = hp[c][s];
+            auto& h = hp[c][st];
             h.b0 = (1 + cw) / 2 / a0; h.b1 = -(1 + cw) / a0; h.b2 = (1 + cw) / 2 / a0; h.a1 = -2 * cw / a0; h.a2 = (1 - alpha) / a0;
         }
-    lastHz = hz;
+    }
+    lastHz = hz; lastSteep = steep;
 }
 
-void StereoUtility::process (float* L, float* R, int n, float width, int monoHz)
+void StereoUtility::process (float* L, float* R, int n, float width, int monoHz, bool steep)
 {
     width = std::clamp (width, 0.0f, 2.0f);
     if (monoHz <= 0)
@@ -44,12 +50,17 @@ void StereoUtility::process (float* L, float* R, int n, float width, int monoHz)
         }
         return;
     }
-    if (monoHz != lastHz) { if (lastHz == -1) reset(); design (monoHz); }
+    if (monoHz != lastHz || steep != lastSteep) { if (lastHz == -1 || steep != lastSteep) reset(); design (monoHz, steep); }
+    const int stages = steep ? 4 : 2;
     for (int i = 0; i < n; ++i)
     {
-        // LR4: the two halves are in phase, so low + high is flat (an all-pass)
-        const double lowL = lp[0][1].run (lp[0][0].run (L[i])), lowR = lp[1][1].run (lp[1][0].run (R[i]));
-        const double hiL = hp[0][1].run (hp[0][0].run (L[i])), hiR = hp[1][1].run (hp[1][0].run (R[i]));
+        // the two halves are in phase (Linkwitz-Riley), so low + high is flat (an all-pass)
+        double lowL = L[i], lowR = R[i], hiL = L[i], hiR = R[i];
+        for (int st = 0; st < stages; ++st)
+        {
+            lowL = lp[0][st].run (lowL); lowR = lp[1][st].run (lowR);
+            hiL = hp[0][st].run (hiL);  hiR = hp[1][st].run (hiR);
+        }
         const double lm = (lowL + lowR) * 0.5;
         const double hm = (hiL + hiR) * 0.5, hs = (hiL - hiR) * 0.5 * width;
         L[i] = (float) (lm + hm + hs);

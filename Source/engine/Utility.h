@@ -8,22 +8,23 @@
 
 namespace prv
 {
-// WIDTH 0 (mono) .. 2 (200%) as mid / side, and MONO BELOW: a Linkwitz-Riley (24 dB/oct)
+// WIDTH 0 (mono) .. 2 (200%) as mid / side, and MONO BELOW: a Linkwitz-Riley (24 dB/oct, or 48 when steep)
 // crossover, the lows made mono, the highs given the width. The two halves add back flat.
 class StereoUtility
 {
 public:
     void prepare (double sampleRate) { sr = sampleRate; lastHz = -1; reset(); }
     void reset();
-    void process (float* left, float* right, int numSamples, float width, int monoHz);
+    void process (float* left, float* right, int numSamples, float width, int monoHz, bool steep = false);
 
 private:
     struct Biquad { double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z1 = 0, z2 = 0;
                     double run (double x) { const double y = b0 * x + z1; z1 = b1 * x - a1 * y + z2; z2 = b2 * x - a2 * y; return y; } };
     double sr = 48000.0;
     int lastHz = -1;
-    Biquad lp[2][2], hp[2][2];   // [channel][stage]: two Butterworths in a row = Linkwitz-Riley
-    void design (int hz);
+    bool lastSteep = false;
+    Biquad lp[2][4], hp[2][4];   // [channel][stage]: Butterworths in a row = Linkwitz-Riley (2 stages LR4, 4 stages LR8)
+    void design (int hz, bool steep);
 };
 
 // Where the spectrum display gets its audio: the audio thread pushes the stereo signal of the one

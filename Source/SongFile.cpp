@@ -3,20 +3,21 @@
 #include "SongFile.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
+#include "engine/CvOut.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 20;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 21;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
                                   // v13: chords are #xy (older songs' chord 0xy converted on loading),
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
-                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY
+                                  // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -325,6 +326,14 @@ juce::MemoryBlock writeSong (const Song& song)
             if (in.utilWidth == 1.0f && in.utilMonoHz == 0) continue;
             raw.writeByte ((char) i); raw.writeFloat (in.utilWidth); raw.writeShort ((short) in.utilMonoHz);
         }
+    }
+    // v21: CV DELAY, the UTILITY's steep MONO
+    raw.writeShort ((short) song.cvDelayMs);
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.utilSteep) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMaxInstruments; ++i) if (song.instruments[(size_t) i].utilSteep) raw.writeByte ((char) i);
     }
 
     juce::MemoryOutputStream packed;
@@ -675,6 +684,16 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 ins.utilMonoHz = hz <= 0 ? 0 : std::clamp (hz, 20, 500);
             }
         }
+        if (version >= 21 && ! in.isExhausted())
+        {
+            s.cvDelayMs = std::clamp ((int) in.readShort(), -100, 100);
+            const int used = in.isExhausted() ? 0 : (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                if (i < kMaxInstruments) s.instruments[(size_t) i].utilSteep = true;
+            }
+        }
     }
     else if (version == 11)
     {
@@ -860,6 +879,17 @@ std::vector<bool> usedTracks (const Song& song)
     return used;
 }
 
+std::vector<int> usedCvOutputs (const Song& song)
+{
+    bool used[kCvOutputs + 1] {};
+    for (const auto& in : song.instruments)
+        if (in.isCvOut()) for (int o : { in.cvPitchOut, in.cvGateOut, in.cvVelOut, in.cvModOut }) if (o >= 3 && o <= kCvOutputs) used[o] = true;
+    for (const auto& c : song.cvSources) if (c.kind != CvKind::Off && c.out >= 3 && c.out <= kCvOutputs) used[c.out] = true;
+    std::vector<int> v;
+    for (int o = 3; o <= kCvOutputs; ++o) if (used[o]) v.push_back (o);
+    return v;
+}
+
 juce::File stemFolderFor (const juce::File& file)
 {
     return file.getParentDirectory().getChildFile (file.getFileNameWithoutExtension() + " STEMS");
@@ -876,7 +906,7 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
                       const juce::File& file, juce::String& error,
                       std::function<std::unique_ptr<Effect> (int, const FxSlot&, double)> pluginFactory,
                       std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory,
-                      bool stems, juce::StringArray* leftOut)
+                      bool stems, juce::StringArray* leftOut, juce::StringArray* cvFiles)
 {
     auto heldPlayer = std::make_unique<Player>();   // (on the heap: a Player is ~470 KB)
     Player& p = *heldPlayer;
@@ -891,6 +921,7 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
             if (leftOut != nullptr) leftOut->add (juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " " + juce::String (in.name).toUpperCase());
             return nullptr;
         }
+        if (in.isCvOut()) return std::make_unique<CvOutSynth>();   // (its voltages go into the CV files)
         return f ? f (i, in, sr) : nullptr;
     };
     p.synths().syncNow (song, sampleRate);
@@ -932,12 +963,32 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
         writers.push_back (std::move (w));
     }
 
+    // CV: a 32-bit float WAV per interface output the song uses (1.0 = the interface's full scale)
+    const auto cvOuts = usedCvOutputs (song);
+    std::vector<std::unique_ptr<juce::AudioFormatWriter>> cvWriters;
+    juce::AudioBuffer<float> cvBuf (std::max (1, (int) cvOuts.size()), block);
+    for (int o : cvOuts)
+    {
+        const auto f = folder.getChildFile (file.getFileNameWithoutExtension() + " CV OUT " + juce::String (o) + ".wav");
+        f.deleteFile();
+        std::unique_ptr<juce::FileOutputStream> os (f.createOutputStream());
+        if (os == nullptr) { error = "Couldn't write " + f.getFullPathName(); return false; }
+        std::unique_ptr<juce::AudioFormatWriter> w (juce::WavAudioFormat().createWriterFor (os.get(), sampleRate, 1, 32, {}, 0));
+        if (w == nullptr) { error = "Couldn't create the WAV writer."; return false; }
+        os.release();
+        cvWriters.push_back (std::move (w));
+        if (cvFiles != nullptr) cvFiles->add (f.getFileName());
+    }
+
     StemCollector tap (block);
     if (stems) p.stemTap = &tap;
     auto renderBlock = [&]
     {
         tap.begin();
+        cvBuf.clear();
+        for (size_t k = 0; k < cvOuts.size(); ++k) p.cv.out[cvOuts[k] - 1] = cvBuf.getWritePointer ((int) k);
         p.render (buf.getWritePointer (0), buf.getWritePointer (1), block);
+        for (auto& o : p.cv.out) o = nullptr;
         // (the first `skip` samples are the plug-ins' delay)
         const int from = std::min (skip, block);
         skip -= from;
@@ -948,6 +999,8 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
             if (from < block) writers[k]->writeFromAudioSampleBuffer (b, from, block - from);
             peak = std::max (peak, b.getMagnitude (0, block));
         }
+        for (size_t k = 0; k < cvOuts.size(); ++k)
+            if (from < block) { const float* src = cvBuf.getReadPointer ((int) k) + from; cvWriters[k]->writeFromFloatArrays (&src, 1, block - from); }
         return peak;
     };
 
