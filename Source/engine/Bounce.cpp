@@ -1,4 +1,5 @@
 // Paula's Revenge - bouncing a highlighted part of the pattern to audio
+#include <memory>
 #include "Bounce.h"
 #include <algorithm>
 #include <cmath>
@@ -115,7 +116,8 @@ bool bounceRange (const Song& song, const PaulaOptions& options, double sampleRa
     s.sequence = { 0, 1 };
     s.sections.clear();
 
-    Player p;
+    auto heldPlayer = std::make_unique<Player>();   // (on the heap: a Player is ~470 KB)
+    Player& p = *heldPlayer;
     p.options = options;
     p.setSampleRate (sampleRate);
     p.synths().factory = [f = std::move (synthFactory)] (int i, const Instrument& ins, double sr) -> std::unique_ptr<PluginSynth>

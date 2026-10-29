@@ -1,4 +1,5 @@
 // Paula's Revenge - native song format, sample import and WAV rendering
+#include <memory>
 #include "SongFile.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
@@ -877,7 +878,8 @@ bool renderSongToWav (const Song& song, const PaulaOptions& options, double samp
                       std::function<std::unique_ptr<PluginSynth> (int, const Instrument&, double)> synthFactory,
                       bool stems, juce::StringArray* leftOut)
 {
-    Player p;
+    auto heldPlayer = std::make_unique<Player>();   // (on the heap: a Player is ~470 KB)
+    Player& p = *heldPlayer;
     p.options = options;
     p.setSampleRate (sampleRate);
     p.mixer().pluginFactory = std::move (pluginFactory);
