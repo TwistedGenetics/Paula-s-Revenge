@@ -3083,7 +3083,8 @@ static void testEqPointsAndUtility()
         // the spectrum: an instrument's tap gets its sound while playing; the FFT finds the tone
         Song s = oneShot (square (100, 4800));
         s.blocks[0].at (0, 0) = { 37, 1, 0, 0 };
-        Player p; p.setSampleRate (48000); p.setSong (&s);
+        auto pp = std::make_unique<Player>();   // (on the heap: a Player is big)
+        Player& p = *pp; p.setSampleRate (48000); p.setSong (&s);
         p.insTap.source = 0;
         p.mixer().chTap.source = 0;
         p.forceMixPath = true; p.mixer().syncEffectsNow (s.mixer);
@@ -3098,7 +3099,8 @@ static void testEqPointsAndUtility()
         float pk = 0; for (float v : buf) pk = std::max (pk, std::abs (v));
         CHECK (pk > 0.05f);
         // another instrument: nothing
-        Player q; q.setSampleRate (48000); q.setSong (&s); q.insTap.source = 5; q.playBlock (0);
+        auto qq = std::make_unique<Player>();
+        Player& q = *qq; q.setSampleRate (48000); q.setSong (&s); q.insTap.source = 5; q.playBlock (0);
         q.render (L.data(), R.data(), 4096);
         float qpk = 0; const int got = q.insTap.read (buf.data(), 4096);
         for (int i = 0; i < got; ++i) qpk = std::max (qpk, std::abs (buf[(size_t) i]));

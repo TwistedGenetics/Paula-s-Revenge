@@ -140,4 +140,8 @@ target_link_libraries(PaulasRevenge
 if(PRV_BUILD_TESTS)
     add_executable(prv_engine_test Tests/EngineTest.cpp)
     target_link_libraries(prv_engine_test PRIVATE prv_engine)
+    if (MSVC)
+        # the tests keep Players (~470 KB each) on the stack; Windows gives 1 MB by default
+        target_link_options(prv_engine_test PRIVATE /STACK:16777216)
+    endif()
 endif()
