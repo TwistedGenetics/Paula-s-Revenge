@@ -35,7 +35,8 @@ enum CommandIDs
     cmdExportSamples = 0x2016,
     cmdNoteOffs      = 0x2020,
     cmdFullVelocity  = 0x2021,
-    cmdFollowInstr   = 0x2022
+    cmdFollowInstr   = 0x2022,
+    cmdSeparation    = 0x2023
 };
 
 // the real audio system for FOLLOW SYSTEM OUTPUT
@@ -262,6 +263,7 @@ public:
         m.addCommandItem (&commands, cmdNoteOffs);
         m.addCommandItem (&commands, cmdFullVelocity);
         m.addCommandItem (&commands, cmdFollowInstr);
+        m.addCommandItem (&commands, cmdSeparation);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -277,7 +279,7 @@ public:
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
-                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr });
+                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -336,6 +338,7 @@ public:
             auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
             info.setTicked (proc != nullptr && proc->fullVelocity.load());
         }
+        else if (id == cmdSeparation) info.setInfo ("Stereo Separation...", "How far the Amiga layout spreads the tracks left and right (SEP)", "View", 0);
         else if (id == cmdFollowInstr)
         {
             info.setInfo ("Follow Instrument", "Clicking a note in the pattern picks its instrument in the list", "View", 0);
@@ -368,6 +371,7 @@ public:
                 case cmdExportSamples: ed->exportSamples(); return true;
                 case cmdNoteOffs:      ed->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs()); commands.commandStatusChanged(); return true;
                 case cmdFullVelocity:  ed->setFullVelocity (! ed->fullVelocityOn()); commands.commandStatusChanged(); return true;
+                case cmdSeparation:    ed->showSeparationMenu(); return true;
                 case cmdFollowInstr:   ed->setFollowInstrument (! prv::ui::PatternEditor::followInstrument()); commands.commandStatusChanged(); return true;
                 default: break;
             }

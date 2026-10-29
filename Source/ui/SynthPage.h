@@ -8,6 +8,7 @@
 #include "Panels.h"
 #include "Learn.h"
 #include "UtilityStrip.h"
+#include "PluginSearch.h"
 
 namespace prv::ui
 {
@@ -51,6 +52,12 @@ private:
     bool browsing = false;
     int shown = -1;
     PixList list;
+    PluginSearchBar search;   // type to search, favourites
+    int listedTotal = -1;     // (how many there were when listed)
+public:
+    PluginSearchBar& searchBar() { return search; }   // (tests)
+    juce::String rowText (int row) const { return row >= 0 && row < (int) choices.size() ? PluginSearchBar::rowText (choices[(size_t) row]) : juce::String(); }
+private:
     std::vector<juce::PluginDescription> choices;
     PixButton rescanBtn { "RESCAN" }, cancelBtn { "CANCEL" };
     PixButton windowBtn { "OPEN PLUG-IN WINDOW" }, changeBtn { "CHANGE PLUG-IN..." }, sampleBtn { "BACK TO A SAMPLE" }, closeBtn { "CLOSE" };

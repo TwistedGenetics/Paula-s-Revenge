@@ -1481,15 +1481,21 @@ void PatternEditor::transposeTrack (int semis)
     changed();
 }
 
-void PatternEditor::togglePlayStop (bool songMode)
+void PatternEditor::togglePlayStop (bool songMode, bool record, bool fromCursor)
 {
-    if (proc.player.isPlaying()) { stopPlayback(); return; }
+    if (proc.player.isPlaying())
+    {
+        stopPlayback();
+        if (record && st.editMode) { st.editMode = false; changed(); }
+        return;
+    }
     syncLoop();
     const bool loopHere = st.loopOn && st.loopBlock == proc.song.safeBlock (st.block);
     proc.withLock ([&] {
         if (songMode) proc.player.playSong (st.seqPos, 0);
-        else proc.player.playBlock (st.block, loopHere ? st.loopFrom : 0);
+        else proc.player.playBlock (st.block, fromCursor ? st.line : (loopHere ? st.loopFrom : 0));
     });
+    if (record) st.editMode = true;
     changed();
 }
 
@@ -1582,19 +1588,11 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     if (code == juce::KeyPress::endKey)  { st.line = blockLines() - 1; changed(); return true; }
 
     // --- transport: space plays/stops (shift = song), esc toggles edit mode
-    if (code == juce::KeyPress::spaceKey) { togglePlayStop (shift); return true; }
+    // Space: play and record (EDIT on) / stop (EDIT off); Return: play / stop, EDIT as it is
+    if (code == juce::KeyPress::spaceKey) { togglePlayStop (shift, true); return true; }
     // EDIT on/off: Esc, or \ (by key code: on a UK Mac keyboard it's the key next to Return)
     if (code == juce::KeyPress::escapeKey || (code == '\\' && ! mods.isCommandDown()) || k.getTextCharacter() == '\\') { toggleEdit(); return true; }
-    if (code == juce::KeyPress::returnKey)
-    {
-        proc.withLock ([&] {
-            if (shift) proc.player.playSong (st.seqPos, 0);
-            else if (cmd) proc.player.playBlock (st.block, st.line);
-            else proc.player.playBlock (st.block, 0);
-        });
-        changed();
-        return true;
-    }
+    if (code == juce::KeyPress::returnKey) { togglePlayStop (shift, false, cmd); return true; }   // (Cmd: from the cursor line)
 
     // --- clipboard / undo
     if (cmd)

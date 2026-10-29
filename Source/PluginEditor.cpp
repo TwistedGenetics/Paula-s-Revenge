@@ -1,5 +1,6 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
+#include "ui/ChoiceBox.h"
 #include "ui/MeterColours.h"
 #include "engine/Capture.h"
 #include "SongFile.h"
@@ -9,7 +10,7 @@
 
 using namespace prv::ui;
 
-namespace { const juce::String kHelpText = "SPACE=PLAY/STOP  ESC=EDIT  CMD+Z=UNDO"; }
+namespace { const juce::String kHelpText = "SPACE=PLAY+REC  RETURN=PLAY  ESC=EDIT"; }
 
 PaulaEditor::PaulaEditor (PaulaProcessor& p)
     : AudioProcessorEditor (p), proc (p),
@@ -40,8 +41,9 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     help.onClose = [this] { setView (helpReturn == View::Help ? View::Pattern : helpReturn); };
     help.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (help);
-    chords.onStopSong = [this] { pattern.stopPlayback(); refreshAll(); setStatus ("STOPPED"); };
-    sampleEditor.onStopSong = [this] { pattern.stopPlayback(); refreshAll(); setStatus ("STOPPED"); };
+    // (Space while the song plays: it stops, and EDIT goes off as Space switched it on)
+    chords.onStopSong = [this] { pattern.stopPlayback(); proc.editorState.editMode = false; refreshAll(); setStatus ("STOPPED"); };
+    sampleEditor.onStopSong = [this] { pattern.stopPlayback(); proc.editorState.editMode = false; refreshAll(); setStatus ("STOPPED"); };
     chords.onClose = [this] { setView (chordsReturn == View::Chords || chordsReturn == View::Help ? View::Pattern : chordsReturn); };
     chords.onStatus = [this] (const juce::String& m) { setStatus (m); };
     chords.onChanged = [this] { refreshAll(); };
@@ -178,6 +180,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     volSlider.format = [] (float v) { return juce::String (juce::roundToInt (v * 200)) + "%"; };
     sepSlider.onChange = [this] (float) { applyOptions(); };
     volSlider.onChange = [this] (float) { applyOptions(); };
+    // the master VOL: a compact box by the L / R meter (0-200 %, 100 = as it is)
+    volBox.compact = true; volBox.labelChars = 3; volBox.valueChars = 3;
+    volBox.onChange = [this] (int v) { volSlider.setValue (v / 200.0f); applyOptions(); setStatus ("MASTER VOLUME " + juce::String (v) + "% (AFTER EVERYTHING, BEFORE THE OUTPUT)"); };
+    // SEP (stereo separation) lives in a menu now: right-click a machine button, or the View menu
+    for (auto* b : { &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn }) b->onRightClick = [this] { showSeparationMenu(); };
 
     // ---- song strip
     viewBtn.onClick = [this, &st] { st.fourTrackView = viewBtn.getToggleState(); refreshAll(); };
@@ -245,7 +252,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (arrange);
     mixer.onClose = [this] { setView (View::Pattern); };
     mixer.onStatus = [this] (const juce::String& m) { setStatus (m); };
-    mixer.onPlayStop = [this] (bool song) { pattern.togglePlayStop (song); refreshAll(); };
+    mixer.onPlayStop = [this] (bool song) { pattern.togglePlayStop (song, true); refreshAll(); };
     mixer.onOctave = [this] { refreshAll(); mixer.repaint(); };
     addChildComponent (mixer);
     mixerBtn.onClick = [this] { setView (proc.editorState.view == View::Mixer ? View::Pattern : View::Mixer); };
@@ -302,7 +309,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
-            &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &sepSlider, &volSlider,
+            &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
@@ -457,6 +464,7 @@ void PaulaEditor::refreshAll()
     ledBtn.setToggleState (song.ledFilterAtStart, juce::dontSendNotification);
     sepSlider.setValue (o.stereoSep);
     volSlider.setValue (o.master * 0.5f);
+    volBox.setValue (juce::roundToInt (o.master * 100.0f));
 
     editBtn.setToggleState (st.editMode, juce::dontSendNotification);
     loopBtn.setToggleState (st.loopOn, juce::dontSendNotification);
@@ -669,8 +677,6 @@ void PaulaEditor::resized()
     // bottom strips
     auto status = r.removeFromBottom (rowH).reduced (gap, 0);
     r.removeFromBottom (gap);
-    auto paula2 = r.removeFromBottom (rowH).reduced (gap, 0);   // SEP + VOL
-    r.removeFromBottom (gap);
     auto paula = r.removeFromBottom (rowH).reduced (gap, 0);    // models, options, meter
     r.removeFromBottom (gap);
 
@@ -694,10 +700,12 @@ void PaulaEditor::resized()
     eightBitBtn.setBounds (paula.removeFromLeft (charsW (5))); paula.removeFromLeft (gap);
     crunchBtn.setBounds (paula.removeFromLeft (charsW (8))); paula.removeFromLeft (gap);
     ledBtn.setBounds (paula.removeFromLeft (charsW (4))); paula.removeFromLeft (gap * 3);
-    outMeter.setBounds (paula.withTrimmedLeft (std::max (0, paula.getWidth() - charsW (24))));
-    const int sliderW = (paula2.getWidth() - gap * 2) / 2;
-    sepSlider.setBounds (paula2.removeFromLeft (sliderW)); paula2.removeFromLeft (gap * 2);
-    volSlider.setBounds (paula2);
+    // the master VOL beside the L / R meter (SEP: right-click a machine button)
+    {
+        auto meterArea = paula.withTrimmedLeft (std::max (0, paula.getWidth() - charsW (34)));
+        volBox.setBounds (meterArea.removeFromLeft (std::min (volBox.preferredWidth (px), meterArea.getWidth() - charsW (6)))); meterArea.removeFromLeft (gap * 2);
+        outMeter.setBounds (meterArea);
+    }
 
     // main area
     auto main = r.reduced (gap, 0);
@@ -716,7 +724,9 @@ void PaulaEditor::resized()
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
-        const int seqH = std::max (rowH * 8, (int) (left.getHeight() * 0.40f));
+        // (a fourth row of sequence buttons: LOOP SELECTION / LOOP SECTION, taken from the instrument list)
+        // (the freed SEP / VOL row pays for most of it)
+        const int seqH = std::max (rowH * 9, (int) ((left.getHeight() - rowH - gap) * 0.40f) + rowH + gap);
         sequence.setBounds (left.removeFromTop (seqH));
         left.removeFromTop (gap);
         blockPanel.setBounds (left.removeFromTop ((int) (px * 14) + rowH * 3 + gap * 3));
@@ -782,6 +792,25 @@ void PaulaEditor::setFullVelocity (bool on)
     proc.setFullVelocity (on);
     fullVelBtn.setToggleState (on, juce::dontSendNotification);
     setStatus (on ? "FULL VEL: EVERY NOTE YOU PLAY GOES IN AT FULL VELOCITY (127)" : "FULL VEL OFF: NOTES USE THE KEYBOARD'S VELOCITY");
+}
+
+void PaulaEditor::showSeparationMenu()
+{
+    // SEP: how far the Amiga layout spreads the tracks (1, 4, 5, 8 left; 2, 3, 6, 7 right)
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    std::vector<prv::ui::MenuItem> items;
+    const int now = juce::roundToInt (sepSlider.value * 100.0f);
+    for (int v : { 0, 10, 20, 35, 50, 75, 100 })
+        items.push_back ({ juce::String (v == now ? "> " : "  ") + juce::String (v) + "%" + (v == 0 ? " (MONO)" : v == 20 ? " (DEFAULT)" : v == 100 ? " (HARD AMIGA)" : ""),
+                           [safe, v] { if (safe) safe->setSeparation (v / 100.0f); } });
+    prv::ui::showMenu ("STEREO SEPARATION (SEP)", items);
+}
+
+void PaulaEditor::setSeparation (float v)
+{
+    sepSlider.setValue (juce::jlimit (0.0f, 1.0f, v));
+    applyOptions();
+    setStatus ("STEREO SEPARATION " + juce::String (juce::roundToInt (sepSlider.value * 100.0f)) + "%: HOW FAR TRACKS 1, 4, 5, 8 SIT LEFT AND 2, 3, 6, 7 RIGHT");
 }
 
 void PaulaEditor::setFollowInstrument (bool on)
@@ -911,15 +940,17 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
     {
         const auto mm = k.getModifiers();
         const auto v = proc.editorState.view;
-        if (k.getKeyCode() == juce::KeyPress::spaceKey && ! mm.isCommandDown() && ! mm.isCtrlDown() && ! mm.isAltDown()
+        const bool space = k.getKeyCode() == juce::KeyPress::spaceKey, ret = k.getKeyCode() == juce::KeyPress::returnKey;
+        if ((space || ret) && ! mm.isCommandDown() && ! mm.isCtrlDown() && ! mm.isAltDown()
             && v != View::Pattern && v != View::Help)
         {
+            // Space: play and record (EDIT on) / stop (EDIT off); Return: play / stop only
             const bool previewOnly = ! proc.player.isPlaying() && proc.previewPos.load() >= 0;
             sampleEditor.stop();
             proc.stopPreview();
-            if (! previewOnly) pattern.togglePlayStop (mm.isShiftDown());
+            if (! previewOnly) pattern.togglePlayStop (mm.isShiftDown(), space);
             refreshAll();
-            setStatus (proc.player.isPlaying() ? "PLAYING (SPACE STOPS IT)" : "STOPPED");
+            setStatus (proc.player.isPlaying() ? (space ? "PLAYING, RECORDING (SPACE STOPS IT)" : "PLAYING (RETURN STOPS IT)") : "STOPPED");
             return true;
         }
     }

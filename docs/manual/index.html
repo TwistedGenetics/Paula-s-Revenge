@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.25</span>
+  <span class="ver">MANUAL &middot; V0.26</span>
 </header>
 
 <div class="app">
@@ -164,11 +164,11 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="status sunken"><span class="tag">PC</span><span>Every <kbd>Cmd</kbd> shortcut in this manual is <kbd>Ctrl</kbd> on a PC, and the app shows CTRL where the Mac shows CMD. Full screen is <kbd>F11</kbd>. Plug-ins are VST3 (Audio Units are Mac-only).</span></div>
   <h3>Your first sound in a minute</h3>
   <ol class="steps">
-    <li>Press <kbd>Space</kbd>. A new song already has a few chip sounds in it, so the keys make sound straight away.</li>
-    <li>Press <kbd>Esc</kbd> to switch <span class="b on">&#9679; EDIT</span> on. The cursor line turns grey.</li>
+    <li>A new song already has a few chip sounds in it, so the keys make sound straight away.</li>
+    <li>Press <kbd>Esc</kbd> to switch <span class="b on">&#9679; EDIT</span> on. The cursor line turns grey. (<kbd>Space</kbd> plays <i>and</i> switches EDIT on, to record as it plays; Space again stops and switches it off.)</li>
     <li>Type notes with the bottom two rows of the keyboard (<kbd>Z</kbd> is C, <kbd>S</kbd> is C#, <kbd>X</kbd> is D…). Each note goes in with the current instrument and the cursor moves down by <span class="b">STEP</span>.</li>
     <li>Click <span class="b">LOAD</span> in the instrument panel to pick a break from your drive. Every sample you highlight plays straight away.</li>
-    <li>Press <kbd>Space</kbd> to hear the block. <kbd>Shift</kbd><kbd>Space</kbd> plays the whole song.</li>
+    <li>Press <kbd>Return</kbd> to hear the block (and Return again to stop). <kbd>Shift</kbd><kbd>Return</kbd> plays the whole song.</li>
   </ol>
   <div class="status sunken"><span class="tag">TIP</span><span>For a break: put <code>C-3</code> on line 0 and use <code>9xx</code> offsets to jump around inside it, or slice it in the sample editor and play the slices from the keys.</span></div>
 </section>
@@ -190,7 +190,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
       <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
-      <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, an L/R meter, stereo separation and volume.</td></tr>
+      <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, the master <span class="b">VOL</span> and an L/R meter. Stereo separation (SEP): right-click a machine button.</td></tr>
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
     </tbody>
   </table></div>
@@ -349,9 +349,11 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>The sequence panel</h3>
   <ul>
     <li><span class="b">ADD</span> puts a new position after the selected one, playing the same block; change it with BLOCK <span class="b">-</span> <span class="b">+</span>. <span class="b">NEW</span> makes a new empty block in a new position.</li>
-    <li>Drag over positions to highlight them, then <span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DUP</span> <span class="b">DEL</span>. Drag the highlight, or use <span class="b">&#9650;</span> <span class="b">&#9660;</span>, to move positions.</li>
+    <li>Drag over the names to highlight positions, then <span class="b">CUT</span> <span class="b">COPY</span> <span class="b">PASTE</span> <span class="b">DUPLICATE</span> <span class="b">DEL</span>. To move them, drag by the <b>position numbers</b> on the left (a hand shows there), or use <span class="b">&#9650;</span> <span class="b">&#9660;</span>.</li>
+    <li><b>COMBINE INTO ONE BLOCK</b> (right-click a highlight): the highlighted blocks, one after another, become one new block in their place (up to 256 lines).</li>
+    <li><span class="b">LOOP SELECTION</span> (or right-click) loops the highlighted positions while the song plays. The list follows the position playing.</li>
     <li><span class="b">CLONE IN PLACE</span> gives a position its own copy of its block, in the next free block, so you can change it without touching the other places it plays.</li>
-    <li>Click at the right of a row to start a named <b>section</b> there (INTRO, DROP…). <span class="b">LOOP SECTION</span> loops the section you're in; pick a position in another section and playback goes there when the current block ends.</li>
+    <li>Click the label at the right of a row (or <code>+ SECTION</code>) to start a named <b>section</b> there (INTRO, DROP…). <span class="b">LOOP SECTION</span> loops the section you're in; pick a position in another section and playback goes there when the current block ends.</li>
     <li><b>Block names:</b> double-click a position (or right-click &rarr; <span class="b">BLOCK NAME...</span>) to name its block (AMEN, REESE…). The name takes the place of the word BLOCK &mdash; <code>000  AMEN  003  DROP</code> &mdash; with a gap before the block number (which never changes) and before the section name. A name too long for its space scrolls along on the playing, highlighted or pointed-at row. The BLOCK panel's title shows it too.</li>
   </ul>
   <h3>The arrange page</h3>
@@ -466,7 +468,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">8-BIT</span></td><td>Samples play at 8-bit resolution</td></tr>
       <tr><td><span class="b">8CH GRIT</span></td><td>OctaMED's 8-channel sound on all 8 tracks. The Amiga has 4 channels, so 8-channel trackers mixed two tracks into each (1+5, 2+6, 3+7, 4+8) at half level and squashed them back to 8 bits; this does the squashing, then brings the level back up. On for the Amiga models. Every track plays at full level either way, and a safety limiter stops eight loud tracks clipping</td></tr>
       <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter (12 dB/oct at 3.2 kHz) at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
-      <tr><td>SEP</td><td>How far tracks lean to the Amiga sides (1, 4, 5, 8 left; 2, 3, 6, 7 right). 20% to start; 0% = all centred</td></tr>
+      <tr><td>SEP</td><td>Right-click a machine button (or View &rarr; Stereo Separation...): how far tracks lean to the Amiga sides (1, 4, 5, 8 left; 2, 3, 6, 7 right). 20% to start; 0% = all centred, 100% = the full Amiga split</td></tr>
+      <tr><td>VOL</td><td>The master volume after everything, 0&ndash;200% (100 = as it is), beside the meter</td></tr>
     </tbody>
   </table></div>
   <h3>How the Paula modes work</h3>
@@ -539,7 +542,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h2>PLUG-INS</h2>
   <div class="accent t2"></div>
   <h3>Effects in the mixer</h3>
-  <p>On any insert slot's effect page press <span class="b">PLUG-IN...</span>. The first time, it looks for the plug-ins on your Mac, each one in a separate hidden copy of the app, so one that crashes can't take Paula's Revenge down. Double-click one to load it; <span class="b">OPEN PLUG-IN WINDOW</span> shows its own controls. Its settings are saved in the song. If a song uses a plug-in this Mac doesn't have, the slot shows <code>!NAME</code>, passes the audio through and keeps the settings.</p>
+  <p>On any insert slot's effect page press <span class="b">PLUG-IN...</span>. The first time, it looks for the plug-ins on your Mac, each one in a separate hidden copy of the app, so one that crashes can't take Paula's Revenge down. Double-click one to load it; <span class="b">OPEN PLUG-IN WINDOW</span> shows its own controls. <b>To find one, just type</b>: the list narrows to every word in the name, maker or format (<code>VALHALLA</code>, <code>U-HE ZEB</code>); Esc clears it. <b>Favourites:</b> right-click a plug-in (or <span class="b">FAVOURITE</span>) to star it &mdash; stars come first, and <span class="b">FAVOURITES ONLY</span> shows just them. The instrument list works the same way. Its settings are saved in the song. If a song uses a plug-in this Mac doesn't have, the slot shows <code>!NAME</code>, passes the audio through and keeps the settings.</p>
   <h3>Instruments</h3>
   <p>Pick an instrument, press <span class="b">PARAMS</span>, then <span class="b">PLUG-IN / MIDI OUT...</span> and <span class="b">A VST3 / AU INSTRUMENT</span>.</p>
   <div class="two">
@@ -802,10 +805,10 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Z</kbd> <kbd>S</kbd> <kbd>X</kbd> <kbd>D</kbd> <kbd>C</kbd>…</td><td>Notes, lower octave (<kbd>,</kbd> <kbd>L</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>/</kbd> carry on up)</td></tr>
       <tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd>…</td><td>Notes, upper octave</td></tr>
       <tr><td><kbd>1</kbd></td><td>Note off</td></tr>
-      <tr><td><kbd>Space</kbd></td><td>Play / stop the block · with <kbd>Shift</kbd>, the song. On every page: Space stops the song</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Play and record (EDIT on) / stop (EDIT off) · with <kbd>Shift</kbd>, the song. On every page</td></tr>
       <tr><td><kbd>Esc</kbd> or <kbd>\</kbd></td><td>Edit mode on / off</td></tr>
       <tr><td><kbd>Shift</kbd><kbd>3</kbd></td><td>In a command column: <code>#</code>, the chord command</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>Play block · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
+      <tr><td><kbd>Return</kbd></td><td>Play / stop, EDIT left as it is · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
       <tr><td>Arrows</td><td>Move · <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> 4 lines · <kbd>Shift</kbd> <kbd>&larr;</kbd><kbd>&rarr;</kbd> track</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous</td></tr>
       <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up, on every page (also with a plug-in's window in front)</td></tr>
@@ -829,7 +832,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.25</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.26</footer>
 </main>
 </div>
 </body></html>

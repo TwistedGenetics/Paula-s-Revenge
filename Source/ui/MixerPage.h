@@ -7,6 +7,7 @@
 #include "Learn.h"
 #include "Panels.h"
 #include "EqGraph.h"
+#include "PluginSearch.h"
 
 namespace prv::ui
 {
@@ -161,6 +162,12 @@ private:
     // plug-ins (VST3 / AU)
     PixButton pluginBtn { "PLUG-IN...", true }, rescanBtn { "RESCAN" }, editPluginBtn { "OPEN PLUG-IN WINDOW" }, listCloseBtn { "BACK TO THE EFFECT" };
     PixList pluginList;
+    PluginSearchBar pluginSearch;   // type to search, favourites
+    int listedPluginTotal = -1;
+public:
+    PluginSearchBar& pluginSearchBar() { return pluginSearch; }   // (tests)
+    juce::String pluginRowText (int row) const { return row >= 0 && row < (int) pluginChoices.size() ? PluginSearchBar::rowText (pluginChoices[(size_t) row]) : juce::String(); }
+private:
     std::vector<juce::PluginDescription> pluginChoices;
     bool browsingPlugins = false;
     juce::Rectangle<float> pluginInfoArea, listStatusArea;

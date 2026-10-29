@@ -44,6 +44,10 @@ public:
     std::function<juce::String (int)> getRowNumber;
     float nameX = -1, nameEndX = -1, numberX = -1;
     float nameScroll (int row, const juce::String& name) const;   // how far (pixels) the name is scrolled now
+    // where a drag moves rows: only from x < grabX (the position numbers) when set; a drag anywhere else
+    // highlights. Clicks open the section label only on the label itself.
+    float grabX = -1;
+    bool  onTag (int row, float x) const;
     static double& testClockMs() { static double t = -1.0; return t; }   // tests: the time the scrolling uses (-1 = the real one)
     int  hoverRow = -1;
 
@@ -101,8 +105,8 @@ private:
     PixButton upBtn { juce::String::charToString ((juce::juce_wchar) 3) }, downBtn { juce::String::charToString ((juce::juce_wchar) 4) };
     PixButton cloneInPlaceBtn { "CLONE IN PLACE" }, arrangeBtn { "ARRANGE" };
     NumberBox blockBox { "BLOCK", 0, 255, 0 };
-    PixButton loopSectBtn { "LOOP SECTION", true };
-    PixButton cutBtn { "CUT" }, copyBtn { "COPY" }, pasteBtn { "PASTE" }, dupBtn { "DUP" };
+    PixButton loopSectBtn { "LOOP SECTION", true }, loopSelBtn { "LOOP SELECTION", true };
+    PixButton cutBtn { "CUT" }, copyBtn { "COPY" }, pasteBtn { "PASTE" }, dupBtn { "DUPLICATE" };
     SeqEditor ops { proc };
 public:
     std::function<void (const juce::String&)> pushStructUndo;
@@ -110,6 +114,10 @@ public:
     std::function<void (const juce::String&)> onStatus;
     void moveSelected (int delta);
     void cloneInPlace();
+    void combineSelection();                 // COMBINE: the highlighted positions' blocks into one new block
+    void setLoopSelection (bool on);         // LOOP SELECTION: song play loops the highlighted positions
+    PixList& listView() { return list; }     // (tests)
+    SeqEditor& seqOps() { return ops; }      // (tests)
     void selectPosition (int row);   // same as clicking it in the list
     void nameBlockAt (int row);      // BLOCK NAME... for the block at that song position
 };

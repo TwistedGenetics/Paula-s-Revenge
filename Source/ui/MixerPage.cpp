@@ -762,12 +762,22 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         else if (onStatus) onStatus ("THIS PLUG-IN ISN'T LOADED - PICK ANOTHER WITH PLUG-IN...");
     };
     pluginList.getNumRows = [this] { return (int) pluginChoices.size(); };
-    pluginList.getRowText = [this] (int r)
+    pluginList.getRowText = [this] (int r) { return PluginSearchBar::rowText (pluginChoices[(size_t) r]); };
+    pluginList.onClick = [this] (int r, const juce::MouseEvent& e)
     {
-        const auto& d = pluginChoices[(size_t) r];
-        return d.name.toUpperCase() + "  (" + d.manufacturerName.toUpperCase() + ", " + (d.pluginFormatName == "AudioUnit" ? juce::String ("AU") : d.pluginFormatName.toUpperCase()) + ")";
+        pluginList.selected = r; pluginList.repaint();
+        if (e.mods.isPopupMenu() && r >= 0 && r < (int) pluginChoices.size())
+        {
+            juce::Component::SafePointer<MixerPage> safe (this);
+            const auto d = pluginChoices[(size_t) r];
+            showMenu (d.name.toUpperCase(), { { PluginSearchBar::isFavourite (d) ? "REMOVE FROM FAVOURITES" : "ADD TO FAVOURITES",
+                                                [safe, d] { if (safe) { PluginSearchBar::toggleFavourite (d); safe->refreshPluginList(); } } },
+                                              { "LOAD IT", [safe, r] { if (safe) safe->choosePlugin (r); } } });
+        }
     };
-    pluginList.onClick = [this] (int r, const juce::MouseEvent&) { pluginList.selected = r; pluginList.repaint(); };
+    pluginSearch.onChanged = [this] { refreshPluginList(); };
+    pluginSearch.selected = [this]() -> const juce::PluginDescription* { return pluginList.selected >= 0 && pluginList.selected < (int) pluginChoices.size() ? &pluginChoices[(size_t) pluginList.selected] : nullptr; };
+    addChildComponent (pluginSearch);
     pluginList.onDoubleClick = [this] (int r) { choosePlugin (r); };
     proc.pluginHost.onScanFinished = [this] { refreshPluginList(); if (onStatus) onStatus (proc.pluginHost.scanStatus()); };
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
@@ -1053,6 +1063,7 @@ void MixerPage::refreshEffect()
     learnABtn.setToggleState (learner.armed && learner.what == 0, juce::dontSendNotification);
     learnBBtn.setToggleState (learner.armed && learner.what == 1, juce::dontSendNotification);
     pluginList.setVisible (fx && browsingPlugins);
+    pluginSearch.setVisible (fx && browsingPlugins);
     rescanBtn.setVisible (fx && browsingPlugins);
     listCloseBtn.setVisible (fx && browsingPlugins);
     editPluginBtn.setVisible (fx && isPlugin && ! browsingPlugins);
@@ -1105,11 +1116,14 @@ void MixerPage::showPluginList (bool show)
 
 void MixerPage::refreshPluginList()
 {
-    pluginChoices = proc.pluginHost.effects();
     const auto& s = proc.song.mixer.slot (fxSlot);
+    const std::string was = pluginList.selected >= 0 && pluginList.selected < (int) pluginChoices.size() ? prv::PluginHost::keyFor (pluginChoices[(size_t) pluginList.selected]) : s.pluginKey;
+    const auto all = proc.pluginHost.effects();
+    listedPluginTotal = (int) all.size();
+    pluginChoices = pluginSearch.filter (all);
     pluginList.selected = 0;
     for (int i = 0; i < (int) pluginChoices.size(); ++i)
-        if (prv::PluginHost::keyFor (pluginChoices[(size_t) i]) == s.pluginKey) pluginList.selected = i;
+        if (prv::PluginHost::keyFor (pluginChoices[(size_t) i]) == was) pluginList.selected = i;
     pluginList.ensureVisible (pluginList.selected);
     pluginList.repaint();
     repaint();
@@ -1204,7 +1218,7 @@ void MixerPage::tick()
     {
         const auto st = proc.pluginHost.scanStatus();
         if (st != lastScanStatus) { lastScanStatus = st; repaint (listStatusArea.toNearestInt()); }
-        if (proc.pluginHost.isScanning() && (int) proc.pluginHost.effects().size() != (int) pluginChoices.size()) refreshPluginList();
+        if (proc.pluginHost.isScanning() && (int) proc.pluginHost.effects().size() != listedPluginTotal) refreshPluginList();
     }
     if (currentPage == Page::Strips)
     {
@@ -1223,6 +1237,19 @@ void MixerPage::tick()
 
 bool MixerPage::keyPressed (const juce::KeyPress& k)
 {
+    if (currentPage == Page::Effect && browsingPlugins)
+    {
+        if (pluginSearch.keyPressed (k)) return true;   // (typing searches)
+        const int code = k.getKeyCode();
+        if (code == juce::KeyPress::returnKey) { choosePlugin (pluginList.selected); return true; }
+        if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)
+        {
+            pluginList.selected = juce::jlimit (0, std::max (0, (int) pluginChoices.size() - 1), pluginList.selected + (code == juce::KeyPress::upKey ? -1 : 1));
+            pluginList.ensureVisible (pluginList.selected);
+            pluginList.repaint();
+            return true;
+        }
+    }
     if (k == juce::KeyPress::escapeKey)
     {
         if (currentPage == Page::Strips) { if (onClose) onClose(); }
@@ -1412,7 +1439,8 @@ void MixerPage::paint (juce::Graphics& g)
     {
         const auto st = proc.pluginHost.scanStatus();
         const juce::String t = proc.pluginHost.isScanning() || st.isNotEmpty() ? st
-                             : juce::String ((int) pluginChoices.size()) + " EFFECT PLUG-INS (RESCAN AFTER INSTALLING MORE)";
+                             : juce::String ((int) pluginChoices.size()) + (pluginSearch.query.isNotEmpty() || pluginSearch.favouritesOnly ? " FOUND" : " EFFECT PLUG-INS")
+                               + " - RIGHT-CLICK ONE TO STAR IT";
         PixelFont::drawLeft (g, fit (t, listStatusArea.getWidth()), listStatusArea, px, Theme::palFor (*this).ink);
     }
     else if (s.type == FxType::Plugin)
@@ -1598,6 +1626,8 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
         listCloseBtn.setBounds (bottom.removeFromRight (charsW (18))); bottom.removeFromRight (gap);
         listStatusArea = bottom.toFloat().withTrimmedLeft ((float) gap);
         r.removeFromBottom (gap);
+        pluginSearch.setBounds (r.removeFromTop (rowH));
+        r.removeFromTop (gap);
         pluginList.setBounds (r);
         return;
     }

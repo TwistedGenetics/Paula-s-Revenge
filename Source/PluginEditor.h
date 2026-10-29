@@ -71,7 +71,10 @@ public:
     void exportWav();
     void exportSamples();
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
-    void setFollowInstrument (bool on);               // FOLLOW INSTRUMENT: a click on a note picks its instrument
+    void setFollowInstrument (bool on);
+    void showSeparationMenu();                        // SEP: right-click a machine button (or the View menu)
+    void setSeparation (float v01);
+    float separation() const { return sepSlider.value; }               // FOLLOW INSTRUMENT: a click on a note picks its instrument
     void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
     bool fullVelocityOn() const { return proc.fullVelocity.load(); }
     bool writeSongTo (const juce::File&);             // SAVE to that file (the song takes the file's name)
@@ -80,9 +83,10 @@ public:
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
 
+    void refreshAll();   // (also used by the tests)
+
 private:
     void timerCallback() override;
-    void refreshAll();
     void applyOptions();
 
     static juce::String songNameFor (const juce::File&);   // the song's name: its file's
@@ -118,7 +122,8 @@ private:
     PixButton s950Btn { "S950", true }, s1000Btn { "S1000", true };
     PixButton steppedBtn { "STEPPED", true }, eightBitBtn { "8-BIT", true }, crunchBtn { "8CH GRIT", true }, ledBtn { "LED", true };
     PixLabel  ledLabel { {}, false };
-    PixSlider sepSlider { "SEP" }, volSlider { "VOL" };
+    PixSlider sepSlider { "SEP" }, volSlider { "VOL" };   // (not shown: they hold SEP and VOL)
+    NumberBox volBox { "VOL", 0, 200, 100 };
 
     // song strip
     PixButton viewBtn { "BIG VIEW", true };

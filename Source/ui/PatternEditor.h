@@ -76,7 +76,8 @@ public:
     void transposeTrack (int semis);
     void insertLine();
     void deleteLine();
-    void togglePlayStop (bool song);
+    // Space (record = true): play with EDIT on / stop with EDIT off. Return (record = false): play / stop only
+    void togglePlayStop (bool song, bool record = false, bool fromCursor = false);
     void stopPlayback();
     void toggleEdit();
     void doubleBlock();

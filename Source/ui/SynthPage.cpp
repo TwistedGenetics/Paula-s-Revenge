@@ -1,5 +1,6 @@
 // Paula's Revenge - a plug-in instrument's page
 #include "SynthPage.h"
+#include "ChoiceBox.h"
 
 namespace prv::ui
 {
@@ -18,12 +19,22 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
     setOpaque (true);
 
     list.getNumRows = [this] { return (int) choices.size(); };
-    list.getRowText = [this] (int r)
+    list.getRowText = [this] (int r) { return PluginSearchBar::rowText (choices[(size_t) r]); };
+    list.onClick = [this] (int r, const juce::MouseEvent& e)
     {
-        const auto& d = choices[(size_t) r];
-        return d.name.toUpperCase() + "  (" + d.manufacturerName.toUpperCase() + ", " + (d.pluginFormatName == "AudioUnit" ? juce::String ("AU") : d.pluginFormatName.toUpperCase()) + ")";
+        list.selected = r; list.repaint();
+        if (e.mods.isPopupMenu() && r >= 0 && r < (int) choices.size())
+        {
+            juce::Component::SafePointer<SynthPage> safe (this);
+            const auto d = choices[(size_t) r];
+            showMenu (d.name.toUpperCase(), { { PluginSearchBar::isFavourite (d) ? "REMOVE FROM FAVOURITES" : "ADD TO FAVOURITES",
+                                                [safe, d] { if (safe) { PluginSearchBar::toggleFavourite (d); safe->refreshList(); } } },
+                                              { "LOAD IT", [safe, r] { if (safe) safe->choose (r); } } });
+        }
     };
-    list.onClick = [this] (int r, const juce::MouseEvent&) { list.selected = r; list.repaint(); };
+    search.onChanged = [this] { refreshList(); };
+    search.selected = [this]() -> const juce::PluginDescription* { return list.selected >= 0 && list.selected < (int) choices.size() ? &choices[(size_t) list.selected] : nullptr; };
+    addChildComponent (search);
     list.onDoubleClick = [this] (int r) { choose (r); };
     rescanBtn.onClick = [this] { proc.pluginHost.startScan(); };
     cancelBtn.onClick = [this] { if (inst().isPlugin()) setBrowsing (false); else if (onClose) onClose(); };
@@ -114,10 +125,14 @@ void SynthPage::setBrowsing (bool b)
 
 void SynthPage::refreshList()
 {
-    choices = proc.pluginHost.instruments();
+    // (keep the highlighted one highlighted when the search or the favourites change)
+    const std::string was = list.selected >= 0 && list.selected < (int) choices.size() ? prv::PluginHost::keyFor (choices[(size_t) list.selected]) : inst().pluginKey;
+    const auto all = proc.pluginHost.instruments();
+    listedTotal = (int) all.size();
+    choices = search.filter (all);
     list.selected = 0;
     for (int i = 0; i < (int) choices.size(); ++i)
-        if (prv::PluginHost::keyFor (choices[(size_t) i]) == inst().pluginKey) list.selected = i;
+        if (prv::PluginHost::keyFor (choices[(size_t) i]) == was) list.selected = i;
     list.ensureVisible (list.selected);
     list.repaint();
 }
@@ -190,6 +205,7 @@ void SynthPage::refresh()
     utility.setVisible (! browsing && ! inst().isMidiOut() && ! inst().isCvOut());
     utility.refresh();
     list.setVisible (browsing);
+    search.setVisible (browsing);
     rescanBtn.setVisible (browsing);
     cancelBtn.setVisible (browsing);
     for (auto* c : std::initializer_list<juce::Component*> { &windowBtn, &changeBtn, &sampleBtn, &outBox, &bendBox, &trackBox, &learnA, &learnB, &onBtn, &chordsBtn })
@@ -228,7 +244,7 @@ void SynthPage::tick()
     {
         const auto s = proc.pluginHost.scanStatus();
         if (s != lastScan) { lastScan = s; repaint(); }
-        if ((int) proc.pluginHost.instruments().size() != (int) choices.size()) refreshList();
+        if ((int) proc.pluginHost.instruments().size() != listedTotal) refreshList();
     }
     // the ON button follows V / J switching while the song plays
     if (! browsing && inst().isPlugin() && onBtn.getToggleState() != proc.player.instrumentIsOn (proc.editorState.instrument)) refresh();
@@ -280,6 +296,7 @@ bool SynthPage::keyPressed (const juce::KeyPress& k)
 {
     if (k.getKeyCode() == juce::KeyPress::escapeKey)
     {
+        if (browsing && search.query.isNotEmpty()) { search.setQuery ({}); return true; }
         if (learner.armed) { learner.cancel(); refresh(); return true; }
         if (browsing && inst().isPlugin()) { setBrowsing (false); return true; }
         if (onClose) onClose();
@@ -288,6 +305,7 @@ bool SynthPage::keyPressed (const juce::KeyPress& k)
     if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;
     if (browsing)
     {
+        if (search.keyPressed (k)) return true;   // (typing searches)
         const int code = k.getKeyCode();
         if (code == juce::KeyPress::returnKey) { choose (list.selected); return true; }
         if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)
@@ -338,14 +356,18 @@ void SynthPage::paint (juce::Graphics& g)
     const int i = proc.editorState.instrument;
     const juce::String title = "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2)
                              + (browsing ? juce::String (": PICK A VST3 / AU INSTRUMENT") : juce::String (": PLUG-IN INSTRUMENT"));
-    PixelFont::drawLeft (g, title, titleArea, px, Theme::palFor (*this).ink);
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+    PixelFont::drawLeft (g, PixelFont::textWidth (title, px) > titleArea.getWidth() && browsing
+                              ? "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": PICK A PLUG-IN" : title,
+                         titleArea, px, Theme::palFor (*this).ink);
     if (utility.isVisible()) PixelFont::drawLeft (g, "UTILITY", utilLabel, px, Theme::palFor (*this).ink);
 
     if (browsing)
     {
         const auto s = proc.pluginHost.scanStatus();
-        const juce::String t = proc.pluginHost.isScanning() ? s : juce::String ((int) choices.size()) + " INSTRUMENTS - DOUBLE-CLICK ONE TO LOAD IT";
+        const bool narrowed = search.query.isNotEmpty() || search.favouritesOnly;
+        const juce::String t = proc.pluginHost.isScanning() ? s : juce::String ((int) choices.size()) + (narrowed ? " FOUND" : " INSTRUMENTS")
+                                                                  + " - RIGHT-CLICK TO STAR";
         PixelFont::drawLeft (g, fit (t, infoArea.getWidth()), infoArea, px, Theme::palFor (*this).ink);
         return;
     }
@@ -395,6 +417,8 @@ void SynthPage::resized()
         cancelBtn.setBounds (bottom.removeFromRight (charsW (6))); bottom.removeFromRight (gap);
         infoArea = bottom.toFloat();
         r.removeFromBottom (gap);
+        search.setBounds (r.removeFromTop (rowH));
+        r.removeFromTop (gap);
         list.setBounds (r);
         return;
     }

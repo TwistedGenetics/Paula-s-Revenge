@@ -21,6 +21,12 @@ int nextFreeBlock (const Song& song);
 // number, or -1 if there's no room.
 int cloneInPlace (Song& song, int seqPos);
 
+// COMBINE: the blocks at song positions from..to (inclusive) one after another in a new block, which
+// takes their place in the song (one position). Sections inside the range go; the first one stays.
+// Returns the new block, or -1: kTooLong (over 256 lines), or no room for a block.
+constexpr int kCombineTooLong = -2;
+int combinePositions (Song& song, int from, int to);
+
 // Double the block's length; the new second half is an exact copy of the
 // first (notes and both effect columns). False if it would pass 256 lines.
 bool doubleBlockLength (Block& b);

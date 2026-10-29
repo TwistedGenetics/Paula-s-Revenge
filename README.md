@@ -33,11 +33,11 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 |---|---|
 | Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, **FULL VEL**, **NOTE-OFFS**, **CAPTURE**, text size `A-` / `A+`. SAVE MOD, RENDER WAV and EXPORT SAMPLES are in the **File** menu |
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
-| Sequence | The song order, with a scrollbar. Click a position to jump to it; drag over positions to highlight them for CUT / COPY / PASTE / DUP / DEL (see Sequence tools); set which block plays there. ▲ ▼ (or `Alt+↑/↓` in the pattern, or drag) move the selected positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click at the right of a row to start a labelled **section** there; LOOP SECTION loops it (see Song sections) |
+| Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The level meters are one colour: right-click one to choose it |
-| Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, an L/R output meter, and under it stereo separation and volume |
+| Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO and the status line. The song's name (top) is its file's name, set when you save or load |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
@@ -190,9 +190,12 @@ One history covers everything: notes and effects, block lengths, the sequence an
 
 * **Add a position**: **ADD** puts a new position straight after the selected one, playing the same block; change which block it plays with BLOCK − / + (any existing block). **NEW** makes a new, empty block (as long as the selected one) and puts it in a new position straight after the selected one, ready to fill. The arrange page's INSERT and SET do the same with the block number you pick there.
 * **Highlight positions**: drag over them in the list (it scrolls by itself past the ends), or Shift-click to stretch the highlight. `Cmd+A` highlights the whole song. The arrange page shows the same highlight.
-* **CUT** (`Cmd+X`), **COPY** (`Cmd+C`), **PASTE** (`Cmd+V`, goes in after the highlight), **DUP** (`Cmd+D`, a copy straight after the highlight, which then gets highlighted) and **DEL** (`Delete`) work on the highlighted positions, or on the one selected. DUP sits on the bottom row. The sequence panel and the arrange page share one clipboard: copy in one, paste in the other. Section dividers move with the music.
+* **Highlighting**: drag over the names (anywhere right of the position numbers) to highlight positions — starting inside a highlight starts a new one — or click one and Shift-click another. The list scrolls as you drag past an edge, and follows the song while it plays.
+* **CUT** (`Cmd+X`), **COPY** (`Cmd+C`), **PASTE** (`Cmd+V`, goes in after the highlight), **DUPLICATE** (`Cmd+D`, a copy straight after the highlight, which then gets highlighted) and **DEL** (`Delete`) work on the highlighted positions, or on the one selected.
+* **COMBINE INTO ONE BLOCK** (right-click a highlight): the highlighted positions' blocks, one after another, become one new block (named after the first) in their place — 4 positions of 64 lines make one 256-line block. Up to 256 lines; the old blocks stay as they were for other positions. Sections that started inside the highlight go. One undo step.
+* **LOOP SELECTION** (the button, or right-click): song play loops the highlighted positions, marked down the left edge. Press it again (or LOOP SECTION) to stop. The sequence panel and the arrange page share one clipboard: copy in one, paste in the other. Section dividers move with the music.
 * The keys work after clicking in the list; any other key (notes, Space, undo) goes straight on to the pattern.
-* **Move positions**: drag the highlight (or the selected position) to a new place, press ▲ / ▼, or use `Alt+↑` / `Alt+↓` in the pattern. (Section dividers stay where they are when you move positions.)
+* **Move positions**: drag the highlight (or the selected position) by its **position numbers** (the hand pointer shows there) to a new place, press ▲ / ▼, or use `Alt+↑` / `Alt+↓` in the pattern. (Section dividers stay where they are when you move positions.)
 * **CLONE IN PLACE**: if position 1 plays block 2, CLONE IN PLACE copies block 2 into the **next free block** and points position 1 at it. The next free block is the lowest-numbered block that's empty and not used anywhere in the song, or else a new block at the end. No other block numbers change and the song order keeps its length. Now you can change the copy without touching the other places block 2 is used. The status line says which block it used.
 * **NUM − / NUM +** (Block panel): swap the current block's number with the one before/after.
 * **Block names**: double-click a position (or right-click → **BLOCK NAME...**) to name the block it plays (`AMEN CHOP`, `REESE`…). The name takes the place of the word BLOCK in the sequence list — `000  AMEN CHOP  003  DROP` — with a gap before the block number (which never changes) and a gap before the section name. A name too long for its space scrolls along on the playing, highlighted or pointed-at row. Every position playing that block shows it, and the BLOCK panel's title shows the current block's name. Saved in the song, undoable, copied by CLONE.
@@ -241,7 +244,7 @@ LOAD in the instrument panel opens a browser in place of the pattern. Every samp
 | `↑` `↓` / `PgUp` `PgDn` | Move (and hear) the next sample |
 | `→` / `Enter` on a folder | Open it · `←` or `Backspace` goes up |
 | `Enter` / double-click | Load into the current instrument |
-| `Space` | Play / stop (on every page: it stops the song wherever you are) |
+| `Space` | Play / stop (on every page: Space plays and records, or stops and switches EDIT off; Return plays or stops) |
 | Note keys | Play the sample at that pitch |
 | `Alt` + a letter | Jump to the next name starting with it |
 | `Esc` | Close |
@@ -340,9 +343,9 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P` | Notes, upper octave |
 | `1` | Note off |
 | `0–9 A–F` | Hex entry in the instrument / command columns |
-| `Space` | Play / stop the block (from the loop start when a loop is marked) · `Shift+Space` the song |
+| `Space` | **Play and record**: plays the block (from the loop start when a loop is marked) with EDIT switched on; press again to stop, and EDIT goes off · `Shift+Space` the song |
 | `Esc` or `\` | Edit mode on/off (`\` is the key next to Return on a UK Mac keyboard) |
-| `Enter` | Play block · `Shift+Enter` play song · `Cmd+Enter` play block from the cursor |
+| `Return` | **Play / stop** without touching EDIT: the block · `Shift+Return` the song · `Cmd+Return` the block from the cursor line |
 | Arrows | Move · `Shift+↑/↓` 4 lines · `Shift+←/→` track |
 | `Tab` / `Shift+Tab` | Next / previous track |
 | `PgUp` / `PgDn`, `Home` / `End` | Jump |
@@ -462,7 +465,8 @@ Every track has a **second effect column** so a note can carry two effects; **FX
 | 8-BIT | Samples are played at 8-bit resolution |
 | 8CH GRIT | OctaMED's 8-channel sound on all 8 tracks: the real Amiga has 4 channels, so 8-channel trackers mixed two tracks into each one (1+5, 2+6, 3+7, 4+8) at half level and squashed the result back to 8 bits. 8CH GRIT does that squashing, then brings the level back up — the grit without the quieter mix. On to start with on the Amiga models; not on CLEAN or the Akais. Every track plays at full level whether it's on or off, and a safety limiter on the output stops eight loud tracks clipping |
 | LED | The "LED" low-pass filter (12 dB/oct Butterworth at 3.2 kHz), on at the start of the song (commands `E00`/`E01` switch it while playing) |
-| SEP | How far tracks lean to the Amiga sides (tracks 1, 4, 5, 8 left; 2, 3, 6, 7 right). Starts at 20%; 0% = everything centred, 100% = the full Amiga split. Double-click to reset. Track pans, instrument pans and `8xx` ignore it |
+| SEP | (Right-click a machine button, or View → Stereo Separation...) How far tracks lean to the Amiga sides (tracks 1, 4, 5, 8 left; 2, 3, 6, 7 right): 0% (mono), 10, 20 (the default), 35, 50, 75 or 100% (the full Amiga split). Track pans, instrument pans and `8xx` ignore it |
+| VOL | The master volume, after everything (0–200%, 100 = as it is). Click − / + or drag or wheel it |
 
 For breaks, load the break, put `C-3` on line 0 and use `9xx` sample offsets to jump around it, or slice it (see Slicing).
 
@@ -499,7 +503,8 @@ Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time.
 
 Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
 
-* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your Mac in the background (only effects are listed here; instruments are chosen from PARAMS); **RESCAN** looks again after you install more. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
+* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your Mac in the background (only effects are listed here; instruments are chosen from PARAMS); **RESCAN** looks again after you install more.
+* **Finding one**: just type — the list narrows to plug-ins with every word in their name, maker or format (`VALHALLA`, `U-HE ZEB`, `AU`); Backspace takes a letter off, Esc clears it. **Favourites**: right-click a plug-in (or highlight it and press **FAVOURITE**) to star it — starred ones are marked `*` and listed first, and **FAVOURITES ONLY** shows just those. The same goes for the instrument list (PLUG-IN / MIDI OUT... → VST3 / AU), and the stars are remembered on this computer. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
 * Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
 * The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
 * The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.

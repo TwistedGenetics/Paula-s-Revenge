@@ -3116,6 +3116,31 @@ static void testEqPointsAndUtility()
     }
 }
 
+// v0.26: COMBINE: positions' blocks one after another in a new block, in their place
+static void testCombine()
+{
+    Song s;
+    s.blocks.resize (4);
+    for (int b = 0; b < 4; ++b) { s.blocks[(size_t) b] = Block {}; s.blocks[(size_t) b].lines = 16 * (b + 1); s.blocks[(size_t) b].at (0, 0) = { (uint8_t) (10 + b), 1, 0, 0 }; }
+    s.blocks[1].name = "VERSE";
+    s.sequence = { 0, 1, 2, 1, 3 };
+    s.sections = { { 0, "INTRO" }, { 2, "DROP" }, { 4, "OUTRO" } };
+    const int nb = combinePositions (s, 1, 3);   // blocks 1, 2, 1: 32 + 48 + 32 lines
+    std::printf ("combine: new block %d, %d lines, sequence size %zu, sections %zu\n", nb, nb >= 0 ? s.blocks[(size_t) nb].lines : -1, s.sequence.size(), s.sections.size());
+    CHECK (nb == 4 && s.blocks[4].lines == 112 && s.blocks[4].name == "VERSE");
+    CHECK ((s.sequence == std::vector<int> { 0, 4, 3 }));
+    CHECK (s.blocks[4].at (0, 0).note == 11 && s.blocks[4].at (32, 0).note == 12 && s.blocks[4].at (80, 0).note == 11 && s.blocks[4].at (111, 0).note == 0);
+    // DROP started inside: gone; OUTRO moved up
+    CHECK (s.sections.size() == 2 && s.sections[0].name == "INTRO" && s.sections[1].name == "OUTRO" && s.sections[1].pos == 2);
+    // the old blocks are untouched
+    CHECK (s.blocks[1].lines == 32 && s.blocks[2].lines == 48);
+    // too long: nothing changes
+    Song t = s;
+    t.blocks[0].lines = 200;
+    CHECK (combinePositions (t, 0, 1) == kCombineTooLong && t.sequence == s.sequence);
+    CHECK (combinePositions (t, 1, 1) == -1);
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3145,6 +3170,7 @@ int main()
     testSampleTools();
     testCvOut();
     testEqPointsAndUtility();
+    testCombine();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

@@ -143,6 +143,8 @@ public:
         bool loopOn = false;
         int  loopBlock = -1, loopFrom = 0, loopTo = 0;
         bool sectionLoop = false;     // song play loops the selected position's section
+        bool selectionLoop = false;   // LOOP SELECTION: song play loops positions selLoopFrom..selLoopTo
+        int  selLoopFrom = 0, selLoopTo = 0;
         // highlighted song positions: seqAnchor .. seqPos (equal = just the one); shared clipboard
         int  seqAnchor = -1, seqSelCursor = -1;   // the range holds while seqPos == seqSelCursor
         std::vector<int> seqClip;

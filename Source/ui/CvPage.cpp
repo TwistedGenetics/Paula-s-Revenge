@@ -13,6 +13,26 @@ namespace
 {
     juce::String tenths (int v) { return juce::String (v / 10.0, 1) + "V"; }
     juce::String hex2 (int v) { return juce::String::toHexString (v).toUpperCase().paddedLeft ('0', 2); }
+    // centred text that never runs off the sides: a big size drops to the normal one if it doesn't
+    // fit, then the words wrap onto as many lines as it takes (each line centred). Returns the height used.
+    float drawFitted (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float size, juce::Colour c)
+    {
+        const float px = Theme::px, room = area.getWidth() - px * 4;
+        if (PixelFont::textWidth (text, size) > room) size = std::min (size, px);
+        juce::StringArray lines;
+        juce::String cur;
+        for (auto& w : juce::StringArray::fromTokens (text, " ", ""))
+        {
+            const auto tryLine = cur.isEmpty() ? w : cur + " " + w;
+            if (cur.isNotEmpty() && PixelFont::textWidth (tryLine, size) > room) { lines.add (cur); cur = w; }
+            else cur = tryLine;
+        }
+        if (cur.isNotEmpty()) lines.add (cur);
+        const float lh = size * 11.0f;
+        float y = area.getY() + std::max (0.0f, (area.getHeight() - lh * lines.size()) * 0.5f);
+        for (auto& l : lines) { PixelFont::drawCentred (g, l, { area.getX(), y, area.getWidth(), lh }, size, c); y += lh; }
+        return lh * lines.size();
+    }
     const char* kNoteNames[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" };
     // a MIDI note as the tracker writes it (MIDI 60 = C-3)
     juce::String trackerNote (double midi)
@@ -258,6 +278,12 @@ void CvOutPage::paint (juce::Graphics& g)
                    + (in.cvModOut > 0 ? ", MOD (LXX) " + cvOutName (in.cvModOut) : juce::String()));
         lines.add (proc.cvActive.load() ? juce::String ("SENDING ON OUTPUTS 3-") + juce::String (std::min (outs, kCvOutputs)) + " (1-2: THE MUSIC)"
                                         : juce::String ("NEEDS A DC-COUPLED INTERFACE (ES-9)"));
+        if (PixelFont::textWidth (lines[0], px) > infoArea.getWidth())   // (narrow: the short way)
+            lines.set (0, "PITCH " + cvOutName (in.cvPitchOut) + ", GATE " + cvOutName (in.cvGateOut)
+                          + (in.cvVelOut > 0 ? ", VEL " + cvOutName (in.cvVelOut) : juce::String())
+                          + (in.cvModOut > 0 ? ", MOD " + cvOutName (in.cvModOut) : juce::String()));
+        if (PixelFont::textWidth (lines[1], px) > infoArea.getWidth() && proc.cvActive.load())
+            lines.set (1, "ON OUTPUTS 3-" + juce::String (std::min (outs, kCvOutputs)) + " (1-2: MUSIC)");
         auto r = infoArea;
         for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, l, row, px, pal.ink); }
     }
@@ -271,13 +297,13 @@ void CvOutPage::paint (juce::Graphics& g)
         {
             const int points = (int) std::lround ((kCalHigh - kCalLow) / kCalStep) + 1;
             const double v = kCalLow + calStep * kCalStep;
-            PixelFont::drawCentred (g, "AUTO-TUNE " + juce::String (calStep + 1) + " OF " + juce::String (points) + ": " + juce::String (v, 2) + " V",
-                                    a.removeFromTop (px * 14), px * 1.5f, Theme::skin.text);
+            drawFitted (g, "AUTO-TUNE " + juce::String (calStep + 1) + " OF " + juce::String (points) + ": " + juce::String (v, 2) + " V",
+                        a.removeFromTop (px * 17), px * 1.5f, Theme::skin.text);
             const float f = (float) (calStep + 1) / points;
             auto bar = a.removeFromTop (px * 8).reduced (px * 4, 0);
             g.setColour (Theme::skin.dim); g.fillRect (bar);
             g.setColour (Theme::skin.track[2]); g.fillRect (bar.withWidth (bar.getWidth() * f));
-            if (! calHz.empty()) PixelFont::drawCentred (g, "LAST: " + juce::String (calHz.back(), 1) + " HZ", a.removeFromTop (px * 12), px, Theme::skin.text);
+            if (! calHz.empty()) drawFitted (g, "LAST: " + juce::String (calHz.back(), 1) + " HZ", a.removeFromTop (px * 12), px, Theme::skin.text);
         }
         else if (tuning)
         {
@@ -286,9 +312,9 @@ void CvOutPage::paint (juce::Graphics& g)
                 const double midi = 69.0 + 12.0 * std::log2 (lastHz / 440.0);
                 const double near = std::round (midi);
                 const int cents = (int) std::lround ((midi - near) * 100.0);
-                PixelFont::drawCentred (g, trackerNote (near) + "  " + (cents > 0 ? "+" : "") + juce::String (cents) + " CENTS",
-                                        a.removeFromTop (px * 18), px * 2.0f, std::abs (cents) <= 3 ? Theme::skin.track[2] : Theme::skin.text);
-                PixelFont::drawCentred (g, juce::String (lastHz, 1) + " HZ", a.removeFromTop (px * 11), px, Theme::skin.text);
+                drawFitted (g, trackerNote (near) + "  " + (cents > 0 ? "+" : "") + juce::String (cents) + " CENTS",
+                            a.removeFromTop (px * 22), px * 2.0f, std::abs (cents) <= 3 ? Theme::skin.track[2] : Theme::skin.text);
+                drawFitted (g, juce::String (lastHz, 1) + " HZ", a.removeFromTop (px * 11), px, Theme::skin.text);
                 // the needle: -50..+50 cents
                 auto bar = a.removeFromTop (px * 8).reduced (px * 4, 0);
                 g.setColour (Theme::skin.dim); g.fillRect (bar);
@@ -296,17 +322,19 @@ void CvOutPage::paint (juce::Graphics& g)
                 const float x = bar.getCentreX() + bar.getWidth() * 0.5f * (float) juce::jlimit (-50, 50, cents) / 50.0f;
                 g.setColour (std::abs (cents) <= 3 ? Theme::skin.track[2] : Theme::skin.hot);
                 g.fillRect (x - px * 1.5f, bar.getY() - px, px * 3, bar.getHeight() + px * 2);
-                PixelFont::drawCentred (g, "TUNE THE OSCILLATOR TO A C, THEN AUTO-TUNE", a.removeFromTop (px * 12), px, Theme::skin.text);
+                a.removeFromTop (px * 3);
+                drawFitted (g, "TUNE THE OSCILLATOR TO A C, THEN AUTO-TUNE", a, px, Theme::skin.text);
             }
-            else PixelFont::drawCentred (g, proc.cvTuneInput.load() > 0 ? "LISTENING ON INPUT " + juce::String (proc.cvTuneInput.load()) + " - NO CLEAR PITCH YET"
-                                                                         : juce::String ("SET INPUT: WHERE THE OSCILLATOR COMES BACK IN"), a, px, Theme::skin.text);
+            else drawFitted (g, proc.cvTuneInput.load() > 0 ? "LISTENING ON INPUT " + juce::String (proc.cvTuneInput.load()) + " - NO CLEAR PITCH YET"
+                                                             : juce::String ("SET INPUT: WHERE THE OSCILLATOR COMES BACK IN"), a, px, Theme::skin.text);
         }
         else
         {
-            PixelFont::drawCentred (g, in.cvMapNotes.empty() ? juce::String ("NO MAP: 1 V / OCTAVE, C-3 = 0 V")
+            const float used = drawFitted (g, in.cvMapNotes.empty() ? juce::String ("NO MAP: 1 V / OCTAVE, C-3 = 0 V")
                                                              : "MAP: " + juce::String ((int) in.cvMapNotes.size()) + " POINTS, " + trackerNote (in.cvMapNotes.front()) + " TO "
                                                                + trackerNote (in.cvMapNotes.back()) + (in.cvMapName.empty() ? juce::String() : " (" + juce::String (in.cvMapName) + ")"),
-                                    a.removeFromTop (px * 12), px, Theme::skin.text);
+                                    a.withHeight (px * 11), px, Theme::skin.text);
+            a.removeFromTop (std::max (px * 12, used + px));
             // the map: how far each measured point is from 1 V / octave
             if (in.cvMapNotes.size() >= 2 && a.getHeight() > px * 10)
             {
@@ -324,7 +352,7 @@ void CvOutPage::paint (juce::Graphics& g)
                 }
                 PixelFont::drawLeft (g, "+100 CENTS (OFF 1 V/OCT)", gr.withHeight (px * 9), px, Theme::skin.text);
             }
-            else PixelFont::drawCentred (g, "TUNER, THEN AUTO-TUNE: NOTES PLAY IN TUNE EVEN ON A SYNTH THAT ISN'T EXACTLY 1 V / OCT", a, px, Theme::skin.text);
+            else drawFitted (g, "TUNER, THEN AUTO-TUNE: NOTES PLAY IN TUNE EVEN ON A SYNTH THAT ISN'T EXACTLY 1 V / OCT", a, px, Theme::skin.text);
         }
     }
 }

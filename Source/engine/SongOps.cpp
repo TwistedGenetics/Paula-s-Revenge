@@ -57,6 +57,39 @@ int cloneInPlace (Song& song, int seqPos)
     song.sequence[(size_t) seqPos] = nb;   // nothing else is renumbered
     return nb;
 }
+int combinePositions (Song& song, int from, int to)
+{
+    const int n = (int) song.sequence.size();
+    if (from > to) std::swap (from, to);
+    if (from < 0 || to >= n || from == to) return -1;
+    int total = 0;
+    for (int p = from; p <= to; ++p) total += song.blocks[(size_t) song.safeBlock (song.sequence[(size_t) p])].lines;
+    if (total > kMaxLines) return kCombineTooLong;
+    const int nb = nextFreeBlock (song);
+    if (nb < 0) return -1;
+    Block made;
+    made.clear();
+    made.lines = total;
+    made.name = song.blocks[(size_t) song.safeBlock (song.sequence[(size_t) from])].name;
+    int at = 0;
+    for (int p = from; p <= to; ++p)
+    {
+        const auto& b = song.blocks[(size_t) song.safeBlock (song.sequence[(size_t) p])];
+        for (int l = 0; l < b.lines; ++l) made.rows[(size_t) (at + l)] = b.rows[(size_t) l];
+        at += b.lines;
+    }
+    if (nb == (int) song.blocks.size()) song.blocks.push_back (std::move (made));
+    else song.blocks[(size_t) nb] = std::move (made);
+    song.sequence[(size_t) from] = nb;
+    song.sequence.erase (song.sequence.begin() + from + 1, song.sequence.begin() + to + 1);
+    // sections starting inside the combined part go (it's one position now); later ones move up
+    auto& secs = song.sections;
+    secs.erase (std::remove_if (secs.begin(), secs.end(), [&] (const SongSection& x) { return x.pos > from && x.pos <= to; }), secs.end());
+    for (auto& x : secs) if (x.pos > to) x.pos -= to - from;
+    tidySections (secs, (int) song.sequence.size());
+    return nb;
+}
+
 bool doubleBlockLength (Block& b)
 {
     const int n = b.lines;
