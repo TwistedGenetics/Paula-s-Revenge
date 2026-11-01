@@ -104,6 +104,7 @@ jobs:
           mkdir -p dist
           ditto "$ART/Standalone/Paula's Revenge.app" "dist/Paula's Revenge.app"
           cp INSTALL.txt dist/
+          cp build/_deps/onnxruntime-src/LICENSE "dist/ONNX Runtime LICENSE.txt" || true
           cp docs/screenshot.png dist/ 2>/dev/null || true
           cd dist && ditto -c -k --keepParent . ../PaulasRevenge-macOS.zip
 
@@ -188,6 +189,7 @@ jobs:
           cp "$ART/Paula's Revenge.exe" "dist/Paula's Revenge/"
           cp "$ART/onnxruntime.dll" "dist/Paula's Revenge/"   # (STEMS)
           cp INSTALL-Windows.txt "dist/Paula's Revenge/INSTALL.txt"
+          cp build/_deps/onnxruntime-src/LICENSE "dist/Paula's Revenge/ONNX Runtime LICENSE.txt" || true
           cd dist && 7z a -tzip ../PaulasRevenge-Windows.zip "Paula's Revenge" > /dev/null
 
       - uses: actions/upload-artifact@v4

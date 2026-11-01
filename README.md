@@ -355,6 +355,16 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 
 
 **Loop handles**: the **S** and **E** handles at the top of the waveform set the loop start and end. With no loop they wait at the two ends of the sample ("DRAG S OR E TO LOOP"); drag either one in and the loop switches on. While you drag a handle the loop plays so you can hear the join. Exact numbers go in START / END below; LOOP switches it off again.
+## Stems (splitting a sample)
+
+**TOOLS → SPLIT INTO STEMS...** in the sample editor splits the instrument's sample into **DRUMS**, **BASS**, **OTHER** and **VOCALS** — four new instruments in the first empty slots (`AMEN BREAK DRUMS`, `AMEN BREAK BASS`…), stereo at 44.1 kHz, ready to slice, loop and play. It uses **Demucs v4** (Meta AI Research's hybrid transformer, the best open separator), running on your computer — nothing is uploaded.
+
+* **BEST** runs the four fine-tuned models (each one the specialist for its stem): the cleanest split, about four times slower. **FAST** runs one model, for a quick listen or a rough idea.
+* The models download **once**, the first time you use each (FAST about 175 MB, BEST about 700 MB), from this project's GitHub releases, checked against their SHA-256; they're kept in the app's folder (`Stem Models`).
+* It works in the background: a box shows how far it's got and about how long is left; the music and the other pages carry on, and **CANCEL** stops it. How long it takes depends on the computer: a recent Mac does FAST in well under real time (a 1-minute sample in seconds to tens of seconds) and BEST in about the sample's own length or a little more.
+* The four stems add back up to the original. Each is one undo step. Long samples (whole songs) work too; they just take longer.
+* The log (Help → Save Diagnostics Report) notes each split and how long it took.
+
 ## Groove and break tools
 
 * **GROOVE** (bottom row; lit when on): the song's feel. Pick one, then how much (25, 50, 66, 75 or 100%). Notes on some lines play a little late — the pattern itself isn't changed, it's applied as the song plays (and in renders and bounces):
@@ -656,7 +666,7 @@ With a **DC-coupled** audio interface — an Expert Sleepers **ES-9** or anythin
 
 ## Credits
 
-Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula vs. System Theory*; the band-limited steps follow OpenMPT's Paula emulation and Antti S. Lankila's work. The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. MP3 decoding is [minimp3](https://github.com/lieff/minimp3) (CC0, see `third_party/minimp3`), AAC the computer's own decoder (Apple AudioToolbox / Microsoft Media Foundation); the radio stations come from the [Radio Browser](https://www.radio-browser.info) community directory. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
+Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula vs. System Theory*; the band-limited steps follow OpenMPT's Paula emulation and Antti S. Lankila's work. The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. Stems use [Demucs v4](https://github.com/facebookresearch/demucs) (MIT, Meta AI Research), converted to ONNX after [demucs.onnx](https://github.com/sevagh/demucs.onnx), and [ONNX Runtime](https://onnxruntime.ai) (MIT, Microsoft). MP3 decoding is [minimp3](https://github.com/lieff/minimp3) (CC0, see `third_party/minimp3`), AAC the computer's own decoder (Apple AudioToolbox / Microsoft Media Foundation); the radio stations come from the [Radio Browser](https://www.radio-browser.info) community directory. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
 
 ## Files
 

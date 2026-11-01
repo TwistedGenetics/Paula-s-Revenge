@@ -112,7 +112,7 @@ public:
     void splitStems();                                // (asks BEST or FAST)
     bool startStems (prv::stems::Quality);
     void stemsFinished (bool ok, const juce::String& error, std::shared_ptr<prv::stems::StemResult>, int from);
-    prv::StemsJob& stemsJob() { return stems; }
+    prv::StemsJob& stemsJob() { return stemJob; }
     bool stemsShowing() const { return stemsPanel.isVisible(); }
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
@@ -130,7 +130,7 @@ private:
     std::optional<SaveResult> pendingSave;
     void finishPendingSave();
     void startSaving (const juce::File&);
-    prv::StemsJob stems;
+    prv::StemsJob stemJob;
     struct StemsPanel : juce::Component
     {
         prv::ui::PixButton cancel { "CANCEL" };

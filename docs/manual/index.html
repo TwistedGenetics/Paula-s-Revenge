@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.32</span>
+  <span class="ver">MANUAL &middot; V0.33</span>
 </header>
 
 <div class="app">
@@ -396,6 +396,17 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </ul>
   <h3>Time stretch</h3>
   <p><span class="b">STRETCH</span> opens the old-sampler stretch: <b>CLASSIC</b> (the Akai sound, matched to recordings of the real thing), <b>REVISED</b> (cleaner joins), <b>HARD</b> (no blending) and <b>AKAIZER</b> (Akaizer v1.2's granular method, rebuilt). Set TIME %, SEMI and CENTS and the CYCLE length; <span class="b">FIT TO LINES</span> makes the selection last a number of lines at the song's tempo. <span class="b">PREVIEW</span>, then <span class="b">APPLY</span>.</p>
+  <h3>Stems: splitting a sample</h3>
+  <p><span class="b">TOOLS...</span> &rarr; <b>SPLIT INTO STEMS...</b> in the sample editor splits the sample into <b>DRUMS</b>, <b>BASS</b>, <b>OTHER</b> and <b>VOCALS</b>: four new instruments in the first empty slots, stereo at 44.1&nbsp;kHz. It runs <b>Demucs v4</b> (Meta AI Research's hybrid transformer) on your computer &mdash; nothing is uploaded.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/stems.png" alt="The sample editor with the STEMS box over it: STEMS (FAST): AMEN BREAK, SPLITTING, a progress bar at 43%, the time left, and CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Splitting a break: the music and the other pages carry on</figcaption>
+  </figure>
+  <ul>
+    <li><b>BEST</b>: four fine-tuned models, each the specialist for its stem &mdash; the cleanest split, about four times slower. <b>FAST</b>: one model, for a quick listen.</li>
+    <li>The models download once, the first time (FAST about 175&nbsp;MB, BEST about 700&nbsp;MB), checked against their SHA-256.</li>
+    <li>A box shows the progress and the time left; <span class="b">CANCEL</span> stops it. The four stems add back up to the original, and each is one undo step.</li>
+  </ul>
   <h3>Sampling: recording audio</h3>
   <p>Record straight into the selected instrument, from an audio interface, the mic or line-in, or from the app's own output. Open the <span class="b">SAMPLE</span> page with <kbd>Cmd</kbd><kbd>4</kbd>, <b>Sample Audio…</b> in the View menu, right-click an instrument &rarr; <b>SAMPLE (RECORD AUDIO)…</b>, or click an empty instrument's <b>NO SAMPLE - CLICK TO RECORD</b>.</p>
   <figure>
@@ -877,7 +888,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.32</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.33</footer>
 </main>
 </div>
 </body></html>

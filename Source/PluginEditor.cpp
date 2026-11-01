@@ -1475,7 +1475,7 @@ void PaulaEditor::splitStems()
     const int i = proc.editorState.instrument;
     const auto& in = proc.song.instruments[(size_t) i];
     if (! in.hasData()) { setStatus ("THIS INSTRUMENT HAS NO SAMPLE TO SPLIT"); return; }
-    if (stems.running()) { setStatus ("STEMS ARE ALREADY BEING MADE - WAIT, OR CANCEL THEM"); return; }
+    if (stemJob.running()) { setStatus ("STEMS ARE ALREADY BEING MADE - WAIT, OR CANCEL THEM"); return; }
     if (! prv::stems::onnxAvailable()) { setStatus ("STEMS AREN'T BUILT INTO THIS VERSION"); return; }
     const double secs = (double) in.data.size() / std::max (1.0, in.rate);
     auto dl = [] (prv::stems::Quality q)
@@ -1494,24 +1494,25 @@ bool PaulaEditor::startStems (prv::stems::Quality q)
 {
     const int i = proc.editorState.instrument;
     const auto& in = proc.song.instruments[(size_t) i];
-    if (! in.hasData() || stems.running()) return false;
+    if (! in.hasData() || stemJob.running()) return false;
     std::vector<float> L (in.data.size()), R;
     for (size_t k = 0; k < L.size(); ++k) L[k] = in.data[k] / 32768.0f;
     if (in.isStereo()) { R.resize (in.dataR.size()); for (size_t k = 0; k < R.size(); ++k) R[k] = in.dataR[k] / 32768.0f; }
     const juce::String name (in.name);
     juce::Component::SafePointer<PaulaEditor> safe (this);
     stemsPanel.title = [q, name] { return "STEMS (" + juce::String (q == prv::stems::Quality::Best ? "BEST" : "FAST") + "): " + name.toUpperCase(); };
-    stemsPanel.stage = [this] { return stems.stage(); };
-    stemsPanel.progress = [this] { return stems.progress(); };
+    stemsPanel.stage = [this] { return stemJob.stage(); };
+    stemsPanel.progress = [this] { return stemJob.progress(); };
     stemsPanel.left = [this]
     {
-        const double s = stems.secondsLeft();
+        const double s = stemJob.secondsLeft();
         if (s < 0) return juce::String ("WORKING IT OUT...");
+        if (s < 10) return juce::String ("A FEW SECONDS LEFT");
         return s < 90 ? "ABOUT " + juce::String (juce::roundToInt (s)) + " SECONDS LEFT" : "ABOUT " + juce::String (juce::roundToInt (s / 60)) + " MINUTES LEFT";
     };
-    stemsPanel.cancel.onClick = [this] { stems.cancel(); setStatus ("CANCELLING THE STEMS..."); };
+    stemsPanel.cancel.onClick = [this] { stemJob.cancel(); setStatus ("CANCELLING THE STEMS..."); };
     prv::Diagnostics::get().activity ("MAKING STEMS");
-    const bool ok = stems.start (std::move (L), std::move (R), in.rate, q, [safe, i] (bool done, juce::String err, std::shared_ptr<prv::stems::StemResult> r)
+    const bool ok = stemJob.start (std::move (L), std::move (R), in.rate, q, [safe, i] (bool done, juce::String err, std::shared_ptr<prv::stems::StemResult> r)
     {
         if (safe != nullptr) safe->stemsFinished (done, err, r, i);
     });
@@ -1584,7 +1585,7 @@ void PaulaEditor::StemsPanel::paint (juce::Graphics& g)
     g.setColour (sk.bg);
     g.fillRect (bar);
     const double p = progress ? juce::jlimit (0.0, 1.0, progress()) : 0.0;
-    g.setColour (sk.track[2]);
+    g.setColour (sk.track[2].withAlpha (0.55f));
     g.fillRect (bar.reduced (px).withWidth ((bar.getWidth() - px * 2) * (float) p));
     prv::ui::Theme::bevel (g, bar, false, std::max (1.0f, px * 0.5f), pal);
     prv::ui::PixelFont::drawCentred (g, juce::String (juce::roundToInt (p * 100)) + "%", bar, px, sk.text);

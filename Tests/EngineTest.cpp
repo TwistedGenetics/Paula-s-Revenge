@@ -3638,7 +3638,7 @@ static void testStems()
         // the rate change: 48 kHz -> 44.1 kHz keeps a 1 kHz tone's pitch and level
         std::vector<float> in (48000);
         for (size_t i = 0; i < in.size(); ++i) in[i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 1000.0 * (double) i / 48000.0);
-        const auto out = resample (in, 48000, kRate);
+        const auto out = prv::stems::resample (in, 48000, kRate);
         int z = 0; float pk = 0;
         for (size_t i = 11025 + 1; i < 33075; ++i) { if ((out[i - 1] < 0) != (out[i] < 0)) ++z; pk = std::max (pk, std::abs (out[i])); }
         const double hz = z / 2.0 / (22050.0 / kRate);
