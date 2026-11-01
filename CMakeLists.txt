@@ -184,10 +184,12 @@ if(PRV_STEMS)
         set_target_properties(PaulasRevenge_Standalone PROPERTIES BUILD_RPATH "@executable_path/../Frameworks" INSTALL_RPATH "@executable_path/../Frameworks")
         add_custom_command(TARGET PaulasRevenge_Standalone POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:PaulasRevenge_Standalone>/Frameworks"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_BUNDLE_CONTENT_DIR:PaulasRevenge_Standalone>/Frameworks/")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_BUNDLE_CONTENT_DIR:PaulasRevenge_Standalone>/Frameworks/"
+            VERBATIM)   # (the ' in "Paula's Revenge" needs quoting)
     elseif(WIN32)
         add_custom_command(TARGET PaulasRevenge_Standalone POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:PaulasRevenge_Standalone>")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:PaulasRevenge_Standalone>"
+            VERBATIM)
     endif()
 endif()
 
@@ -213,7 +215,7 @@ if(PRV_BUILD_TESTS)
     add_executable(prv_engine_test Tests/EngineTest.cpp)
     target_link_libraries(prv_engine_test PRIVATE prv_engine)
     if(PRV_STEMS AND WIN32)
-        add_custom_command(TARGET prv_engine_test POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:prv_engine_test>")
+        add_custom_command(TARGET prv_engine_test POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:prv_engine_test>" VERBATIM)
     endif()
     if (MSVC)
         # the tests keep Players (~470 KB each) on the stack; Windows gives 1 MB by default
