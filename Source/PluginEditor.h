@@ -24,6 +24,7 @@
 #include "ui/MixerPage.h"
 #include "ui/CvPage.h"
 #include "ui/RadioPage.h"
+#include "StemsJob.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -107,6 +108,12 @@ public:
     void openShared();                                // File > Open from Shared Folder...
     void saveToShared();                              // File > Save to Shared Folder
     void saveDiagnostics();                           // Help > Save Diagnostics Report...
+    // STEMS: the instrument's sample split into drums, bass, other and vocals (four new instruments)
+    void splitStems();                                // (asks BEST or FAST)
+    bool startStems (prv::stems::Quality);
+    void stemsFinished (bool ok, const juce::String& error, std::shared_ptr<prv::stems::StemResult>, int from);
+    prv::StemsJob& stemsJob() { return stems; }
+    bool stemsShowing() const { return stemsPanel.isVisible(); }
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
 
@@ -123,6 +130,16 @@ private:
     std::optional<SaveResult> pendingSave;
     void finishPendingSave();
     void startSaving (const juce::File&);
+    prv::StemsJob stems;
+    struct StemsPanel : juce::Component
+    {
+        prv::ui::PixButton cancel { "CANCEL" };
+        StemsPanel() { addAndMakeVisible (cancel); }
+        std::function<juce::String()> title, stage, left;
+        std::function<double()> progress;
+        void paint (juce::Graphics&) override;
+        void resized() override;
+    } stemsPanel;
     double lastTimerMs = 0;
     int lastRadioState = 0; int64_t lastRadioDry = 0;   // (the log: the radio's changes)
     void timerCallback() override;

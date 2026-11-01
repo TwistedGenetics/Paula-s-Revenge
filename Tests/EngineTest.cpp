@@ -3581,6 +3581,149 @@ static void testRadioFormats()
     }
 }
 
+// v0.33: STEMS - the spectrogram, the pieces and their cross-fades, the rate change (a stand-in
+// network here; the real Demucs where ONNX Runtime is built in and the models are given)
+#include "engine/stems/Stems.h"
+#include <fstream>
+namespace
+{
+    // a stand-in for Demucs: source s = the mix x gain[s], through the spectrogram branch (or the time one)
+    struct GainModel : prv::stems::DemucsModel
+    {
+        float gain[4] = { 0.1f, 0.2f, 0.3f, 0.4f };
+        bool timeBranch = false;
+        int sources() const override { return 4; }
+        bool run (const float* xt, const float* x, float* xOut, float* xtOut, std::string&) override
+        {
+            using namespace prv::stems;
+            const size_t sx = (size_t) 4 * kBins * kFrames, st = (size_t) 2 * kSegment;
+            for (int s = 0; s < 4; ++s)
+            {
+                for (size_t i = 0; i < sx; ++i) xOut[(size_t) s * sx + i] = timeBranch ? 0.0f : x[i] * gain[s];
+                for (size_t i = 0; i < st; ++i) xtOut[(size_t) s * st + i] = timeBranch ? xt[i] * gain[s] : 0.0f;
+            }
+            return true;
+        }
+    };
+}
+static void testStems()
+{
+    using namespace prv::stems;
+    const Fft fft;
+    {
+        // torch.stft / istft round trip
+        std::vector<float> x (50000);
+        uint32_t seed = 7;
+        for (auto& v : x) { seed = seed * 1664525u + 1013904223u; v = (float) ((seed >> 8) / 8388608.0 - 1.0); }
+        std::vector<std::complex<float>> spec; int frames = 0;
+        stft (fft, x.data(), (int) x.size(), spec, frames);
+        std::vector<float> y (x.size());
+        istft (fft, spec.data(), frames, (int) x.size(), y.data());
+        const int framesX = frames;
+        double err = 0; for (size_t i = 0; i < x.size(); ++i) err = std::max (err, (double) std::abs (x[i] - y[i]));
+        // a 1 kHz sine's peak bin, and torch's normalisation (sqrt of the window length)
+        std::vector<float> sine (kFft * 4);
+        for (size_t i = 0; i < sine.size(); ++i) sine[i] = (float) std::sin (2 * 3.14159265358979 * 1000.0 * (double) i / kRate);
+        stft (fft, sine.data(), (int) sine.size(), spec, frames);
+        int best = 0; float bm = 0;
+        for (int b = 0; b <= kBins; ++b) { const float m = std::abs (spec[(size_t) 2 * (kBins + 1) + (size_t) b]); if (m > bm) { bm = m; best = b; } }
+        std::printf ("stems STFT: %d frames, round trip error %.2e; 1 kHz in bin %d (expect %.1f), peak %.1f (expect %.1f)\n",
+                     frames, err, best, 1000.0 * kFft / kRate, bm, 0.25 * kFft / std::sqrt ((double) kFft));
+        CHECK (framesX == 1 + 50000 / kHop && err < 1e-4 && std::abs (best - 1000.0 * kFft / kRate) < 1.0 && std::abs (bm / (0.25 * kFft / std::sqrt ((double) kFft)) - 1.0) < 0.05);
+        const float r[5] = { 1, 2, 3, 4, 5 };
+        const auto p = reflectPad (r, 5, 3, 2);
+        CHECK ((p == std::vector<float> { 4, 3, 2, 1, 2, 3, 4, 5, 4, 3 }));
+    }
+    {
+        // the rate change: 48 kHz -> 44.1 kHz keeps a 1 kHz tone's pitch and level
+        std::vector<float> in (48000);
+        for (size_t i = 0; i < in.size(); ++i) in[i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 1000.0 * (double) i / 48000.0);
+        const auto out = resample (in, 48000, kRate);
+        int z = 0; float pk = 0;
+        for (size_t i = 11025 + 1; i < 33075; ++i) { if ((out[i - 1] < 0) != (out[i] < 0)) ++z; pk = std::max (pk, std::abs (out[i])); }
+        const double hz = z / 2.0 / (22050.0 / kRate);
+        std::printf ("stems rate: %zu -> %zu samples, %.1f Hz, peak %.3f\n", in.size(), out.size(), hz, pk);
+        CHECK (out.size() == 44100 && std::abs (hz - 1000) < 1.5 && std::abs (pk - 0.5f) < 0.005f);
+    }
+    for (int branch = 0; branch < 2; ++branch)
+    {
+        // the whole thing with the stand-in: each stem is the mix x its gain, all the way along,
+        // over the pieces' joins and both ends (12 s: 3 pieces)
+        GainModel m; m.timeBranch = branch == 1;
+        const size_t n = (size_t) (kRate * 12.3);
+        std::vector<float> L (n), R (n);
+        for (size_t i = 0; i < n; ++i)
+        {
+            const double t = (double) i / kRate;
+            L[i] = (float) (0.3 * std::sin (2 * 3.14159 * 110 * t) + 0.2 * std::sin (2 * 3.14159 * 1730 * t) * std::sin (2 * 3.14159 * 0.7 * t) + 0.05);
+            R[i] = (float) (0.25 * std::sin (2 * 3.14159 * 220 * t + 1.0) + 0.05);
+        }
+        std::vector<std::vector<float>> oL, oR;
+        Progress pr; int reports = 0; pr.report = [&] (double) { ++reports; };
+        std::string err;
+        CHECK (separate (m, L, R, oL, oR, pr, err));
+        double worst = 0, sum = 0, worstEdge = 0;
+        double meanMono = 0; for (size_t i = 0; i < n; ++i) meanMono += 0.5 * (L[i] + R[i]);
+        meanMono /= (double) n;
+        for (int s = 0; s < 4; ++s)
+            for (size_t i = 0; i < n; ++i)
+            {
+                // (the level's mean comes back on every stem: gain x (mix - mean) + mean)
+                const double eL = std::abs (oL[(size_t) s][i] - (m.gain[s] * (L[i] - meanMono) + meanMono));
+                const double eR = std::abs (oR[(size_t) s][i] - (m.gain[s] * (R[i] - meanMono) + meanMono));
+                // (the very first and last 2048 samples: Demucs' own spectrogram loses a little there
+                // too - its time branch makes up for it)
+                if (i < 2048 || i + 2048 >= n) worstEdge = std::max ({ worstEdge, eL, eR });
+                else worst = std::max ({ worst, eL, eR });
+                sum += eL;
+            }
+        std::printf ("stems pipeline (%s branch): %d pieces, worst error %.2e (at the ends %.2e), mean %.2e\n", branch ? "time" : "spectrogram", reports, worst, worstEdge, sum / (4.0 * n));
+        CHECK (reports == 3 && worst < 2e-3 && oL[3].size() == n);
+        std::atomic<bool> stop { true };
+        Progress pc; pc.cancel = &stop;
+        CHECK (! separate (m, L, R, oL, oR, pc, err) && err == "CANCELLED");
+    }
+    // the real thing: Demucs in ONNX Runtime, against PyTorch's own separation of the same mix
+    const char* dir = std::getenv ("PRV_STEM_MODELS");
+    if (! onnxAvailable() || dir == nullptr)
+    {
+        std::printf ("stems: the real model isn't tested here (ONNX Runtime %s, PRV_STEM_MODELS %s)\n", onnxAvailable() ? "in" : "not built in", dir ? dir : "not set");
+        return;
+    }
+    std::ifstream f (std::string (dir) + "/reference.bin", std::ios::binary);
+    int32_t head[4] = {};
+    f.read ((char*) head, sizeof (head));
+    const int n = head[1], ns = head[3];
+    CHECK (f.good() && head[0] == kRate && head[2] == 2 && ns == 4);
+    if (! f.good()) return;
+    std::vector<float> mix ((size_t) 2 * n), ref ((size_t) ns * 2 * n);
+    f.read ((char*) mix.data(), (std::streamsize) (mix.size() * 4));
+    f.read ((char*) ref.data(), (std::streamsize) (ref.size() * 4));
+    std::vector<float> L (mix.begin(), mix.begin() + n), R (mix.begin() + n, mix.end());
+    StemResult res; Progress pr; std::string err;
+    const auto t0 = std::chrono::steady_clock::now();
+    const bool ok = separateSample (Quality::Fast, [&] (const std::string& name) { return std::string (dir) + "/" + name; }, L, R, kRate, res, pr, err);
+    const double secs = std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count();
+    std::printf ("stems (htdemucs, ONNX): %s in %.1f s for %.1f s of audio\n", ok ? "done" : err.c_str(), secs, n / (double) kRate);
+    CHECK (ok);
+    if (! ok) return;
+    for (int s = 0; s < ns; ++s)
+    {
+        // how close to PyTorch's: the signal-to-difference ratio
+        double sig = 0, diff = 0;
+        for (int c = 0; c < 2; ++c)
+            for (int i = 0; i < n; ++i)
+            {
+                const double r = ref[((size_t) s * 2 + (size_t) c) * n + (size_t) i];
+                const double o = (c == 0 ? res.left[s] : res.right[s])[(size_t) i];
+                sig += r * r; diff += (r - o) * (r - o);
+            }
+        const double sdr = 10 * std::log10 ((sig + 1e-12) / (diff + 1e-12));
+        std::printf ("  %s: %.1f dB from PyTorch's\n", sourceName (s), sdr);
+        CHECK (sdr > 35.0);
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3615,6 +3758,7 @@ int main()
     testInstrumentEqAndSynthShape();
     testRadio();
     testRadioFormats();
+    testStems();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

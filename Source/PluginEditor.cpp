@@ -331,6 +331,9 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     sampleEditor.onChanged = [this] { instruments.refresh(); };
     sampleEditor.onClose = [this] { setView (View::Pattern); };
     sampleEditor.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    sampleEditor.onStems = [this] { splitStems(); };
+    prv::ui::Theme::markDarkPage (stemsPanel);
+    addChildComponent (stemsPanel);
     browser.onLoaded = [this] { refreshAll(); setView (returnView); };
     browser.onClose = [this] { setView (returnView); };
     browser.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -580,6 +583,7 @@ void PaulaEditor::timerCallback()
     if (midiPage.isVisible()) midiPage.tick();
     if (cvPage.isVisible()) cvPage.tick();
     if (radioPage.isVisible()) radioPage.tick();
+    if (stemsPanel.isVisible()) stemsPanel.repaint();
     radioBtn.setToggleState (proc.editorState.view == View::Radio || proc.radio.state() != prv::RadioPlayer::State::Stopped, juce::dontSendNotification);
     // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
     {
@@ -808,6 +812,11 @@ void PaulaEditor::resized()
     arrange.setBounds (main);
     samplePage.setBounds (main);
     cvPage.setBounds (main);
+    {
+        // STEMS' progress: a box across the middle of the page (the rest carries on around it)
+        const int h = (int) (px * 12 * 4 + px * 30);
+        stemsPanel.setBounds (main.withSizeKeepingCentre (std::min (main.getWidth(), charsW (52)), std::min (main.getHeight(), h)));
+    }
 }
 
 void PaulaEditor::makeCvOut()
@@ -1458,6 +1467,136 @@ void PaulaEditor::saveToShared()
         return;
     }
     writeSongTo (target, false);
+}
+
+// ---------------------------------------------------------------------------- STEMS
+void PaulaEditor::splitStems()
+{
+    const int i = proc.editorState.instrument;
+    const auto& in = proc.song.instruments[(size_t) i];
+    if (! in.hasData()) { setStatus ("THIS INSTRUMENT HAS NO SAMPLE TO SPLIT"); return; }
+    if (stems.running()) { setStatus ("STEMS ARE ALREADY BEING MADE - WAIT, OR CANCEL THEM"); return; }
+    if (! prv::stems::onnxAvailable()) { setStatus ("STEMS AREN'T BUILT INTO THIS VERSION"); return; }
+    const double secs = (double) in.data.size() / std::max (1.0, in.rate);
+    auto dl = [] (prv::stems::Quality q)
+    {
+        const auto b = prv::StemsJob::downloadSize (q);
+        return b > 0 ? " - DOWNLOADS " + juce::String (juce::roundToInt (b / 1048576.0)) + " MB ONCE" : juce::String();
+    };
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "SPLIT " + juce::String (in.name).toUpperCase() + " (" + juce::String (secs, 1) + " S) INTO DRUMS, BASS, OTHER, VOCALS",
+                 { "BEST: FOUR FINE-TUNED MODELS, SLOWER" + dl (prv::stems::Quality::Best),
+                   "FAST: ONE MODEL, FOR A QUICK LISTEN" + dl (prv::stems::Quality::Fast) },
+                 [safe] (int a) { if (safe != nullptr && a >= 0) safe->startStems (a == 0 ? prv::stems::Quality::Best : prv::stems::Quality::Fast); });
+}
+
+bool PaulaEditor::startStems (prv::stems::Quality q)
+{
+    const int i = proc.editorState.instrument;
+    const auto& in = proc.song.instruments[(size_t) i];
+    if (! in.hasData() || stems.running()) return false;
+    std::vector<float> L (in.data.size()), R;
+    for (size_t k = 0; k < L.size(); ++k) L[k] = in.data[k] / 32768.0f;
+    if (in.isStereo()) { R.resize (in.dataR.size()); for (size_t k = 0; k < R.size(); ++k) R[k] = in.dataR[k] / 32768.0f; }
+    const juce::String name (in.name);
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    stemsPanel.title = [q, name] { return "STEMS (" + juce::String (q == prv::stems::Quality::Best ? "BEST" : "FAST") + "): " + name.toUpperCase(); };
+    stemsPanel.stage = [this] { return stems.stage(); };
+    stemsPanel.progress = [this] { return stems.progress(); };
+    stemsPanel.left = [this]
+    {
+        const double s = stems.secondsLeft();
+        if (s < 0) return juce::String ("WORKING IT OUT...");
+        return s < 90 ? "ABOUT " + juce::String (juce::roundToInt (s)) + " SECONDS LEFT" : "ABOUT " + juce::String (juce::roundToInt (s / 60)) + " MINUTES LEFT";
+    };
+    stemsPanel.cancel.onClick = [this] { stems.cancel(); setStatus ("CANCELLING THE STEMS..."); };
+    prv::Diagnostics::get().activity ("MAKING STEMS");
+    const bool ok = stems.start (std::move (L), std::move (R), in.rate, q, [safe, i] (bool done, juce::String err, std::shared_ptr<prv::stems::StemResult> r)
+    {
+        if (safe != nullptr) safe->stemsFinished (done, err, r, i);
+    });
+    stemsPanel.setVisible (ok);
+    stemsPanel.toFront (false);
+    resized();
+    setStatus ("SPLITTING INTO STEMS - THE MUSIC AND THE PAGES CARRY ON MEANWHILE");
+    return ok;
+}
+
+void PaulaEditor::stemsFinished (bool ok, const juce::String& error, std::shared_ptr<prv::stems::StemResult> r, int from)
+{
+    stemsPanel.setVisible (false);
+    if (! ok || r == nullptr) { setStatus (error == "CANCELLED" ? juce::String ("STEMS CANCELLED") : "STEMS: " + error); return; }
+    // four new instruments, in the first empty slots
+    const auto base = juce::String (proc.song.instruments[(size_t) from].name).toUpperCase().substring (0, 15).trimEnd();
+    juce::Array<int> made;
+    for (int s = 0; s < prv::stems::kSources; ++s)
+    {
+        int idx = -1;
+        for (int k = 0; k < prv::kMaxInstruments && idx < 0; ++k)
+        {
+            const auto& c = proc.song.instruments[(size_t) k];
+            if (! c.hasData() && ! c.isPlugin()) idx = k;
+        }
+        if (idx < 0) break;
+        prv::TakeOptions o;
+        o.channels = prv::RecChannels::Stereo;
+        o.trimSilence = false;
+        o.normalise = false;
+        o.name = (base + " " + prv::stems::sourceName (s)).trim().toStdString();
+        prv::Instrument in;
+        // (a stem that's silence still becomes an instrument, so the four line up)
+        auto& Ls = r->left[s];
+        auto& Rs = r->right[s];
+        if (! prv::takeToInstrument (Ls, Rs, r->rate, o, in)) { in = prv::Instrument {}; in.name = o.name; }
+        proc.history.instrument (idx, "STEMS: " + juce::String (prv::stems::sourceName (s)));
+        proc.withLock ([&] { proc.player.jamAllOff(); std::swap (proc.song.instruments[(size_t) idx], in); });
+        made.add (idx);
+    }
+    if (made.isEmpty()) { setStatus ("NO EMPTY INSTRUMENTS FOR THE STEMS - CLEAR FOUR, THEN SPLIT AGAIN"); return; }
+    proc.editorState.instrument = made[0];
+    juce::StringArray where;
+    for (int k = 0; k < made.size(); ++k) where.add (juce::String::toHexString (made[k] + 1).toUpperCase().paddedLeft ('0', 2) + " " + prv::stems::sourceName (k));
+    setStatus ("STEMS: " + where.joinIntoString (", ") + (made.size() < prv::stems::kSources ? " (NO ROOM FOR THE REST)" : juce::String()));
+    refreshAll();
+    sampleEditor.instrumentSelected();
+}
+
+void PaulaEditor::StemsPanel::paint (juce::Graphics& g)
+{
+    const float px = prv::ui::Theme::px;
+    const auto& pal = prv::ui::Theme::palFor (*this);
+    const auto& sk = prv::ui::Theme::skin;
+    auto r = getLocalBounds().toFloat();
+    g.setColour (pal.panel);
+    g.fillRect (r);
+    prv::ui::Theme::bevel (g, r, true, std::max (1.0f, px), pal);
+    r = r.reduced (px * 6);
+    const float lh = px * 12;
+    auto line = [&] (const juce::String& t, juce::Colour c)
+    {
+        const int n = std::max (4, (int) (r.getWidth() / (px * prv::ui::PixelFont::kCellW)));
+        prv::ui::PixelFont::drawLeft (g, t.length() > n ? t.substring (0, n - 2) + ".." : t, r.removeFromTop (lh), px, c);
+    };
+    line (title ? title() : juce::String(), pal.ink);
+    line (stage ? stage() : juce::String(), pal.ink);
+    r.removeFromTop (px * 3);
+    auto bar = r.removeFromTop (px * 12);
+    g.setColour (sk.bg);
+    g.fillRect (bar);
+    const double p = progress ? juce::jlimit (0.0, 1.0, progress()) : 0.0;
+    g.setColour (sk.track[2]);
+    g.fillRect (bar.reduced (px).withWidth ((bar.getWidth() - px * 2) * (float) p));
+    prv::ui::Theme::bevel (g, bar, false, std::max (1.0f, px * 0.5f), pal);
+    prv::ui::PixelFont::drawCentred (g, juce::String (juce::roundToInt (p * 100)) + "%", bar, px, sk.text);
+    r.removeFromTop (px * 3);
+    line (left ? left() : juce::String(), pal.ink);
+}
+
+void PaulaEditor::StemsPanel::resized()
+{
+    const float px = prv::ui::Theme::px;
+    auto r = getLocalBounds().reduced ((int) (px * 6));
+    cancel.setBounds (r.removeFromBottom ((int) (px * 11)).removeFromRight ((int) (px * 6 * 6 + px * 4)));
 }
 
 void PaulaEditor::saveDiagnostics()

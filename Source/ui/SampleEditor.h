@@ -15,6 +15,7 @@ public:
 
     std::function<void()> onChanged;   // instrument data changed
     std::function<void()> onClose;
+    std::function<void()> onStems;     // TOOLS > SPLIT INTO STEMS...
     std::function<void()> onStopSong;   // Space while the song plays: stop it (and the preview)
     std::function<void (const juce::String&)> onStatus;
 

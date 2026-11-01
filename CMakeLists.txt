@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.32.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.33.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +47,45 @@ add_library(prv_engine STATIC
     Source/engine/RadioFormats.cpp
     Source/engine/ChordDatabase.cpp)
 target_include_directories(prv_engine PUBLIC Source)
+# STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
+if(APPLE OR WIN32)
+    option(PRV_STEMS "Build STEMS (ONNX Runtime)" ON)
+else()
+    option(PRV_STEMS "Build STEMS (ONNX Runtime)" OFF)
+endif()
+target_sources(prv_engine PRIVATE Source/engine/stems/Stems.cpp)
+if(PRV_STEMS)
+    set(ORT_VERSION 1.20.1)
+    if(APPLE)
+        set(ORT_URL https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-universal2-${ORT_VERSION}.tgz)
+    elseif(WIN32)
+        set(ORT_URL https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-win-x64-${ORT_VERSION}.zip)
+    else()
+        set(ORT_URL https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz)
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(onnxruntime URL ${ORT_URL} SOURCE_SUBDIR none)
+    FetchContent_MakeAvailable(onnxruntime)
+    set(ORT_DIR ${onnxruntime_SOURCE_DIR})
+    add_library(prv_onnxruntime SHARED IMPORTED GLOBAL)
+    if(APPLE)
+        set(ORT_LIB ${ORT_DIR}/lib/libonnxruntime.${ORT_VERSION}.dylib)
+        set_target_properties(prv_onnxruntime PROPERTIES IMPORTED_LOCATION ${ORT_LIB})
+    elseif(WIN32)
+        set(ORT_LIB ${ORT_DIR}/lib/onnxruntime.dll)
+        set_target_properties(prv_onnxruntime PROPERTIES IMPORTED_LOCATION ${ORT_LIB} IMPORTED_IMPLIB ${ORT_DIR}/lib/onnxruntime.lib)
+    else()
+        set(ORT_LIB ${ORT_DIR}/lib/libonnxruntime.so.${ORT_VERSION})
+        set_target_properties(prv_onnxruntime PROPERTIES IMPORTED_LOCATION ${ORT_LIB} IMPORTED_SONAME libonnxruntime.so.1)
+    endif()
+    set_target_properties(prv_onnxruntime PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${ORT_DIR}/include)
+    target_sources(prv_engine PRIVATE Source/engine/stems/OnnxModel.cpp)
+    target_link_libraries(prv_engine PUBLIC prv_onnxruntime)
+    target_compile_definitions(prv_engine PUBLIC PRV_STEMS=1)
+else()
+    target_sources(prv_engine PRIVATE Source/engine/stems/OnnxNone.cpp)
+endif()
+
 # the internet radio's AAC: the computer's own decoder (none on Linux, where only the tests run)
 if(APPLE)
     target_sources(prv_engine PRIVATE Source/engine/aac/AacMac.cpp)
@@ -114,6 +153,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/RadioPage.cpp
     Source/RadioHost.cpp
     Source/Diagnostics.cpp
+    Source/StemsJob.cpp
     Source/OutputFollower.cpp
     Source/PluginHost.cpp
     Source/MidiOutHost.cpp
@@ -138,6 +178,19 @@ target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_WASAPI=1
     JUCE_DIRECTSOUND=1)
 
+# STEMS: ONNX Runtime goes with the app (inside the Mac bundle, next to the Windows .exe)
+if(PRV_STEMS)
+    if(APPLE)
+        set_target_properties(PaulasRevenge_Standalone PROPERTIES BUILD_RPATH "@executable_path/../Frameworks" INSTALL_RPATH "@executable_path/../Frameworks")
+        add_custom_command(TARGET PaulasRevenge_Standalone POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:PaulasRevenge_Standalone>/Frameworks"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_BUNDLE_CONTENT_DIR:PaulasRevenge_Standalone>/Frameworks/")
+    elseif(WIN32)
+        add_custom_command(TARGET PaulasRevenge_Standalone POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:PaulasRevenge_Standalone>")
+    endif()
+endif()
+
 # the README and the PDF manual, built in (the HELP page)
 juce_add_binary_data(PaulasRevengeDocs
     NAMESPACE PrvDocs
@@ -158,6 +211,9 @@ target_link_libraries(PaulasRevenge
 if(PRV_BUILD_TESTS)
     add_executable(prv_engine_test Tests/EngineTest.cpp)
     target_link_libraries(prv_engine_test PRIVATE prv_engine)
+    if(PRV_STEMS AND WIN32)
+        add_custom_command(TARGET prv_engine_test POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ORT_LIB} "$<TARGET_FILE_DIR:prv_engine_test>")
+    endif()
     if (MSVC)
         # the tests keep Players (~470 KB each) on the stack; Windows gives 1 MB by default
         target_link_options(prv_engine_test PRIVATE /STACK:16777216)

@@ -1,0 +1,55 @@
+name: Stem models
+
+# Converts the Demucs v4 models (Meta's htdemucs, MIT licence) to ONNX for the sampler's STEMS,
+# with the STFT moved outside the network (sevagh/demucs.onnx), and publishes them as release
+# assets the app downloads on first use. Also makes a reference separation with PyTorch so the
+# app's own pipeline can be checked against it.
+on:
+  push:
+    branches: [stem-models]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Get demucs.onnx
+        run: |
+          git clone https://github.com/sevagh/demucs.onnx.git d
+          cd d && git checkout 81fa192
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy<2" onnx==1.16.2 onnxruntime==1.20.1
+          pip install -e d/demucs-for-onnx
+
+      - name: Convert
+        run: |
+          python Tests/tools/stem_export.py models
+          ls -la models
+
+      - name: Reference separation (PyTorch) and an ONNX check
+        run: python Tests/tools/stem_reference.py models
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd models
+          sha256sum *.onnx reference.bin > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release delete stem-models-1 --yes --cleanup-tag || true
+          gh release create stem-models-1 *.onnx reference.bin SHA256SUMS.txt --latest=false --prerelease \
+            --title "Stem models (Demucs v4, ONNX)" \
+            --notes "Demucs v4 hybrid transformer (htdemucs and the fine-tuned htdemucs_ft) by Meta AI Research, MIT licence, converted to ONNX with the STFT outside the network (sevagh/demucs.onnx). Downloaded by Paula's Revenge on first use of STEMS."

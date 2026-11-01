@@ -35,8 +35,21 @@ jobs:
           # as annotations, so they can be read without the full log
           grep -E "error:|Error [0-9]|undefined symbol" build.log | head -40 | while IFS= read -r line; do echo "::error::${line}"; done
 
+      # STEMS: the real model against PyTorch's own separation (downloaded once, then cached)
+      - name: Stem test models
+        uses: actions/cache@v4
+        with:
+          path: stem-models
+          key: stem-models-1-fast
+      - name: Get the stem test models
+        run: |
+          mkdir -p stem-models
+          for f in htdemucs.onnx reference.bin; do
+            test -f "stem-models/$f" || curl -sSfL -o "stem-models/$f" "https://github.com/TwistedGenetics/Paula-s-Revenge/releases/download/stem-models-1/$f"
+          done
+
       - name: Engine tests
-        run: ./build/prv_engine_test
+        run: PRV_STEM_MODELS="$PWD/stem-models" ./build/prv_engine_test
 
       # Signed with a Developer ID and notarised when the repo has the secrets (see docs/SIGNING.md);
       # otherwise ad-hoc, as before (INSTALL.txt then tells you how to clear the quarantine)
@@ -81,6 +94,9 @@ jobs:
           test -x "$APP"
           file "$APP" | grep -q arm64
           file "$APP" | grep -q x86_64
+          # STEMS: ONNX Runtime inside the bundle, and the app finds it
+          test -f "build/PaulasRevenge_artefacts/Release/Standalone/Paula's Revenge.app/Contents/Frameworks/libonnxruntime.1.20.1.dylib"
+          otool -l "$APP" | grep -A2 LC_RPATH | grep -q "@executable_path/../Frameworks"
 
       - name: Package
         run: |
@@ -136,8 +152,20 @@ jobs:
           while IFS= read -r line; do echo "::error::${line}"; done < errors.txt
           exit 0
 
+      - name: Stem test models
+        uses: actions/cache@v4
+        with:
+          path: stem-models
+          key: stem-models-1-fast
+      - name: Get the stem test models
+        run: |
+          mkdir -p stem-models
+          for f in htdemucs.onnx reference.bin; do
+            test -f "stem-models/$f" || curl -sSfL -o "stem-models/$f" "https://github.com/TwistedGenetics/Paula-s-Revenge/releases/download/stem-models-1/$f"
+          done
+
       - name: Engine tests
-        run: ./build/prv_engine_test.exe
+        run: PRV_STEM_MODELS="$(cygpath -m "$PWD")/stem-models" ./build/prv_engine_test.exe
 
       # Signed with your code-signing certificate when the repo has the secrets (see docs/SIGNING.md)
       - name: Sign
@@ -158,6 +186,7 @@ jobs:
           test -f "$ART/Paula's Revenge.exe"
           mkdir -p "dist/Paula's Revenge"
           cp "$ART/Paula's Revenge.exe" "dist/Paula's Revenge/"
+          cp "$ART/onnxruntime.dll" "dist/Paula's Revenge/"   # (STEMS)
           cp INSTALL-Windows.txt "dist/Paula's Revenge/INSTALL.txt"
           cd dist && 7z a -tzip ../PaulasRevenge-Windows.zip "Paula's Revenge" > /dev/null
 

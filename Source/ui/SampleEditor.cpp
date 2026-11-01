@@ -1585,6 +1585,7 @@ void SampleEditor::showTools()
     auto tool = [safe] (Tool t, double v = 0) { return [safe, t, v] { if (safe != nullptr) safe->applyTool (t, v); }; };
     const juce::String where = hasSel() ? " (THE SELECTION)" : "";
     showMenu ("SAMPLE TOOLS" + where, {
+        { "SPLIT INTO STEMS... (DRUMS, BASS, OTHER, VOCALS)", [safe] { if (safe != nullptr && safe->onStems) safe->onStems(); } },
         { "GAIN... (DB)", [safe] { if (safe != nullptr) safe->askValue ("Gain", "Gain in dB (-48 to +48)", 3.0, [safe] (double v) { if (safe != nullptr) safe->applyTool (Tool::Gain, v); }); } },
         { "NORMALISE (MAX VOL)", [safe] { if (safe != nullptr) safe->apply (Op::Normalise); } },
         { "REMOVE DC", tool (Tool::RemoveDc) },
