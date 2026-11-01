@@ -38,7 +38,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Instruments | 63 slots with a scrollbar. LOAD opens the sample browser, EDIT the sample editor, PARAMS the envelope/filter/pan page. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
-| Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO and the status line. The song's name (top) is its file's name, set when you save or load |
+| Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays) and the status line. The song's name (top) is its file's name, set when you save or load |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
 
@@ -264,7 +264,7 @@ Shortcut buttons cover Home, Music, Desktop, Downloads, Documents and Drives; FI
 Record audio straight into the selected instrument: from an audio interface, the mic or line-in, or from the app's own output (**RESAMPLE**).
 
 * **Open it:** `Cmd+4` (`Ctrl+4` on a PC), **Sample Audio...** in the View menu, right-click an instrument → **SAMPLE (RECORD AUDIO)...**, or click an empty instrument's **NO SAMPLE - CLICK TO RECORD**. `Cmd+4` again (or Esc, or CLOSE) goes back.
-* **SOURCE:** **INPUT** records the audio input chosen in Audio/MIDI Settings (the button at the bottom right of the page opens them); **RESAMPLE** records everything the app plays — play the song or a block, or jam, and record what comes out, the classic way to build breaks and stabs. **MONITOR** lets you hear the input through the app (off to start with: with a mic, use headphones or it feeds back). The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or there's only silence (System Settings → Privacy & Security → Microphone changes it later). On a PC, if it only records silence, allow desktop apps to use the microphone in Windows Settings → Privacy & security → Microphone.
+* **SOURCE:** **INPUT** records the audio input chosen in Audio/MIDI Settings (the button at the bottom right of the page opens them); **RADIO** records the internet radio as it comes in (see Internet radio); **RESAMPLE** records everything the app plays — play the song or a block, or jam, and record what comes out, the classic way to build breaks and stabs. **MONITOR** lets you hear the input through the app (off to start with: with a mic, use headphones or it feeds back). The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or there's only silence (System Settings → Privacy & Security → Microphone changes it later). On a PC, if it only records silence, allow desktop apps to use the microphone in Windows Settings → Privacy & security → Microphone.
 * **CHANNELS:** STEREO, MONO (left and right mixed), LEFT or RIGHT — what goes into the instrument when you keep the take.
 * **TRIGGER:** **MANUAL** records from the moment you press RECORD. **THRESHOLD**: RECORD arms it, and it starts when the sound goes over the THRESHOLD level (the red line on the meter), keeping the 20 ms before so the attack isn't cut. **WITH PLAYBACK**: RECORD arms it, and it records from when the song or block starts to when it stops — perfect for resampling exactly one block.
 * **INPUT GAIN** (−24 to +24 dB) sets the level; the big L / R meter shows it, with a peak hold and a **CLIP** light. The clock shows how long you've recorded, up to 5 minutes.
@@ -278,6 +278,18 @@ Record audio straight into the selected instrument: from an audio interface, the
   * The take is recorded at the sampler's rate and bits, and kept on those bits after NORMALISE.
 * **AMIGA RATE** (CLEAN only): NONE keeps the recording's own rate (44.1 / 48 kHz…). 8363, 16726, 22050 or 28867 Hz resamples the take when you keep it; it still plays at the pitch you recorded.
 * Then it's like any other sample: EDIT for the sample editor (slice, loop, rate), and it's saved inside the song. Your settings on the page are remembered.
+
+## Internet radio
+
+**RADIO** (bottom row, or `Cmd+5`) opens stations from all over the world to listen to and sample from — straight into the sampler, no effects. The stations come from [Radio Browser](https://www.radio-browser.info), a free community directory; it needs an internet connection.
+
+* **GENRE**: jungle, drum and bass, breakbeat, hardcore, UK garage, dub, reggae, techno, house, jazz, funk, soul, hip hop, classical, world… (52 of them). **COUNTRY**: every country with stations, the busiest first. **Type** anywhere on the page to search by name or genre, then `Enter`. **STARRED** and **RECENT** are your starred stations and the last 30 you played.
+* Only MP3 stations that were working at the directory's last check are listed (no AAC / HLS yet), the most played first, with their country and bit rate. The last lists are saved, so the page opens straight away (and still shows them offline).
+* **Double-click** a station (or `Enter`, or **PLAY**) to play it; **STOP** stops it. Right-click one (or **STAR**) to star it. NOW PLAYING shows the station, the track the station says is playing, and what it's doing: CONNECTING, BUFFERING (it gathers 3 seconds first, so a slow connection doesn't stutter), PLAYING, RECONNECTING 2/5 (a dropped stream is tried again by itself, waiting a little longer each time, up to 5 times) or FAILED and why.
+* **VOL** is the radio's own level. The radio goes **straight to the output**: not through the mixer, the instruments' effects or the Amiga / Akai sound, and never into RENDER WAV or bounces. It keeps playing on the other pages (RADIO stays lit); the song plays over it.
+* **GRAB BUFFER**: **5**, **10**, **20** or **30** seconds (remembered). The radio always keeps that much of what it just played. **GRAB** puts it in the **first empty instrument**, named after the station, exactly as it came off the stream — stereo, at the app's rate, not trimmed or normalised — and opens it in the sample editor to cut and slice (one undo step). The bar shows how much it holds: grab 6 seconds into a 20-second buffer and you get those 6. Changing the length keeps what it holds, up to the new length.
+* For longer takes, or the AMIGA / S950 sampler, use the **SAMPLE** page with **RADIO** as the source.
+* **Streams are copyrighted** — sample for your own sketches, and clear samples before releasing anything with them in.
 
 ## Sample rates
 
@@ -386,6 +398,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Cmd+2` / `Cmd+1` | Mixer / pattern |
 | `Cmd+3` | CHORDS: the chord table (again to go back) |
 | `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
+| `Cmd+5` | INTERNET RADIO (again to go back) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `Cmd+O` | Load a song |
@@ -626,7 +639,7 @@ With a **DC-coupled** audio interface — an Expert Sleepers **ES-9** or anythin
 
 ## Credits
 
-Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula vs. System Theory*; the band-limited steps follow OpenMPT's Paula emulation and Antti S. Lankila's work. The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
+Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula vs. System Theory*; the band-limited steps follow OpenMPT's Paula emulation and Antti S. Lankila's work. The chord database's chord types come from the [tonal](https://github.com/tonaljs/tonal) music library (MIT licence, see `third_party/tonal`), whose list comes from Wikibooks' *Complete List of Chord Patterns*. MP3 decoding is [minimp3](https://github.com/lieff/minimp3) (CC0, see `third_party/minimp3`); the radio stations come from the [Radio Browser](https://www.radio-browser.info) community directory. The voicings are worked out from them by `Tests/tools/make_chord_db.py`.
 
 ## Files
 

@@ -20,6 +20,7 @@
 #include "ui/ArrangePage.h"
 #include "ui/MixerPage.h"
 #include "ui/CvPage.h"
+#include "ui/RadioPage.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -38,6 +39,7 @@ public:
     prv::ui::ParamsPage& getParams() { return params; }
     prv::ui::ArrangePage& getArrange() { return arrange; }
     prv::ui::MixerPage& getMixer() { return mixer; }
+    prv::ui::RadioPage& getRadio() { return radioPage; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }
@@ -139,7 +141,7 @@ private:
     // song strip
     PixButton viewBtn { "BIG VIEW", true };
     PixButton mixerBtn { "MIXER", true };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true }, radioBtn { "RADIO", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
@@ -158,6 +160,8 @@ private:
     prv::ui::SamplePage samplePage;
     prv::ui::CvOutPage cvPage;
     prv::ui::CvSourcesPage cvSources;
+    prv::ui::RadioPage radioPage { proc };
+    PaulaProcessor::EditorState::View radioReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View fxReturn = PaulaProcessor::EditorState::View::Params;
     int paramsForPlugin = -1;   // the plug-in instrument whose filter / envelopes the PARAMS page shows

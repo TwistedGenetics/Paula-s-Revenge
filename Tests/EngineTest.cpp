@@ -3321,6 +3321,127 @@ static void testInstrumentEqAndSynthShape()
     CHECK (! in.shapesSynth() && ! in.hasEq());
 }
 
+// v0.30: internet radio (the parts with no network: metadata, playlists, MP3, rate, FIFO, GRAB)
+#include "engine/Radio.h"
+#include "data/tone_mp3.h"
+static void testRadio()
+{
+    using namespace prv::radio;
+    {
+        // ICY: every 16 audio bytes a length byte and the text; any chunk sizes
+        std::vector<uint8_t> audio, stream;
+        auto block = [] (const std::string& m) { std::string b = m; while (b.size() % 16) b += '\0'; return b; };
+        const std::string m1 = block ("StreamTitle='Artist - Song';"), m2 = block ("StreamTitle='Rock 'n' Roll';StreamUrl='';");
+        for (int k = 0; k < 10; ++k)
+        {
+            for (int i = 0; i < 16; ++i) { const uint8_t v = (uint8_t) (k * 16 + i); audio.push_back (v); stream.push_back (v); }
+            const std::string m = k == 2 ? m1 : k == 6 ? m2 : std::string();
+            stream.push_back ((uint8_t) (m.size() / 16));
+            stream.insert (stream.end(), m.begin(), m.end());
+        }
+        for (int chunk : { 1, 3, 7, 16, 17, 1000 })
+        {
+            IcyParser p; p.reset (16);
+            std::vector<uint8_t> out; int changes = 0; std::string first;
+            for (size_t i = 0; i < stream.size(); i += (size_t) chunk)
+                if (p.feed (stream.data() + i, std::min ((size_t) chunk, stream.size() - i), out)) { if (++changes == 1) first = p.title(); }
+            if (! (out == audio && changes == 2)) std::printf ("ICY chunk %d: %zu/%zu bytes, %d titles, '%s'\n", chunk, out.size(), audio.size(), changes, p.title().c_str());
+            // (one big read holding both: only the latest title is told)
+            CHECK (out == audio && changes == (chunk >= 1000 ? 1 : 2) && (chunk >= 1000 || first == "Artist - Song") && p.title() == "Rock 'n' Roll");
+        }
+        IcyParser none; none.reset (0); std::vector<uint8_t> o;
+        CHECK (! none.feed (stream.data(), stream.size(), o) && o == stream);
+        CHECK (IcyParser::titleFrom ("StreamUrl='x';") == "" && IcyParser::titleFrom ("StreamTitle='  Spaced  ';") == "Spaced");
+    }
+    {
+        const auto pls = parsePlaylist ("[playlist]\r\nNumberOfEntries=2\r\nFile1=http://a.example:8000/live\r\nTitle1=A\r\nFile2=https://b.example/stream.mp3\r\nVersion=2\r\n");
+        CHECK (pls.size() == 2 && pls[0] == "http://a.example:8000/live" && pls[1] == "https://b.example/stream.mp3");
+        const auto m3u = parsePlaylist ("#EXTM3U\n#EXTINF:-1,Radio\nhttp://c.example/x\n\nhttp://c.example/x\nnot a url\n");
+        CHECK (m3u.size() == 1 && m3u[0] == "http://c.example/x");
+        CHECK (isPlaylist ("http://x/listen.pls", "") && isPlaylist ("http://x/a.M3U?x=1", "") && isPlaylist ("http://x/a", "audio/x-scpls")
+               && ! isPlaylist ("http://x/a.m3u8", "") && ! isPlaylist ("http://x/live", "audio/mpeg"));
+        int total = 0; for (int a = 1; retryDelayMs (a) > 0; ++a) total += retryDelayMs (a);
+        CHECK (retryDelayMs (1) == 1000 && retryDelayMs (2) == 2000 && retryDelayMs (3) == 4000 && retryDelayMs (kMaxRetries) == 8000
+               && retryDelayMs (kMaxRetries + 1) == -1 && retryDelayMs (0) == -1 && total == 23000);
+    }
+    // MP3: 440 Hz left, 660 Hz right, fed as a stream in odd chunks
+    std::vector<float> L, R;
+    {
+        Mp3Decoder d;
+        for (size_t i = 0; i < sizeof (kToneMp3); i += 777) d.feed (kToneMp3 + i, std::min<size_t> (777, sizeof (kToneMp3) - i), L, R, i + 777 >= sizeof (kToneMp3));
+        auto hz = [] (const std::vector<float>& v, double rate)
+        {
+            int z = 0; const size_t a = v.size() / 4, b = v.size() * 3 / 4;
+            for (size_t i = a + 1; i < b; ++i) if ((v[i - 1] < 0) != (v[i] < 0)) ++z;
+            return z / 2.0 / ((double) (b - a) / rate);
+        };
+        float pk = 0; for (float v : L) pk = std::max (pk, std::abs (v));
+        std::printf ("radio MP3: %d Hz, %d ch, %zu frames (2 s = 88200), left %.1f Hz, right %.1f Hz, peak %.2f, skipped %lld bytes\n",
+                     d.sampleRate(), d.channels(), L.size(), hz (L, 44100), hz (R, 44100), pk, (long long) d.badBytes());
+        CHECK (d.sampleRate() == 44100 && d.channels() == 2 && L.size() > 80000 && L.size() < 92000 && L.size() == R.size());
+        CHECK (std::abs (hz (L, 44100) - 440) < 2 && std::abs (hz (R, 44100) - 660) < 2 && pk > 0.1f);
+        // junk in front (as a stream joined in the middle): it finds its feet
+        Mp3Decoder j; std::vector<float> jl, jr; std::vector<uint8_t> junk (5000, 0x55);
+        junk.insert (junk.end(), kToneMp3 + 3000, kToneMp3 + sizeof (kToneMp3));
+        j.feed (junk.data(), junk.size(), jl, jr, true);
+        CHECK (j.sampleRate() == 44100 && jl.size() > 70000);
+        // 44.1 -> 48 kHz: the right length and the same pitch
+        Resampler rs; rs.setRates (44100, 48000);
+        std::vector<float> ol, orr;
+        for (size_t i = 0; i < L.size(); i += 1000) { const int k = (int) std::min<size_t> (1000, L.size() - i); rs.process (L.data() + i, R.data() + i, k, ol, orr); }
+        const double expect = L.size() * 48000.0 / 44100.0;
+        std::printf ("radio rate: %zu -> %zu frames (expect %.0f), left %.1f Hz at 48 kHz\n", L.size(), ol.size(), expect, hz (ol, 48000));
+        CHECK (std::abs ((double) ol.size() - expect) < 4 && std::abs (hz (ol, 48000) - 440) < 2);
+        // the same rate: the same samples (3 later)
+        Resampler same; same.setRates (48000, 48000); std::vector<float> sl, sr2;
+        same.process (L.data(), R.data(), 4000, sl, sr2);
+        bool eq = sl.size() >= 3990; for (size_t i = 0; eq && i + 2 < sl.size(); ++i) eq = std::abs (sl[i + 2] - L[i]) < 1e-6f;
+        CHECK (eq);
+    }
+    {
+        // FIFO: full stops pushing, empty stops popping
+        Fifo f; f.setSize (1000);
+        std::vector<float> a (1500, 0.5f), b (1500, 0.0f), c (1500, 0.0f);
+        CHECK (f.push (a.data(), a.data(), 1500) == 1000 && f.available() == 1000 && f.space() == 0);
+        CHECK (f.pop (b.data(), c.data(), 600) == 600 && f.available() == 400 && b[599] == 0.5f);
+        for (int i = 0; i < 1500; ++i) a[(size_t) i] = (float) i;
+        CHECK (f.push (a.data(), a.data(), 1500) == 600);
+        CHECK (f.pop (b.data(), c.data(), 1500) == 1000 && b[400] == 0.0f && b[999] == 599.0f && f.available() == 0);
+        CHECK (f.pop (b.data(), c.data(), 10) == 0);
+        f.push (a.data(), a.data(), 10); f.clear(); CHECK (f.available() == 0);
+    }
+    {
+        // GRAB: 5 / 10 / 20 / 30 seconds, part-filled and full, newest kept, length changes keep what fits
+        const double sr = 1000;
+        for (int secs : GrabBuffer::kChoices)
+        {
+            GrabBuffer g; g.setLength (secs, sr);
+            std::vector<float> ramp (100000); for (size_t i = 0; i < ramp.size(); ++i) ramp[i] = (float) i;
+            g.write (ramp.data(), ramp.data(), 3000);   // 3 s
+            std::vector<float> l, r; g.copy (l, r);
+            CHECK (g.held() == 3000 && l.size() == 3000 && l.front() == 0.0f && l.back() == 2999.0f);
+            for (int k = 0; k < 40; ++k) g.write (ramp.data() + 3000 + k * 1000, ramp.data() + 3000 + k * 1000, 1000);   // 43 s in all
+            g.copy (l, r);
+            CHECK (g.held() == secs * 1000 && (int) l.size() == secs * 1000 && l.back() == 42999.0f && l.front() == (float) (43000 - secs * 1000));
+            CHECK (std::abs (g.heldSeconds() - secs) < 1e-9);
+        }
+        GrabBuffer g; g.setLength (10, sr);
+        std::vector<float> ramp (20000); for (size_t i = 0; i < ramp.size(); ++i) ramp[i] = (float) i;
+        g.write (ramp.data(), ramp.data(), 20000);
+        g.setLength (5, sr);   // shrink: the newest 5 s
+        std::vector<float> l, r; g.copy (l, r);
+        CHECK (l.size() == 5000 && l.front() == 15000.0f && l.back() == 19999.0f);
+        g.setLength (30, sr);   // grow: still those 5 s, then more after them
+        g.copy (l, r);
+        CHECK (l.size() == 5000 && l.back() == 19999.0f);
+        g.write (ramp.data(), ramp.data(), 1000);
+        g.copy (l, r);
+        CHECK (l.size() == 6000 && l[4999] == 19999.0f && l[5000] == 0.0f);
+        g.setLength (30, 2000);   // a new rate: starts again
+        CHECK (g.held() == 0);
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3353,6 +3474,7 @@ int main()
     testCombine();
     testGrooveAndBreakTools();
     testInstrumentEqAndSynthShape();
+    testRadio();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

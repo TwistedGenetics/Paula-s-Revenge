@@ -28,6 +28,7 @@ SamplePage::SamplePage (PaulaProcessor& p) : proc (p)
     settingsBtn.onClick = [this] { if (onAudioSettings) onAudioSettings(); else status ("AUDIO/MIDI SETTINGS: IN THE APP MENU"); };
     inputBtn.onClick = [this] { setSource (PaulaProcessor::SourceInput); };
     resampleBtn.onClick = [this] { setSource (PaulaProcessor::SourceResample); };
+    radioBtn.onClick = [this] { setSource (PaulaProcessor::SourceRadio); };
     monitorBtn.onClick = [this] { setMonitor (monitorBtn.getToggleState()); };
     stereoBtn.onClick = [this] { setChannels (RecChannels::Stereo); };
     monoBtn.onClick = [this] { setChannels (RecChannels::Mono); };
@@ -58,7 +59,7 @@ SamplePage::SamplePage (PaulaProcessor& p) : proc (p)
     threshSlider.format = [] (float v) { return juce::String (v * 60.0f - 60.0f, 1) + " DB"; };
     threshSlider.onChange = [this] (float v) { setThresholdDb (v * 60.0f - 60.0f); };
 
-    for (juce::Component* c : std::initializer_list<juce::Component*> { &closeBtn, &settingsBtn, &inputBtn, &resampleBtn, &monitorBtn, &stereoBtn, &monoBtn, &leftBtn, &rightBtn,
+    for (juce::Component* c : std::initializer_list<juce::Component*> { &closeBtn, &settingsBtn, &inputBtn, &resampleBtn, &radioBtn, &monitorBtn, &stereoBtn, &monoBtn, &leftBtn, &rightBtn,
                                 &manualBtn, &thresholdBtn, &playbackBtn, &recordBtn, &stopBtn, &keepBtn, &againBtn, &trimBtn, &normBtn,
                                 &gainSlider, &threshSlider, &cleanBtn, &amigaBtn, &s950Btn, &bits8Btn, &bits12Btn, &driveSlider })
         addAndMakeVisible (c);
@@ -73,7 +74,7 @@ SamplePage::~SamplePage() = default;
 void SamplePage::loadPrefs()
 {
     auto& pf = prv::prefs();
-    proc.recSource = juce::jlimit (0, 1, pf.getIntValue ("sampleSource", 0));
+    proc.recSource = juce::jlimit (0, 2, pf.getIntValue ("sampleSource", 0));
     channels = (RecChannels) juce::jlimit (0, 3, pf.getIntValue ("sampleChannels", 0));
     trigger = (RecTrigger) juce::jlimit (0, 2, pf.getIntValue ("sampleTrigger", 0));
     amigaIndex = juce::jlimit (0, 4, pf.getIntValue ("sampleAmigaRate", 0));
@@ -188,9 +189,10 @@ void SamplePage::setDriveDb (float db)
 
 void SamplePage::setSource (int s)
 {
-    proc.recSource = juce::jlimit (0, 1, s);
+    proc.recSource = juce::jlimit (0, 2, s);
     savePrefs(); refreshButtons();
     status (s == PaulaProcessor::SourceResample ? "RESAMPLE: RECORDS EVERYTHING THE APP PLAYS - PLAY THE SONG OR JAM, THEN RECORD"
+          : s == PaulaProcessor::SourceRadio    ? "RADIO: RECORDS THE INTERNET RADIO AS IT COMES IN (PICK A STATION ON THE RADIO PAGE)"
                                                 : "INPUT: RECORDS THE AUDIO INTERFACE / MIC / LINE IN");
 }
 void SamplePage::setChannels (RecChannels c) { channels = c; savePrefs(); refreshButtons(); }
@@ -216,6 +218,7 @@ void SamplePage::refreshButtons()
     const int src = proc.recSource.load();
     inputBtn.setToggleState (src == PaulaProcessor::SourceInput, juce::dontSendNotification);
     resampleBtn.setToggleState (src == PaulaProcessor::SourceResample, juce::dontSendNotification);
+    radioBtn.setToggleState (src == PaulaProcessor::SourceRadio, juce::dontSendNotification);
     monitorBtn.setToggleState (proc.monitorInput.load(), juce::dontSendNotification);
     stereoBtn.setToggleState (channels == RecChannels::Stereo, juce::dontSendNotification);
     monoBtn.setToggleState (channels == RecChannels::Mono, juce::dontSendNotification);
@@ -363,6 +366,12 @@ juce::String SamplePage::stateText() const
     const int src = proc.recSource.load();
     const int ins = proc.inputChannels.load();
     if (src == PaulaProcessor::SourceResample) return "RECORDING WHAT THE APP PLAYS";
+    if (src == PaulaProcessor::SourceRadio)
+    {
+        const auto s = proc.radio.state();
+        return s == prv::RadioPlayer::State::Stopped ? juce::String ("THE RADIO ISN'T PLAYING")
+                                                     : "RADIO: " + proc.radio.station().name.substring (0, 24);
+    }
     if (! proc.audioRunning.load()) return "NO AUDIO DEVICE RUNNING:";
     if (ins == 0) return "NO INPUT OPEN - CHOOSE ONE:";
     return "INPUT: " + juce::String (ins) + " CH, " + juce::String (juce::roundToInt (proc.audioRate())) + " HZ";
@@ -478,7 +487,7 @@ void SamplePage::resized()
     const int labelW = charsW (10);
     auto row1 = r.removeFromTop (rowH); r.removeFromTop (gap);
     sourceLabel = row1.removeFromLeft (labelW);
-    place (row1, inputBtn); place (row1, resampleBtn); row1.removeFromLeft (gap * 3); place (row1, monitorBtn);
+    place (row1, inputBtn); place (row1, resampleBtn); place (row1, radioBtn); row1.removeFromLeft (gap * 3); place (row1, monitorBtn);
     auto rowS = r.removeFromTop (rowH); r.removeFromTop (gap);
     samplerLabel = rowS.removeFromLeft (labelW);
     place (rowS, cleanBtn); place (rowS, amigaBtn); place (rowS, s950Btn); rowS.removeFromLeft (gap * 3); place (rowS, bits8Btn); place (rowS, bits12Btn);

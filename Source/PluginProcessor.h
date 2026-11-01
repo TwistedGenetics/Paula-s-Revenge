@@ -10,6 +10,7 @@
 #include "PluginHost.h"
 #include "MidiOutHost.h"
 #include "ChordPrefs.h"
+#include "RadioHost.h"
 
 class PaulaProcessor : public juce::AudioProcessor
 {
@@ -88,6 +89,11 @@ public:
 
     // SAMPLE: recording the input (or the app's own output) into an instrument
     prv::TakeRecorder recorder;
+    // INTERNET RADIO: straight to the output with its own VOL; GRAB / SAMPLE take it raw
+    prv::RadioNetSwitch radioNet;
+    prv::RadioDirectory radioDirectory { radioNet };
+    prv::RadioPlayer radio { radioNet };
+    juce::HeapBlock<float> radL, radR;   // (audio thread: what the radio played this block)
     prv::VintageAdc vintage;                    // SAMPLE's AMIGA / S950 modes (CLEAN: off)
     void setVintage (const prv::VintageSettings&);
     void allocateVintage (int n);
@@ -103,7 +109,7 @@ public:
     int tuneSamples (std::vector<float>& out, int count) const;   // the latest input from the tuner's channel
     prv::CvOutSynth* cvAt (int instrument) const;
     void setCvTest (int instrument, bool on, double volts);      // hold a voltage, gate open (the tuner, AUTO-TUNE)
-    enum RecSource { SourceInput = 0, SourceResample = 1 };
+    enum RecSource { SourceInput = 0, SourceResample = 1, SourceRadio = 2 };
     std::atomic<int>   recSource { SourceInput };
     std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
     std::atomic<bool>  monitorInput { false };  // hear the input through the app
@@ -131,7 +137,7 @@ public:
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
         bool darkSkin = true;
-        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources } view = View::Pattern;
+        enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources, Radio } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)
         bool showSpectrum = true;

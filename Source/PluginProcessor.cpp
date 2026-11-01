@@ -153,6 +153,7 @@ bool PaulaProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     currentRate = sampleRate;
+    radio.prepare (sampleRate);   // (outside the lock: it may wait for its thread)
     const juce::SpinLock::ScopedLockType sl (lock);
     player.setSampleRate (sampleRate);
     scratchSize = std::max (samplesPerBlock, 512);
@@ -160,6 +161,8 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     inL.allocate ((size_t) scratchSize, true);
     inR.allocate ((size_t) scratchSize, true);
     scratchR.allocate ((size_t) scratchSize, true);
+    radL.allocate ((size_t) scratchSize, true);
+    radR.allocate ((size_t) scratchSize, true);
     allocateVintage (scratchSize);
     vintage.prepare (sampleRate, scratchSize);
     for (auto& b : cvBuf) b.allocate ((size_t) scratchSize, true);
@@ -349,6 +352,8 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         scratchR.allocate ((size_t) n, true);
         inL.allocate ((size_t) n, true);
         inR.allocate ((size_t) n, true);
+        radL.allocate ((size_t) n, true);
+        radR.allocate ((size_t) n, true);
         allocateVintage (n);
         for (auto& b : cvBuf) b.allocate ((size_t) n, true);
     }
@@ -484,9 +489,10 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     // the input, or everything the app plays (RESAMPLE)
     {
         // (AMIGA / S950: through the vintage sampler - heard like that, recorded at its rate and bits)
-        const bool resampling = recSource.load (std::memory_order_relaxed) == SourceResample;
+        const int source = recSource.load (std::memory_order_relaxed);
+        const bool resampling = source == SourceResample;
         const bool old = vintage.active();
-        if (! resampling)
+        if (source == SourceInput)
         {
             if (old)
             {
@@ -509,6 +515,18 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
                 recorder.process (vDecL.get(), vDecR.get(), k, player.isPlaying());
             }
             else recorder.process (scratchL.get(), scratchR.get(), n, player.isPlaying());
+        }
+        // INTERNET RADIO: added to what goes out (after RESAMPLE: it's not part of the music), and
+        // recorded as it came in when SAMPLE's source is RADIO
+        radio.process (scratchL.get(), scratchR.get(), radL.get(), radR.get(), n);
+        if (source == SourceRadio)
+        {
+            if (old)
+            {
+                const int k = vintage.process (radL.get(), radR.get(), n, vMonL.get(), vMonR.get(), vDecL.get(), vDecR.get());
+                recorder.process (vDecL.get(), vDecR.get(), k, player.isPlaying());
+            }
+            else recorder.process (radL.get(), radR.get(), n, player.isPlaying());
         }
     }
 

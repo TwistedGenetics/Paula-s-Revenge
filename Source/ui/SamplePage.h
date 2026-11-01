@@ -30,7 +30,7 @@ public:
     void stop();
     bool keep();                       // the take into the instrument
     void again();                      // throw the take away and record again
-    void setSource (int s);            // PaulaProcessor::SourceInput / SourceResample
+    void setSource (int s);            // PaulaProcessor::SourceInput / SourceResample / SourceRadio
     void setChannels (RecChannels c);
     void setTrigger (RecTrigger t);
     void setMonitor (bool on);
@@ -54,7 +54,7 @@ public:
 private:
     PaulaProcessor& proc;
     PixButton closeBtn { "CLOSE" }, settingsBtn { "AUDIO/MIDI SETTINGS..." };
-    PixButton inputBtn { "INPUT", true }, resampleBtn { "RESAMPLE", true }, monitorBtn { "MONITOR", true };
+    PixButton inputBtn { "INPUT", true }, resampleBtn { "RESAMPLE", true }, radioBtn { "RADIO", true }, monitorBtn { "MONITOR", true };
     PixButton cleanBtn { "CLEAN", true }, amigaBtn { "AMIGA", true }, s950Btn { "S950", true }, bits8Btn { "8 BIT", true }, bits12Btn { "12 BIT", true };
     PixSlider driveSlider { "INPUT DRIVE" };
     PixButton stereoBtn { "STEREO", true }, monoBtn { "MONO", true }, leftBtn { "LEFT", true }, rightBtn { "RIGHT", true };

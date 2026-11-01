@@ -101,6 +101,18 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     for (auto& a : recSeenInst) for (auto& v : a) v = -1.0f;
     for (auto& a : recLastTrack) for (auto& v : a) v = -1;
     for (auto& a : recLastInst) for (auto& v : a) v = -1;
+    // INTERNET RADIO (a page of its own; it keeps playing on the others)
+    radioBtn.setClickingTogglesState (false);
+    radioBtn.onClick = [this]
+    {
+        if (proc.editorState.view == View::Radio) { radioPage.onClose(); return; }
+        radioReturn = proc.editorState.view;
+        setView (View::Radio);
+    };
+    radioPage.onClose = [this] { setView (radioReturn == View::Radio ? View::Pattern : radioReturn); };
+    radioPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    radioPage.onGrabbed = [this] (int) { refreshAll(); setView (View::SampleEdit); };
+    addChildComponent (radioPage);
     grooveBtn.setClickingTogglesState (false);
     grooveBtn.onClick = [this] { showGrooveMenu(); };
     recAutoBtn.onClick = [this, &st]
@@ -260,6 +272,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::Sample:     samplePage.grabKeyboardFocus(); break;
             case View::CvOut:      cvPage.grabKeyboardFocus(); break;
             case View::CvSources:  cvSources.grabKeyboardFocus(); break;
+            case View::Radio:      radioPage.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
         }
     };
@@ -328,7 +341,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
-            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &spectrum,
+            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &radioBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
 
@@ -400,7 +413,7 @@ void PaulaEditor::setView (View v)
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::CvOut && v != View::CvOut) proc.withLock ([&] { proc.player.jamAllOff(); });
-    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources; };
+    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources || w == View::Radio; };
     const bool layoutChange = wide (st.view) != wide (v);
     st.view = v;
     if (layoutChange) resized();
@@ -417,6 +430,8 @@ void PaulaEditor::setView (View v)
     samplePage.setVisible (v == View::Sample);
     cvPage.setVisible (v == View::CvOut);
     cvSources.setVisible (v == View::CvSources);
+    radioPage.setVisible (v == View::Radio);
+    radioBtn.setToggleState (v == View::Radio || proc.radio.state() != prv::RadioPlayer::State::Stopped, juce::dontSendNotification);
     helpBtn.setToggleState (v == View::Help, juce::dontSendNotification);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
     if (v == View::Params) { params.refresh(); params.grabKeyboardFocus(); }
@@ -431,6 +446,7 @@ void PaulaEditor::setView (View v)
     else if (v == View::Sample) samplePage.opened();
     else if (v == View::CvOut) cvPage.opened();
     else if (v == View::CvSources) cvSources.opened();
+    else if (v == View::Radio) radioPage.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -544,6 +560,8 @@ void PaulaEditor::timerCallback()
     if (samplePage.isVisible() || proc.recorder.state() != prv::TakeRecorder::State::Idle) samplePage.tick();
     if (midiPage.isVisible()) midiPage.tick();
     if (cvPage.isVisible()) cvPage.tick();
+    if (radioPage.isVisible()) radioPage.tick();
+    radioBtn.setToggleState (proc.editorState.view == View::Radio || proc.radio.state() != prv::RadioPlayer::State::Stopped, juce::dontSendNotification);
     // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
     {
         const auto& cur = proc.song.instruments[(size_t) proc.editorState.instrument];
@@ -707,6 +725,7 @@ void PaulaEditor::resized()
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
     recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     grooveBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
+    radioBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -736,7 +755,8 @@ void PaulaEditor::resized()
     help.setBounds (main);
     chords.setBounds (main);
     cvSources.setBounds (main);
-    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources;
+    radioPage.setBounds (main);
+    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources || st.view == View::Radio;
     const bool panels = showPanels && ! wideView;
     sequence.setVisible (panels);
     blockPanel.setVisible (panels);
@@ -1032,6 +1052,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         }
         if (ch == '3') { if (proc.editorState.view == View::Chords) chords.onClose(); else openChords(); return true; }
         if (ch == '4') { toggleSample(); return true; }
+        if (ch == '5') { radioBtn.onClick(); return true; }   // INTERNET RADIO (again to go back)
         if (ch == 'r' && ! m.isShiftDown()) { captureNow(); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
@@ -1049,6 +1070,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::Sample:     return samplePage.keyPressed (k);
         case View::CvOut:      return cvPage.keyPressed (k);
         case View::CvSources:  return cvSources.keyPressed (k);
+        case View::Radio:      return radioPage.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }

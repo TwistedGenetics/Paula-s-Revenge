@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.29</span>
+  <span class="ver">MANUAL &middot; V0.30</span>
 </header>
 
 <div class="app">
@@ -405,7 +405,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>CONTROL</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
-      <tr><td><span class="b">INPUT</span> <span class="b">RESAMPLE</span></td><td>Record the audio input (chosen in <b>AUDIO/MIDI SETTINGS…</b>, bottom right), or everything the app plays: play the song or a block, or jam, and record what comes out</td></tr>
+      <tr><td><span class="b">INPUT</span> <span class="b">RESAMPLE</span> <span class="b">RADIO</span></td><td>Record the audio input (chosen in <b>AUDIO/MIDI SETTINGS…</b>, bottom right), or everything the app plays: play the song or a block, or jam, and record what comes out &mdash; or the internet radio as it comes in (see below)</td></tr>
       <tr><td><span class="b">MONITOR</span></td><td>Hear the input through the app. Off to start with: with a mic, use headphones or it feeds back</td></tr>
       <tr><td><span class="b">STEREO</span> <span class="b">MONO</span> <span class="b">LEFT</span> <span class="b">RIGHT</span></td><td>What goes into the instrument (MONO mixes left and right)</td></tr>
       <tr><td><span class="b">MANUAL</span></td><td>Records from the moment you press RECORD</td></tr>
@@ -422,6 +422,20 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     </tbody>
   </table></div>
   <p>The first time on a Mac, macOS asks whether Paula's Revenge may use the microphone: say OK, or the input is silent (System Settings &rarr; Privacy &amp; Security &rarr; Microphone changes it later). After KEEP it's a sample like any other: EDIT to slice or loop it, and it's saved in the song.</p>
+  <h3>Internet radio</h3>
+  <p><span class="b">RADIO</span> (bottom row, or <kbd>Cmd</kbd><kbd>5</kbd>) opens stations from all over the world to listen to and sample from &mdash; straight into the sampler, no effects. The stations come from <a href="https://www.radio-browser.info">Radio Browser</a>, a free community directory; it needs an internet connection.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/radio.png" alt="The INTERNET RADIO page: the genre list on the left with JUNGLE selected, the stations in the middle with their country and bit rate, and on the right NOW PLAYING with the station, the track playing, its level, STOP, STAR and VOL, then the GRAB BUFFER with 5, 10, 20 and 30 SEC, how much it holds, and a big GRAB button." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The radio: a genre, a station playing, GRAB ready</figcaption>
+  </figure>
+  <ul>
+    <li><span class="b">GENRE</span> (jungle, drum and bass, breakbeat, dub, reggae, techno, house, jazz, funk, soul, hip hop, classical, world&hellip;), <span class="b">COUNTRY</span> (the busiest first), or <b>type</b> to search by name or genre and press <kbd>Enter</kbd>. <span class="b">STARRED</span> and <span class="b">RECENT</span> are your starred stations and the last 30 played.</li>
+    <li>Only MP3 stations that worked at the directory's last check are listed, the most played first. The last lists are saved, so the page opens straight away, even offline.</li>
+    <li><b>Double-click</b> a station (or <kbd>Enter</kbd>, or <span class="b">PLAY</span>). It gathers 3 seconds before it starts, so a slow connection doesn't stutter; a dropped stream is tried again by itself (<code>RECONNECTING 2/5</code>), waiting longer each time. NOW PLAYING shows the track the station says is on.</li>
+    <li><span class="b">VOL</span> is its own. The radio goes <b>straight to the output</b>: not through the mixer, effects or the Amiga / Akai sound, and never into renders or bounces. It plays on while you work on other pages (RADIO stays lit).</li>
+    <li><b>GRAB BUFFER</b> <span class="b">5</span> <span class="b">10</span> <span class="b">20</span> <span class="b">30</span> seconds: the radio always keeps that much of what it just played. <span class="b">GRAB</span> puts it in the <b>first empty instrument</b>, named after the station, exactly as it came off the stream (stereo, not trimmed or normalised), and opens it in the sample editor. One undo step.</li>
+    <li>Streams are copyrighted: sample for your own sketches, and clear samples before releasing them.</li>
+  </ul>
   <h3>Instrument VOL and switching off</h3>
   <p>VOL is a level for the whole instrument on top of each note's <code>Cxx</code>. Any instrument can be switched off with its <span class="b">ON</span> button (on its PARAMS page): its notes are silent and the list shows it dimmed with <code>OFF</code>.</p>
 </section>
@@ -845,6 +859,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>2</kbd> / <kbd>1</kbd></td><td>Mixer / pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>3</kbd></td><td>CHORDS: the chord table</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>5</kbd></td><td>INTERNET RADIO</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>O</kbd></td><td>Load a song</td></tr>
@@ -853,7 +868,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.29</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.30</footer>
 </main>
 </div>
 </body></html>
