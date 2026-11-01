@@ -1,5 +1,6 @@
 // Paula's Revenge - audio processor
 #include "PluginProcessor.h"
+#include "Diagnostics.h"
 #include "PluginEditor.h"
 #include "SongFile.h"
 
@@ -344,6 +345,18 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
 {
     juce::ScopedNoDenormals noDenormals;
     const int n = buffer.getNumSamples();
+    // DIAGNOSTICS: how long this block takes against how long it lasts (and the wait for the lock)
+    struct Timing
+    {
+        int64_t start = juce::Time::getHighResolutionTicks(), lockAsked = 0, lockGot = 0;
+        int n; double rate;
+        ~Timing()
+        {
+            const auto end = juce::Time::getHighResolutionTicks();
+            const double tick = 1000.0 / (double) juce::Time::getHighResolutionTicksPerSecond();
+            prv::Diagnostics::get().audioBlock ((double) (end - start) * tick, rate > 0 ? n * 1000.0 / rate : 0.0, (double) (lockGot - lockAsked) * tick);
+        }
+    } timing { .n = n, .rate = currentRate };
 
     if (n > scratchSize)
     {
@@ -381,7 +394,9 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
 
     midiHost.outputLatencyMs = 1000.0 * n / std::max (1.0, currentRate);
 
+    timing.lockAsked = juce::Time::getHighResolutionTicks();
     const juce::SpinLock::ScopedLockType sl (lock);
+    timing.lockGot = juce::Time::getHighResolutionTicks();
 
     // tell hosted plug-ins where the song is
     {

@@ -119,7 +119,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.31</span>
+  <span class="ver">MANUAL &middot; V0.32</span>
 </header>
 
 <div class="app">
@@ -433,7 +433,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>Stations that worked at the directory's last check are listed, the most played first, with their format: <b>MP3</b>, <b>AAC</b>, <b>AAC+</b> (HE-AAC) and <b>HLS</b> &mdash; the playlists of short pieces big broadcasters such as the BBC use. AAC is decoded by the Mac's or PC's own decoder. Ogg, Opus, FLAC and encrypted streams aren't played yet. The last lists are saved, so the page opens straight away, even offline.</li>
     <li><b>Double-click</b> a station (or <kbd>Enter</kbd>, or <span class="b">PLAY</span>). It gathers 3 seconds before it starts, so a slow connection doesn't stutter; a dropped stream is tried again by itself (<code>RECONNECTING 2/5</code>), waiting longer each time. NOW PLAYING shows the track the station says is on.</li>
     <li><span class="b">VOL</span> is its own. The radio goes <b>straight to the output</b>: not through the mixer, effects or the Amiga / Akai sound, and never into renders or bounces. It plays on while you work on other pages (RADIO stays lit).</li>
-    <li><b>GRAB BUFFER</b> <span class="b">5</span> <span class="b">10</span> <span class="b">20</span> <span class="b">30</span> seconds: the radio always keeps that much of what it just played. <span class="b">GRAB</span> puts it in the <b>first empty instrument</b>, named after the station, exactly as it came off the stream (stereo, not trimmed or normalised), and opens it in the sample editor. One undo step.</li>
+    <li><b>GRAB BUFFER</b> <span class="b">5</span> <span class="b">10</span> <span class="b">20</span> <span class="b">30</span> seconds: the radio always keeps that much of what it just played. <span class="b">GRAB</span> puts it in the <b>first empty instrument</b>, named after the station, exactly as it came off the stream (stereo, not trimmed or normalised), stops the radio, and opens it in the sample editor. One undo step.</li>
     <li>Streams are copyrighted: sample for your own sketches, and clear samples before releasing them.</li>
   </ul>
   <h3>Instrument VOL and switching off</h3>
@@ -821,13 +821,22 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h2>SAVING &amp; FILES</h2>
   <div class="accent t3"></div>
   <ul>
-    <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. The song takes the file's name. <span class="b">SAVE*</span> with a star means unsaved changes.</li>
+    <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. The song takes the file's name. <span class="b">SAVE*</span> with a star means unsaved changes. Saving happens in the background: the pattern and the music carry on. If the file was changed since you opened it (by your other computer), SAVE asks: <span class="b">SAVE A COPY</span> or <span class="b">REPLACE IT</span>.</li>
     <li>A <code>.prv</code> song holds everything: every sample (stereo too), the mixer, plug-in settings, automation, MIDI-out settings, its chord table. You can move or delete the original WAVs.</li>
     <li><span class="b">LOAD</span> also opens ProTracker-style <code>.mod</code> files (4, 6 and 8 channels) and MED / OctaMED <code>MMD0</code> / <code>MMD1</code> modules.</li>
     <li>Songs saved by older versions always load.</li>
     <li><b>Autosave:</b> every two minutes, when something changed, a copy of the song goes into the app's own folder (in the background). If the app doesn't close properly &mdash; a crash, a plug-in taking it down &mdash; next time it offers <span class="b">RECOVER</span> (the song as it was, still pointing at its own file, marked unsaved) or <span class="b">START AS NORMAL</span>. A normal quit never asks.</li>
     <li>The window's title shows the song, <code>*</code> for unsaved changes, and the block you're editing.</li>
   </ul>
+  <h3>Sharing songs between your Mac and PC</h3>
+  <ul>
+    <li><b>File &rarr; Shared Folder&hellip;</b> lists the synced folders on this computer (Dropbox, iCloud Drive, OneDrive, Google Drive) or lets you choose one. Pick the same one on each computer; songs go in <code>Paula's Revenge/Songs</code> inside it.</li>
+    <li><b>Save to Shared Folder</b> and <b>Open from Shared Folder&hellip;</b> (File menu). Songs carry their samples, so nothing else needs copying.</li>
+    <li>Plug-ins are found on the other computer by name and ID. Use the <b>VST3</b> on both (install it on the Mac too) to keep their settings; with only the AU on one side, it loads with its own defaults.</li>
+    <li>Let the sync finish before opening a song on the other computer.</li>
+  </ul>
+  <h3>Diagnostics</h3>
+  <p>The app logs anything that could cause a dropout: audio blocks that took too long, the driver's own dropout count, the window stalling, saves and loads, the radio running dry, plug-ins that wouldn't load, and the audio device's rate and buffer. <b>Help &rarr; Save Diagnostics Report&hellip;</b> puts it all in a text file on your desktop, to send in; <b>Help &rarr; Show the Log Folder</b> opens the log.</p>
 </section>
 
 <!-- ============================================================ 015 -->
@@ -868,7 +877,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.31</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.32</footer>
 </main>
 </div>
 </body></html>

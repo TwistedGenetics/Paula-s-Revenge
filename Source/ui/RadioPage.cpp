@@ -394,8 +394,11 @@ int RadioPage::grab()
     proc.editorState.instrument = idx;
     const double secs = (double) l.size() / rate;
     const auto title = proc.radio.nowPlaying();
+    // (the radio stops: the sample editor is next, to hear what was grabbed)
+    proc.radio.stop();
+    list.playing = -1;
     status ("GRABBED " + juce::String (secs, 1) + " SEC INTO INSTRUMENT " + hex2 (idx + 1) + ": " + juce::String (o.name)
-            + (title.isNotEmpty() ? " (" + title.substring (0, 30) + ")" : juce::String()));
+            + (title.isNotEmpty() ? " (" + title.substring (0, 30) + ")" : juce::String()) + " - RADIO STOPPED");
     if (onGrabbed) onGrabbed (idx);
     return idx;
 }

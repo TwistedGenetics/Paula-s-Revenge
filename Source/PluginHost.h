@@ -105,7 +105,11 @@ public:
     static void runScanChild (const juce::StringArray& args);
 
     static std::string keyFor (const juce::PluginDescription& d) { return d.createIdentifierString().toStdString(); }
-    bool findDescription (const std::string& key, juce::PluginDescription& out) const;
+    // the plug-in a song's key means here (another computer's song: matched by format, name and id;
+    // or the same name in the other format, *sameFormat false then)
+    bool findDescription (const std::string& key, juce::PluginDescription& out, bool* sameFormat = nullptr) const;
+    static bool splitKey (const juce::String& key, juce::String& format, juce::String& name, juce::String& uid);
+    void fail (const std::string& key, const juce::String& why);   // (errors[key], and the log)
 
     // ---- making the effect for a slot. Null when the plug-in isn't available here
     // (the slot then passes audio through). `slot` >= 0 allows loading in the

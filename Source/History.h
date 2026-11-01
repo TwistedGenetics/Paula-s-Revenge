@@ -39,6 +39,7 @@ public:
     void clear();                       // new or loaded song
     bool isDirty() const { return current != saved; }
     void markSaved() { saved = current; }
+    void markSavedAt (uint64_t id) { saved = id; }   // (a save made in the background: the song as it was then)
     void markChanged() { current = nextId++; }   // a change that isn't undoable
     uint64_t changeId() const { return current; }  // moves on with every change (autosave)
 

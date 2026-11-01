@@ -217,7 +217,7 @@ Mark the parts of a song (intro, drop, break…) with dividers in the sequence:
 
 **The song's name is its file's name**: SAVE AS `amen roller.prv` and the song is called `AMEN ROLLER` (shown at the top); load a `.prv` and it takes that file's name. It's also in the window's title bar. A new song is `UNTITLED` until it's saved. MODs keep the name inside them until you save them as `.prv`.
 
-**SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
+**SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. Saving happens **in the background**: the pattern and the music carry on while a big song is written (the status line says SAVING..., then SAVED), and the file is only replaced once the new one is complete. If the file was changed since you opened it — by your other computer through a shared folder — SAVE asks first: **SAVE A COPY** (with this computer's name in it) or **REPLACE IT**. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
 
 **Autosave and crash recovery** (the app): every two minutes, when something has changed, a copy of the song goes into the app's own folder (written in the background, so the music doesn't stutter; the one before is kept too). If the app doesn't close properly — a crash, a plug-in taking it down, the power going — it asks next time: **RECOVER** the song (as it was at the last autosave, still pointing at its own file and marked unsaved, so SAVE puts it back where it belongs) or **START AS NORMAL** (the autosave is kept until the next one). A normal quit never asks. The folder: `~/Library/Application Support/Paula's Revenge/Autosave` on a Mac, `%APPDATA%\Paula's Revenge\Autosave` on a PC.
 
@@ -227,13 +227,30 @@ v0.6 also fixes LOAD for `.prv` songs: earlier versions mistook a saved song for
 
 Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
 
+## Sharing songs between computers (Mac and PC)
+
+Use a folder that your computers keep in step — **Dropbox**, **iCloud Drive**, **OneDrive** or Google Drive:
+
+* **File → Shared Folder...** lists the synced folders it finds on this computer (or **CHOOSE ANOTHER FOLDER...**). Pick the same one on each computer, once; the songs go in `Paula's Revenge/Songs` inside it.
+* **File → Save to Shared Folder** puts the song there; **File → Open from Shared Folder...** opens one. SAVE AS starts there too. Songs are self-contained (every sample is inside), so nothing else needs copying.
+* **Plug-ins** are found on the other computer by their name and ID, wherever they're installed. The same plug-in in the same format (**VST3 on both** — install the VST3 on the Mac too, not only the AU) keeps its sound and settings; if only the other format is there (an AU on the Mac, the VST3 on the PC) it loads with its own default settings, and the log says so. A plug-in that isn't installed shows `!NAME` and keeps its settings for when it is.
+* Let the sync finish before opening a song on the other computer. If a song won't open straight after it was saved elsewhere, it may still be syncing: wait a moment and try again. If both computers changed the same song, SAVE asks before replacing the other one's version (see Saving).
+
+## Diagnostics (dropouts and other problems)
+
+The app keeps a log of anything that could make the sound drop out: every audio block that took too long (and whether it waited for a page changing the song), the audio driver's own dropout count, the window stalling, saves and loads (with how long they took), the radio running dry or reconnecting, plug-ins that wouldn't load, and the audio device in use (its sample rate and buffer size).
+
+* **Help → Save Diagnostics Report...** writes it all to a text file on your desktop — send that file in. **Help → Show the Log Folder** opens where the log is kept (`~/Library/Logs/Paula's Revenge` on a Mac, `%APPDATA%\Paula's Revenge\Logs` on a PC).
+* The report starts with the counts for this session: blocks too slow (each one is a dropout), nearly too slow, the driver's dropouts, window stalls. A larger buffer in Audio/MIDI Settings (512 or 1024 samples) gives the computer more room.
+
 ## The standalone app window
 
 The app uses the normal Mac window: **red** quits, **yellow** minimises to the Dock, **green** goes full screen. The app remembers its window size and position.
 
-* **File:** New, Load… (`Cmd+O`), Save (`Cmd+S`), Save As… (`Shift+Cmd+S`), **Save MOD…**, **Render WAV…**, **Export Samples…**, Audio/MIDI Settings… (`Cmd+,`); on a PC also Follow System Output and Exit.
+* **File:** New, Load… (`Cmd+O`), Save (`Cmd+S`), Save As… (`Shift+Cmd+S`), **Save MOD…**, **Render WAV…**, **Export Samples…**, **Open from Shared Folder…**, **Save to Shared Folder**, **Shared Folder…**, Audio/MIDI Settings… (`Cmd+,`); on a PC also Follow System Output and Exit.
 * **View:** Capture What I Played (`Cmd+R`), Sample Audio… (`Cmd+4`), **Record Note-Offs** and **Full Velocity** (ticked when on), Toggle Full Screen (`Ctrl+Cmd+F`; F11 on a PC), and on a Mac Follow System Output.
 * The Mac's app menu has Audio/MIDI Settings, Follow System Output and **Quit** (`Cmd+Q`).
+* **Help:** **Save Diagnostics Report…** and **Show the Log Folder** (see Diagnostics).
 
 **Headphones (FOLLOW SYSTEM OUTPUT):** the app plays through whatever output your Mac (or PC) is using, and moves with it: plug in headphones, connect AirPods or another Bluetooth set, or plug in a USB interface that the computer switches to, and the sound goes there straight away (with a quick fade, so no click); unplug them and it goes back. The status line says where the sound went (`OUTPUT: EXTERNAL HEADPHONES`). It keeps your sample rate and buffer size when the new output can do them. **Follow System Output (Headphones)** in the app menu (next to Audio/MIDI Settings; on a PC in the File menu) turns it on and off; it's on to start with. Choosing a different device by hand in Audio/MIDI Settings (an audio interface you always want, say) turns it off, so your choice stays — the status line says so.
 
@@ -287,7 +304,7 @@ Record audio straight into the selected instrument: from an audio interface, the
 * Stations that were working at the directory's last check are listed, the most played first, with their country, format and bit rate: **MP3**, **AAC** and **AAC+** (HE-AAC, good sound at low bit rates), and **HLS** — the way big broadcasters such as the BBC stream, a playlist of short pieces that keeps updating (in MPEG transport streams, fMP4 or plain AAC / MP3). AAC is decoded by the computer's own decoder (macOS's or Windows'). Ogg Vorbis, Opus, FLAC and encrypted (DRM) streams aren't played yet; if a station turns out to be one, the page says so. The last lists are saved, so the page opens straight away (and still shows them offline).
 * **Double-click** a station (or `Enter`, or **PLAY**) to play it; **STOP** stops it. Right-click one (or **STAR**) to star it. NOW PLAYING shows the station, the track the station says is playing, and what it's doing: CONNECTING, BUFFERING (it gathers 3 seconds first, so a slow connection doesn't stutter), PLAYING, RECONNECTING 2/5 (a dropped stream is tried again by itself, waiting a little longer each time, up to 5 times) or FAILED and why.
 * **VOL** is the radio's own level. The radio goes **straight to the output**: not through the mixer, the instruments' effects or the Amiga / Akai sound, and never into RENDER WAV or bounces. It keeps playing on the other pages (RADIO stays lit); the song plays over it.
-* **GRAB BUFFER**: **5**, **10**, **20** or **30** seconds (remembered). The radio always keeps that much of what it just played. **GRAB** puts it in the **first empty instrument**, named after the station, exactly as it came off the stream — stereo, at the app's rate, not trimmed or normalised — and opens it in the sample editor to cut and slice (one undo step). The bar shows how much it holds: grab 6 seconds into a 20-second buffer and you get those 6. Changing the length keeps what it holds, up to the new length.
+* **GRAB BUFFER**: **5**, **10**, **20** or **30** seconds (remembered). The radio always keeps that much of what it just played. **GRAB** puts it in the **first empty instrument**, named after the station, exactly as it came off the stream — stereo, at the app's rate, not trimmed or normalised — **stops the radio**, and opens it in the sample editor to cut and slice (one undo step). The bar shows how much it holds: grab 6 seconds into a 20-second buffer and you get those 6. Changing the length keeps what it holds, up to the new length.
 * For longer takes, or the AMIGA / S950 sampler, use the **SAMPLE** page with **RADIO** as the source.
 * **Streams are copyrighted** — sample for your own sketches, and clear samples before releasing anything with them in.
 

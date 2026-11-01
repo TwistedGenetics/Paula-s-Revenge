@@ -55,8 +55,9 @@ public:
         lastId = id; lastSave = now;
         // a copy of the song (fast) here; packing and writing it in the background
         proc.capturePluginStates();
-        auto copy = std::make_shared<Song>();
-        proc.withLock ([&] { *copy = proc.song; });
+        // (the message thread is the only one that changes the song, so the copy needs no lock:
+        // the audio never waits for it, however big the samples are)
+        auto copy = std::make_shared<Song> (proc.song);
         const juce::String from = proc.editorState.currentFile;
         if (worker.joinable()) worker.join();
         busy = true;

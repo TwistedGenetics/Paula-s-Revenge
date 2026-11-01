@@ -12,6 +12,7 @@
 #include "PluginHost.h"
 #include "PluginEditor.h"
 #include "OutputFollower.h"
+#include "Diagnostics.h"
 
 #if JUCE_MAC
  void prvToggleNativeFullScreen (void* nsView);   // Source/mac/FullScreen.mm
@@ -36,7 +37,12 @@ enum CommandIDs
     cmdNoteOffs      = 0x2020,
     cmdFullVelocity  = 0x2021,
     cmdFollowInstr   = 0x2022,
-    cmdSeparation    = 0x2023
+    cmdSeparation    = 0x2023,
+    cmdSharedFolder  = 0x2030,
+    cmdOpenShared    = 0x2031,
+    cmdSaveShared    = 0x2032,
+    cmdDiagnostics   = 0x2040,
+    cmdLogFolder     = 0x2041
 };
 
 // the real audio system for FOLLOW SYSTEM OUTPUT
@@ -176,6 +182,36 @@ public:
         follower->check();
         holder->deviceManager.addChangeListener (this);
         startTimer (500);
+        // DIAGNOSTICS: what the log needs from the app
+        {
+            auto& d = prv::Diagnostics::get();
+            d.xruns = [this] { auto* dev = holder != nullptr ? holder->deviceManager.getCurrentAudioDevice() : nullptr; return dev != nullptr ? dev->getXRunCount() : -1; };
+            d.describeAudio = [this] { return describeAudio(); };
+            d.describeSong = [this]
+            {
+                auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
+                if (proc == nullptr) return juce::String();
+                int samples = 0, plugs = 0, fx = 0; double mb = 0;
+                for (const auto& in : proc->song.instruments)
+                {
+                    if (in.hasData()) { ++samples; mb += (double) (in.data.size() + in.dataR.size()) * 2 / 1048576.0; }
+                    if (in.isPlugin()) ++plugs;
+                }
+                for (int k = 0; k < prv::kTotalSlots; ++k) if (proc->song.mixer.slot (k).type == prv::FxType::Plugin) ++fx;
+                return "'" + juce::String (proc->song.name) + "', " + juce::String (proc->song.numTracks) + " tracks, " + juce::String (samples) + " samples ("
+                       + juce::String (mb, 1) + " MB), " + juce::String (plugs) + " plug-in instruments, " + juce::String (fx) + " plug-in effects, "
+                       + juce::String (proc->song.tempo) + " BPM";
+            };
+            d.describeRadio = [this]
+            {
+                auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
+                if (proc == nullptr || proc->radio.state() == prv::RadioPlayer::State::Stopped) return juce::String ("off");
+                const auto s = proc->radio.station();
+                return prv::RadioPlayer::stateName (proc->radio.state()) + ": " + s.name + " (" + s.format() + ", " + s.url + "), ran dry "
+                       + juce::String (proc->radio.underruns()) + " times";
+            };
+            d.log ("AUDIO: " + describeAudio());
+        }
 
         commands.registerAllCommandsForTarget (this);
         window = std::make_unique<MainWindow> (getApplicationName(), *holder->processor, appProperties.getUserSettings());
@@ -235,7 +271,7 @@ public:
     // --------------------------------------------------------------- menus
     // File + View: on the Mac in the menu bar at the top of the screen (the app menu keeps
     // Audio/MIDI Settings, Follow, Quit too), on a PC in the window
-    juce::StringArray getMenuBarNames() override { return { "File", "View" }; }
+    juce::StringArray getMenuBarNames() override { return { "File", "View", "Help" }; }
 
     juce::PopupMenu getMenuForIndex (int, const juce::String& name) override
     {
@@ -251,12 +287,22 @@ public:
             m.addCommandItem (&commands, cmdRenderWav);
             m.addCommandItem (&commands, cmdExportSamples);
             m.addSeparator();
+            m.addCommandItem (&commands, cmdOpenShared);
+            m.addCommandItem (&commands, cmdSaveShared);
+            m.addCommandItem (&commands, cmdSharedFolder);
+            m.addSeparator();
             m.addCommandItem (&commands, cmdAudioSettings);
            #if ! JUCE_MAC
             m.addCommandItem (&commands, cmdFollowOutput);
             m.addSeparator();
             m.addCommandItem (&commands, juce::StandardApplicationCommandIDs::quit);
            #endif
+            return m;
+        }
+        if (name == "Help")
+        {
+            m.addCommandItem (&commands, cmdDiagnostics);
+            m.addCommandItem (&commands, cmdLogFolder);
             return m;
         }
         m.addCommandItem (&commands, cmdCapture);
@@ -281,7 +327,8 @@ public:
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
-                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation });
+                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation,
+                      cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -340,6 +387,11 @@ public:
             auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
             info.setTicked (proc != nullptr && proc->fullVelocity.load());
         }
+        else if (id == cmdSharedFolder) info.setInfo ("Shared Folder...", "The synced folder (Dropbox, iCloud Drive, OneDrive) your computers share songs through", "File", 0);
+        else if (id == cmdOpenShared)   info.setInfo ("Open from Shared Folder...", "Open a song from the shared folder", "File", 0);
+        else if (id == cmdSaveShared)   info.setInfo ("Save to Shared Folder", "Save the song into the shared folder, for your other computer", "File", 0);
+        else if (id == cmdDiagnostics)  info.setInfo ("Save Diagnostics Report...", "A text file on the desktop: dropouts, the audio device, the log - to send in", "Help", 0);
+        else if (id == cmdLogFolder)    info.setInfo ("Show the Log Folder", "Where the diagnostics log is kept", "Help", 0);
         else if (id == cmdSeparation) info.setInfo ("Stereo Separation...", "How far the Amiga layout spreads the tracks left and right (SEP)", "View", 0);
         else if (id == cmdFollowInstr)
         {
@@ -374,6 +426,11 @@ public:
                 case cmdNoteOffs:      ed->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs()); commands.commandStatusChanged(); return true;
                 case cmdFullVelocity:  ed->setFullVelocity (! ed->fullVelocityOn()); commands.commandStatusChanged(); return true;
                 case cmdSeparation:    ed->showSeparationMenu(); return true;
+                case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
+                case cmdOpenShared:    ed->openShared(); return true;
+                case cmdSaveShared:    ed->saveToShared(); return true;
+                case cmdDiagnostics:   ed->saveDiagnostics(); return true;
+                case cmdLogFolder:     prv::Diagnostics::get().logFile().revealToUser(); return true;
                 case cmdFollowInstr:   ed->setFollowInstrument (! prv::ui::PatternEditor::followInstrument()); commands.commandStatusChanged(); return true;
                 default: break;
             }
@@ -430,8 +487,22 @@ private:
         return window != nullptr ? dynamic_cast<PaulaEditor*> (window->getContentComponent()) : nullptr;
     }
     // the device changed (the settings window, a device going away...)
+    juce::String describeAudio() const
+    {
+        if (holder == nullptr) return {};
+        auto& dm = holder->deviceManager;
+        auto* dev = dm.getCurrentAudioDevice();
+        if (dev == nullptr) return "NO AUDIO DEVICE OPEN";
+        const double rate = dev->getCurrentSampleRate();
+        const int block = dev->getCurrentBufferSizeSamples();
+        return dev->getTypeName() + ": " + dev->getName() + ", " + juce::String (rate, 0) + " Hz, buffer " + juce::String (block)
+               + " samples (" + juce::String (rate > 0 ? block * 1000.0 / rate : 0.0, 1) + " ms), output latency " + juce::String (dev->getOutputLatencyInSamples())
+               + ", " + juce::String (dev->getActiveOutputChannels().countNumberOfSetBits()) + " outputs, " + juce::String (dev->getActiveInputChannels().countNumberOfSetBits()) + " inputs";
+    }
+
     void changeListenerCallback (juce::ChangeBroadcaster*) override
     {
+        prv::Diagnostics::get().log ("AUDIO DEVICE CHANGED: " + describeAudio());
         if (follower == nullptr) return;
         follower->deviceChanged();
         juce::MessageManager::callAsync ([this] { if (follower != nullptr) follower->check(); });

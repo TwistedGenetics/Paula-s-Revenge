@@ -1,5 +1,6 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
+#include "Diagnostics.h"
 #include "ui/ChoiceBox.h"
 #include "ui/MeterColours.h"
 #include "engine/Capture.h"
@@ -387,6 +388,7 @@ PaulaEditor::~PaulaEditor()
     proc.pluginHost.onWindowKeyState = nullptr;
     stopTimer();
     proc.history.onRestored = nullptr;
+    waitForSave();   // (a save still being written finishes first)
 }
 
 void PaulaEditor::historyRestored (const juce::String& what)
@@ -535,6 +537,23 @@ void PaulaEditor::setStatus (const juce::String& s)
 
 void PaulaEditor::timerCallback()
 {
+    prv::Diagnostics::get().tick();   // (slow audio blocks into the log; a stall of this window too)
+    {
+        // the radio's changes, and it running dry (the network too slow), into the log
+        const int rs = (int) proc.radio.state();
+        const auto dry = proc.radio.underruns();
+        if (rs != lastRadioState)
+        {
+            const auto s = proc.radio.station();
+            const auto why = proc.radio.problem();
+            prv::Diagnostics::get().log ("RADIO " + prv::RadioPlayer::stateName ((prv::RadioPlayer::State) rs) + ": " + s.name + " (" + s.format() + ") " + s.url
+                                         + (why.isNotEmpty() ? " - " + why : juce::String()));
+            lastRadioState = rs;
+        }
+        if (dry > lastRadioDry)
+            prv::Diagnostics::get().log ("RADIO RAN DRY (THE STATION / NETWORK FELL BEHIND): " + proc.radio.station().name + ", " + juce::String (dry) + " TIMES SO FAR");
+        lastRadioDry = dry;
+    }
     // the pattern gets the keyboard back when nothing else has it (after a dialog, a plug-in
     // window, the app coming to the front...), so typing always lands in the pattern
     if (proc.editorState.view == View::Pattern && juce::ModalComponentManager::getInstance()->getNumModalComponents() == 0
@@ -1120,17 +1139,29 @@ void PaulaEditor::loadSong()
 
 bool PaulaEditor::loadSongFrom (const juce::File& file)
 {
+    waitForSave();
+    prv::Diagnostics::get().activity ("LOADING " + file.getFileName().toUpperCase());
     prv::rememberFolder (proc.editorState.lastFolder, "songFolder", file.getParentDirectory());
     prv::Song s;
     juce::String err;
     juce::StringArray notes;
-    if (! prv::loadSongFile (file, s, err, notes)) { setStatus ("ERROR: " + err); return false; }
+    if (! prv::loadSongFile (file, s, err, notes))
+    {
+        // (a shared folder may still be bringing it over from the other computer)
+        const auto shared = sharedFolder();
+        const bool syncing = shared != juce::File() && file.isAChildOf (shared);
+        prv::Diagnostics::get().log ("LOAD FAILED: " + file.getFullPathName() + ": " + err);
+        setStatus ("ERROR: " + err + (syncing ? " - IF IT WAS JUST SAVED ON THE OTHER COMPUTER, IT MAY STILL BE SYNCING: TRY AGAIN IN A MOMENT" : juce::String()));
+        return false;
+    }
     if (s.chordsLegacy || s.chordsSaved) notes.add (proc.chordReport (s));
     if (file.hasFileExtension ("prv")) s.name = songNameFor (file).toStdString();   // (a MOD keeps its own name)
     proc.replaceSong (std::move (s));
     auto& st2 = proc.editorState;
     st2.block = proc.song.safeBlock (proc.song.sequence[0]); st2.line = 0; st2.seqPos = 0; st2.track = 0;
     st2.currentFile = file.hasFileExtension ("prv") ? file.getFullPathName() : juce::String();
+    knownFileTime = file.getLastModificationTime();
+    prv::Diagnostics::get().log ("LOADED " + file.getFullPathName() + " (" + juce::String (file.getSize() / 1048576.0, 1) + " MB)");
     setStatus ("LOADED " + file.getFileName() + (notes.isEmpty() ? juce::String() : "  -  " + notes.joinIntoString ("  ")));
     refreshAll();
     repaint();
@@ -1180,25 +1211,102 @@ bool PaulaEditor::recoverAutosave()
     return true;
 }
 
-bool PaulaEditor::writeSongTo (const juce::File& file)
+bool PaulaEditor::writeSongTo (const juce::File& file, bool checkChanged)
 {
+    // changed by another computer (a shared folder) since this app last read or wrote it?
+    const bool ours = proc.editorState.currentFile == file.getFullPathName();
+    if (checkChanged && file.existsAsFile() && (! ours || knownFileTime == juce::Time()
+                                                 || file.getLastModificationTime() > knownFileTime + juce::RelativeTime::seconds (2)))
+    {
+        if (ours)
+        {
+            juce::Component::SafePointer<PaulaEditor> safe (this);
+            const auto copy = file.getParentDirectory().getNonexistentChildFile (file.getFileNameWithoutExtension() + " (" + juce::SystemStats::getComputerName() + ")", ".prv", false);
+            choice.show (*this, file.getFileName().toUpperCase() + " WAS CHANGED SINCE YOU OPENED IT (ON ANOTHER COMPUTER?)",
+                         { "SAVE A COPY: " + copy.getFileName().toUpperCase(), "REPLACE IT WITH THIS ONE" },
+                         [safe, file, copy] (int a)
+                         {
+                             if (safe == nullptr || a < 0) return;
+                             safe->startSaving (a == 0 ? copy : file);
+                         });
+            return true;
+        }
+    }
+    startSaving (file);
+    return true;
+}
+
+void PaulaEditor::startSaving (const juce::File& file)
+{
+    waitForSave();
     // the song is called what its file is called
     proc.withLock ([&] { proc.song.name = songNameFor (file).toStdString(); });
-    juce::MemoryBlock data;
     proc.capturePluginStates();
-    proc.withLock ([&] { data = prv::writeSong (proc.song); });
-    if (! file.replaceWithData (data.getData(), data.getSize()))
+    // a copy, taken here without the lock: this is the only thread that changes the song, and
+    // the music keeps playing; packing and writing it happen in the background
+    const double t0 = juce::Time::getMillisecondCounterHiRes();
+    auto copy = std::make_shared<prv::Song> (proc.song);
+    const auto id = proc.history.changeId();
+    saving = true;
+    lastSaveOk = false;
+    prv::Diagnostics::get().activity ("SAVING " + file.getFileName().toUpperCase());
+    setStatus ("SAVING " + file.getFileName().toUpperCase() + "...");
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    saveThread = std::thread ([copy, file, safe, id, t0]
+    {
+        const auto data = prv::writeSong (*copy);
+        // written next to it, then put in its place: never half a song (and a synced folder
+        // never sends half of one to the other computer)
+        const auto tmp = file.getSiblingFile ("." + file.getFileNameWithoutExtension() + ".saving");
+        bool ok = tmp.replaceWithData (data.getData(), data.getSize());
+        if (ok) ok = tmp.moveFileTo (file);
+        if (! ok) tmp.deleteFile();
+        const double ms = juce::Time::getMillisecondCounterHiRes() - t0;
+        if (auto* ed = safe.getComponent())   // (the window joins this thread before it goes)
+        {
+            std::lock_guard<std::mutex> l (ed->saveMutex);
+            ed->pendingSave = SaveResult { ok, file, id, ms, data.getSize() };
+        }
+        juce::MessageManager::callAsync ([safe] { if (safe != nullptr) safe->finishPendingSave(); });
+    });
+}
+
+void PaulaEditor::finishPendingSave()
+{
+    std::optional<SaveResult> r;
+    {
+        std::lock_guard<std::mutex> l (saveMutex);
+        r.swap (pendingSave);
+    }
+    if (r) saveFinished (r->ok, r->file, r->id, r->ms, r->bytes);
+}
+
+void PaulaEditor::waitForSave()
+{
+    if (saveThread.joinable()) saveThread.join();
+}
+
+void PaulaEditor::saveFinished (bool ok, const juce::File& file, uint64_t changeId, double ms, size_t bytes)
+{
+    saving = false;
+    lastSaveOk = ok;
+    prv::Diagnostics::get().log ((ok ? "SAVED " : "SAVE FAILED: ") + file.getFullPathName() + " (" + juce::String (bytes / 1048576.0, 1) + " MB, "
+                                  + juce::String (juce::roundToInt (ms)) + " MS)");
+    if (! ok)
     {
         setStatus ("ERROR: COULDN'T WRITE " + file.getFullPathName());
-        return false;
+        return;
     }
     auto& st = proc.editorState;
     st.currentFile = file.getFullPathName();
+    knownFileTime = file.getLastModificationTime();
     prv::rememberFolder (st.lastFolder, "songFolder", file.getParentDirectory());
-    proc.history.markSaved();
-    setStatus ("SAVED " + file.getFileName() + " IN " + file.getParentDirectory().getFullPathName());
+    proc.history.markSavedAt (changeId);
+    if (proc.song.name != songNameFor (file).toStdString()) proc.withLock ([&] { proc.song.name = songNameFor (file).toStdString(); });
+    const auto shared = sharedSongsFolder();
+    setStatus ("SAVED " + file.getFileName() + (shared != juce::File() && file.isAChildOf (shared) ? " IN THE SHARED FOLDER" : " IN " + file.getParentDirectory().getFullPathName()));
+    refreshAll();
     repaint();
-    return true;
 }
 
 bool PaulaEditor::saveSongDirect()
@@ -1216,11 +1324,155 @@ void PaulaEditor::saveSong()
     if (! saveSongDirect()) saveSongAs();
 }
 
+// ---------------------------------------------------------------------------- SHARED FOLDER
+juce::File PaulaEditor::sharedFolder()
+{
+    const auto p = prv::prefs().getValue ("sharedFolder");
+    return p.isNotEmpty() && juce::File::isAbsolutePath (p) ? juce::File (p) : juce::File();
+}
+
+juce::File PaulaEditor::sharedSongsFolder()
+{
+    const auto f = sharedFolder();
+    return f == juce::File() ? juce::File() : f.getChildFile ("Paula's Revenge").getChildFile ("Songs");
+}
+
+juce::Array<juce::File> PaulaEditor::sharedFolderCandidates()
+{
+    juce::Array<juce::File> out;
+    const auto home = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+    auto add = [&] (const juce::File& f) { if (f.isDirectory() && ! out.contains (f)) out.add (f); };
+    // Dropbox says where it is in its info.json
+    for (auto info : { home.getChildFile (".dropbox/info.json"),
+                       juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Dropbox/info.json"),
+                       juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getSiblingFile ("Local").getChildFile ("Dropbox/info.json") })
+    {
+        const auto v = juce::JSON::parse (info);
+        for (auto kind : { "personal", "business" })
+            if (v[kind].isObject()) add (juce::File (v[kind]["path"].toString()));
+    }
+    add (home.getChildFile ("Dropbox"));
+    // macOS File Provider folders (Dropbox, OneDrive, Google Drive) and iCloud Drive
+    const auto cloud = home.getChildFile ("Library/CloudStorage");
+    if (cloud.isDirectory())
+        for (const auto& f : cloud.findChildFiles (juce::File::findDirectories, false))
+        {
+            const auto n = f.getFileName();
+            if (n.startsWith ("Dropbox") || n.startsWith ("OneDrive")) add (f);
+            if (n.startsWith ("GoogleDrive")) add (f.getChildFile ("My Drive"));
+        }
+    add (home.getChildFile ("Library/Mobile Documents/com~apple~CloudDocs"));
+    // Windows
+    for (const auto& f : home.findChildFiles (juce::File::findDirectories, false, "OneDrive*")) add (f);
+    add (home.getChildFile ("iCloudDrive"));
+    return out;
+}
+
+bool PaulaEditor::setSharedFolder (const juce::File& f)
+{
+    if (f == juce::File())
+    {
+        prv::prefs().removeValue ("sharedFolder");
+        prv::prefs().saveIfNeeded();
+        setStatus ("NO SHARED FOLDER: SONGS SAVE WHERE YOU PUT THEM");
+        return true;
+    }
+    if (! f.isDirectory()) { setStatus ("ERROR: " + f.getFullPathName() + " ISN'T A FOLDER"); return false; }
+    prv::prefs().setValue ("sharedFolder", f.getFullPathName());
+    prv::prefs().saveIfNeeded();
+    const auto songs = sharedSongsFolder();
+    songs.createDirectory();
+    prv::Diagnostics::get().log ("SHARED FOLDER: " + songs.getFullPathName());
+    setStatus ("SHARED FOLDER: " + songs.getFullPathName() + " - SET THE SAME ONE ON YOUR OTHER COMPUTER");
+    return songs.isDirectory();
+}
+
+void PaulaEditor::chooseSharedFolder()
+{
+    const auto found = sharedFolderCandidates();
+    juce::StringArray answers;
+    auto nameFor = [] (const juce::File& f)
+    {
+        const auto p = f.getFullPathName();
+        if (p.contains ("com~apple~CloudDocs") || p.endsWithIgnoreCase ("iCloudDrive")) return juce::String ("ICLOUD DRIVE");
+        if (p.containsIgnoreCase ("Dropbox")) return "DROPBOX (" + f.getFileName().toUpperCase() + ")";
+        if (p.containsIgnoreCase ("OneDrive")) return "ONEDRIVE (" + f.getFileName().toUpperCase() + ")";
+        if (p.containsIgnoreCase ("GoogleDrive")) return juce::String ("GOOGLE DRIVE");
+        return f.getFileName().toUpperCase();
+    };
+    for (auto& f : found) answers.add ("USE " + nameFor (f));
+    answers.add ("CHOOSE ANOTHER FOLDER...");
+    if (sharedFolder() != juce::File()) answers.add ("STOP USING A SHARED FOLDER");
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    const auto cur = sharedFolder();
+    choice.show (*this, cur == juce::File() ? juce::String ("SHARE SONGS BETWEEN COMPUTERS: PICK THE SYNCED FOLDER")
+                                            : "SHARED FOLDER NOW: " + cur.getFullPathName().toUpperCase(),
+                 answers, [safe, found] (int a)
+    {
+        if (safe == nullptr || a < 0) return;
+        if (a < found.size()) { safe->setSharedFolder (found[a]); return; }
+        if (a == found.size())
+        {
+            safe->chooser = std::make_unique<juce::FileChooser> ("The synced folder (Dropbox, iCloud Drive, OneDrive...)",
+                                                                 juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+            safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe] (const juce::FileChooser& fc)
+            {
+                if (safe != nullptr && fc.getResult().isDirectory()) safe->setSharedFolder (fc.getResult());
+            });
+            return;
+        }
+        safe->setSharedFolder ({});
+    });
+}
+
+void PaulaEditor::openShared()
+{
+    const auto songs = sharedSongsFolder();
+    if (songs == juce::File()) { chooseSharedFolder(); return; }
+    songs.createDirectory();
+    chooser = std::make_unique<juce::FileChooser> ("Open a shared song", songs, "*.prv");
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe] (const juce::FileChooser& fc)
+    {
+        if (safe != nullptr && fc.getResult().existsAsFile()) safe->loadSongFrom (fc.getResult());
+    });
+}
+
+void PaulaEditor::saveToShared()
+{
+    const auto songs = sharedSongsFolder();
+    if (songs == juce::File()) { chooseSharedFolder(); return; }
+    songs.createDirectory();
+    const juce::File cur (juce::File::isAbsolutePath (proc.editorState.currentFile) ? proc.editorState.currentFile : juce::String());
+    if (cur != juce::File() && cur.isAChildOf (songs)) { writeSongTo (cur); return; }
+    const juce::String base = cur != juce::File() ? cur.getFileNameWithoutExtension()
+                            : juce::File::createLegalFileName (juce::String (proc.song.name).toLowerCase());
+    auto target = songs.getChildFile ((base.isNotEmpty() ? base : juce::String ("untitled")) + ".prv");
+    if (target.existsAsFile())
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        const auto copy = songs.getNonexistentChildFile (target.getFileNameWithoutExtension(), ".prv", false);
+        choice.show (*this, target.getFileName().toUpperCase() + " IS ALREADY IN THE SHARED FOLDER",
+                     { "SAVE AS " + copy.getFileName().toUpperCase(), "REPLACE IT" },
+                     [safe, target, copy] (int a) { if (safe != nullptr && a >= 0) safe->writeSongTo (a == 0 ? copy : target, false); });
+        return;
+    }
+    writeSongTo (target, false);
+}
+
+void PaulaEditor::saveDiagnostics()
+{
+    const auto f = prv::Diagnostics::get().saveReport();
+    f.revealToUser();
+    setStatus ("DIAGNOSTICS REPORT ON THE DESKTOP: " + f.getFileName().toUpperCase() + " - SEND IT OVER");
+}
+
 void PaulaEditor::saveSongAs()
 {
     auto& st = proc.editorState;
     const juce::File current (juce::File::isAbsolutePath (st.currentFile) ? st.currentFile : juce::String());
     juce::File start = current != juce::File() ? current
+                     : sharedSongsFolder().isDirectory() ? sharedSongsFolder().getChildFile (juce::File::createLegalFileName (juce::String (proc.song.name).toLowerCase()) + ".prv")
                      : prv::startFolder (st.lastFolder, "songFolder")
                            .getChildFile (juce::File::createLegalFileName (juce::String (proc.song.name).toLowerCase()) + ".prv");
     chooser = std::make_unique<juce::FileChooser> ("Save song as", start, "*.prv");
@@ -1231,7 +1483,7 @@ void PaulaEditor::saveSongAs()
         auto file = fc.getResult();
         if (file == juce::File()) return;
         if (! file.hasFileExtension ("prv")) file = file.withFileExtension ("prv");
-        safe->writeSongTo (file);
+        safe->writeSongTo (file, false);   // (the window has already asked about replacing it)
     });
 }
 

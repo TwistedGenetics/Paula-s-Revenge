@@ -1,5 +1,6 @@
 // Paula's Revenge - hosting VST3 / AU effects in the mixer's insert slots
 #include "PluginHost.h"
+#include "Diagnostics.h"
 #include "Prefs.h"
 
 namespace prv
@@ -320,14 +321,17 @@ std::unique_ptr<PluginSynth> PluginHost::createSynth (int, const Instrument& in,
 {
     const auto& key = in.pluginKey;
     juce::PluginDescription desc;
-    if (! findDescription (key, desc)) { errors[key] = "NOT INSTALLED ON THIS COMPUTER"; return nullptr; }
+    bool same = true;
+    if (! findDescription (key, desc, &same)) { fail (key, "NOT INSTALLED ON THIS COMPUTER"); return nullptr; }
     juce::String err;
     auto inst = formats.createPluginInstance (desc, sampleRate, maxBlock, err);
-    if (inst == nullptr) { errors[key] = err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD"); return nullptr; }
+    if (inst == nullptr) { fail (key, err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD")); return nullptr; }
     errors.erase (key);
     auto synth = std::make_unique<PluginSynthImpl> (*this, std::move (inst), &playHead);
     synth->prepare (sampleRate, maxBlock);
-    if (! in.pluginState.empty())
+    // (another format of it - an AU's settings don't fit a VST3: it starts from its own)
+    if (! same) Diagnostics::get().log ("PLUG-IN " + desc.name + ": USING THE " + desc.pluginFormatName + " - THE SONG'S SETTINGS FOR IT ARE FOR ANOTHER FORMAT");
+    if (same && ! in.pluginState.empty())
         synth->instance().setStateInformation (in.pluginState.data(), (int) in.pluginState.size());
     return synth;
 }
@@ -346,13 +350,44 @@ std::vector<float> PluginHost::parameterValues (juce::AudioPluginInstance& p)
     return v;
 }
 
-bool PluginHost::findDescription (const std::string& key, juce::PluginDescription& out) const
+bool PluginHost::splitKey (const juce::String& key, juce::String& format, juce::String& name, juce::String& uid)
 {
+    // "VST3-Name-<hash of its file>-<id>": the file's place differs from computer to computer
+    const int a = key.indexOfChar ('-');
+    const int z = key.lastIndexOfChar ('-');
+    if (a <= 0 || z <= a) return false;
+    const int y = key.substring (0, z).lastIndexOfChar ('-');
+    if (y <= a) return false;
+    format = key.substring (0, a);
+    name = key.substring (a + 1, y);
+    uid = key.substring (z + 1);
+    return name.isNotEmpty();
+}
+
+bool PluginHost::findDescription (const std::string& key, juce::PluginDescription& out, bool* sameFormat) const
+{
+    if (sameFormat != nullptr) *sameFormat = true;
     if (auto d = known.getTypeForIdentifierString (juce::String (key)))
     {
         out = *d;
         return true;
     }
+    // a song from another computer (a shared folder): the same plug-in installed somewhere else -
+    // the same format, name and id; else the same name in the other format (an AU <-> a VST3)
+    juce::String fmt, name, uid;
+    if (! splitKey (juce::String (key), fmt, name, uid)) return false;
+    const auto types = known.getTypes();
+    for (const auto& d : types)
+        if (d.pluginFormatName == fmt && d.name == name && juce::String::toHexString (d.uniqueId).equalsIgnoreCase (uid)) { out = d; return true; }
+    for (const auto& d : types)
+        if (d.pluginFormatName == fmt && d.name.equalsIgnoreCase (name)) { out = d; return true; }
+    for (const auto& d : types)
+        if (d.name.equalsIgnoreCase (name))
+        {
+            out = d;
+            if (sameFormat != nullptr) *sameFormat = d.pluginFormatName == fmt;
+            return true;
+        }
     return false;
 }
 
@@ -362,11 +397,20 @@ juce::String PluginHost::lastError (const std::string& key) const
     return it == errors.end() ? juce::String() : it->second;
 }
 
+void PluginHost::fail (const std::string& key, const juce::String& why)
+{
+    if (errors[key] != why) Diagnostics::get().log ("PLUG-IN WOULDN'T LOAD: " + juce::String (key) + ": " + why);
+    errors[key] = why;
+}
+
 std::unique_ptr<Effect> PluginHost::wrap (std::unique_ptr<juce::AudioPluginInstance> inst, const FxSlot& slot, double sampleRate)
 {
     auto fx = std::make_unique<PluginEffect> (*this, std::move (inst), &playHead);
     fx->prepare (sampleRate);
-    if (! slot.pluginState.empty())
+    juce::PluginDescription stored;
+    bool same = true;
+    findDescription (slot.pluginKey, stored, &same);
+    if (same && ! slot.pluginState.empty())
         fx->instance().setStateInformation (slot.pluginState.data(), (int) slot.pluginState.size());
     return fx;
 }
@@ -382,11 +426,12 @@ std::unique_ptr<Effect> PluginHost::create (int slotIndex, const FxSlot& slot, d
         {
             auto inst = std::move (it->second);
             asyncReady.erase (it);
-            if (inst != nullptr && keyFor (inst->getPluginDescription()) == key) return wrap (std::move (inst), slot, sampleRate);
+            juce::PluginDescription want;
+            if (inst != nullptr && findDescription (key, want) && keyFor (inst->getPluginDescription()) == keyFor (want)) return wrap (std::move (inst), slot, sampleRate);
         }
     }
     juce::PluginDescription desc;
-    if (! findDescription (key, desc)) { errors[key] = "NOT INSTALLED ON THIS COMPUTER"; return nullptr; }
+    if (! findDescription (key, desc)) { fail (key, "NOT INSTALLED ON THIS COMPUTER"); return nullptr; }
     juce::String err;
     auto inst = formats.createPluginInstance (desc, sampleRate, maxBlock, err);
     if (inst != nullptr) { errors.erase (key); return wrap (std::move (inst), slot, sampleRate); }
@@ -410,7 +455,7 @@ std::unique_ptr<Effect> PluginHost::create (int slotIndex, const FxSlot& slot, d
         }
         return nullptr;
     }
-    errors[key] = err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD");
+    fail (key, err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD"));
     return nullptr;
 }
 

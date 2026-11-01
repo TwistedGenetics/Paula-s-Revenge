@@ -2,6 +2,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <mutex>
+#include <optional>
+#include <thread>
 #include "PluginProcessor.h"
 #include "ui/Widgets.h"
 #include "Autosave.h"
@@ -83,7 +86,7 @@ public:
     float separation() const { return sepSlider.value; }               // FOLLOW INSTRUMENT: a click on a note picks its instrument
     void setNoteOffs (bool on);                       // NOTE-OFFS: recording writes OFFs at all
     bool fullVelocityOn() const { return proc.fullVelocity.load(); }
-    bool writeSongTo (const juce::File&);             // SAVE to that file (the song takes the file's name)
+    bool writeSongTo (const juce::File&, bool checkChanged = true);   // SAVE to that file (the song takes the file's name), in the background
     bool loadSongFrom (const juce::File&);            // LOAD from that file
     // autosave (the standalone app): every couple of minutes when something changed; after a
     // crash it offers the autosave back
@@ -91,13 +94,37 @@ public:
     void endAutosave();                               // a clean quit
     bool recoverAutosave();                           // (the RECOVER answer; tests too)
     prv::Autosave* getAutosave() { return autosave.get(); }
-    bool saveNow() { return saveSongDirect(); }   // tests: SAVE without a window when a file is set
+    bool saveNow() { const bool ok = saveSongDirect(); finishSaving(); return ok && lastSaveOk; }   // tests: SAVE, and wait for it
+    void waitForSave();                               // a save still being written: wait for it (quitting, loading)
+    void finishSaving() { waitForSave(); finishPendingSave(); }   // (tests: and its result now)
+    bool isSaving() const { return saving; }
+    // SHARED FOLDER: songs shared between computers through Dropbox / iCloud / OneDrive
+    static juce::File sharedFolder();                 // "" = none set (on this computer)
+    static juce::File sharedSongsFolder();            // <shared>/Paula's Revenge/Songs
+    static juce::Array<juce::File> sharedFolderCandidates();   // the synced folders found on this computer
+    void chooseSharedFolder();                        // File > Shared Folder...
+    bool setSharedFolder (const juce::File&);         // (and tests)
+    void openShared();                                // File > Open from Shared Folder...
+    void saveToShared();                              // File > Save to Shared Folder
+    void saveDiagnostics();                           // Help > Save Diagnostics Report...
     bool saveSongDirect();
     void setStatus (const juce::String&);           // the status line (also the app: output changes)
 
     void refreshAll();   // (also used by the tests)
 
 private:
+    // saving in the background (the pattern and the music carry on)
+    std::thread saveThread;
+    bool saving = false, lastSaveOk = false;
+    juce::Time knownFileTime;                         // the song's file as this app last wrote / read it
+    void saveFinished (bool ok, const juce::File&, uint64_t changeId, double ms, size_t bytes);
+    struct SaveResult { bool ok; juce::File file; uint64_t id; double ms; size_t bytes; };
+    std::mutex saveMutex;
+    std::optional<SaveResult> pendingSave;
+    void finishPendingSave();
+    void startSaving (const juce::File&);
+    double lastTimerMs = 0;
+    int lastRadioState = 0; int64_t lastRadioDry = 0;   // (the log: the radio's changes)
     void timerCallback() override;
     void applyOptions();
 
