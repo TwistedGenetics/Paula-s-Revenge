@@ -6,7 +6,7 @@ namespace prv
 {
 namespace
 {
-    const char* kUserAgent = "PaulasRevenge/0.30 (github.com/TwistedGenetics/Paula-s-Revenge)";
+    const char* kUserAgent = "PaulasRevenge/0.31 (github.com/TwistedGenetics/Paula-s-Revenge)";
 
     // the pixel font is plain ASCII: accented letters lose their accents, other scripts go
     juce::String plain (const juce::String& s)
@@ -100,6 +100,7 @@ juce::var RadioStation::toVar() const
     o->setProperty ("stationuuid", uuid); o->setProperty ("name", name); o->setProperty ("url_resolved", url);
     o->setProperty ("country", country); o->setProperty ("countrycode", countryCode); o->setProperty ("codec", codec);
     o->setProperty ("tags", tags); o->setProperty ("homepage", homepage);
+    o->setProperty ("hls", hls ? 1 : 0);
     o->setProperty ("bitrate", bitrate); o->setProperty ("votes", votes); o->setProperty ("clickcount", clicks);
     return juce::var (o);
 }
@@ -116,6 +117,7 @@ RadioStation RadioStation::fromVar (const juce::var& v)
     s.country = s.country.replace ("UNITED KINGDOM OF GREAT BRITAIN AND NORTHERN IRELAND", "UNITED KINGDOM").replace ("UNITED STATES OF AMERICA", "UNITED STATES");
     s.countryCode = v["countrycode"].toString().toUpperCase().trim();
     s.codec = v["codec"].toString().toUpperCase().trim();
+    s.hls = (int) v["hls"] != 0 || s.url.upToFirstOccurrenceOf ("?", false, false).toLowerCase().endsWith (".m3u8");
     s.tags = plain (v["tags"].toString()).toUpperCase();
     s.bitrate = (int) v["bitrate"];
     s.votes = (int) v["votes"];
@@ -131,6 +133,13 @@ RadioStation RadioStation::fromVar (const juce::var& v)
     return s;
 }
 
+juce::String RadioStation::format() const
+{
+    if (hls) return "HLS";
+    if (codec == "HE-AAC") return "AAC+";
+    return codec.isNotEmpty() ? codec : juce::String ("MP3");
+}
+
 std::vector<RadioStation> RadioDirectory::parseStations (const juce::String& json)
 {
     std::vector<RadioStation> out;
@@ -140,12 +149,15 @@ std::vector<RadioStation> RadioDirectory::parseStations (const juce::String& jso
     for (const auto& e : *v.getArray())
     {
         if (! v.isArray() || ! e.isObject()) continue;
-        if (! e["codec"].toString().trim().equalsIgnoreCase ("MP3")) continue;
-        if (e.hasProperty ("hls") && (int) e["hls"] != 0) continue;
         if (e.hasProperty ("lastcheckok") && (int) e["lastcheckok"] == 0) continue;
         auto s = RadioStation::fromVar (e);
+        // MP3 everywhere; AAC / AAC+ and HLS where the computer can decode AAC
+        const bool aac = s.codec == "AAC" || s.codec == "AAC+" || s.codec == "HE-AAC";
+        const bool other = s.codec.contains ("OGG") || s.codec.contains ("OPUS") || s.codec.contains ("FLAC") || s.codec.contains ("WMA")
+                         || s.codec.contains ("H.264") || s.codec.contains ("MP4V");
+        if (s.hls ? (other || ! (radio::aacAvailable() || s.codec == "MP3")) : ! (s.codec == "MP3" || (aac && radio::aacAvailable()))) continue;
         const auto u = s.url.toLowerCase();
-        if (! (u.startsWith ("http://") || u.startsWith ("https://")) || u.contains (".m3u8")) continue;
+        if (! (u.startsWith ("http://") || u.startsWith ("https://"))) continue;
         const auto key = s.uuid.isNotEmpty() ? s.uuid : s.url;
         if (! seen.insert (key).second || ! seen.insert (s.name + "|" + s.url).second) continue;
         out.push_back (s);
@@ -166,7 +178,7 @@ juce::String RadioDirectory::server() const { const juce::ScopedLock l (cs); ret
 
 juce::String RadioDirectory::pathFor (Kind k, const juce::String& what)
 {
-    const juce::String common = "&codec=MP3&hidebroken=true&order=clickcount&reverse=true&limit=300";
+    const juce::String common = "&hidebroken=true&order=clickcount&reverse=true&limit=500";
     const auto w = juce::URL::addEscapeChars (what.trim().toLowerCase(), true);
     switch (k)
     {
@@ -495,46 +507,112 @@ void RadioPlayer::run()
     }
 }
 
+bool RadioPlayer::pushAudio (std::vector<float>& L, std::vector<float>& R, int srcRate, radio::Resampler& rs, int gen, int64_t& played)
+{
+    if (L.empty() || srcRate <= 0) return true;
+    rs.setRates (srcRate, rate);
+    std::vector<float> oL, oR;
+    rs.process (L.data(), R.data(), (int) L.size(), oL, oR);
+    // into the FIFO: when it's full, wait for the audio to make room
+    size_t off = 0;
+    while (off < oL.size())
+    {
+        off += (size_t) fifo.push (oL.data() + off, oR.data() + off, (int) (oL.size() - off));
+        if (off < oL.size())
+        {
+            if (threadShouldExit() || gen != generation.load()) return false;
+            juce::Thread::sleep (15);
+        }
+    }
+    played += (int64_t) oL.size();
+    if (played > (int64_t) (rate * 5)) tries = 0;   // (5 s playing: a later drop gets all its tries again)
+    if ((State) st.load() == State::Connecting) setState (State::Buffering);
+    return true;
+}
+
+bool RadioPlayer::download (const juce::String& url, std::vector<uint8_t>& out, size_t maxBytes, int gen, juce::String& err)
+{
+    // (a whole file: a playlist or an HLS segment; STOP / a new station cuts it short)
+    out.clear();
+    auto stream = net.open (url, err);
+    if (stream == nullptr) return false;
+    { const juce::ScopedLock l (streamLock); liveStream = stream.get(); }
+    struct Clear { RadioPlayer& p; ~Clear() { const juce::ScopedLock l (p.streamLock); p.liveStream = nullptr; } } clearLive { *this };
+    uint8_t buf[16384];
+    double quietMs = 0;
+    while (out.size() < maxBytes)
+    {
+        if (threadShouldExit() || gen != generation.load()) return false;
+        const int r = stream->read (buf, (int) sizeof (buf));
+        if (r < 0) break;
+        if (r == 0)
+        {
+            quietMs += 10;
+            if (quietMs > 15000) { err = "THE STATION STOPPED SENDING"; return false; }
+            juce::Thread::sleep (10);
+            continue;
+        }
+        quietMs = 0;
+        out.insert (out.end(), buf, buf + r);
+    }
+    return true;
+}
+
 RadioPlayer::Result RadioPlayer::playOnce (const RadioStation& s, int gen)
 {
     auto stale = [&] { return threadShouldExit() || gen != generation.load(); };
     juce::String url = s.url, err;
     std::unique_ptr<RadioNet::Stream> stream;
     juce::String ct;
-    for (int hop = 0; hop < 3; ++hop)
+    auto isHlsUrl = [] (const juce::String& u) { return u.upToFirstOccurrenceOf ("?", false, false).toLowerCase().endsWith (".m3u8"); };
+    for (int hop = 0; hop < 4; ++hop)
     {
+        // HLS: a playlist of short pieces, fetched one after another
+        if (isHlsUrl (url))
+        {
+            std::vector<uint8_t> text;
+            if (! download (url, text, 1u << 20, gen, err)) { if (stale()) return Result::Stopped; setWhy (err.isNotEmpty() ? err : "COULDN'T GET THE STATION'S PLAYLIST"); return Result::Failed; }
+            return playHls (url, std::string (text.begin(), text.end()), gen);
+        }
         stream = net.open (url, err);
         if (stale()) return Result::Stopped;
         if (stream == nullptr) { setWhy (err); return Result::Failed; }
         ct = stream->headers["content-type"].toLowerCase();
-        if (! radio::isPlaylist (url.toStdString(), ct.toStdString())) break;
-        // a playlist: its first stream
+        if (! radio::isPlaylist (url.toStdString(), ct.toStdString()) && ! ct.contains ("mpegurl")) break;
+        // a playlist: its first stream (or HLS after all)
         std::string text;
         char buf[4096];
-        for (int i = 0; i < 64 && text.size() < 65536; ++i)
+        for (int i = 0; i < 256 && text.size() < 262144; ++i)
         {
             const int r = stream->read (buf, (int) sizeof (buf));
             if (r < 0) break;
             if (r == 0) { juce::Thread::sleep (20); continue; }
             text.append (buf, (size_t) r);
         }
+        stream.reset();
+        if (radio::looksLikeHls (text)) return playHls (url, text, gen);
         const auto urls = radio::parsePlaylist (text);
         if (urls.empty()) { setWhy ("THE STATION'S PLAYLIST IS EMPTY"); return Result::Unplayable; }
         url = juce::String (urls.front());
-        stream.reset();
     }
     if (stream == nullptr) { setWhy ("TOO MANY PLAYLISTS"); return Result::Unplayable; }
-    for (auto other : { "aac", "mp4", "ogg", "opus", "flac", "mpegurl", "text/html" })
+    for (auto other : { "ogg", "opus", "flac", "text/html" })
         if (ct.contains (other))
         {
             setWhy ("THIS STATION SENDS " + (ct.contains ("text/html") ? juce::String ("A WEB PAGE") : ct.fromFirstOccurrenceOf ("/", false, false).toUpperCase())
-                    + ", NOT MP3 - TRY ANOTHER");
+                    + " - MP3 AND AAC ONLY FOR NOW, TRY ANOTHER");
             return Result::Unplayable;
         }
+    auto hint = radio::StreamDecoder::Kind::Unknown;
+    if (ct.contains ("audio/mpeg") || ct.contains ("audio/mp3")) hint = radio::StreamDecoder::Kind::Mp3;
+    else if (ct.contains ("aac")) hint = radio::StreamDecoder::Kind::Aac;
+    else if (ct.contains ("mp2t")) hint = radio::StreamDecoder::Kind::Ts;
+    if (hint == radio::StreamDecoder::Kind::Aac && ! radio::aacAvailable()) { setWhy ("AAC CAN'T BE PLAYED ON THIS COMPUTER"); return Result::Unplayable; }
 
     radio::IcyParser icy;
     icy.reset (stream->headers["icy-metaint"].getIntValue());
-    radio::Mp3Decoder dec;
+    radio::StreamDecoder dec;
+    dec.reset (hint);
     radio::Resampler rs;
     { const juce::ScopedLock l (streamLock); liveStream = stream.get(); }
     struct Clear { RadioPlayer& p; ~Clear() { const juce::ScopedLock l (p.streamLock); p.liveStream = nullptr; } } clearLive { *this };
@@ -542,7 +620,7 @@ RadioPlayer::Result RadioPlayer::playOnce (const RadioStation& s, int gen)
     setState (State::Buffering);
 
     std::vector<uint8_t> bytes;
-    std::vector<float> L, R, oL, oR;
+    std::vector<float> L, R;
     uint8_t buf[4096];
     int64_t played = 0;
     double quietMs = 0;
@@ -564,21 +642,109 @@ RadioPlayer::Result RadioPlayer::playOnce (const RadioStation& s, int gen)
         if (icy.feed (buf, (size_t) r, bytes)) { const juce::ScopedLock l (cs); title = plain (juce::String::fromUTF8 (icy.title().c_str())).toUpperCase(); }
         L.clear(); R.clear();
         dec.feed (bytes.data(), bytes.size(), L, R);
-        if (! any && dec.sampleRate() == 0 && dec.badBytes() > 256 * 1024) { setWhy ("THIS ISN'T AN MP3 STREAM - TRY ANOTHER"); return Result::Unplayable; }
+        if (! dec.problem().empty()) { setWhy (juce::String (dec.problem())); return Result::Unplayable; }
+        if (! any && dec.sampleRate() == 0 && dec.badBytes() > 256 * 1024) { setWhy ("THIS ISN'T AN MP3 OR AAC STREAM - TRY ANOTHER"); return Result::Unplayable; }
         if (L.empty() || dec.sampleRate() <= 0) continue;
         any = true;
-        rs.setRates (dec.sampleRate(), rate);
-        oL.clear(); oR.clear();
-        rs.process (L.data(), R.data(), (int) L.size(), oL, oR);
-        // into the FIFO: when it's full, wait for the audio to make room (the stream waits too)
-        size_t off = 0;
-        while (off < oL.size())
+        if (! pushAudio (L, R, dec.sampleRate(), rs, gen, played)) return Result::Stopped;
+    }
+    return Result::Stopped;
+}
+
+RadioPlayer::Result RadioPlayer::playHls (juce::String url, std::string text, int gen)
+{
+    auto stale = [&] { return threadShouldExit() || gen != generation.load(); };
+    juce::String err;
+    auto fetchText = [&] (const juce::String& u, std::string& out)
+    {
+        std::vector<uint8_t> b;
+        if (! download (u, b, 1u << 20, gen, err)) return false;
+        out.assign (b.begin(), b.end());
+        return true;
+    };
+    auto pl = radio::parseHls (text);
+    if (pl.valid && pl.master)
+    {
+        // the best audio variant (or the audio-only rendition)
+        const int v = radio::chooseVariant (pl);
+        std::string pick = v >= 0 ? pl.variants[(size_t) v].uri : std::string();
+        if (! pl.audioUri.empty() && (pick.empty() || pl.variants[(size_t) v].codecs.find ("avc") != std::string::npos)) pick = pl.audioUri;
+        if (pick.empty()) { setWhy ("THE STATION'S HLS PLAYLIST HAS NOTHING TO PLAY"); return Result::Unplayable; }
+        url = juce::String (radio::resolveUrl (url.toStdString(), pick));
+        if (! fetchText (url, text)) { if (stale()) return Result::Stopped; setWhy (err.isNotEmpty() ? err : "COULDN'T GET THE STATION'S PLAYLIST"); return Result::Failed; }
+        pl = radio::parseHls (text);
+    }
+    if (! pl.valid || pl.segments.empty()) { setWhy ("THE STATION'S HLS PLAYLIST IS EMPTY"); return Result::Failed; }
+    if (! pl.keyMethod.empty() && juce::String (pl.keyMethod).toUpperCase() != "NONE") { setWhy ("THIS STATION IS ENCRYPTED - IT CAN'T BE PLAYED HERE"); return Result::Unplayable; }
+
+    radio::StreamDecoder dec;
+    radio::Resampler rs;
+    const auto base = url.toStdString();
+    if (! pl.mapUri.empty())
+    {
+        std::vector<uint8_t> init;
+        if (! download (juce::String (radio::resolveUrl (base, pl.mapUri)), init, 4u << 20, gen, err)) { if (stale()) return Result::Stopped; setWhy (err); return Result::Failed; }
+        if (! dec.setInit (init.data(), init.size())) { setWhy (juce::String (dec.problem())); return Result::Unplayable; }
+    }
+    setState (State::Buffering);
+    // live: start 3 pieces from the end (as players do); a finished one: from the start
+    size_t first = pl.ended ? 0 : (pl.segments.size() > 3 ? pl.segments.size() - 3 : 0);
+    int64_t next = pl.segments[first].sequence;
+    int64_t played = 0;
+    int fails = 0, reloadFails = 0;
+    std::vector<float> L, R;
+    std::vector<uint8_t> seg;
+    auto isMp4 = [] (const std::vector<uint8_t>& b)
+    {
+        if (b.size() < 8) return false;
+        const std::string t (b.begin() + 4, b.begin() + 8);
+        return t == "styp" || t == "moof" || t == "ftyp" || t == "sidx";
+    };
+    while (! stale())
+    {
+        for (const auto& sg : pl.segments)
         {
-            off += (size_t) fifo.push (oL.data() + off, oR.data() + off, (int) (oL.size() - off));
-            if (off < oL.size()) { if (stale()) return Result::Stopped; juce::Thread::sleep (15); }
+            if (sg.sequence < next) continue;
+            if (stale()) return Result::Stopped;
+            if (! download (juce::String (radio::resolveUrl (base, sg.uri)), seg, 16u << 20, gen, err))
+            {
+                if (stale()) return Result::Stopped;
+                if (++fails >= 3) { setWhy (err.isNotEmpty() ? err : "THE STATION'S PIECES WON'T DOWNLOAD"); return Result::Failed; }
+                break;   // (the playlist again, then this piece again)
+            }
+            fails = 0;
+            L.clear(); R.clear();
+            if (isMp4 (seg))
+            {
+                if (! pl.mapUri.empty() || dec.setInit (seg.data(), seg.size())) dec.feedMp4Segment (seg.data(), seg.size(), L, R);
+            }
+            else dec.feed (seg.data(), seg.size(), L, R);
+            if (! dec.problem().empty()) { setWhy (juce::String (dec.problem())); return Result::Unplayable; }
+            if (! pushAudio (L, R, dec.sampleRate(), rs, gen, played)) return Result::Stopped;
+            next = sg.sequence + 1;
         }
-        played += (int64_t) oL.size();
-        if (played > (int64_t) (rate * 5)) tries = 0;   // (5 s playing: a later drop gets all its tries again)
+        if (pl.ended && next > pl.segments.back().sequence) { setWhy ("THE STATION'S STREAM ENDED"); return Result::Failed; }
+        // the next pieces: the playlist again after half a piece's time
+        const int waitMs = juce::jlimit (500, 5000, (int) (pl.targetDuration * 500));
+        for (int t = 0; t < waitMs; t += 20) { if (stale()) return Result::Stopped; juce::Thread::sleep (20); }
+        std::string again;
+        if (! fetchText (url, again))
+        {
+            if (stale()) return Result::Stopped;
+            if (++reloadFails >= 3) { setWhy (err.isNotEmpty() ? err : "THE STATION'S PLAYLIST STOPPED COMING"); return Result::Failed; }
+            continue;
+        }
+        auto fresh = radio::parseHls (again);
+        if (! fresh.valid || fresh.segments.empty())
+        {
+            if (++reloadFails >= 3) { setWhy ("THE STATION'S PLAYLIST STOPPED COMING"); return Result::Failed; }
+            continue;
+        }
+        reloadFails = 0;
+        pl = std::move (fresh);
+        // fell behind (the oldest piece is newer than the next one wanted), or the numbering started again
+        if (next < pl.segments.front().sequence) next = pl.segments.front().sequence;
+        if (next > pl.segments.back().sequence + 50) next = pl.segments[pl.segments.size() > 3 ? pl.segments.size() - 3 : 0].sequence;
     }
     return Result::Stopped;
 }

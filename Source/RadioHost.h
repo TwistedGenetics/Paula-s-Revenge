@@ -7,6 +7,7 @@
 
 #include <JuceHeader.h>
 #include "engine/Radio.h"
+#include "engine/RadioFormats.h"
 
 namespace prv
 {
@@ -14,6 +15,8 @@ struct RadioStation
 {
     juce::String uuid, name, url, country, countryCode, codec, tags, homepage;
     int bitrate = 0, votes = 0, clicks = 0;
+    bool hls = false;                       // (an HLS stream: a playlist of short pieces)
+    juce::String format() const;            // "MP3", "AAC", "AAC+", "HLS"
     juce::var toVar() const;
     static RadioStation fromVar (const juce::var&);
     bool operator== (const RadioStation& o) const { return uuid == o.uuid && url == o.url; }
@@ -138,6 +141,9 @@ private:
     void run() override;
     enum class Result { Stopped, Failed, Unplayable };
     Result playOnce (const RadioStation&, int gen);
+    Result playHls (juce::String url, std::string playlist, int gen);
+    bool download (const juce::String& url, std::vector<uint8_t>& out, size_t maxBytes, int gen, juce::String& err);
+    bool pushAudio (std::vector<float>& L, std::vector<float>& R, int srcRate, radio::Resampler&, int gen, int64_t& played);
     void setState (State s) { st.store ((int) s); }
     void setWhy (const juce::String& w) { const juce::ScopedLock l (cs); why = w; }
 };

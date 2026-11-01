@@ -267,7 +267,7 @@ void RadioPage::fetch (RadioDirectory::Kind k, const juce::String& what, const j
         }
         if (key.isNotEmpty()) RadioDirectory::cacheStore (key, got);
         safe->setStations (std::move (got), heading);
-        if (safe->stations.empty()) safe->problemText = "NO MP3 STATIONS FOUND";
+        if (safe->stations.empty()) safe->problemText = "NO STATIONS IT CAN PLAY";
         safe->repaint();
     });
     repaint();
@@ -294,7 +294,7 @@ juce::String RadioPage::stationRow (int r) const
     const auto& s = stations[(size_t) r];
     const float px = Theme::px;
     const int chars = std::max (16, (int) ((list.getWidth() - list.textX() - px * 12) / (px * PixelFont::kCellW)));
-    const juce::String right = "  " + (s.countryCode.isNotEmpty() ? s.countryCode : juce::String ("--")) + " "
+    const juce::String right = "  " + (s.countryCode.isNotEmpty() ? s.countryCode : juce::String ("--")) + " " + s.format().paddedRight (' ', 4) + " "
                              + (s.bitrate > 0 ? juce::String (s.bitrate).paddedLeft (' ', 3) + "K" : juce::String ("   -"));
     juce::String name = (isFavourite (s) ? "* " : "") + s.name;
     const int room = chars - right.length();
@@ -440,7 +440,7 @@ juce::String RadioPage::nowText() const
     lines.add (s.name);
     const auto t = proc.radio.nowPlaying();
     if (t.isNotEmpty()) lines.add (t);
-    juce::String info = "MP3" + (s.bitrate > 0 ? " " + juce::String (s.bitrate) + "K" : juce::String());
+    juce::String info = s.format() + (s.bitrate > 0 ? " " + juce::String (s.bitrate) + "K" : juce::String());
     if (s.countryCode.isNotEmpty()) info << "  " << s.countryCode;
     if (s.country.isNotEmpty()) info << "  " << s.country;
     lines.add (info);
@@ -525,7 +525,7 @@ void RadioPage::paint (juce::Graphics& g)
         juce::String h = listHeading.isEmpty() ? juce::String ("STATIONS") : listHeading;
         if (loading > 0) h << " - LOADING" << juce::String ("...").substring (0, 1 + (int) (juce::Time::getMillisecondCounter() / 300) % 3);
         else if (problemText.isNotEmpty()) h << " - " << problemText;
-        else h << ": " << juce::String ((int) stations.size()) << " MP3 STATIONS";
+        else h << ": " << juce::String ((int) stations.size()) << " STATIONS";
         PixelFont::drawLeft (g, fit (h, headArea.getWidth(), px), headArea, px, problemText.isNotEmpty() && loading == 0 ? sk.track[1] : pal.ink);
     }
 
