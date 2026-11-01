@@ -36,10 +36,8 @@ jobs:
 
       - name: Convert
         run: |
-          cd d
-          python scripts/convert-pth-to-onnx.py ../models
-          for m in drums bass other vocals; do python scripts/convert-pth-to-onnx.py ../models --ft-$m; done
-          ls -la ../models
+          python Tests/tools/stem_export.py models
+          ls -la models
 
       - name: Reference separation (PyTorch) and an ONNX check
         run: python Tests/tools/stem_reference.py models
