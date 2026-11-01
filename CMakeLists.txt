@@ -44,8 +44,19 @@ add_library(prv_engine STATIC
     Source/engine/Utility.cpp
     Source/engine/Groove.cpp
     Source/engine/Radio.cpp
+    Source/engine/RadioFormats.cpp
     Source/engine/ChordDatabase.cpp)
 target_include_directories(prv_engine PUBLIC Source)
+# the internet radio's AAC: the computer's own decoder (none on Linux, where only the tests run)
+if(APPLE)
+    target_sources(prv_engine PRIVATE Source/engine/aac/AacMac.cpp)
+    target_link_libraries(prv_engine PUBLIC "-framework AudioToolbox" "-framework CoreFoundation")
+elseif(WIN32)
+    target_sources(prv_engine PRIVATE Source/engine/aac/AacWin.cpp)
+    target_link_libraries(prv_engine PUBLIC mfplat mfuuid wmcodecdspuuid ole32)
+else()
+    target_sources(prv_engine PRIVATE Source/engine/aac/AacNone.cpp)
+endif()
 set_target_properties(prv_engine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # v0.8: the standalone app only (no plug-in builds)

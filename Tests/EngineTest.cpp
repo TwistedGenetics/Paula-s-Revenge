@@ -3345,7 +3345,7 @@ static void testRadio()
             std::vector<uint8_t> out; int changes = 0; std::string first;
             for (size_t i = 0; i < stream.size(); i += (size_t) chunk)
                 if (p.feed (stream.data() + i, std::min ((size_t) chunk, stream.size() - i), out)) { if (++changes == 1) first = p.title(); }
-            if (! (out == audio && changes == 2)) std::printf ("ICY chunk %d: %zu/%zu bytes, %d titles, '%s'\n", chunk, out.size(), audio.size(), changes, p.title().c_str());
+            if (out != audio) std::printf ("ICY chunk %d: %zu/%zu bytes, %d titles, '%s'\n", chunk, out.size(), audio.size(), changes, p.title().c_str());
             // (one big read holding both: only the latest title is told)
             CHECK (out == audio && changes == (chunk >= 1000 ? 1 : 2) && (chunk >= 1000 || first == "Artist - Song") && p.title() == "Rock 'n' Roll");
         }
@@ -3442,6 +3442,145 @@ static void testRadio()
     }
 }
 
+// v0.31: AAC / AAC+, transport streams, fMP4 and HLS (the AAC decoding itself where the computer has one)
+#include "engine/RadioFormats.h"
+#include "data/radio_formats.h"
+static void testRadioFormats()
+{
+    using namespace prv::radio;
+    auto hz = [] (const std::vector<float>& v, double rate)
+    {
+        int z = 0; const size_t a = v.size() / 4, b = v.size() * 3 / 4;
+        for (size_t i = a + 1; i < b; ++i) if ((v[i - 1] < 0) != (v[i] < 0)) ++z;
+        return z / 2.0 / ((double) (b - a) / rate);
+    };
+    // ADTS: whole frames out of any chunks; an ID3 tag and junk in front are skipped
+    std::vector<std::vector<uint8_t>> frames;
+    {
+        AdtsSplitter sp;
+        for (size_t i = 0; i < sizeof (kToneAac); i += 333) sp.feed (kToneAac + i, std::min<size_t> (333, sizeof (kToneAac) - i), frames);
+        std::vector<uint8_t> joined; for (auto& f : frames) joined.insert (joined.end(), f.begin(), f.end());
+        AdtsHeader h;
+        CHECK (frames.size() >= 40 && frames.size() <= 50 && parseAdts (frames[0].data(), frames[0].size(), h) && h.sampleRate() == 44100 && h.channels == 2 && h.profile == 1);
+        CHECK (joined.size() + 2000 > sizeof (kToneAac) && sp.skipped() == 0);
+        std::vector<uint8_t> junk { 'I', 'D', '3', 4, 0, 0, 0, 0, 0, 10 };
+        for (int i = 0; i < 10; ++i) junk.push_back (0);
+        for (int i = 0; i < 50; ++i) junk.push_back ((uint8_t) (i * 7));
+        junk.insert (junk.end(), kToneAac, kToneAac + sizeof (kToneAac));
+        AdtsSplitter s2; std::vector<std::vector<uint8_t>> f2;
+        s2.feed (junk.data(), junk.size(), f2);
+        std::printf ("ADTS: %zu frames, with junk in front %zu (skipped %lld bytes)\n", frames.size(), f2.size(), (long long) s2.skipped());
+        CHECK (f2.size() + 1 >= frames.size() && s2.skipped() >= 50);
+        const auto made = makeAdts (2, 4, 2, frames[0].size() - 7);
+        CHECK (std::equal (made.begin(), made.end(), frames[0].begin()));   // (the same header ffmpeg wrote)
+        CHECK (rateIndexFor (48000) == 3 && rateIndexFor (12345) == -1 && id3Size ((const uint8_t*) "ID3\4\0\0\0\0\0\12", 10) == 20);
+    }
+    // a transport stream: the AAC comes out as the same ADTS frames; MP3 too
+    {
+        TsDemux d; std::vector<uint8_t> es;
+        for (size_t i = 0; i < sizeof (kToneAacTs); i += 1000) d.feed (kToneAacTs + i, std::min<size_t> (1000, sizeof (kToneAacTs) - i), es);
+        AdtsSplitter sp; std::vector<std::vector<uint8_t>> f;
+        sp.feed (es.data(), es.size(), f);
+        bool same = f.size() + 1 >= frames.size();
+        for (size_t i = 0; same && i < f.size() && i < frames.size(); ++i) same = f[i] == frames[i];
+        std::printf ("TS: stream type 0x%02X, %zu ADTS frames (same as the file: %d)\n", d.streamType(), f.size(), (int) same);
+        CHECK (d.audio() == TsDemux::Audio::Aac && d.streamType() == 0x0F && same);
+        TsDemux m; std::vector<uint8_t> mp3;
+        m.feed (kToneMp3Ts, sizeof (kToneMp3Ts), mp3);
+        Mp3Decoder dec; std::vector<float> L, R;
+        dec.feed (mp3.data(), mp3.size(), L, R, true);
+        std::printf ("TS MP3: type 0x%02X, %zu frames at %d Hz, left %.1f Hz, right %.1f Hz\n", m.streamType(), L.size(), dec.sampleRate(), hz (L, 44100), hz (R, 44100));
+        CHECK (m.audio() == TsDemux::Audio::Mp3 && dec.sampleRate() == 44100 && L.size() > 40000 && std::abs (hz (L, 44100) - 440) < 3 && std::abs (hz (R, 44100) - 660) < 3);
+    }
+    // fMP4 (HLS): the init segment's track, and the media segment's frames as ADTS
+    {
+        Mp4Track t;
+        CHECK (parseMp4Init (kToneInit, sizeof (kToneInit), t) && t.objectType == 2 && t.rateIndex == 4 && t.channels == 2 && ! t.mp3);
+        std::vector<uint8_t> es;
+        CHECK (parseMp4Segment (kToneM4s, sizeof (kToneM4s), t, es));
+        AdtsSplitter sp; std::vector<std::vector<uint8_t>> f;
+        sp.feed (es.data(), es.size(), f);
+        bool same = f.size() + 1 >= frames.size() && ! f.empty();
+        for (size_t i = 0; same && i < f.size() && i < frames.size(); ++i) same = f[i] == frames[i];
+        std::printf ("fMP4: object type %d, %zu frames (same as the ADTS file: %d)\n", t.objectType, f.size(), (int) same);
+        CHECK (same);
+        Mp4Track he; const uint8_t asc[] = { 0x2B, 0x11, 0x88, 0x00 };   // explicit HE-AAC: 48 kHz out, SBR over a 24 kHz AAC LC core
+        CHECK (parseAudioSpecificConfig (asc, sizeof (asc), he) && he.objectType == 2 && he.rateIndex == 6 && he.channels == 2);
+    }
+    // HLS playlists
+    {
+        const std::string master =
+            "#EXTM3U\n#EXT-X-VERSION:3\n"
+            "#EXT-X-STREAM-INF:BANDWIDTH=2000000,CODECS=\"avc1.4d401f,mp4a.40.2\"\nvideo.m3u8\n"
+            "#EXT-X-STREAM-INF:BANDWIDTH=96000,CODECS=\"mp4a.40.5\"\nlow/audio.m3u8\n"
+            "#EXT-X-STREAM-INF:BANDWIDTH=320000,CODECS=\"mp4a.40.2\"\nhigh/audio.m3u8?token=1\n";
+        const auto m = parseHls (master);
+        CHECK (m.valid && m.master && m.variants.size() == 3 && chooseVariant (m) == 2 && m.variants[2].uri == "high/audio.m3u8?token=1");
+        const std::string media =
+            "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1200\n"
+            "#EXT-X-PROGRAM-DATE-TIME:2026-11-01T20:00:00Z\n#EXTINF:6.0,\nseg1200.aac\n#EXTINF:6.0,\nseg1201.aac\n#EXTINF:5.5,title\nhttps://cdn.example/seg1202.aac\n";
+        const auto p = parseHls (media);
+        CHECK (p.valid && ! p.master && ! p.ended && p.segments.size() == 3 && p.targetDuration == 6 && p.mediaSequence == 1200
+               && p.segments[2].sequence == 1202 && p.segments[2].duration == 5.5 && p.segments[2].uri == "https://cdn.example/seg1202.aac");
+        const auto alt = parseHls ("#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"x\",DEFAULT=NO,URI=\"a1.m3u8\"\n"
+                                   "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"y, z\",DEFAULT=YES,URI=\"a2.m3u8\"\n"
+                                   "#EXT-X-STREAM-INF:BANDWIDTH=800000,CODECS=\"avc1.4d401f,mp4a.40.2\",AUDIO=\"a\"\nv.m3u8\n");
+        CHECK (alt.master && alt.audioUri == "a2.m3u8");
+        const auto enc = parseHls ("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4,\ns.m4s\n#EXT-X-ENDLIST\n");
+        CHECK (enc.keyMethod == "AES-128" && enc.mapUri == "init.mp4" && enc.ended);
+        CHECK (looksLikeHls (media) && ! looksLikeHls ("#EXTM3U\n#EXTINF:-1,Radio\nhttp://x/a.mp3\n") && ! parseHls ("<html>").valid);
+        CHECK (resolveUrl ("https://a.example/live/x/master.m3u8?t=9", "seg1.ts") == "https://a.example/live/x/seg1.ts");
+        CHECK (resolveUrl ("https://a.example/live/x/master.m3u8", "/abs/seg.ts") == "https://a.example/abs/seg.ts");
+        CHECK (resolveUrl ("https://a.example/live/x/master.m3u8", "../y/seg.ts") == "https://a.example/live/y/seg.ts");
+        CHECK (resolveUrl ("https://a.example/live/master.m3u8", "//cdn.example/s.ts") == "https://cdn.example/s.ts");
+        CHECK (resolveUrl ("http://a.example/m.m3u8", "http://b.example/s.ts") == "http://b.example/s.ts");
+    }
+    // what a stream is
+    {
+        CHECK (StreamDecoder::sniff (kToneAacTs, sizeof (kToneAacTs)) == StreamDecoder::Kind::Ts);
+        CHECK (StreamDecoder::sniff (kToneAac, sizeof (kToneAac)) == StreamDecoder::Kind::Aac);
+        CHECK (StreamDecoder::sniff (kToneMp3, 8192) == StreamDecoder::Kind::Mp3);
+        CHECK (StreamDecoder::sniff (kToneAac, 100) == StreamDecoder::Kind::Unknown);
+        StreamDecoder sd; std::vector<float> L, R;
+        for (size_t i = 0; i < sizeof (kToneMp3Ts); i += 500) sd.feed (kToneMp3Ts + i, std::min<size_t> (500, sizeof (kToneMp3Ts) - i), L, R, i + 500 >= sizeof (kToneMp3Ts));
+        CHECK (sd.kind() == StreamDecoder::Kind::Ts && sd.sampleRate() == 44100 && L.size() > 40000 && std::abs (hz (L, 44100) - 440) < 3);
+    }
+    // AAC itself: the computer's decoder (the Mac and Windows builds)
+    if (aacAvailable())
+    {
+        auto check = [&] (const char* what, std::vector<float>& L, std::vector<float>& R, int rate)
+        {
+            std::printf ("AAC %s: %d Hz, %zu frames, left %.1f Hz, right %.1f Hz\n", what, rate, L.size(), L.empty() ? 0.0 : hz (L, rate), R.empty() ? 0.0 : hz (R, rate));
+            float pk = 0; for (float v : L) pk = std::max (pk, std::abs (v));
+            CHECK (rate == 44100 && L.size() > 35000 && L.size() < 50000 && std::abs (hz (L, 44100) - 440) < 4 && std::abs (hz (R, 44100) - 660) < 4 && pk > 0.05f);
+        };
+        {
+            AacDecoder d; std::vector<float> L, R;
+            for (size_t i = 0; i < sizeof (kToneAac); i += 700) d.feed (kToneAac + i, std::min<size_t> (700, sizeof (kToneAac) - i), L, R);
+            check ("ADTS", L, R, d.sampleRate());
+            CHECK (d.badFrames() == 0);
+        }
+        {
+            StreamDecoder sd; std::vector<float> L, R;
+            for (size_t i = 0; i < sizeof (kToneAacTs); i += 900) sd.feed (kToneAacTs + i, std::min<size_t> (900, sizeof (kToneAacTs) - i), L, R);
+            check ("in a TS", L, R, sd.sampleRate());
+        }
+        {
+            StreamDecoder sd; std::vector<float> L, R;
+            CHECK (sd.setInit (kToneInit, sizeof (kToneInit)));
+            sd.feedMp4Segment (kToneM4s, sizeof (kToneM4s), L, R);
+            check ("in fMP4", L, R, sd.sampleRate());
+        }
+    }
+    else
+    {
+        std::printf ("AAC: no decoder on this system (the Mac and Windows builds test it)\n");
+        StreamDecoder sd; std::vector<float> L, R;
+        sd.feed (kToneAac, sizeof (kToneAac), L, R);
+        CHECK (sd.kind() == StreamDecoder::Kind::Aac && L.empty() && sd.problem().find ("AAC") != std::string::npos);
+    }
+}
+
 int main()
 {
     testDoubleHalve();
@@ -3475,6 +3614,7 @@ int main()
     testGrooveAndBreakTools();
     testInstrumentEqAndSynthShape();
     testRadio();
+    testRadioFormats();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();
