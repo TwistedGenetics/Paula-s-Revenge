@@ -361,7 +361,7 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 
 * **BEST** runs the four fine-tuned models (each one the specialist for its stem): the cleanest split, about four times slower. **FAST** runs one model, for a quick listen or a rough idea.
 * The models download **once**, the first time you use each (FAST about 175 MB, BEST about 700 MB), from this project's GitHub releases, checked against their SHA-256; they're kept in the app's folder (`Stem Models`).
-* It works in the background: a box shows how far it's got and about how long is left; the music and the other pages carry on, and **CANCEL** stops it. How long it takes depends on the computer: a recent Mac does FAST in well under real time (a 1-minute sample in seconds to tens of seconds) and BEST in about the sample's own length or a little more.
+* It works in the background: a box shows how far it's got and about how long is left; the music and the other pages carry on, and **CANCEL** stops it. How long it takes depends on the computer's processor: as a guide, FAST takes about as long as the sample lasts (a bit less on a fast computer, a few times longer on an older or smaller one), and BEST about four times as long — a 30-second break: about half a minute FAST, two minutes or so BEST. The box tells you as it goes.
 * The four stems add back up to the original. Each is one undo step. Long samples (whole songs) work too; they just take longer.
 * The log (Help → Save Diagnostics Report) notes each split and how long it took.
 
