@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.35.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.36.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +32,7 @@ add_library(prv_engine STATIC
     Source/engine/Effects.cpp
     Source/engine/StudioFx.cpp
     Source/engine/StudioFx2.cpp
+    Source/engine/Modulation.cpp
     Source/engine/Mixer.cpp
     Source/engine/PluginSynth.cpp
     Source/engine/MidiOut.cpp
@@ -142,6 +143,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/ParamsPage.cpp
     Source/ui/ArrangePage.cpp
     Source/ui/MixerPage.cpp
+    Source/ui/ModPage.cpp
     Source/ui/SeqEditor.cpp
     Source/ui/CommandPicker.cpp
     Source/ui/SynthPage.cpp

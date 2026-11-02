@@ -70,6 +70,7 @@ private:
 };
 
 class MixStrip;
+class ModPage;
 
 class MixerPage : public juce::Component
 {
@@ -84,7 +85,7 @@ public:
     std::function<void()> onBackFromInstrument;   // BACK on an instrument's own insert: its page
     std::function<void()> onOctave;      // [ ] changed the octave
 
-    enum class Page { Strips, Channel, Effect };
+    enum class Page { Strips, Channel, Effect, Mods };
     Page page() const { return currentPage; }
     void opened();          // shown: back to the strips, refreshed
     void refresh();         // controls follow the song (after undo, load, ...)
@@ -94,6 +95,10 @@ public:
     void openInstrument (int ins);   // an instrument's own EQ and its 3 insert effects (BACK: its page)
     int  channelInstrument() const { return chInstrument; }   // (-1: a mixer track)
     void openEffect (int slot);
+    void showMods (int mod = -1);    // the MODULATION page (on that modulator)
+    ModPage& modPageView() { return *modPage; }   // (tests)
+    void editMixer (const juce::String& label, bool merge, std::function<void (MixerSettings&)> fn, bool effectsChanged = false);
+    void modulate();                 // MODULATE on an effect page: the next control moved is the selected modulator's target
     int  channelTrack() const { return chTrack; }
     int  effectSlot() const { return fxSlot; }
 
@@ -123,7 +128,9 @@ private:
     ChannelEq& curEq();
 
     // header
-    PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" };
+    PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" }, modsBtn { "MODULATION" };
+    std::unique_ptr<ModPage> modPage;
+    PixButton modulateBtn { "MODULATE", true };
     PixButton prevBtn { "<" }, nextBtn { ">" };
 
     // strips page

@@ -11,7 +11,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 24;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 25;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
@@ -19,7 +19,8 @@ namespace
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
                                   // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE,
-                                  // v23: the instruments' own EQ, v24: effect parameters 7-12 (the studio effects)
+                                  // v23: the instruments' own EQ, v24: effect parameters 7-12 (the studio effects),
+                                  // v25: MODULATION
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -62,7 +63,8 @@ namespace
         std::vector<uint8_t> nm;
         if (! readLong (in, nm, 1 << 12)) return false;
         t.name.assign (nm.begin(), nm.end());
-        if (t.target < -1 || t.target >= kAutoInstrumentBase + kMaxInstruments || (t.target >= kTotalSlots && t.target < kAutoInstrumentBase) || t.param < -1)
+        const bool macro = t.target >= kModMacroBase && t.target < kModMacroBase + kMods;
+        if (! macro && (t.target < -1 || t.target >= kAutoInstrumentBase + kMaxInstruments || (t.target >= kTotalSlots && t.target < kAutoInstrumentBase) || t.param < -1))
             t = AutoTarget {};
         return true;
     }
@@ -369,6 +371,30 @@ juce::MemoryBlock writeSong (const Song& song)
             if (! extra (sl)) continue;
             raw.writeShortBigEndian ((short) i);
             for (int k = kFxSavedParams; k < kFxParams; ++k) raw.writeFloatBigEndian (sl.p[k]);
+        }
+    }
+
+    // v25: MODULATION (the modulators that are on)
+    {
+        const auto& mods = song.mixer.mods;
+        int used = 0;
+        for (const auto& md : mods.mod) if (md.on()) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMods; ++i)
+        {
+            const auto& md = mods.mod[i];
+            if (! md.on()) continue;
+            raw.writeByte ((char) i); raw.writeByte ((char) md.source);
+            for (float v : md.p) raw.writeFloatBigEndian (v);
+            for (float v : md.steps) raw.writeFloatBigEndian (v);
+            raw.writeByte ((char) md.routes());
+            for (const auto& r : md.route)
+            {
+                if (! r.valid()) continue;
+                raw.writeIntBigEndian (r.target); raw.writeIntBigEndian (r.param);
+                raw.writeFloatBigEndian (r.amount); raw.writeFloatBigEndian (r.base);
+                writeLong (raw, r.name.data(), r.name.size());
+            }
         }
     }
 
@@ -764,6 +790,35 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 float v[kFxParams - kFxSavedParams];
                 for (auto& f : v) f = readFloat (in, 0.0f, 1.0f, 0.0f);
                 if (i < kTotalSlots) std::copy (std::begin (v), std::end (v), s.mixer.slot (i).p + kFxSavedParams);
+            }
+        }
+        if (version >= 25 && ! in.isExhausted())
+        {
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                Modulator md;
+                const int i = (int) (uint8_t) in.readByte();
+                const int src = (int) (uint8_t) in.readByte();
+                md.source = src < (int) ModSource::Count ? (ModSource) src : ModSource::Off;
+                for (float& v : md.p) v = readFloat (in, 0.0f, 1.0f, 0.0f);
+                for (float& v : md.steps) v = readFloat (in, 0.0f, 1.0f, 0.0f);
+                const int routes = (int) (uint8_t) in.readByte();
+                bool bad = false;
+                for (int k = 0; k < routes && ! in.isExhausted(); ++k)
+                {
+                    ModRoute r;
+                    r.target = in.readIntBigEndian(); r.param = in.readIntBigEndian();
+                    r.amount = readFloat (in, -1.0f, 1.0f, 0.0f); r.base = readFloat (in, 0.0f, 1.0f, 0.5f);
+                    std::vector<uint8_t> nm;
+                    if (! readLong (in, nm, 1 << 12)) { bad = true; break; }
+                    r.name.assign (nm.begin(), nm.end());
+                    const bool ok = (r.target >= 0 && r.target < kTotalSlots && r.param >= 0)
+                                 || (r.target >= kModStripBase && r.target < kModStripBase + kMixTracks && r.param >= 0 && r.param < kModStripParams);
+                    if (ok && k < kModRoutes) md.route[k] = r;
+                }
+                if (bad) break;
+                if (i < kMods) s.mixer.mods.mod[i] = md;
             }
         }
     }

@@ -124,6 +124,12 @@ public:
     float defaultValue = 0.5f;
     std::function<void()> onDoubleClick;   // replaces the reset-to-default when set
     std::function<void()> onDragStart;     // e.g. to mark an undo step
+    // MODULATION: the range it's moved in and where it is now (-1 = not modulated)
+    float modLo = -1, modHi = -1, modNow = -1;
+    void setMod (float lo, float hi, float now)
+    {
+        if (std::abs (lo - modLo) > 0.002f || std::abs (hi - modHi) > 0.002f || std::abs (now - modNow) > 0.002f) { modLo = lo; modHi = hi; modNow = now; repaint(); }
+    }
 
 private:
     juce::String label;

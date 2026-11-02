@@ -594,6 +594,22 @@ Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one 
 * The mixer strip shows the plug-in's name. If a song uses a plug-in this computer doesn't have, the slot shows `!NAME` and MISSING, the audio passes through untouched, and the plug-in's settings stay in the song for when it's back.
 * Changes made inside a plug-in's own window aren't separate undo steps. Plug-in latency is compensated (see Mixer).
 
+## Modulation
+
+**MODULATION** on the mixer's strips page opens 16 modulators. Each has a **SOURCE** that moves, and up to 8 **TARGETS** it moves — any control of a built-in effect, a plug-in effect's parameter, or a track's **VOLUME**, **SEND A** or **SEND B** — each by its own **AMOUNT** (−100% to +100%; negative turns it the other way).
+
+The sources (click **SOURCE: …**):
+* **LFO** — **SHAPE** (SINE, TRIANGLE, SAW UP, SAW DOWN, SQUARE, RANDOM S&H), **RATE** in Hz or, with **SYNC**, a note length from 1/32 to 4 BARS (locked to the song position, so it's the same every time the song plays), **RETRIG** (starts again on each note from **NOTES FROM**), **PHASE**.
+* **FOLLOWER** — the level of a **TRACK** (**ATTACK**, **RELEASE**, **GAIN**). Point it at another track's VOLUME and it's sidechain ducking: a new FOLLOWER → VOLUME target is set to −100% for you.
+* **STEPPER** — 16 steps you draw with the mouse, played at **RATE** (in time with the song), **STEPS** long, with **GLIDE** between them and **RETRIG**.
+* **RANDOM** — a new value every **RATE** (synced or free), stepped or **SMOOTH**.
+* **KEY** — how high the notes are, from **LOW NOTE** to **HIGH NOTE**; **VELOCITY** — how loud. Both follow **NOTES FROM** (a track, or ANY TRACK — the keys you play count too).
+* **MACRO** — one **VALUE** knob for as many targets as you like, each with its own amount. **AUTO A (V)** / **AUTO B (J)** give it to a track's automation knob, so `Vxx` / `Jxx` in the pattern turn it.
+
+Adding targets: **ADD TARGET...** lists a track's VOLUME and SENDS and every effect in the song, then its controls. Or open an effect page, press **MODULATE**, and move the control you want — the selected modulator gets it (for a plug-in, move it in the plug-in's window). Click a target's name to **TURN IT THE OTHER WAY**, **GO TO THE EFFECT** or **REMOVE THIS TARGET**; double-click AMOUNT for +50%. **CLEAR** empties a modulator.
+
+A modulated control shows an orange band on its slider for the range it moves in and a line where it is right now. The sliders keep the value you set; modulation moves the sound around it. The list on the left shows each modulator's source and how many targets it has, with a live meter, and **NOW** shows the selected one. Everything is saved in the song (songs with modulation need v0.36 or later) and is undoable; VOLUME and SENDS glide smoothly, and switches (SYNC, PING and the like) flip when they're pushed past the middle.
+
 ## Automation (V, J and Y)
 
 Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any control of an insert effect and the pattern can move it:

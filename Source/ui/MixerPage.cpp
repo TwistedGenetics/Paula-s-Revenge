@@ -1,6 +1,7 @@
 // Paula's Revenge - the mixer: channel strips, channel EQ page, effect editor page
 #include "MixerPage.h"
 #include "FxPresets.h"
+#include "ModPage.h"
 #include "ChoiceBox.h"
 #include "MeterColours.h"
 #include "../engine/Effects.h"
@@ -627,6 +628,13 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         if (currentPage == Page::Effect && effectReturn == Page::Channel) openChannel (chTrack);
         else showStrips();
     };
+    modPage = std::make_unique<ModPage> (proc, *this);
+    modPage->onStatus = [this] (const juce::String& t) { if (onStatus) onStatus (t); };
+    addChildComponent (*modPage);
+    modsBtn.onClick = [this] { showMods(); };
+    addChildComponent (modsBtn);
+    modulateBtn.onClick = [this] { modulate(); };
+    addChildComponent (modulateBtn);
     resetAllBtn.onClick = [this]
     {
         edit ("RESET MIXER", false, [] (MixerSettings& m) { m = MixerSettings {}; }, true);
@@ -801,7 +809,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     bypassBtn.onClick = [this]
     {
         // with LEARN armed, BYPASS is learned: the knob then switches the effect on and off
-        if (learner.armed) { finishLearn (kAutoOnOff); refresh(); return; }
+        if (learner.armed && learner.what != 2) { finishLearn (kAutoOnOff); refresh(); return; }
         toggleBypass (fxSlot);
     };
     defaultsBtn.onClick = [this]
@@ -873,6 +881,33 @@ template <typename Fn> void MixerPage::edit (const juce::String& label, bool mer
     proc.history.mixer (label, merge);
     proc.withLock ([&] { fn (proc.song.mixer); });
     if (effectsChanged) proc.updateMixerEffects();
+    refresh();
+}
+
+void MixerPage::editMixer (const juce::String& label, bool merge, std::function<void (MixerSettings&)> fn, bool effectsChanged)
+{
+    edit (label, merge, [&fn] (MixerSettings& m) { fn (m); }, effectsChanged);
+}
+
+void MixerPage::showMods (int mod)
+{
+    if (mod >= 0) modPage->select (mod);
+    currentPage = Page::Mods;
+    updateVisibility();
+    refresh();
+}
+
+void MixerPage::modulate()
+{
+    if (learner.armed && learner.what == 2) { learner.cancel(); refresh(); if (onStatus) onStatus ("MODULATE CANCELLED"); return; }
+    const auto& s = proc.song.mixer.slot (fxSlot);
+    if (s.type == FxType::None) { if (onStatus) onStatus ("PICK AN EFFECT FIRST"); refresh(); return; }
+    if (s.type == FxType::Plugin && ! proc.pluginLoaded (fxSlot)) { if (onStatus) onStatus ("THE PLUG-IN ISN'T LOADED"); refresh(); return; }
+    const int slot = fxSlot;
+    learner.arm (2, [this, slot] { return slotParamValues (slot); });
+    if (s.type == FxType::Plugin) editPluginBtn.onClick();
+    if (onStatus) onStatus ("NOW MOVE THE CONTROL MOD " + juce::String (modPage->selected() + 1) + " SHOULD MOVE"
+                            + juce::String (s.type == FxType::Plugin ? " (IN THE PLUG-IN'S WINDOW)" : "") + " - MODULATE AGAIN CANCELS");
     refresh();
 }
 
@@ -1064,13 +1099,16 @@ void MixerPage::openEffect (int slot)
 
 void MixerPage::updateVisibility()
 {
-    const bool strip = currentPage == Page::Strips, ch = currentPage == Page::Channel, fx = currentPage == Page::Effect;
+    const bool strip = currentPage == Page::Strips, ch = currentPage == Page::Channel, fx = currentPage == Page::Effect, mods = currentPage == Page::Mods;
     closeBtn.setVisible (true);
     resetAllBtn.setVisible (strip);
+    modsBtn.setVisible (strip);
+    modPage->setVisible (mods);
+    modulateBtn.setVisible (false);
     backBtn.setVisible (! strip);
     const bool insPage = ch && chInstrument >= 0;   // (an instrument's own EQ / FX: no sends, fader or knobs)
-    prevBtn.setVisible (! strip && ! insPage);
-    nextBtn.setVisible (! strip && ! insPage);
+    prevBtn.setVisible (! strip && ! insPage && ! mods);
+    nextBtn.setVisible (! strip && ! insPage && ! mods);
     const int nt = proc.song.numTracks;
     for (int i = 0; i < (int) strips.size(); ++i)
         strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || i < nt));
@@ -1107,6 +1145,7 @@ void MixerPage::refresh()
     for (auto& s : strips) if (s->isVisible()) s->refresh();
     if (currentPage == Page::Channel) refreshChannel();
     if (currentPage == Page::Effect) refreshEffect();
+    if (currentPage == Page::Mods) modPage->refresh();
     repaint();
 }
 
@@ -1167,6 +1206,8 @@ void MixerPage::refreshEffect()
     pluginBtn.setVisible (fx);
     const bool learnable = fx && ! browsingPlugins && s.type != FxType::None;
     learnTrackBox.setVisible (learnable); learnABtn.setVisible (learnable); learnBBtn.setVisible (learnable);
+    modulateBtn.setVisible (learnable);
+    modulateBtn.setToggleState (learner.armed && learner.what == 2, juce::dontSendNotification);
     learnABtn.setToggleState (learner.armed && learner.what == 0, juce::dontSendNotification);
     learnBBtn.setToggleState (learner.armed && learner.what == 1, juce::dontSendNotification);
     pluginList.setVisible (fx && browsingPlugins);
@@ -1305,6 +1346,20 @@ void MixerPage::armLearn (int knob)
 
 void MixerPage::finishLearn (int param)
 {
+    if (learner.what == 2)
+    {
+        // MODULATE: the selected modulator moves this control (from where it is now)
+        learner.cancel();
+        if (param == kAutoOnOff) { refresh(); return; }
+        const auto vals = slotParamValues (fxSlot);
+        ModRoute r;
+        r.target = fxSlot; r.param = param; r.amount = 0.5f;
+        r.base = param < (int) vals.size() ? vals[(size_t) param] : 0.5f;
+        r.name = ModPage::targetName (proc, fxSlot, param).toStdString();
+        modPage->addRoute (r);
+        refresh();
+        return;
+    }
     const int knob = learner.what, tr = learnTrackBox.getValue() - 1;
     const juce::String name = slotParamName (fxSlot, param);
     const AutoTarget t { fxSlot, param, name.toStdString() };
@@ -1346,6 +1401,33 @@ void MixerPage::tick()
         for (auto& p : mx.trackPeak) p.exchange (0.0f);
         for (auto& p : mx.returnPeak) p.exchange (0.0f);
         mx.masterPeakL.exchange (0.0f); mx.masterPeakR.exchange (0.0f);
+    }
+    if (currentPage == Page::Mods) modPage->tick();
+    if (currentPage == Page::Effect && ! browsingPlugins)
+    {
+        // MODULATION rings: the range a control moves in, and where it is now
+        const auto& s = proc.song.mixer.slot (fxSlot);
+        const auto& mods = proc.song.mixer.mods;
+        for (int i = 0; i < kFxParams; ++i)
+        {
+            float lo = 0, hi = 0, now = 0; bool any = false;
+            for (int m = 0; m < kMods; ++m)
+            {
+                if (! mods.mod[m].on()) continue;
+                for (const auto& r : mods.mod[m].route)
+                    if (r.valid() && r.target == fxSlot && r.param == i)
+                    {
+                        any = true;
+                        const bool bi = modBipolar (mods.mod[m].source);
+                        lo += std::min (r.amount * (bi ? -1.0f : 0.0f), r.amount);
+                        hi += std::max (r.amount * (bi ? -1.0f : 0.0f), r.amount);
+                        now += r.amount * proc.player.mixer().mods.uiOut[m].load (std::memory_order_relaxed);
+                    }
+            }
+            if (any && s.type != FxType::Plugin)
+                param[i]->setMod (juce::jlimit (0.0f, 1.0f, s.p[i] + lo), juce::jlimit (0.0f, 1.0f, s.p[i] + hi), juce::jlimit (0.0f, 1.0f, s.p[i] + now));
+            else param[i]->setMod (-1, -1, -1);
+        }
     }
 }
 
@@ -1469,6 +1551,7 @@ juce::String MixerPage::pageTitle() const
                      + juce::String (proc.song.instruments[(size_t) chInstrument].name).toUpperCase() + " - EQ AND EFFECTS";
             return "MIXER - TRACK " + juce::String (chTrack + 1) + " CHANNEL";
         case Page::Effect:  return "MIXER - " + slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1);
+        case Page::Mods:    return "MIXER - MODULATION";
         default:
         {
             // what the computer keyboard plays here
@@ -1570,6 +1653,7 @@ void MixerPage::paint (juce::Graphics& g)
         }
         return;
     }
+    if (currentPage == Page::Mods) return;   // (the MODULATION page draws itself)
     // effect page: parameter names next to the controls are in the sliders; info line
     const auto& s = proc.song.mixer.slot (fxSlot);
     g.setColour (sk.bg);
@@ -1641,7 +1725,11 @@ void MixerPage::resized()
 
     auto head = r.removeFromTop (rowH);
     closeBtn.setBounds (head.removeFromRight (charsW (5))); head.removeFromRight (gap);
-    if (currentPage == Page::Strips) { resetAllBtn.setBounds (head.removeFromRight (charsW (11))); head.removeFromRight (gap); }
+    if (currentPage == Page::Strips)
+    {
+        resetAllBtn.setBounds (head.removeFromRight (charsW (11))); head.removeFromRight (gap);
+        modsBtn.setBounds (head.removeFromRight (charsW (10))); head.removeFromRight (gap);
+    }
     else
     {
         backBtn.setBounds (head.removeFromRight (charsW (4))); head.removeFromRight (gap * 3);
@@ -1653,6 +1741,7 @@ void MixerPage::resized()
 
     if (currentPage == Page::Strips) layoutStrips (r);
     else if (currentPage == Page::Channel) layoutChannel (r);
+    else if (currentPage == Page::Mods) modPage->setBounds (r);
     else layoutEffect (r);
 }
 
@@ -1776,6 +1865,7 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
         learnTrackBox.setBounds (row3.removeFromLeft (learnTrackBox.preferredWidth (px))); row3.removeFromLeft (gap * 2);
         learnABtn.setBounds (row3.removeFromLeft (charsW (16))); row3.removeFromLeft (gap);
         learnBBtn.setBounds (row3.removeFromLeft (charsW (16))); row3.removeFromLeft (gap * 2);
+        modulateBtn.setBounds (row3.removeFromRight (charsW (8))); row3.removeFromRight (gap * 2);
         learnInfoArea = row3.toFloat();
         r.removeFromTop (gap * 2);
     }

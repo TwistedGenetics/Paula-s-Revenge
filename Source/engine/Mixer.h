@@ -5,6 +5,7 @@
 #include "Effects.h"
 #include "DelayLine.h"
 #include "Utility.h"
+#include "Modulation.h"
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -64,6 +65,8 @@ public:
     // meters (peaks since the UI last read them)
     std::atomic<float> trackPeak[kMixTracks] {}, returnPeak[kReturns] {}, masterPeakL { 0 }, masterPeakR { 0 };
 
+    ModEngine mods;   // MODULATION (the player gives it notes and the song position)
+
     bool hasEffect (int slot) const { return slot >= 0 && slot < kTotalSlots && fx[slot] != nullptr; }
 
     // ---- plug-in delay compensation. Each track is delayed so all of them line up with the
@@ -86,6 +89,8 @@ private:
     FxType fxType[kTotalSlots] {};
     std::string fxKey[kTotalSlots];   // the plug-in in a plug-in slot
     float autoParam[kTotalSlots][kFxParams];   // automated built-in values (< 0 = not automated)
+    float stripMulNow[kMixTracks][kModStripParams];   // the modulated VOLUME / SENDS the last block ended on
+    bool  anyModLeft = false;                          // modulation was on last block
     int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];
     DelayLine slotDelay[kTotalSlots];      // a bypassed plug-in keeps its delay

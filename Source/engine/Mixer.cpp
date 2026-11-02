@@ -38,12 +38,16 @@ bool MixerEngine::slotReady (const FxSlot& s, int slot) const
 void MixerEngine::prepare (double sampleRate)
 {
     sr = sampleRate;
+    mods.prepare (sr);
+    for (auto& t : stripMulNow) for (auto& v : t) v = 1.0f;
     for (auto& e : eq) e.prepare (sr);
     for (auto& f : fx) if (f) f->prepare (sr);
 }
 
 void MixerEngine::reset()
 {
+    mods.reset();
+    for (auto& t : stripMulNow) for (auto& v : t) v = 1.0f;
     for (auto& e : eq) e.reset();
     for (auto& f : fx) if (f) f->reset();
 }
@@ -90,6 +94,7 @@ void MixerEngine::syncEffects (const MixerSettings& m, std::vector<std::unique_p
 void MixerEngine::clearAutomation()
 {
     for (auto& s : autoParam) for (auto& a : s) a = -1.0f;
+    for (int m = 0; m < kMods; ++m) mods.setMacro (m, -1.0f);   // (MACROs back to their knobs)
     clearOnOff();
 }
 
@@ -127,10 +132,23 @@ void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R
             const float* a = autoParam[first + k];
             bool automated = false;
             if (s.type != FxType::Plugin) for (int i = 0; i < kFxParams; ++i) automated |= a[i] >= 0;
-            if (automated)
+            const bool modded = s.type != FxType::Plugin && mods.slotModded[first + k];
+            if (automated || modded)
             {
                 float p[kFxParams];
                 for (int i = 0; i < kFxParams; ++i) p[i] = a[i] >= 0 ? a[i] : s.p[i];
+                if (modded)
+                {
+                    // MODULATION moves it from there (a switch flips past the middle)
+                    const auto& info = fxParams (s.type);
+                    for (int i = 0; i < kFxParams; ++i)
+                    {
+                        const float o = mods.slotOffset[first + k][i];
+                        if (o == 0.0f) continue;
+                        p[i] = std::clamp (p[i] + o, 0.0f, 1.0f);
+                        if (i < (int) info.size() && info[(size_t) i].toggle) p[i] = p[i] > 0.5f ? 1.0f : 0.0f;
+                    }
+                }
                 fx[first + k]->process (L, R, n, p, bpm);
             }
             else fx[first + k]->process (L, R, n, s.p, bpm);
@@ -168,6 +186,18 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         uiTotalLat.store (std::min (maxLat + extraDelay, kMaxTrackDelay) + after, std::memory_order_relaxed);
     }
 
+    // MODULATION: it hears every track first (for the followers), then works out this block
+    const bool modsOn = m.mods.any();
+    if (modsOn || anyModLeft)
+    {
+        if (modsOn) for (int t = 0; t < numTracks && t < kMixTracks; ++t) mods.listen (t, tL[t], tR[t], n);
+        mods.run (m.mods, n, bpm);   // (with none left on: everything goes back to where it's set)
+        for (const auto& ps : mods.pluginSets)
+            if (ps.slot >= 0 && ps.slot < kTotalSlots && fxType[ps.slot] == FxType::Plugin && fx[ps.slot])
+                fx[ps.slot]->setParameter (ps.param, ps.value);
+        anyModLeft = modsOn;
+    }
+
     for (int t = 0; t < numTracks && t < kMixTracks; ++t)
     {
         const auto& c = m.ch[t];
@@ -178,13 +208,36 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         runInserts (c.inserts, trackSlot (t, 0), L, R, n, bpm);
         trackAlign[t].process (L, R, n, maxLat - lat[t] + extraDelay);
         const float g = dbToGain (c.volumeDb);
+        // modulated VOLUME / SENDS glide across the block from where the last one ended
+        const float* mulNew = mods.stripMul[t];
+        float* mulOld = stripMulNow[t];
+        const bool ramp = mulNew[0] != mulOld[0] || mulNew[1] != mulOld[1] || mulNew[2] != mulOld[2] || mulNew[0] != 1.0f || mulNew[1] != 1.0f || mulNew[2] != 1.0f;
+        const float inv = 1.0f / (float) std::max (1, n);
         for (int r = 0; r < kReturns; ++r)
         {
             const float s = c.send[r] * (c.sendPre[r] ? 1.0f : g);
             if (s <= 0.0f) continue;
-            for (int i = 0; i < n; ++i) { sendL[r][(size_t) i] += L[i] * s; sendR[r][(size_t) i] += R[i] * s; }
+            if (! ramp) { for (int i = 0; i < n; ++i) { sendL[r][(size_t) i] += L[i] * s; sendR[r][(size_t) i] += R[i] * s; } continue; }
+            const float a = mulOld[1 + r], b = mulNew[1 + r];
+            const float va = mulOld[0], vb = mulNew[0];
+            for (int i = 0; i < n; ++i)
+            {
+                const float f = (i + 1) * inv;
+                const float sg = s * (a + (b - a) * f) * (c.sendPre[r] ? 1.0f : (va + (vb - va) * f));
+                sendL[r][(size_t) i] += L[i] * sg; sendR[r][(size_t) i] += R[i] * sg;
+            }
         }
-        for (int i = 0; i < n; ++i) { L[i] *= g; R[i] *= g; outL[i] += L[i]; outR[i] += R[i]; }
+        if (! ramp) for (int i = 0; i < n; ++i) { L[i] *= g; R[i] *= g; outL[i] += L[i]; outR[i] += R[i]; }
+        else
+        {
+            const float a = mulOld[0], b = mulNew[0];
+            for (int i = 0; i < n; ++i)
+            {
+                const float gg = g * (a + (b - a) * (i + 1) * inv);
+                L[i] *= gg; R[i] *= gg; outL[i] += L[i]; outR[i] += R[i];
+            }
+        }
+        for (int k = 0; k < kModStripParams; ++k) mulOld[k] = mulNew[k];
         peakInto (trackPeak[t], L, R, n);
     }
 

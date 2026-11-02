@@ -159,6 +159,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     const auto& in = song->instruments[(size_t) v.instr];
     if (ch >= 0 && ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts'; a muted track's note doesn't take it)
     if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;
+    if (ch >= 0 && ch < kMaxTracks) mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f);   // (MODULATION: retrigger, KEY, VELOCITY)
     synthRelease (v);   // one note at a time on a track, as with samples
     uint8_t p = 0;
     int note = (int) cell.note + in.transpose;
@@ -260,6 +261,7 @@ void Player::applyLane (int kind, int a, int b, float v)
         const auto& t = song->mixer.trackAuto[a][b];
         if (! t.valid()) return;
         if (t.target < kAutoInstrumentBase) mixerEngine.setAutomation (t.target, t.param, v);
+        else if (t.target >= kModMacroBase && t.target < kModMacroBase + kMods) mixerEngine.mods.setMacro (t.target - kModMacroBase, v);   // a MACRO
         else if (t.param == kAutoOnOff) setInstrumentOn (t.target - kAutoInstrumentBase, autoValueOn (v) ? 1 : 0);
         else if (auto* s = rack.at (t.target - kAutoInstrumentBase)) s->setParameterAt (t.param, v, chunkPos);
     }
@@ -447,6 +449,7 @@ void Player::stop()
 void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, int end, bool loopRegion)
 {
     if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
+    mixerEngine.mods.noteOn (-1, note, velocity127 / 127.0f);   // (MODULATION on ANY TRACK hears what you play)
     const auto& in = song->instruments[(size_t) instrIndex];
     if (! instrumentIsOn (instrIndex)) return;   // switched off
     if (in.isPlugin())
@@ -650,6 +653,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     v.fadeOut = 0;
     if (ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track; not a muted one)
     if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;   // (CV SOURCES: an ENV starts)
+    if (ch >= 0 && ch < kMaxTracks) mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f);   // (MODULATION)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;
@@ -1820,6 +1824,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         const double bpm = (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed);
         if (stemTap != nullptr && stemsBeforeMixer)
             for (int t = 0; t < nt; ++t) stemTap->add (t, trkL[t], trkR[t], numSamples);
+        mixerEngine.mods.setTransport (ppq, mode != Mode::Stopped);
         mixerEngine.process (song->mixer, tl, tr, nt, jamL, jamR, left, right, numSamples, bpm);
         for (int i = 0; i < numSamples; ++i) outputStage (left[i], right[i], ledBuf[i]);
         if (stemTap != nullptr && ! stemsBeforeMixer)

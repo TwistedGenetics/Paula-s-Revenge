@@ -4061,9 +4061,169 @@ static void testStudioFx()
     }
 }
 
+// ---- MODULATION
+static void testModulation()
+{
+    std::printf ("\n== modulation\n");
+    ModSettings ms;
+    ModEngine me; me.prepare (48000);
+    // an LFO, sine, synced to 1/4: locked to the song position
+    initModulator (ms.mod[0], ModSource::Lfo);
+    CHECK (modParamText (ModSource::Lfo, 1, ms.mod[0].p) == "1/4" && modParamText (ModSource::Lfo, 0, ms.mod[0].p) == "SINE");
+    ms.mod[0].route[0] = { 0, 1, 0.5f, 0.5f, "TRACK 1 FILTER: CUTOFF" };
+    me.setTransport (0.25, true); me.run (ms, 480, 120);
+    const float top = me.output (0);
+    me.setTransport (0.75, true); me.run (ms, 480, 120);
+    const float bottom = me.output (0);
+    std::printf ("LFO 1/4 at beat 0.25: %.3f, at 0.75: %.3f; cutoff offset %.3f\n", top, bottom, me.slotOffset[0][1]);
+    CHECK (std::abs (top - 1.0f) < 0.01f && std::abs (bottom + 1.0f) < 0.01f && me.slotModded[0] && std::abs (me.slotOffset[0][1] + 0.5f) < 0.01f);
+    // free-running, with RETRIG from track 2's notes
+    ms.mod[0].p[2] = 0; ms.mod[0].p[3] = 1; ms.mod[0].p[5] = 2.0f / 8.0f;   // NOTES FROM TRACK 2
+    CHECK (modNotesFrom (ms.mod[0]) == 1 && modParamText (ModSource::Lfo, 5, ms.mod[0].p) == "TRACK 2");
+    me.setTransport (0, false);
+    for (int k = 0; k < 10; ++k) me.run (ms, 480, 120);
+    me.noteOn (1, 37, 1.0f); me.run (ms, 1, 120);
+    CHECK (std::abs (me.output (0)) < 0.01f);   // back to the start of the sine
+    // shapes
+    for (int sh = 0; sh < 6; ++sh)
+    {
+        ms.mod[0].p[0] = sh / 5.0f;
+        double lo = 9, hi = -9;
+        for (int k = 0; k < 400; ++k) { me.run (ms, 480, 120); lo = std::min (lo, (double) me.output (0)); hi = std::max (hi, (double) me.output (0)); }
+        std::printf ("  %s: %.2f .. %.2f\n", modParamText (ModSource::Lfo, 0, ms.mod[0].p).c_str(), lo, hi);
+        CHECK (lo < -0.4 && hi > 0.4 && lo >= -1.0001 && hi <= 1.0001);
+    }
+
+    // a FOLLOWER on track 1 ducking track 2's VOLUME
+    ModSettings duck;
+    initModulator (duck.mod[3], ModSource::Follower);
+    duck.mod[3].p[3] = 0.0f;   // no extra gain
+    duck.mod[3].route[0] = { kModStripBase + 1, 0, -1.0f, 0.5f, "TRACK 2: VOLUME" };
+    std::vector<float> loud (480, 0.9f), quiet (480, 0.0f);
+    me.listen (0, loud.data(), loud.data(), 480);
+    for (int k = 0; k < 20; ++k) me.run (duck, 480, 120);
+    const float ducked = me.stripMul[1][0];
+    me.listen (0, quiet.data(), quiet.data(), 480);
+    for (int k = 0; k < 200; ++k) me.run (duck, 480, 120);
+    std::printf ("FOLLOWER ducking: track 2 volume x%.2f while track 1 plays, x%.2f after\n", ducked, me.stripMul[1][0]);
+    CHECK (ducked < 0.2f && me.stripMul[1][0] > 0.95f && me.stripMul[0][0] == 1.0f);
+
+    // a STEPPER: 4 steps of 1/16 at the song position
+    ModSettings st;
+    initModulator (st.mod[1], ModSource::Stepper);
+    st.mod[1].p[1] = 3.0f / 15.0f;   // 4 steps
+    const float vals[4] = { 0.1f, 0.9f, 0.4f, 0.7f };
+    for (int i = 0; i < 4; ++i) st.mod[1].steps[i] = vals[i];
+    CHECK (modParamText (ModSource::Stepper, 0, st.mod[1].p) == "1/16" && modParamText (ModSource::Stepper, 1, st.mod[1].p) == "4");
+    bool stepsOk = true;
+    for (int q = 0; q < 8; ++q) { me.setTransport (q * 0.25 + 0.1, true); me.run (st, 480, 120); stepsOk &= std::abs (me.output (1) - vals[q % 4]) < 1e-5f; }
+    CHECK (stepsOk);
+    // RANDOM: a new value each 1/4, the same within it
+    ModSettings rn;
+    initModulator (rn.mod[2], ModSource::Random);
+    me.setTransport (0.1, true); me.run (rn, 480, 120); const float r1 = me.output (2);
+    me.setTransport (0.6, true); me.run (rn, 480, 120); const float r2 = me.output (2);
+    me.setTransport (1.1, true); me.run (rn, 480, 120); const float r3 = me.output (2);
+    std::printf ("RANDOM 1/4: %.3f %.3f %.3f\n", r1, r2, r3);
+    CHECK (r1 == r2 && r3 != r2 && r3 >= -1 && r3 <= 1);
+    // KEY and VELOCITY from the notes; a MACRO, and V / J taking it over
+    ModSettings kv;
+    initModulator (kv.mod[4], ModSource::Key); initModulator (kv.mod[5], ModSource::Velocity); initModulator (kv.mod[6], ModSource::Macro);
+    kv.mod[4].p[0] = 0; kv.mod[4].p[1] = 1;   // the whole keyboard
+    me.noteOn (3, kNoteMax, 0.25f); me.run (kv, 480, 120);
+    CHECK (std::abs (me.output (4) - 1.0f) < 1e-5f && std::abs (me.output (5) - 0.25f) < 1e-5f && std::abs (me.output (6) - 0.5f) < 1e-5f);
+    me.setMacro (6, 0.9f); me.run (kv, 480, 120);
+    CHECK (std::abs (me.output (6) - 0.9f) < 1e-5f);
+    me.setMacro (6, -1); me.run (kv, 480, 120);
+    CHECK (std::abs (me.output (6) - 0.5f) < 1e-5f);
+    // one MACRO, many targets (each its own amount), a plug-in's parameter from where it was
+    kv.mod[6].p[0] = 1.0f;
+    kv.mod[6].route[0] = { trackSlot (0, 0), 0, 0.3f, 0.5f, "A" };
+    kv.mod[6].route[1] = { trackSlot (0, 0), 3, -0.5f, 0.5f, "B" };
+    kv.mod[6].route[2] = { masterSlot (1), 7, 0.25f, 0.4f, "PLUG" };
+    me.run (kv, 480, 120);
+    bool plug = false; for (auto& ps : me.pluginSets) plug |= ps.slot == masterSlot (1) && ps.param == 7 && std::abs (ps.value - 0.65f) < 1e-5f;
+    CHECK (std::abs (me.slotOffset[trackSlot (0, 0)][0] - 0.3f) < 1e-5f && std::abs (me.slotOffset[trackSlot (0, 0)][3] + 0.5f) < 1e-5f && plug);
+
+    // in the mixer: a FOLLOWER on track 1 ducks track 2 (sidechain), smoothly
+    {
+        MixerSettings m;
+        initModulator (m.mods.mod[0], ModSource::Follower);
+        m.mods.mod[0].p[1] = 0; m.mods.mod[0].p[3] = 0;
+        m.mods.mod[0].route[0] = { kModStripBase + 1, 0, -1.0f, 0.5f, "TRACK 2: VOLUME" };
+        CHECK (! m.isFlat());
+        MixerEngine mx; mx.prepare (48000);
+        std::vector<float> a ((size_t) 512), b ((size_t) 512), c ((size_t) 512), d ((size_t) 512), oL (512), oR (512);
+        double withKick = 0, without = 0, maxStep = 0; float prev = 0;
+        for (int blk = 0; blk < 200; ++blk)
+        {
+            const bool kick = (blk / 25) % 2 == 0;
+            for (int i = 0; i < 512; ++i)
+            {
+                a[(size_t) i] = c[(size_t) i] = kick ? 0.8f : 0.0f;
+                b[(size_t) i] = d[(size_t) i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 200 * (blk * 512 + i) / 48000.0);
+            }
+            float* tl[2] = { a.data(), b.data() }; float* tr[2] = { c.data(), d.data() };
+            mx.process (m, tl, tr, 2, nullptr, nullptr, oL.data(), oR.data(), 512, 120);
+            double e = 0; for (int i = 0; i < 512; ++i) e += b[(size_t) i] * b[(size_t) i];
+            if (blk % 25 > 5) (kick ? withKick : without) += e;
+            for (int i = 0; i < 512; ++i) { maxStep = std::max (maxStep, (double) std::abs (b[(size_t) i] - prev)); prev = b[(size_t) i]; }
+        }
+        std::printf ("mixer sidechain: track 2 energy %.2f with track 1 playing, %.2f without; biggest step %.4f\n", withKick, without, maxStep);
+        CHECK (withKick < 0.1 * without && maxStep < 0.05);   // (an 0.8 kick, no extra GAIN: down to 20%)
+        // and an LFO moving a built-in effect's control: the effect gets the moved value, the song keeps its own
+        MixerSettings m2;
+        initFxSlot (m2.ch[0].inserts[0], FxType::Filter);
+        m2.ch[0].inserts[0].p[1] = 0.5f;
+        initModulator (m2.mods.mod[2], ModSource::Macro);
+        m2.mods.mod[2].p[0] = 1.0f;
+        m2.mods.mod[2].route[0] = { trackSlot (0, 0), 1, -0.4f, 0.5f, "CUTOFF" };
+        MixerEngine mx2; mx2.prepare (48000); mx2.syncEffectsNow (m2);
+        std::vector<float> n1 (512), n2 (512);
+        std::mt19937 g (3); std::uniform_real_distribution<float> u (-0.5f, 0.5f);
+        double hiE = 0;
+        for (int blk = 0; blk < 40; ++blk)
+        {
+            for (int i = 0; i < 512; ++i) n1[(size_t) i] = n2[(size_t) i] = u (g);
+            float* tl[1] = { n1.data() }; float* tr[1] = { n2.data() };
+            mx2.process (m2, tl, tr, 1, nullptr, nullptr, oL.data(), oR.data(), 512, 120);
+            if (blk > 20) for (int i = 1; i < 512; ++i) { const double dd = n1[(size_t) i] - n1[(size_t) i - 1]; hiE += dd * dd; }
+        }
+        MixerSettings m3 = m2; m3.mods = ModSettings {};
+        MixerEngine mx3; mx3.prepare (48000); mx3.syncEffectsNow (m3);
+        std::mt19937 g2 (3);
+        double hiE3 = 0;
+        for (int blk = 0; blk < 40; ++blk)
+        {
+            for (int i = 0; i < 512; ++i) n1[(size_t) i] = n2[(size_t) i] = u (g2);
+            float* tl[1] = { n1.data() }; float* tr[1] = { n2.data() };
+            mx3.process (m3, tl, tr, 1, nullptr, nullptr, oL.data(), oR.data(), 512, 120);
+            if (blk > 20) for (int i = 1; i < 512; ++i) { const double dd = n1[(size_t) i] - n1[(size_t) i - 1]; hiE3 += dd * dd; }
+        }
+        std::printf ("MACRO -40%% on a filter's cutoff: highs %.2f vs %.2f unmodulated\n", hiE, hiE3);
+        CHECK (hiE < 0.3 * hiE3 && m2.ch[0].inserts[0].p[1] == 0.5f);
+    }
+    // the player passes notes (VELOCITY) and the song position (a synced LFO moves)
+    {
+        Song s = makeSong();
+        initModulator (s.mixer.mods.mod[0], ModSource::Velocity);
+        s.mixer.mods.mod[0].route[0] = { kModStripBase, 0, 0.5f, 0.5f, "TRACK 1: VOLUME" };
+        initModulator (s.mixer.mods.mod[1], ModSource::Lfo);
+        s.mixer.mods.mod[1].route[0] = { kModStripBase + 1, 0, 0.5f, 0.5f, "TRACK 2: VOLUME" };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.mixer().syncEffectsNow (s.mixer);
+        p.playSong();
+        std::vector<float> L (4800), R (4800);
+        float lo = 9, hi = -9;
+        for (int k = 0; k < 20; ++k) { p.render (L.data(), R.data(), 4800); lo = std::min (lo, p.mixer().mods.output (1)); hi = std::max (hi, p.mixer().mods.output (1)); }
+        std::printf ("player: velocity %.2f, synced LFO %.2f .. %.2f\n", p.mixer().mods.output (0), lo, hi);
+        CHECK (p.mixer().mods.output (0) > 0.0f && hi - lo > 1.0f);
+    }
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testLineLoop();
     testPingPong();
@@ -4098,6 +4258,7 @@ int main()
     testRadioFormats();
     testStems();
     testStudioFx();
+    testModulation();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

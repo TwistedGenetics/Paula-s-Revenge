@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "ModTypes.h"
 
 namespace prv
 {
@@ -164,6 +165,7 @@ struct MixerSettings
     MasterStrip  master;
     AutoTarget   trackAuto[kMixTracks][kTrackKnobs];   // each track's AUTO A (V) and AUTO B (J)
     FxSlot       inst[kMixInstruments][kInserts];      // each instrument's own inserts
+    ModSettings  mods;                                  // MODULATION: 16 modulators and their routes
     bool instrumentChain (int ins) const               // anything in an instrument's inserts?
     {
         if (ins < 0 || ins >= kMixInstruments) return false;

@@ -263,6 +263,20 @@ void PixSlider::paint (juce::Graphics& g)
     auto fill = t.reduced (px).withWidth ((t.getWidth() - px * 2) * value);
     g.setColour (P.ink);
     g.fillRect (fill);
+    if (modLo >= 0.0f)
+    {
+        // modulated: an orange band for its range along the bottom, and a line where it is now
+        const juce::Colour accent (0xffff8c1a);
+        auto in = t.reduced (px);
+        const float x0 = in.getX() + in.getWidth() * modLo, x1 = in.getX() + in.getWidth() * modHi;
+        g.setColour (accent);
+        g.fillRect (juce::Rectangle<float> (x0, in.getBottom() - px * 2.5f, std::max (px, x1 - x0), px * 2.5f));
+        const float xn = in.getX() + in.getWidth() * modNow;
+        g.setColour (juce::Colours::black);
+        g.fillRect (juce::Rectangle<float> (xn - px * 1.5f, in.getY(), px * 3.0f, in.getHeight()));
+        g.setColour (accent);
+        g.fillRect (juce::Rectangle<float> (xn - px * 0.75f, in.getY(), px * 1.5f, in.getHeight()));
+    }
     PixelFont::drawLeft (g, format (value), r.withLeft (t.getRight() + px * 2), px, P.ink);
 }
 

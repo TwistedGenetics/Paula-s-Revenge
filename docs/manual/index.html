@@ -118,7 +118,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.35</span>
+  <span class="ver">MANUAL &middot; V0.36</span>
 </header>
 
 <div class="app">
@@ -680,6 +680,42 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>One value per line per knob, and only when it changes. What the pattern plays back isn't recorded again.</li>
     <li>A whole pass, until you stop, is one undo step.</li>
   </ul>
+  <h3>Modulation</h3>
+  <p><span class="b">MODULATION</span> on the mixer's strips page opens 16 modulators. Each has a <b>SOURCE</b> and up to 8 <b>TARGETS</b> &mdash; any built-in effect control, a plug-in's parameter, or a track's VOLUME, SEND A or SEND B &mdash; each with its own <b>AMOUNT</b> (&minus;100% to +100%).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/modulation.png" alt="The MODULATION page: 16 modulators down the left with live meters; MOD 1 selected, SOURCE: LFO with SHAPE, RATE, SYNC, RETRIG, PHASE and NOTES FROM, a NOW meter, and two targets: TRACK 1 TAPE ECHO: FEEDBACK and TRACK 1: VOLUME, each with an AMOUNT bar." width="1440" height="900" loading="lazy"></div>
+    <figcaption>An LFO in time with the song, moving an echo's feedback and a track's volume</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>SOURCE</th><th>WHAT MOVES IT</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">LFO</span></td><td>SINE, TRIANGLE, SAW UP / DOWN, SQUARE or RANDOM S&amp;H; RATE in Hz or SYNC'd from 1/32 to 4 BARS (locked to the song position); RETRIG on each note; PHASE.</td></tr>
+      <tr><td><span class="b">FOLLOWER</span></td><td>A track's level (ATTACK, RELEASE, GAIN). Aim it at another track's VOLUME for sidechain ducking (it starts at &minus;100%).</td></tr>
+      <tr><td><span class="b">STEPPER</span></td><td>16 steps you draw with the mouse, at a RATE in time with the song, with GLIDE.</td></tr>
+      <tr><td><span class="b">RANDOM</span></td><td>A new value each RATE, stepped or SMOOTH.</td></tr>
+      <tr><td><span class="b">KEY</span> / <span class="b">VELOCITY</span></td><td>How high / how loud the notes are, from a track or ANY TRACK (your playing too).</td></tr>
+      <tr><td><span class="b">MACRO</span></td><td>One knob for many controls, each its own amount. <span class="b">AUTO A (V)</span> / <span class="b">AUTO B (J)</span> hand it to a track's automation knob.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="two">
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/stepper.png" alt="A STEPPER: RATE 1/16, STEPS 16, GLIDE, RETRIG, NOTES FROM, and sixteen bars drawn rising from left to right." width="1440" height="900" loading="lazy"></div>
+        <figcaption>A STEPPER: draw the steps</figcaption>
+      </figure>
+    </div>
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/mod_rings.png" alt="The AUTO-FILTER page: the CUTOFF slider with an orange band showing the range modulation moves it in and a line where it is now; MODULATE at the right of the LEARN row." width="1440" height="900" loading="lazy"></div>
+        <figcaption>MODULATE, and the ring on a modulated control</figcaption>
+      </figure>
+    </div>
+  </div>
+  <ul>
+    <li><b>Targets:</b> <span class="b">ADD TARGET...</span> lists the tracks' VOLUME and SENDS and every effect in the song. Or press <span class="b on">MODULATE</span> on an effect page and move a control: the selected modulator gets it. Click a target for TURN IT THE OTHER WAY, GO TO THE EFFECT or REMOVE.</li>
+    <li>A modulated slider shows an orange band for its range and a line where it is now. Your setting stays put; modulation moves the sound around it.</li>
+    <li>Saved in the song (v0.36 or later) and undoable. VOLUME and SENDS glide; switches flip past the middle.</li>
+  </ul>
 </section>
 
 <!-- ============================================================ 011 -->
@@ -944,6 +980,6 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.35</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.36</footer>
 </main>
 </div>
