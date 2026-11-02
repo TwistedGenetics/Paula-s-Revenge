@@ -125,7 +125,9 @@ void MixerEngine::runInserts (const FxSlot* slots, int first, float* L, float* R
         if (on && ready)
         {
             const float* a = autoParam[first + k];
-            if (s.type != FxType::Plugin && (a[0] >= 0 || a[1] >= 0 || a[2] >= 0 || a[3] >= 0 || a[4] >= 0 || a[5] >= 0))
+            bool automated = false;
+            if (s.type != FxType::Plugin) for (int i = 0; i < kFxParams; ++i) automated |= a[i] >= 0;
+            if (automated)
             {
                 float p[kFxParams];
                 for (int i = 0; i < kFxParams; ++i) p[i] = a[i] >= 0 ? a[i] : s.p[i];

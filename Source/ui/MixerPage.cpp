@@ -1,5 +1,6 @@
 // Paula's Revenge - the mixer: channel strips, channel EQ page, effect editor page
 #include "MixerPage.h"
+#include "FxPresets.h"
 #include "ChoiceBox.h"
 #include "MeterColours.h"
 #include "../engine/Effects.h"
@@ -793,12 +794,10 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList })
         addChildComponent (c);
 
-    for (int t = 0; t < kBuiltinFxTypes; ++t)
-    {
-        typeBtn[t].setClickingTogglesState (false);
-        typeBtn[t].onClick = [this, t] { setSlotType (fxSlot, (FxType) t); };
-        addChildComponent (typeBtn[t]);
-    }
+    effectBtn.onClick = [this] { showEffectMenu(); };
+    presetBtn.onClick = [this] { showPresetMenu(); };
+    addChildComponent (effectBtn);
+    addChildComponent (presetBtn);
     bypassBtn.onClick = [this]
     {
         // with LEARN armed, BYPASS is learned: the knob then switches the effect on and off
@@ -825,7 +824,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     for (int i = 0; i < kFxParams; ++i)
     {
         param[i] = std::make_unique<PixSlider> ("");
-        param[i]->labelChars = 9;
+        param[i]->labelChars = 10;
         param[i]->valueChars = 10;
         param[i]->onDragStart = [this, i]
         {
@@ -920,6 +919,84 @@ void MixerPage::toggleBypass (int slot)
           [slot, by] (MixerSettings& m) { m.slot (slot).bypass = by; });
 }
 
+void MixerPage::showEffectMenu()
+{
+    juce::Component::SafePointer<MixerPage> safe (this);
+    std::vector<MenuItem> groups;
+    for (int c = 0; c < (int) FxCategory::Count; ++c)
+    {
+        const auto cat = (FxCategory) c;
+        groups.push_back ({ juce::String (fxCategoryName (cat)) + "...", [safe, cat]
+        {
+            if (! safe) return;
+            std::vector<MenuItem> items;
+            for (auto t : fxTypesIn (cat))
+                items.push_back ({ effectInfo (t), [safe, t] { if (safe) safe->chooseType (t); } });
+            showMenu (juce::String (fxCategoryName (cat)), std::move (items));
+        } });
+    }
+    groups.push_back ({ "PLUG-IN (VST3 / AU)...", [safe] { if (safe) safe->showPluginList (true); } });
+    groups.push_back ({ "EMPTY (NO EFFECT)", [safe] { if (safe) safe->chooseType (FxType::None); } });
+    showMenu ("EFFECT FOR " + slotOwner (fxSlot) + " INSERT " + juce::String (fxSlot % kInserts + 1), std::move (groups));
+}
+
+void MixerPage::showPresetMenu()
+{
+    const auto type = proc.song.mixer.slot (fxSlot).type;
+    if (! isBuiltinFx (type)) return;
+    juce::Component::SafePointer<MixerPage> safe (this);
+    std::vector<MenuItem> items;
+    for (const auto& pr : fxFactoryPresets (type))
+        items.push_back ({ juce::String (pr.name), [safe, pr] { if (safe) safe->applyPreset (pr); } });
+    const auto mine = fxpresets::mine (type);
+    for (const auto& pr : mine)
+        items.push_back ({ "MY " + juce::String (pr.name), [safe, pr] { if (safe) safe->applyPreset (pr); } });
+    items.push_back ({ "SAVE THESE SETTINGS AS MY PRESET...", [safe]
+    {
+        if (! safe) return;
+        auto* w = new juce::AlertWindow ("My preset", "A name for these settings", juce::MessageBoxIconType::NoIcon);
+        w->addTextEditor ("name", "MY " + juce::String (fxName (safe->proc.song.mixer.slot (safe->fxSlot).type)));
+        w->addButton ("SAVE", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        w->addButton ("CANCEL", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+        w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int r)
+        {
+            if (r == 1 && safe) safe->saveMyPreset (w->getTextEditorContents ("name"));
+        }), true);
+    } });
+    if (! mine.empty())
+        items.push_back ({ "DELETE ONE OF MY PRESETS...", [safe, mine, type]
+        {
+            std::vector<MenuItem> del;
+            for (const auto& pr : mine)
+                del.push_back ({ juce::String (pr.name), [safe, pr, type]
+                {
+                    fxpresets::remove (type, pr.name);
+                    if (safe && safe->onStatus) safe->onStatus ("PRESET \"" + juce::String (pr.name) + "\" DELETED");
+                } });
+            showMenu ("DELETE WHICH PRESET?", std::move (del));
+        } });
+    showMenu (juce::String (fxName (type)) + " PRESETS", std::move (items));
+}
+
+void MixerPage::applyPreset (const FxPreset& pr)
+{
+    if (! isBuiltinFx (pr.type)) return;
+    edit (slotOwner (fxSlot) + " " + juce::String (fxName (pr.type)) + " PRESET " + juce::String (pr.name), false,
+          [this, pr] (MixerSettings& m) { applyFxPreset (m.slot (fxSlot), pr); }, proc.song.mixer.slot (fxSlot).type != pr.type);
+    if (onStatus) onStatus (juce::String (fxName (pr.type)) + ": " + juce::String (pr.name));
+    resized();
+    refresh();
+}
+
+void MixerPage::saveMyPreset (const juce::String& name)
+{
+    const auto& s = proc.song.mixer.slot (fxSlot);
+    if (! isBuiltinFx (s.type) || name.trim().isEmpty()) return;
+    const auto pr = fxpresets::fromSlot (s, name);
+    fxpresets::save (pr);
+    if (onStatus) onStatus ("SAVED AS MY PRESET \"" + juce::String (pr.name) + "\" (PRESETS... TO USE IT ANYWHERE)");
+}
+
 void MixerPage::setSlotType (int slot, FxType t)
 {
     const auto& s = proc.song.mixer.slot (slot);
@@ -1007,7 +1084,7 @@ void MixerPage::updateVisibility()
     chFader.setVisible (ch && ! insPage);
     chClearA.setVisible (ch && ! insPage); chClearB.setVisible (ch && ! insPage);
     learner.cancel();
-    for (auto& b : typeBtn) b.setVisible (fx);
+    effectBtn.setVisible (fx); presetBtn.setVisible (fx);
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList,
                                                              &learnTrackBox, &learnABtn, &learnBBtn })
         c->setVisible (false);   // (the effect page shows the ones it needs)
@@ -1082,7 +1159,8 @@ void MixerPage::refreshChannel()
 void MixerPage::refreshEffect()
 {
     const auto& s = proc.song.mixer.slot (fxSlot);
-    for (int t = 0; t < kBuiltinFxTypes; ++t) typeBtn[t].setToggleState ((int) s.type == t && ! browsingPlugins, juce::dontSendNotification);
+    effectBtn.setButtonText ("EFFECT: " + (s.type == FxType::Plugin ? juce::String (s.pluginName).toUpperCase().substring (0, 18) : juce::String (fxName (s.type))));
+    presetBtn.setEnabled (isBuiltinFx (s.type) && ! browsingPlugins);
     const bool isPlugin = s.type == FxType::Plugin;
     const bool fx = currentPage == Page::Effect;
     pluginBtn.setToggleState (isPlugin || browsingPlugins, juce::dontSendNotification);
@@ -1413,8 +1491,12 @@ juce::String MixerPage::effectInfo (FxType t)
         case FxType::Delay:      return "STEREO DELAY - SYNC LOCKS TIME TO THE SONG TEMPO";
         case FxType::Reverb:     return "REVERB - ON A SEND, KEEP MIX AT 100%";
         case FxType::Chorus:     return "STEREO CHORUS";
+        case FxType::Vast:       return "VAST - ECHOES THAT SMEAR INTO A HUGE REVERB";
+        case FxType::Space:      return "SPACE - ROOM TO HALL, WITH SHIMMER AND FREEZE";
+        case FxType::TapeEcho:   return "TAPE ECHO - 3 HEADS, WOW, FLUTTER, SATURATION";
+        case FxType::Ensemble:   return "ENSEMBLE - POLYSYNTH CHORUS AND STRING MACHINE";
         case FxType::Plugin:     return "VST3 / AU PLUG-IN - ITS OWN WINDOW HAS THE CONTROLS";
-        default:                 return "EMPTY SLOT - PICK AN EFFECT ABOVE";
+        default:                 return "EMPTY SLOT - PICK ONE WITH EFFECT ABOVE";
     }
 }
 
@@ -1666,9 +1748,8 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
 
     auto types = r.removeFromTop (rowH);
-    const int n = kBuiltinFxTypes;
-    const int tw = std::min (charsW (8), (types.getWidth() - charsW (10) - gap * n) / n);
-    for (int t = 0; t < n; ++t) { typeBtn[t].setBounds (types.removeFromLeft (tw)); types.removeFromLeft (gap); }
+    effectBtn.setBounds (types.removeFromLeft (std::min (charsW (28), types.getWidth() - charsW (22) - gap * 4))); types.removeFromLeft (gap * 2);
+    presetBtn.setBounds (types.removeFromLeft (charsW (10))); types.removeFromLeft (gap * 2);
     pluginBtn.setBounds (types.removeFromLeft (charsW (10)));
     r.removeFromTop (gap * 2);
     auto row2 = r.removeFromTop (rowH);
@@ -1714,11 +1795,15 @@ void MixerPage::layoutEffect (juce::Rectangle<int> r)
         return;
     }
     const auto& ps = fxParams (s.type);
-    auto area = r.withWidth (std::min (r.getWidth(), charsW (72)));
-    for (int i = 0; i < kFxParams; ++i)
+    const int n = std::min ((int) ps.size(), kFxParams);
+    // up to 6 in one column; more in two side by side
+    const int cols = n > 6 ? 2 : 1, perCol = (n + cols - 1) / std::max (1, cols);
+    auto area = r.withWidth (std::min (r.getWidth(), cols == 1 ? charsW (72) : charsW (140)));
+    const int colW = (area.getWidth() - (cols - 1) * gap * 4) / cols;
+    for (int i = 0; i < n; ++i)
     {
-        if (i >= (int) ps.size()) continue;
-        auto row = area.removeFromTop (bigH); area.removeFromTop (gap * 2);
+        const int c = i / std::max (1, perCol), k = i % std::max (1, perCol);
+        auto row = juce::Rectangle<int> (area.getX() + c * (colW + gap * 4), area.getY() + k * (bigH + gap * 2), colW, bigH);
         if (ps[(size_t) i].toggle) paramToggle[i]->setBounds (row.withWidth (charsW (14)));
         else param[i]->setBounds (row);
     }

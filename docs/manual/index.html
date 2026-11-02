@@ -1,4 +1,3 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
 <title>Paula's Revenge Manual</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -119,7 +118,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.33</span>
+  <span class="ver">MANUAL &middot; V0.34</span>
 </header>
 
 <div class="app">
@@ -567,11 +566,41 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
         <li><b>Right-click</b> a point for its type (BELL, LOW / HIGH SHELF, HIGH- / LOW-PASS), SWITCH OFF, RESET GAIN and REMOVE POINT; <kbd>Delete</kbd> removes the selected one.</li>
         <li>Under the graph: the selected point's type, ON, REMOVE POINT, FREQ, GAIN and Q. <span class="b">EQ FLAT</span> removes them all. Songs from before v0.25 keep their bands that were on.</li>
       </ul></li>
-    <li><b>Effect page:</b> FILTER, DRIVE, COMP, DELAY (in ms or synced to the song), REVERB, CHORUS, or <span class="b">PLUG-IN...</span>. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>.</li>
+    <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
     <li><b>Returns:</b> SEND A starts with a reverb and SEND B with a delay, fully wet, silent until a track sends to them.</li>
     <li><b>Delay compensation:</b> plug-ins that give their sound back late (lookahead limiters, linear-phase EQs) are lined up, so every track stays in time, sends included. The strips page title shows the total delay.</li>
   </ul>
   <p>A mixer with nothing changed is skipped, so the song sounds exactly as it would without one. Everything in it is saved in the song, undoable and in renders.</p>
+  <h3>The studio effects</h3>
+  <div class="two">
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/effect_menu.png" alt="The EFFECT menu opened on the REVERB group: VAST, SPACE and REVERB, each with a line saying what it is, and CANCEL." width="1440" height="900" loading="lazy"></div>
+        <figcaption>EFFECT: a group, then the effect</figcaption>
+      </figure>
+    </div>
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/vast.png" alt="The VAST effect page: EFFECT: VAST, PRESETS..., PLUG-IN..., BYPASS and DEFAULTS, then twelve controls in two columns: MIX, DELAY, SYNC, FEEDBACK, WARP, DENSITY on the left; MOD RATE, MOD DEPTH, LOW CUT, HIGH CUT, MODE, WIDTH on the right." width="1440" height="900" loading="lazy"></div>
+        <figcaption>VAST: twelve controls in two columns</figcaption>
+      </figure>
+    </div>
+  </div>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>EFFECT</th><th>WHAT IT IS</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b">VAST</span></td><td>Echoes that turn into a huge reverb: 8 delay lines feeding each other. <b>DENSITY</b> at 0 gives clean repeats on the beat, turned up a cloud; <b>WARP</b> smears each repeat more; <b>FEEDBACK</b> at 100% goes on for ever. <b>DELAY</b> in ms or, with <b>SYNC</b>, a note length. <b>MODE</b>: NEBULA, ABYSS (longer, darker), BLOOM (swells in), DRIFT (wandering lines).</td></tr>
+      <tr><td><span class="b">SPACE</span></td><td>A room, plate or hall: <b>SIZE</b>, <b>DECAY</b> 0.3&ndash;40&nbsp;s, <b>PRE-DELAY</b> with <b>PRE ECHO</b>, <b>DAMP</b>, <b>LOW CUT</b>, <b>MOD</b>, <b>CHARACTER</b> (GROUNDED, AIRY, COSMIC), <b>SHIMMER</b> (an octave up in the tail), <b>FREEZE</b> (holds the tail) and <b>WIDTH</b>.</td></tr>
+      <tr><td><span class="b">TAPE ECHO</span></td><td>A tape loop with three heads at 1, 2 and 3 times <b>TIME</b> (<b>HEADS</b> picks them). <b>FEEDBACK</b> past 100% for runaway dub (the tape saturates, it doesn't explode), <b>WOW</b>, <b>FLUTTER</b>, <b>SATURATE</b>, <b>TONE</b>, <b>WEAR</b> (hiss, dropouts), <b>SPREAD</b>.</td></tr>
+      <tr><td><span class="b">ENSEMBLE</span></td><td>The polysynth bucket-brigade chorus: <b>MODE</b> I, II, I+II or STRINGS (three voices: the string-machine sound), <b>RATE</b>, <b>DEPTH</b>, <b>WIDTH</b>, <b>TONE</b>, <b>NOISE</b>.</td></tr>
+      <tr><td>The originals</td><td>FILTER, DRIVE, COMP, DELAY, REVERB and CHORUS are still there, in their groups.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>Presets:</b> <span class="b">PRESETS...</span> lists the factory presets, then yours as <b>MY &hellip;</b>. <span class="b">SAVE THESE SETTINGS AS MY PRESET...</span> keeps them under a name on this computer, for any slot in any song; <span class="b">DELETE ONE OF MY PRESETS...</span> removes one. Choosing a preset is one undo step.</li>
+    <li>Every control glides to a new value (no zipper noise), so they all automate smoothly with <code>V</code> and <code>J</code>. The saturation runs at twice the sample rate, and everything is true stereo.</li>
+    <li>Songs that use them need v0.34 or later.</li>
+  </ul>
 </section>
 
 <!-- ============================================================ 009 -->
@@ -888,7 +917,6 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.33</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.34</footer>
 </main>
 </div>
-</body></html>

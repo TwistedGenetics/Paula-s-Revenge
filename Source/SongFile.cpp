@@ -11,7 +11,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 23;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 24;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
@@ -19,7 +19,7 @@ namespace
                                   // v14: notes on chord slots, v15: chord slot colours, v16: instruments' own inserts,
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
                                   // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE,
-                                  // v23: the instruments' own EQ
+                                  // v23: the instruments' own EQ, v24: effect parameters 7-12 (the studio effects)
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -39,7 +39,7 @@ namespace
     {
         o.writeByte ((char) s.type);
         o.writeByte (s.bypass ? 1 : 0);
-        for (float v : s.p) o.writeFloatBigEndian (v);
+        for (int i = 0; i < kFxSavedParams; ++i) o.writeFloatBigEndian (s.p[i]);   // (the rest: v24, at the end)
         if (s.type == FxType::Plugin)   // v8: which plug-in, and its own settings
         {
             writeLong (o, s.pluginKey.data(), s.pluginKey.size());
@@ -73,7 +73,7 @@ namespace
         s.type = t < (int) FxType::Count ? (FxType) t : FxType::None;
         if (version < 8 && s.type == FxType::Plugin) s.type = FxType::None;
         s.bypass = in.readByte() != 0;
-        for (float& v : s.p) { const float f = in.readFloatBigEndian(); v = std::isfinite (f) ? juce::jlimit (0.0f, 1.0f, f) : 0.0f; }
+        for (int i = 0; i < kFxSavedParams; ++i) { const float f = in.readFloatBigEndian(); s.p[i] = std::isfinite (f) ? juce::jlimit (0.0f, 1.0f, f) : 0.0f; }
         if (s.type == FxType::Plugin)
         {
             std::vector<uint8_t> key, name;
@@ -354,6 +354,21 @@ juce::MemoryBlock writeSong (const Song& song)
                 raw.writeByte ((char) ((b.used ? 1 : 0) | (b.on ? 2 : 0))); raw.writeByte ((char) b.type);
                 raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
             }
+        }
+    }
+
+    // v24: effect parameters 7-12 of the slots that use them
+    {
+        const auto extra = [] (const FxSlot& sl) { for (int i = kFxSavedParams; i < kFxParams; ++i) if (sl.p[i] != 0.0f) return true; return false; };
+        int used = 0;
+        for (int i = 0; i < kTotalSlots; ++i) if (extra (song.mixer.slot (i))) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kTotalSlots; ++i)
+        {
+            const auto& sl = song.mixer.slot (i);
+            if (! extra (sl)) continue;
+            raw.writeShortBigEndian ((short) i);
+            for (int k = kFxSavedParams; k < kFxParams; ++k) raw.writeFloatBigEndian (sl.p[k]);
         }
     }
 
@@ -738,6 +753,17 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                     if (! b.used) b = {};
                 }
                 if (i < kMaxInstruments) s.instruments[(size_t) i].eq = eq;
+            }
+        }
+        if (version >= 24 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint16_t) in.readShortBigEndian();
+                float v[kFxParams - kFxSavedParams];
+                for (auto& f : v) f = readFloat (in, 0.0f, 1.0f, 0.0f);
+                if (i < kTotalSlots) std::copy (std::begin (v), std::end (v), s.mixer.slot (i).p + kFxSavedParams);
             }
         }
     }

@@ -145,8 +145,7 @@ private:
     juce::Rectangle<float> chInsertsBox, chSendsBox, bandBox;
 
     // effect page
-    PixButton typeBtn[kBuiltinFxTypes] { PixButton ("EMPTY", true), PixButton ("FILTER", true), PixButton ("DRIVE", true), PixButton ("COMP", true),
-                                             PixButton ("DELAY", true), PixButton ("REVERB", true), PixButton ("CHORUS", true) };
+    PixButton effectBtn { "EFFECT: EMPTY" }, presetBtn { "PRESETS..." };
     PixButton bypassBtn { "BYPASS", true }, defaultsBtn { "DEFAULTS" };
     std::unique_ptr<PixSlider> param[kFxParams];
     std::unique_ptr<PixButton> paramToggle[kFxParams];
@@ -171,6 +170,13 @@ private:
     int listedPluginTotal = -1;
 public:
     PluginSearchBar& pluginSearchBar() { return pluginSearch; }   // (tests)
+    // the EFFECT menu (a group, then the effect) and PRESETS (the factory's and yours)
+    void showEffectMenu();
+    void showPresetMenu();
+    void chooseType (FxType t) { setSlotType (fxSlot, t); }                    // (as picking it in the menu)
+    void applyPreset (const FxPreset&);
+    void saveMyPreset (const juce::String& name);
+    juce::String effectButtonText() const { return effectBtn.getButtonText(); }   // (tests)
     Spectrum& instrumentSpectrum() { return instSpectrum; }
     juce::String pluginRowText (int row) const { return row >= 0 && row < (int) pluginChoices.size() ? PluginSearchBar::rowText (pluginChoices[(size_t) row]) : juce::String(); }
 private:

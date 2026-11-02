@@ -1,5 +1,6 @@
 // Paula's Revenge - mixer effects and EQ
 #include "Effects.h"
+#include "StudioFx.h"
 #include <algorithm>
 #include <cmath>
 #include <complex>
@@ -329,7 +330,7 @@ std::unique_ptr<Effect> makeEffect (FxType t)
         case FxType::Delay:      return std::make_unique<DelayFx>();
         case FxType::Reverb:     return std::make_unique<ReverbFx>();
         case FxType::Chorus:     return std::make_unique<ChorusFx>();
-        default:                 return nullptr;
+        default:                 return makeStudioEffect (t);
     }
 }
 

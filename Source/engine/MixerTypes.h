@@ -15,7 +15,8 @@ constexpr int kMixTracks = 8;      // = kMaxTracks
 constexpr int kInserts   = 3;
 constexpr int kSends     = 2;
 constexpr int kReturns   = 2;
-constexpr int kFxParams  = 6;
+constexpr int kFxParams  = 12;     // (a slot's own record in the song keeps the first 6; v24 adds the rest)
+constexpr int kFxSavedParams = 6;
 // slot numbering across the whole mixer: tracks, then returns, then master
 constexpr int kTrackSlots  = kMixTracks * kInserts;
 constexpr int kReturnSlots = kReturns * kInserts;
@@ -30,8 +31,16 @@ inline int masterSlot (int k)            { return kTrackSlots + kReturnSlots + k
 inline int instrumentSlot (int ins, int k) { return kMixerSlots + ins * kInserts + k; }
 inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < kTotalSlots; }
 
-enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin, Count };
-constexpr int kBuiltinFxTypes = (int) FxType::Plugin;   // EMPTY + the six built-in effects
+// (new types go at the end: the numbers are in the songs)
+enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin,
+                              Vast, Space, TapeEcho, Ensemble, Count };
+inline bool isBuiltinFx (FxType t) { return t != FxType::None && t != FxType::Plugin && t < FxType::Count; }
+
+// the EFFECT menu's groups
+enum class FxCategory : uint8_t { Reverb = 0, Delay, Modulation, DriveCrush, FilterDynamics, Count };
+std::string fxCategoryName (FxCategory);                 // "REVERB", "DRIVE & CRUSH"...
+FxCategory fxCategory (FxType);
+std::vector<FxType> fxTypesIn (FxCategory);              // the built-in effects in a group, menu order
 
 // An insert slot: the effect and its parameters (all 0..1; each effect maps them).
 // A plug-in slot (VST3 / AU) keeps which plug-in it is and the plug-in's own saved state.
@@ -189,6 +198,25 @@ const std::vector<FxParamInfo>& fxParams (FxType);
 std::string fxParamText (FxType, int i, const float* params);
 void initFxSlot (FxSlot&, FxType);   // the type with its default parameters
 
+// the mappings the effects and their value text share
+int    fxChoice (float v, int n);          // a 0..1 value as one of n choices
+double vastModRateHz (float v);            // 0.02 .. 8 HZ
+double spaceDecaySeconds (float v);        // 0.3 .. 40 S
+double tapeToneHz (float v);               // 1.2 .. 16 KHZ
+double ensembleRateScale (float v);        // X0.25 .. X4
+
 // Delay time in seconds for parameters p (time, sync) at a song tempo (BPM)
 double delaySeconds (const float* p, double bpm);
+// the same for a time and a SYNC switch anywhere: free 1 ms .. 2 s, or a note length
+double delaySeconds (float time, bool sync, double bpm);
+
+// ---- presets: the factory's for each effect (the user's own are kept by the app)
+struct FxPreset
+{
+    std::string name;
+    FxType type = FxType::None;
+    std::vector<float> p;            // all the effect's parameters, in order
+};
+const std::vector<FxPreset>& fxFactoryPresets (FxType);
+void applyFxPreset (FxSlot&, const FxPreset&);   // the type and its values (bypass kept)
 } // namespace prv

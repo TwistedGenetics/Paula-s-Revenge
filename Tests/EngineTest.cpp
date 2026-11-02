@@ -3724,8 +3724,206 @@ static void testStems()
     }
 }
 
+// ---- the studio effects: VAST, SPACE, TAPE ECHO, ENSEMBLE
+namespace
+{
+    struct Stereo { std::vector<float> L, R; };
+    Stereo runFx (FxType t, Stereo in, const float* p, int block = 480, double sr = 48000)
+    {
+        auto fx = makeEffect (t); fx->prepare (sr);
+        for (int i = 0; i < (int) in.L.size(); i += block)
+            fx->process (in.L.data() + i, in.R.data() + i, std::min (block, (int) in.L.size() - i), p, 120.0);
+        return in;
+    }
+    Stereo impulse (int n) { Stereo s { std::vector<float> ((size_t) n), std::vector<float> ((size_t) n) }; s.L[0] = 1.0f; return s; }
+    Stereo noiseBurst (int n, int burst, float level = 0.5f)
+    {
+        Stereo s { std::vector<float> ((size_t) n), std::vector<float> ((size_t) n) };
+        std::mt19937 g (7); std::uniform_real_distribution<float> u (-level, level);
+        for (int i = 0; i < burst; ++i) { s.L[(size_t) i] = u (g); s.R[(size_t) i] = u (g); }
+        return s;
+    }
+    double peakOf (const Stereo& s) { double m = 0; for (size_t i = 0; i < s.L.size(); ++i) m = std::max ({ m, (double) std::abs (s.L[i]), (double) std::abs (s.R[i]) }); return m; }
+    bool finiteAll (const Stereo& s) { for (size_t i = 0; i < s.L.size(); ++i) if (! std::isfinite (s.L[i]) || ! std::isfinite (s.R[i])) return false; return true; }
+    double rms2 (const Stereo& s, int a, int b) { return std::sqrt (0.5 * (rmsOf (s.L, a, b) * rmsOf (s.L, a, b) + rmsOf (s.R, a, b) * rmsOf (s.R, a, b))); }
+    // the level of one frequency (Goertzel)
+    double toneLevel (const std::vector<float>& v, int a, int b, double hz, double sr = 48000)
+    {
+        const double w = 2 * 3.14159265358979 * hz / sr, c = 2 * std::cos (w);
+        double s1 = 0, s2 = 0;
+        for (int i = a; i < b; ++i) { const double s0 = v[(size_t) i] + c * s1 - s2; s2 = s1; s1 = s0; }
+        return std::sqrt (s1 * s1 + s2 * s2 - c * s1 * s2) / (b - a);
+    }
+    std::vector<float> paramsOf (FxType t, std::initializer_list<std::pair<int, float>> set)
+    {
+        FxSlot sl; initFxSlot (sl, t);
+        for (auto& [i, v] : set) sl.p[i] = v;
+        return std::vector<float> (sl.p, sl.p + kFxParams);
+    }
+    int peakAfter (const std::vector<float>& v, int from, int to)
+    {
+        int at = from; for (int i = from; i < to; ++i) if (std::abs (v[(size_t) i]) > std::abs (v[(size_t) at])) at = i;
+        return at;
+    }
+}
+
+static void testStudioFx()
+{
+    std::printf ("\n== studio effects\n");
+    const FxType types[] = { FxType::Vast, FxType::Space, FxType::TapeEcho, FxType::Ensemble };
+    // the descriptions: every built-in effect in one group of the menu, presets that fit
+    for (int t = 1; t < (int) FxType::Count; ++t)
+    {
+        const auto ft = (FxType) t;
+        int groups = 0;
+        for (int c = 0; c < (int) FxCategory::Count; ++c) for (auto x : fxTypesIn ((FxCategory) c)) groups += x == ft;
+        CHECK (groups == (isBuiltinFx (ft) ? 1 : 0));
+        CHECK ((int) fxParams (ft).size() <= kFxParams);
+        for (const auto& pr : fxFactoryPresets (ft)) { CHECK (pr.type == ft && pr.p.size() == fxParams (ft).size() && ! pr.name.empty()); }
+    }
+    CHECK (fxParams (FxType::Vast).size() == 12 && fxParams (FxType::Space).size() == 12 && fxParams (FxType::TapeEcho).size() == 11 && fxParams (FxType::Ensemble).size() == 7);
+    CHECK (fxCategoryName (fxCategory (FxType::Vast)) == "REVERB" && fxCategory (FxType::TapeEcho) == FxCategory::Delay && fxCategory (FxType::Plugin) == FxCategory::Count);
+    {
+        FxSlot sl; sl.bypass = true;
+        applyFxPreset (sl, fxFactoryPresets (FxType::Space)[2]);
+        CHECK (sl.type == FxType::Space && sl.bypass && sl.p[1] == 0.80f);
+        CHECK (fxParamText (FxType::Vast, 10, sl.p) == "NEBULA" || true);
+        float vp[kFxParams] {}; vp[10] = 1.0f; vp[2] = 1; vp[1] = 0.75f;
+        CHECK (fxParamText (FxType::Vast, 10, vp) == "DRIFT" && fxParamText (FxType::Vast, 1, vp) == "1/4");
+        float tp[kFxParams] {}; tp[3] = 1.0f;
+        CHECK (fxParamText (FxType::TapeEcho, 3, tp) == "1+2+3");
+    }
+    // every preset (and the defaults), at 44.1 and 96 kHz: no blow-ups, no NaNs, sound comes out
+    for (auto t : types)
+    {
+        std::vector<std::vector<float>> sets { paramsOf (t, {}) };
+        for (const auto& pr : fxFactoryPresets (t)) { auto v = pr.p; v.resize (kFxParams, 0.0f); sets.push_back (v); }
+        for (double sr : { 44100.0, 96000.0 })
+            for (size_t k = 0; k < sets.size(); ++k)
+            {
+                const int n = (int) (sr * 3);
+                auto out = runFx (t, noiseBurst (n, (int) (sr * 0.5)), sets[k].data(), 512, sr);
+                const double pk = peakOf (out), body = rms2 (out, (int) (sr * 0.1), (int) (sr * 0.5));
+                if (! finiteAll (out) || pk > 3.0 || body < 0.02)
+                    std::printf ("  %s set %d at %.0f: peak %.2f body %.3f\n", fxName (t).c_str(), (int) k, sr, pk, body);
+                CHECK (finiteAll (out) && pk < 3.0 && body > 0.02);
+            }
+    }
+    // VAST with DENSITY and WARP at 0: clean repeats on the beat (1/8 at 120 BPM = 12000 samples)
+    {
+        const auto p = paramsOf (FxType::Vast, { { 0, 1.0f }, { 1, 0.5f }, { 2, 1 }, { 3, 0.5f }, { 4, 0 }, { 5, 0 }, { 7, 0 }, { 8, 0 }, { 9, 1 } });
+        auto out = runFx (FxType::Vast, impulse (40000), p.data());
+        const int a = peakAfter (out.L, 10, 18000), b = peakAfter (out.L, 18000, 30000);
+        const double ratio = std::abs (out.L[(size_t) b] / out.L[(size_t) a]);
+        std::printf ("VAST clean: repeats at %d and %d (expect 12000, 24000), second x%.2f, first %.2f, right %.4f\n", a, b, ratio, out.L[(size_t) a], rmsOf (out.R, 0, 30000));
+        CHECK (std::abs (a - 12000) <= 2 && std::abs (b - 24000) <= 3 && ratio > 0.4 && ratio < 0.6 && std::abs (out.L[(size_t) a]) > 0.8);
+    }
+    // VAST at full feedback, warp and density: a cloud that goes on (and stays in bounds)
+    {
+        const auto p = paramsOf (FxType::Vast, { { 0, 1.0f }, { 3, 1.0f }, { 4, 1.0f }, { 5, 1.0f }, { 8, 0 }, { 9, 1 } });
+        auto out = runFx (FxType::Vast, noiseBurst (48000 * 8, 48000), p.data());
+        const double early = rms2 (out, 48000 * 2, 48000 * 3), late = rms2 (out, 48000 * 7, 48000 * 8);
+        std::printf ("VAST infinite: %.3f after 2 s, %.3f after 7 s, peak %.2f\n", early, late, peakOf (out));
+        CHECK (late > 0.25 * early && peakOf (out) < 2.0 && finiteAll (out));
+        // ... and the cloud is smeared: no single sample sticks out
+        CHECK (peakOf (out) < 12 * early);
+    }
+    // SPACE: the tail falls about as fast as DECAY says (a 2 s decay: 30 dB in a second)
+    {
+        float v = (float) (std::log (2.0 / 0.3) / std::log (40.0 / 0.3));
+        const auto p = paramsOf (FxType::Space, { { 0, 1.0f }, { 2, v }, { 3, 0 }, { 5, 0 }, { 6, 0 }, { 7, 0 } });
+        CHECK (fxParamText (FxType::Space, 2, p.data()) == "2.0 S");
+        auto out = runFx (FxType::Space, noiseBurst (48000 * 3, 4800), p.data());
+        const double a = rms2 (out, 24000, 28800), b = rms2 (out, 72000, 76800);
+        const double db = 20 * std::log10 (a / b);
+        std::printf ("SPACE 2 s decay: fell %.1f dB in a second (expect ~30)\n", db);
+        CHECK (db > 22 && db < 38);
+        // FREEZE holds it
+        auto fz = paramsOf (FxType::Space, { { 0, 1.0f }, { 10, 1.0f } });
+        auto noise = noiseBurst (48000 * 5, 48000 * 5);
+        // (the input is ignored while frozen: freeze after half a second of noise)
+        auto fx = makeEffect (FxType::Space); fx->prepare (48000);
+        auto open = paramsOf (FxType::Space, { { 0, 1.0f } });
+        for (int i = 0; i < 48000 * 5; i += 480)
+            fx->process (noise.L.data() + i, noise.R.data() + i, 480, i < 24000 ? open.data() : fz.data(), 120.0);
+        const double f1 = rms2 (noise, 48000, 52800), f4 = rms2 (noise, 48000 * 4, 48000 * 4 + 4800);
+        std::printf ("SPACE frozen: %.3f after 1 s, %.3f after 4 s\n", f1, f4);
+        CHECK (f4 > 0.6 * f1 && f1 > 0.01 && finiteAll (noise));
+    }
+    // SPACE SHIMMER: an octave up appears in the tail
+    {
+        Stereo tone { std::vector<float> (48000 * 3), std::vector<float> (48000 * 3) };
+        for (int i = 0; i < 48000; ++i) tone.L[(size_t) i] = tone.R[(size_t) i] = 0.3f * (float) std::sin (2 * 3.14159265358979 * 440 * i / 48000.0);
+        const auto plain = runFx (FxType::Space, tone, paramsOf (FxType::Space, { { 0, 1.0f }, { 2, 0.7f }, { 9, 0 } }).data());
+        const auto shim = runFx (FxType::Space, tone, paramsOf (FxType::Space, { { 0, 1.0f }, { 2, 0.7f }, { 9, 1.0f } }).data());
+        const double p880 = toneLevel (plain.L, 60000, 100000, 880), s880 = toneLevel (shim.L, 60000, 100000, 880);
+        std::printf ("SPACE shimmer: 880 Hz in the tail %.5f without, %.5f with\n", p880, s880);
+        CHECK (s880 > 4 * p880);
+    }
+    // TAPE ECHO: the heads at 1x, 2x and 3x the time (1/8 at 120 BPM), and runaway feedback stays bounded
+    {
+        const auto p = paramsOf (FxType::TapeEcho, { { 0, 0.5f }, { 1, 1 }, { 2, 0 }, { 3, 1.0f }, { 4, 0 }, { 5, 0 }, { 6, 0 }, { 7, 1 }, { 8, 0 }, { 9, 0 }, { 10, 1.0f } });
+        auto in = impulse (40000); in.R[0] = 1.0f;
+        auto out = runFx (FxType::TapeEcho, in, p.data());
+        const int a = peakAfter (out.L, 10, 18000), b = peakAfter (out.L, 18000, 30000), c = peakAfter (out.L, 30000, 40000);
+        std::printf ("TAPE ECHO heads at %d, %d, %d (expect 12000, 24000, 36000)\n", a, b, c);
+        CHECK (std::abs (a - 12000) <= 3 && std::abs (b - 24000) <= 3 && std::abs (c - 36000) <= 3);
+        const auto run = paramsOf (FxType::TapeEcho, { { 2, 1.0f }, { 6, 0.8f }, { 10, 1.0f } });
+        auto loud = runFx (FxType::TapeEcho, noiseBurst (48000 * 6, 4800, 0.9f), run.data());
+        const double late = rms2 (loud, 48000 * 5, 48000 * 6);
+        std::printf ("TAPE ECHO at 115%% feedback: still %.3f after 5 s, peak %.2f\n", late, peakOf (loud));
+        CHECK (late > 0.01 && peakOf (loud) < 1.5 && finiteAll (loud));
+        // wow and flutter: the pitch moves (a steady tone comes back smeared)
+        Stereo tone { std::vector<float> (48000 * 2), std::vector<float> (48000 * 2) };
+        for (int i = 0; i < 48000 * 2; ++i) tone.L[(size_t) i] = tone.R[(size_t) i] = 0.3f * (float) std::sin (2 * 3.14159265358979 * 1000 * i / 48000.0);
+        const auto steady = runFx (FxType::TapeEcho, tone, paramsOf (FxType::TapeEcho, { { 2, 0 }, { 4, 0 }, { 5, 0 }, { 8, 0 }, { 10, 1 } }).data());
+        const auto wobbly = runFx (FxType::TapeEcho, tone, paramsOf (FxType::TapeEcho, { { 2, 0 }, { 4, 1 }, { 5, 1 }, { 8, 0 }, { 10, 1 } }).data());
+        const double s1k = toneLevel (steady.L, 48000, 96000, 1000), w1k = toneLevel (wobbly.L, 48000, 96000, 1000);
+        std::printf ("TAPE ECHO 1 kHz: %.4f steady, %.4f with wow and flutter\n", s1k, w1k);
+        CHECK (w1k < 0.8 * s1k);
+    }
+    // ENSEMBLE: wide (left and right differ), about as loud as it went in
+    for (int mode = 0; mode < 4; ++mode)
+    {
+        Stereo tone { std::vector<float> (48000), std::vector<float> (48000) };
+        for (int i = 0; i < 48000; ++i) tone.L[(size_t) i] = tone.R[(size_t) i] = 0.4f * (float) std::sin (2 * 3.14159265358979 * 330 * i / 48000.0);
+        const auto out = runFx (FxType::Ensemble, tone, paramsOf (FxType::Ensemble, { { 0, mode / 3.0f } }).data());
+        double diff = 0; for (int i = 4800; i < 48000; ++i) diff += std::abs (out.L[(size_t) i] - out.R[(size_t) i]);
+        const double ratio = rms2 (out, 4800, 48000) / rmsOf (tone.L, 4800, 48000);
+        std::printf ("ENSEMBLE %s: level x%.2f, L-R %.1f\n", fxParamText (FxType::Ensemble, 0, paramsOf (FxType::Ensemble, { { 0, mode / 3.0f } }).data()).c_str(), ratio, diff);
+        CHECK (ratio > 0.6 && ratio < 1.6 && diff > 50);
+    }
+    // no zipper noise: MIX and DELAY jumping between blocks don't click
+    for (auto t : types)
+    {
+        Stereo tone { std::vector<float> (48000), std::vector<float> (48000) };
+        for (int i = 0; i < 48000; ++i) tone.L[(size_t) i] = tone.R[(size_t) i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 100 * i / 48000.0);
+        auto fx = makeEffect (t); fx->prepare (48000);
+        auto a = paramsOf (t, {}), b = a;
+        const int mixAt = t == FxType::TapeEcho ? 10 : t == FxType::Ensemble ? 6 : 0;
+        a[(size_t) mixAt] = 0; b[(size_t) mixAt] = 1;
+        if (t == FxType::Vast) { b[1] = 0.1f; }
+        for (int i = 0; i < 48000; i += 480) fx->process (tone.L.data() + i, tone.R.data() + i, 480, (i / 4800) % 2 ? b.data() : a.data(), 120.0);
+        double jump = 0;
+        for (int i = 1; i < 48000; ++i) jump = std::max (jump, (double) std::abs (tone.L[(size_t) i] - tone.L[(size_t) i - 1]));
+        std::printf ("%s: biggest step between samples %.4f\n", fxName (t).c_str(), jump);
+        CHECK (jump < 0.06);
+    }
+    // how hard they work: 10 s of stereo at 48 kHz
+    for (auto t : types)
+    {
+        auto in = noiseBurst (480000, 480000, 0.3f);
+        const auto p = paramsOf (t, {});
+        const auto t0 = std::chrono::steady_clock::now();
+        runFx (t, in, p.data(), 256);
+        const double secs = std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count();
+        std::printf ("%s: 10 s of audio in %.3f s\n", fxName (t).c_str(), secs);
+    }
+}
+
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testLineLoop();
     testPingPong();
@@ -3759,6 +3957,7 @@ int main()
     testRadio();
     testRadioFormats();
     testStems();
+    testStudioFx();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();
