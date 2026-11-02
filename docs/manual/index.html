@@ -118,7 +118,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.36</span>
+  <span class="ver">MANUAL &middot; V0.37</span>
 </header>
 
 <div class="app">
@@ -680,6 +680,27 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>One value per line per knob, and only when it changes. What the pattern plays back isn't recorded again.</li>
     <li>A whole pass, until you stop, is one undo step.</li>
   </ul>
+  <h3>Envelopes: drawing automation</h3>
+  <p><span class="b on">AUTOMATION</span> on the bottom row opens the envelope panel under the pattern, where the spectrum was. Drag its top edge to resize it. It shows the block and track you're on.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/envelopes.png" alt="The pattern with the AUTOMATION panel under it: TRACK 1 BLOCK 000, a search box, the track's controls (VOLUME, SEND A, SEND B, 1 TAPE TIME...) with stars on the automated ones, POINTS LINES CURVES DRAW LINE SNAP COPY PASTE CLEAR, and a curved envelope across the block with the play line on it." width="1440" height="900" loading="lazy"></div>
+    <figcaption>An envelope on TAPE ECHO's feedback, bent with CURVES, while the block plays</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>DO</th><th>WHAT HAPPENS</th></tr></thead>
+    <tbody>
+      <tr><td>Pick a control (left)</td><td>VOLUME, SENDS, the track's inserts, the instrument's own inserts and parameters, MACROs. <code>*</code> = has an envelope here. Type to search; AUTOMATED ONLY.</td></tr>
+      <tr><td>Double-click</td><td>Adds a point (snapped); on a point, removes it. <kbd>Delete</kbd> removes the selected one.</td></tr>
+      <tr><td>Drag a point</td><td>Moves it, with a readout of the line and the real value. <kbd>Shift</kbd> leaves the snap.</td></tr>
+      <tr><td><span class="b">POINTS</span> / <span class="b">LINES</span> / <span class="b">CURVES</span></td><td>Steps, straight lines, or bends: drag a line up or down to bend it.</td></tr>
+      <tr><td><span class="b">DRAW</span> / <span class="b">LINE</span></td><td>Paint a point on every line as you drag / drag a straight ramp.</td></tr>
+      <tr><td><span class="b">SNAP</span>, <span class="b">COPY</span>, <span class="b">PASTE</span>, <span class="b">CLEAR</span></td><td>Lines, beats or off; copy an envelope to another control or block; remove it.</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>Envelopes belong to their block, and DOUBLE / HALVE take them along. When the block stops the control goes back to its own setting.</li>
+    <li>Saved in the song (v0.37 or later), undoable, and in renders.</li>
+  </ul>
   <h3>Modulation</h3>
   <p><span class="b">MODULATION</span> on the mixer's strips page opens 16 modulators. Each has a <b>SOURCE</b> and up to 8 <b>TARGETS</b> &mdash; any built-in effect control, a plug-in's parameter, or a track's VOLUME, SEND A or SEND B &mdash; each with its own <b>AMOUNT</b> (&minus;100% to +100%).</p>
   <figure>
@@ -980,6 +1001,6 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.36</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.37</footer>
 </main>
 </div>

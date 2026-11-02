@@ -597,6 +597,8 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("fourTrack", e.fourTrackView, nullptr);
     st.setProperty ("dark", e.darkSkin, nullptr);
     st.setProperty ("spectrum", e.showSpectrum, nullptr);
+    st.setProperty ("automation", e.showAutomation, nullptr);
+    st.setProperty ("autoHeight", e.autoHeight, nullptr);
     st.setProperty ("fx2", e.showFx2, nullptr);
     st.setProperty ("zoom", e.uiZoom, nullptr);
     st.setProperty ("follow", e.follow, nullptr);
@@ -639,6 +641,8 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.fourTrackView = st.getProperty ("fourTrack", true);
     e.darkSkin = st.getProperty ("dark", true);
     e.showSpectrum = st.getProperty ("spectrum", true);
+    e.showAutomation = st.getProperty ("automation", false);
+    e.autoHeight = st.getProperty ("autoHeight", 0);
     e.showFx2 = st.getProperty ("fx2", false);
     e.uiZoom = st.getProperty ("zoom", 0);
     e.follow = st.getProperty ("follow", true);

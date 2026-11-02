@@ -91,8 +91,19 @@ void MixerEngine::syncEffects (const MixerSettings& m, std::vector<std::unique_p
     apply (changes, old);
 }
 
+void MixerEngine::releaseAutomation (int slot, int param)
+{
+    if (slot >= 0 && slot < kTotalSlots && param >= 0 && param < kFxParams) autoParam[slot][param] = -1.0f;
+}
+
+void MixerEngine::setStripAutomation (int track, int what, float v)
+{
+    if (track >= 0 && track < kMixTracks && what >= 0 && what < kModStripParams) stripAuto[track][what] = v < 0 ? -1.0f : std::clamp (v, 0.0f, 1.0f);
+}
+
 void MixerEngine::clearAutomation()
 {
+    for (auto& s : stripAuto) for (auto& a : s) a = -1.0f;
     for (auto& s : autoParam) for (auto& a : s) a = -1.0f;
     for (int m = 0; m < kMods; ++m) mods.setMacro (m, -1.0f);   // (MACROs back to their knobs)
     clearOnOff();
@@ -207,7 +218,8 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         if (tapsLive && chTap.source.load (std::memory_order_relaxed) == t) chTap.push (L, R, n);
         runInserts (c.inserts, trackSlot (t, 0), L, R, n, bpm);
         trackAlign[t].process (L, R, n, maxLat - lat[t] + extraDelay);
-        const float g = dbToGain (c.volumeDb);
+        const float* sa = stripAuto[t];
+        const float g = dbToGain (sa[0] >= 0 ? faderPosToDb (sa[0]) : c.volumeDb);
         // modulated VOLUME / SENDS glide across the block from where the last one ended
         const float* mulNew = mods.stripMul[t];
         float* mulOld = stripMulNow[t];
@@ -215,7 +227,7 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         const float inv = 1.0f / (float) std::max (1, n);
         for (int r = 0; r < kReturns; ++r)
         {
-            const float s = c.send[r] * (c.sendPre[r] ? 1.0f : g);
+            const float s = (sa[1 + r] >= 0 ? sa[1 + r] : c.send[r]) * (c.sendPre[r] ? 1.0f : g);
             if (s <= 0.0f) continue;
             if (! ramp) { for (int i = 0; i < n; ++i) { sendL[r][(size_t) i] += L[i] * s; sendR[r][(size_t) i] += R[i] * s; } continue; }
             const float a = mulOld[1 + r], b = mulNew[1 + r];

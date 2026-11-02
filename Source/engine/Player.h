@@ -108,6 +108,9 @@ public:
     // While playing a block: move to block `b` at the same line and tick (no restart). False if not in block play.
     bool switchBlock (int b);
     int  playingBlock() const { return block; }
+    // where playback is heard (the block, and the line with the part of it done) - for the AUTOMATION panel
+    std::atomic<int> uiEnvBlock { -1 };
+    std::atomic<float> uiEnvPos { -1.0f };
     void stop();
     Mode getMode() const { return mode; }
 
@@ -256,6 +259,12 @@ private:
     int  rowGlide = 0; bool knobSetThisRow = false;
     void setLane (Lane&, float value, int glide, int kind, int a, int b);
     void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob
+    // graphical AUTOMATION: the heard block's envelopes, where it's got to (true: some are moving)
+    bool applyEnvelopes();
+    void releaseEnvelope (int target, int param);
+    static constexpr int kMaxEnvTargets = 64;
+    struct EnvTarget { int target, param; };
+    EnvTarget envSet[kMaxEnvTargets]; int envSetCount = 0;
     int  instOnOv[kMaxInstruments];   // automated on/off of a plug-in instrument: -1 = its ON button
     void advanceAutomation();
 

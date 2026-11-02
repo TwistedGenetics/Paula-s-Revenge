@@ -68,11 +68,57 @@ struct Cell
     }
 };
 
+// ---- graphical AUTOMATION: a block's envelopes. Each moves one control while the block plays:
+// a mixer slot's effect parameter (target = slot), a track's strip (kModStripBase + track: 0
+// VOLUME as the fader's travel, 1 SEND A, 2 SEND B), a MACRO (kModMacroBase + mod) or a plug-in
+// instrument's parameter (kAutoInstrumentBase + instrument).
+enum class AutoShape : uint8_t { Points = 0, Lines, Curves, Count };   // hold / straight / bent
+struct AutoPoint
+{
+    float pos = 0;          // in lines from the top of the block (fractions allowed)
+    float value = 0.5f;     // 0..1
+    float curve = 0;        // CURVES: how the way to the next point bends (-1..1)
+    bool operator== (const AutoPoint& o) const { return pos == o.pos && value == o.value && curve == o.curve; }
+};
+struct AutoLane
+{
+    int target = -1, param = -1;
+    AutoShape shape = AutoShape::Lines;
+    std::vector<AutoPoint> points;      // in order of pos
+    std::string name;                   // "TRACK 1 TAPE ECHO: FEEDBACK"
+    bool valid() const { return target >= 0 && param >= 0; }
+    bool operator== (const AutoLane& o) const { return target == o.target && param == o.param && shape == o.shape && points == o.points && name == o.name; }
+    // the value at a position (before the first point: the first's; after the last: the last's)
+    float valueAt (double pos) const
+    {
+        if (points.empty()) return 0.5f;
+        if (pos <= points.front().pos) return points.front().value;
+        if (pos >= points.back().pos) return points.back().value;
+        size_t i = 1;
+        while (i < points.size() && points[i].pos <= pos) ++i;
+        const auto& a = points[i - 1];
+        const auto& b = points[i];
+        if (shape == AutoShape::Points || b.pos <= a.pos) return a.value;
+        double t = (pos - a.pos) / (b.pos - a.pos);
+        if (shape == AutoShape::Curves && a.curve != 0.0f)
+        {
+            // bent: fast then slow (curve > 0) or slow then fast (curve < 0)
+            const double k = std::pow (2.0, -3.0 * a.curve);
+            t = std::pow (t, k);
+        }
+        return (float) (a.value + (b.value - a.value) * t);
+    }
+    void sort() { std::stable_sort (points.begin(), points.end(), [] (const AutoPoint& x, const AutoPoint& y) { return x.pos < y.pos; }); }
+};
+
 struct Block
 {
     int lines = kDefaultLines;
     std::string name;                  // shown in the sequence list (empty = none)
     std::vector<std::array<Cell, kMaxTracks>> rows = std::vector<std::array<Cell, kMaxTracks>> (kMaxLines);
+    std::vector<AutoLane> lanes;       // AUTOMATION envelopes
+    AutoLane* lane (int target, int param) { for (auto& l : lanes) if (l.target == target && l.param == param) return &l; return nullptr; }
+    const AutoLane* lane (int target, int param) const { for (auto& l : lanes) if (l.target == target && l.param == param) return &l; return nullptr; }
 
     Cell&       at (int line, int track)       { return rows[(size_t) line][(size_t) track]; }
     const Cell& at (int line, int track) const { return rows[(size_t) line][(size_t) track]; }

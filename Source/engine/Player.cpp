@@ -273,6 +273,57 @@ void Player::applyLane (int kind, int a, int b, float v)
     }
 }
 
+void Player::releaseEnvelope (int target, int param)
+{
+    if (target >= 0 && target < kTotalSlots) mixerEngine.releaseAutomation (target, param);
+    else if (target >= kModStripBase && target < kModStripBase + kMixTracks) mixerEngine.setStripAutomation (target - kModStripBase, param, -1.0f);
+    else if (target >= kModMacroBase && target < kModMacroBase + kMods) mixerEngine.mods.setMacro (target - kModMacroBase, -1.0f);
+}
+
+bool Player::applyEnvelopes()
+{
+    const bool playing = song != nullptr && mode != Mode::Stopped && rowBlock >= 0 && rowBlock < (int) song->blocks.size();
+    int count = 0;
+    EnvTarget now[kMaxEnvTargets];
+    if (playing)
+    {
+        const Block& b = song->blocks[(size_t) rowBlock];
+        const double spt = samplesPerTick();
+        const double frac = spt > 0 ? std::clamp (1.0 - tickRemain / spt, 0.0, 1.0) : 0.0;
+        const double pos = rowLine + std::clamp ((rowTicks + frac) / std::max (1, speed), 0.0, 0.9999);
+        uiEnvBlock.store (rowBlock, std::memory_order_relaxed);
+        uiEnvPos.store ((float) pos, std::memory_order_relaxed);
+        for (const auto& l : b.lanes)
+        {
+            if (! l.valid() || l.points.empty() || count >= kMaxEnvTargets) continue;
+            const float v = l.valueAt (pos);
+            if (l.target < kTotalSlots)
+            {
+                if (song->mixer.slot (l.target).type == FxType::Plugin) { if (auto* fx = mixerEngine.effectAt (l.target)) fx->setParameter (l.param, v); }
+                else mixerEngine.setAutomation (l.target, l.param, v);
+            }
+            else if (l.target >= kModStripBase && l.target < kModStripBase + kMixTracks) mixerEngine.setStripAutomation (l.target - kModStripBase, l.param, v);
+            else if (l.target >= kModMacroBase && l.target < kModMacroBase + kMods) mixerEngine.mods.setMacro (l.target - kModMacroBase, v);
+            else if (l.target >= kAutoInstrumentBase && l.target < kAutoInstrumentBase + kMaxInstruments)
+            {
+                if (auto* s = rack.at (l.target - kAutoInstrumentBase)) s->setParameterAt (l.param, v, 0);
+            }
+            now[count++] = { l.target, l.param };
+        }
+    }
+    else { uiEnvBlock.store (-1, std::memory_order_relaxed); uiEnvPos.store (-1.0f, std::memory_order_relaxed); }
+    // what had an envelope last time and hasn't now goes back to its own setting
+    for (int i = 0; i < envSetCount; ++i)
+    {
+        bool still = false;
+        for (int j = 0; j < count && ! still; ++j) still = now[j].target == envSet[i].target && now[j].param == envSet[i].param;
+        if (! still) releaseEnvelope (envSet[i].target, envSet[i].param);
+    }
+    std::copy (now, now + count, envSet);
+    envSetCount = count;
+    return count > 0;
+}
+
 void Player::setLane (Lane& l, float value, int glide, int kind, int a, int b)
 {
     knobSetThisRow = true;
@@ -1532,7 +1583,8 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (in.shapesSynth() && rack.at (ins) != nullptr) shaped[numShaped++] = ins;
         }
     // (and while the EQ's spectrum shows a channel: it's taken from the channel's strip)
-    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility
+    const bool envelopes = applyEnvelopes();   // (AUTOMATION: before anything plays this chunk)
+    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility || envelopes
                                                || mixerEngine.chTap.source.load (std::memory_order_relaxed) >= 0);
     // the EQ's spectrum display: one instrument's sound (tapIns), copied as it goes past
     const bool tapsLive = mode != Mode::Stopped || [&]

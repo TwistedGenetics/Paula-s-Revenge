@@ -4221,9 +4221,67 @@ static void testModulation()
     }
 }
 
+// ---- graphical AUTOMATION (envelopes in the blocks)
+static void testEnvelopes()
+{
+    std::printf ("\n== automation envelopes\n");
+    AutoLane l; l.target = kModStripBase; l.param = 0;
+    l.points = { { 0, 0.0f, 0 }, { 8, 1.0f, 0 }, { 16, 0.5f, 0 } };
+    l.shape = AutoShape::Lines;
+    CHECK (std::abs (l.valueAt (4) - 0.5f) < 1e-5f && std::abs (l.valueAt (12) - 0.75f) < 1e-5f && l.valueAt (-1) == 0.0f && l.valueAt (40) == 0.5f);
+    l.shape = AutoShape::Points;
+    CHECK (l.valueAt (7.9) == 0.0f && l.valueAt (8) == 1.0f && l.valueAt (15) == 1.0f);
+    l.shape = AutoShape::Curves; l.points[0].curve = 1.0f;
+    const float bent = l.valueAt (4);
+    l.points[0].curve = -1.0f;
+    const float other = l.valueAt (4);
+    std::printf ("curves at the middle: %.3f (bent up) %.3f (bent down), straight 0.5\n", bent, other);
+    CHECK (bent > 0.6f && other < 0.4f);
+    // DOUBLE / HALVE take the envelopes along
+    {
+        Block b; b.lines = 16;
+        AutoLane a; a.target = 3; a.param = 1; a.points = { { 0, 0.1f, 0 }, { 10, 0.9f, 0 } };
+        b.lanes.push_back (a);
+        CHECK (doubleBlockLength (b) && b.lanes[0].points.size() == 4 && b.lanes[0].points[2].pos == 16.0f && b.lanes[0].points[3].pos == 26.0f);
+        bool diff = false;
+        CHECK (halveBlockLength (b, diff) && b.lanes[0].points.size() == 2);
+        CHECK (b.lane (3, 1) != nullptr && b.lane (3, 2) == nullptr);
+    }
+    // playing: every track's VOLUME fades out over the block
+    {
+        Song s = makeSong();
+        s.sequence = { 0 };
+        for (int t = 0; t < s.numTracks; ++t)
+        {
+            AutoLane v; v.target = kModStripBase + t; v.param = 0; v.name = "VOLUME";
+            v.points = { { 0, faderDbToPos (0), 0 }, { 32, 0.0f, 0 } };
+            s.blocks[0].lanes.push_back (v);
+        }
+        CHECK (s.mixer.isFlat());   // (the mixer itself is untouched: the envelopes switch its path on)
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.playBlock (0);
+        const int lineLen = (int) (48000 * 2.5 / 125 * 6);   // 6 ticks a line at 125
+        std::vector<float> L ((size_t) lineLen * 40), R (L.size());
+        double early = 0, late = 0, posMid = -1;
+        for (int k = 0; k < 40; ++k)
+        {
+            p.render (L.data() + (size_t) k * lineLen, R.data() + (size_t) k * lineLen, lineLen);
+            if (k == 15) posMid = p.uiEnvPos.load();
+        }
+        early = rmsOf (L, lineLen * 1, lineLen * 6);
+        late = rmsOf (L, lineLen * 28, lineLen * 31);
+        const double after = rmsOf (L, lineLen * 34, lineLen * 39);
+        std::printf ("envelope fade: rms %.4f early, %.4f near the end, %.4f after (silent); position at line 16: %.2f\n", early, late, after, posMid);
+        CHECK (early > 0.02 && late < 0.25 * early && after < 0.01 * early + 1e-6 && posMid > 15.0 && posMid < 16.5);
+        p.stop();
+        p.render (L.data(), R.data(), 512);
+        CHECK (p.uiEnvBlock.load() == -1);
+    }
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testLineLoop();
     testPingPong();
@@ -4259,6 +4317,7 @@ int main()
     testStems();
     testStudioFx();
     testModulation();
+    testEnvelopes();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

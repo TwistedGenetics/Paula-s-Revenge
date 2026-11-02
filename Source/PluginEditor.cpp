@@ -26,6 +26,16 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     Theme::setSkin (st.darkSkin);
     skinBtn.onClick = [this, &st] { st.darkSkin = skinBtn.getToggleState(); Theme::setSkin (st.darkSkin); repaint(); refreshAll(); };
     specBtn.onClick = [this, &st] { st.showSpectrum = specBtn.getToggleState(); resized(); };
+    autoBtn.onClick = [this, &st]
+    {
+        st.showAutomation = autoBtn.getToggleState();
+        if (st.showAutomation && st.view != View::Pattern) setView (View::Pattern);
+        automation.refresh();
+        resized();
+        setStatus (st.showAutomation ? "AUTOMATION: PICK A CONTROL ON THE LEFT, DOUBLE-CLICK THE GRAPH TO ADD POINTS (DRAG ITS TOP EDGE TO RESIZE)" : "AUTOMATION HIDDEN (THE ENVELOPES STILL PLAY)");
+    };
+    automation.onStatus = [this] (const juce::String& t) { setStatus (t); };
+    automation.onResize = [this, &st] (int h) { st.autoHeight = juce::jmax ((int) (prv::ui::Theme::px * 60), h); resized(); };
 
     // ---- title bar
     newBtn.onClick  = [this] { newSong(); };
@@ -339,13 +349,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     browser.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (sampleEditor);
     addChildComponent (browser);
+    addChildComponent (automation);
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
             &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
-            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &radioBtn, &spectrum,
+            &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &radioBtn, &autoBtn, &spectrum,
             &pattern, &sequence, &blockPanel, &instruments })
         addAndMakeVisible (c);
 
@@ -517,6 +528,8 @@ void PaulaEditor::refreshAll()
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
     skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
+    autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
+    automation.refresh();
     fx2Btn.setToggleState (st.showFx2, juce::dontSendNotification);
     recAutoBtn.setToggleState (st.recAuto, juce::dontSendNotification);
     grooveBtn.setToggleState (proc.song.grooveKind != 0, juce::dontSendNotification);
@@ -566,6 +579,7 @@ void PaulaEditor::timerCallback()
         if ((f == nullptr || f == this) && isShowing() && getPeer() != nullptr && getPeer()->isFocused()) pattern.grabKeyboardFocus();
     }
     pattern.tick();
+    if (automation.isVisible()) automation.tick();
     if (spectrum.isVisible())
     {
         // at instrument level (its PARAMS or plug-in page) the strip shows just that instrument
@@ -749,6 +763,7 @@ void PaulaEditor::resized()
     recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     grooveBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     radioBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
+    autoBtn.setBounds (status.removeFromLeft (charsW (10))); status.removeFromLeft (gap);
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -797,8 +812,17 @@ void PaulaEditor::resized()
         left.removeFromTop (gap);
         instruments.setBounds (left);
     }
-    spectrum.setVisible (st.showSpectrum && ! wideView);
-    if (st.showSpectrum)
+    // AUTOMATION under the pattern takes the spectrum's place (and as much room as it's dragged to)
+    const bool autoShown = st.showAutomation && st.view == View::Pattern;
+    automation.setVisible (autoShown);
+    spectrum.setVisible (st.showSpectrum && ! wideView && ! autoShown);
+    if (autoShown)
+    {
+        const int h = juce::jlimit ((int) (px * 60), std::max ((int) (px * 60), main.getHeight() - (int) (px * 80)), st.autoHeight > 0 ? st.autoHeight : (int) (main.getHeight() * 0.42f));
+        automation.setBounds (main.removeFromBottom (h));
+        main.removeFromBottom (gap);
+    }
+    else if (st.showSpectrum)
     {
         spectrum.setBounds (main.removeFromBottom ((int) (px * 22)));
         main.removeFromBottom (gap);

@@ -95,6 +95,12 @@ bool doubleBlockLength (Block& b)
     const int n = b.lines;
     if (n < 1 || n * 2 > kMaxLines) return false;
     for (int l = 0; l < n; ++l) b.rows[(size_t) (n + l)] = b.rows[(size_t) l];
+    for (auto& lane : b.lanes)   // the envelopes repeat too
+    {
+        const auto first = lane.points;
+        for (const auto& p : first) if (p.pos < n) { auto q = p; q.pos += (float) n; lane.points.push_back (q); }
+        lane.sort();
+    }
     b.lines = n * 2;
     return true;
 }
@@ -117,6 +123,8 @@ bool halveBlockLength (Block& b, bool& secondHalfDiffered)
         }
         b.rows[(size_t) l].fill (Cell{});
     }
+    for (auto& lane : b.lanes)
+        lane.points.erase (std::remove_if (lane.points.begin(), lane.points.end(), [keep] (const AutoPoint& p) { return p.pos >= (float) keep; }), lane.points.end());
     b.lines = keep;
     return true;
 }

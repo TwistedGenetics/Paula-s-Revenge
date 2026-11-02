@@ -216,6 +216,22 @@ double freqShiftHz (float v);              // -1000 .. +1000 HZ (finer near 0)
 double ringHz (float v);                   // 1 .. 2000 HZ
 std::string divisionName (float v);        // "1/8 D" ...
 
+// a fader's travel (0 = off, 1 = +6 dB, 0 dB at 0.875) in dB, as the mixer's faders
+inline float faderPosToDb (float pos)
+{
+    pos = pos < 0 ? 0 : (pos > 1 ? 1 : pos);
+    if (pos <= 0.003f) return -60.0f;
+    if (pos < 0.25f) return -60.0f + 30.0f * pos / 0.25f;
+    return -30.0f + 36.0f * (pos - 0.25f) / 0.75f;
+}
+inline float faderDbToPos (float db)
+{
+    if (db <= -59.9f) return 0.0f;
+    if (db < -30.0f) return 0.25f * (db + 60.0f) / 30.0f;
+    const float p = 0.25f + 0.75f * (db + 30.0f) / 36.0f;
+    return p > 1 ? 1 : p;
+}
+
 // Delay time in seconds for parameters p (time, sync) at a song tempo (BPM)
 double delaySeconds (const float* p, double bpm);
 // the same for a time and a SYNC switch anywhere: free 1 ms .. 2 s, or a note length

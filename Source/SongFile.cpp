@@ -11,7 +11,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 25;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 26;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
@@ -20,7 +20,7 @@ namespace
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
                                   // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE,
                                   // v23: the instruments' own EQ, v24: effect parameters 7-12 (the studio effects),
-                                  // v25: MODULATION
+                                  // v25: MODULATION, v26: AUTOMATION envelopes in the blocks
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -394,6 +394,27 @@ juce::MemoryBlock writeSong (const Song& song)
                 raw.writeIntBigEndian (r.target); raw.writeIntBigEndian (r.param);
                 raw.writeFloatBigEndian (r.amount); raw.writeFloatBigEndian (r.base);
                 writeLong (raw, r.name.data(), r.name.size());
+            }
+        }
+    }
+
+    // v26: AUTOMATION envelopes (blocks that have any)
+    {
+        int used = 0;
+        for (const auto& b : song.blocks) if (! b.lanes.empty()) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < (int) song.blocks.size(); ++i)
+        {
+            const auto& b = song.blocks[(size_t) i];
+            if (b.lanes.empty()) continue;
+            raw.writeShortBigEndian ((short) i);
+            raw.writeShortBigEndian ((short) b.lanes.size());
+            for (const auto& l : b.lanes)
+            {
+                raw.writeIntBigEndian (l.target); raw.writeIntBigEndian (l.param); raw.writeByte ((char) l.shape);
+                writeLong (raw, l.name.data(), l.name.size());
+                raw.writeIntBigEndian ((int) l.points.size());
+                for (const auto& p : l.points) { raw.writeFloatBigEndian (p.pos); raw.writeFloatBigEndian (p.value); raw.writeFloatBigEndian (p.curve); }
             }
         }
     }
@@ -819,6 +840,34 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 }
                 if (bad) break;
                 if (i < kMods) s.mixer.mods.mod[i] = md;
+            }
+        }
+        if (version >= 26 && ! in.isExhausted())
+        {
+            const int used = (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int bi = (int) (uint16_t) in.readShortBigEndian();
+                const int lanes = (int) (uint16_t) in.readShortBigEndian();
+                std::vector<AutoLane> got;
+                bool bad = false;
+                for (int k = 0; k < lanes && ! in.isExhausted(); ++k)
+                {
+                    AutoLane l;
+                    l.target = in.readIntBigEndian(); l.param = in.readIntBigEndian();
+                    l.shape = (AutoShape) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) AutoShape::Count - 1);
+                    std::vector<uint8_t> nm;
+                    if (! readLong (in, nm, 1 << 12)) { bad = true; break; }
+                    l.name.assign (nm.begin(), nm.end());
+                    const int np = in.readIntBigEndian();
+                    if (np < 0 || np > 100000 || (int64_t) np * 12 > in.getNumBytesRemaining()) { bad = true; break; }
+                    l.points.resize ((size_t) np);
+                    for (auto& p : l.points) { p.pos = readFloat (in, 0.0f, (float) kMaxLines, 0.0f); p.value = readFloat (in, 0.0f, 1.0f, 0.5f); p.curve = readFloat (in, -1.0f, 1.0f, 0.0f); }
+                    l.sort();
+                    if (l.valid()) got.push_back (std::move (l));
+                }
+                if (bad) break;
+                if (bi < (int) s.blocks.size()) s.blocks[(size_t) bi].lanes = std::move (got);
             }
         }
     }

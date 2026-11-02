@@ -141,6 +141,8 @@ public:
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)
         bool showSpectrum = true;
+        bool showAutomation = false;  // AUTOMATION: the envelopes under the pattern (in the spectrum's place)
+        int  autoHeight = 0;          // its height in pixels (0 = a third of the pattern's area)
         bool showFx2 = false;         // second effect column (FX2 button)
         int  uiZoom = 0;        // -2..+3 text size adjust
         juce::String lastFolder;      // songs

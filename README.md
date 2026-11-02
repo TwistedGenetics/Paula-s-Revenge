@@ -623,6 +623,19 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 * **Recording by hand (REC AUTO)**: switch on **REC AUTO** on the bottom row, turn EDIT on and play the song or block. Moving a learned control then writes its command on the line that's playing: AUTO A writes `Vxx`, AUTO B `Jxx`, and a plug-in or MIDI-out instrument's own knobs write `Lxx` / `Qxx` / `Hxx` / `Wxx` on the track that's playing that instrument. A learned control can be a built-in effect's slider, a knob in a plug-in's own window, or a MIDI-out instrument's SEND bars. It goes in the first effect column if that's empty (or already holds the same letter), otherwise in the second (FX2 shows it). If both hold other commands, that line is skipped (never overwritten) and the status line says so. Each line gets at most one value per knob, and a value the same as the last one written isn't written again. Values the pattern itself plays back aren't recorded again. Everything recorded in one pass (until you stop) is one undo step. Nothing is written when EDIT is off. (ON/OFF knobs aren't recorded: type `V00` / `V01`.)
 * Knobs are saved in the song and are undo steps. Built-in effects go back to their slider settings when automation stops. On/off switching starts again from the BYPASS and ON buttons each time the song or block starts or stops, and clicking BYPASS (or ON) takes back control from the pattern.
 
+## Automation envelopes (drawn)
+
+**AUTOMATION** on the bottom row opens the envelope panel under the pattern, in place of the spectrum (drag its top edge to make it taller or shorter). It shows the current block, and follows the block and track you're on.
+
+* **Left:** the current track's controls — VOLUME, SEND A, SEND B, every control of its three inserts, the current instrument's own inserts (and a plug-in instrument's parameters), and any MACRO modulators. `*` marks the ones with an envelope in this block. Type to search (Backspace, Esc clears); **AUTOMATED ONLY** shows just the ones with envelopes.
+* **Right:** the selected control's envelope across the block, a line per row, beats and bars marked. While the block plays, a line moves across it.
+* **Double-click** to add a point (snapped), **double-click a point** to remove it, **drag** a point to move it (it can't pass its neighbours; hold Shift to leave the snap). A readout shows the line and the real value (Hz, ms, dB…). **Delete** removes the selected point.
+* **POINTS** holds each value until the next point (steps), **LINES** goes straight between them, **CURVES** bends them: drag a line up or down to bend it.
+* **DRAW**: drag across the graph to paint a point on every line (beat, or quarter-line with snap off). **LINE**: drag a straight ramp — the points under it are replaced by its two ends.
+* **SNAP: LINES / BEATS / OFF**, **COPY** / **PASTE** (between controls and blocks) and **CLEAR** (the envelope).
+
+Envelopes belong to their block: a block played twice plays its envelopes twice, and DOUBLE / HALVE take them along. Before the first point the control sits at the first point's value, after the last at the last's. When the block stops (or the next block has no envelope for that control) the control goes back to its own setting. They're undoable, saved in the song (v0.37 or later), and used by RENDER. An envelope and `V` / `J` on the same control: the latest wins.
+
 ## Plug-in instruments (VST3 / AU)
 
 (On a PC: VST3 only.)

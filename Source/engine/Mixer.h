@@ -40,6 +40,9 @@ public:
     // automation (audio thread): a slot's parameter to value 0..1. Built-in effects take it
     // in place of the slot's own value until the slot changes; plug-ins get it directly.
     void setAutomation (int slot, int param, float value01);
+    void releaseAutomation (int slot, int param);           // a built-in control back to its slider
+    // a track's VOLUME (fader travel 0..1) / SEND A / SEND B from AUTOMATION (-1 = its own setting)
+    void setStripAutomation (int track, int what, float value01);
     void clearAutomation();
     void clearOnOff (int slot = -1);   // on/off automation back to the slot's BYPASS button (-1 = every slot)
     int  onOffOverride (int slot) const { return slot >= 0 && slot < kTotalSlots ? autoOn[slot] : -1; }
@@ -91,6 +94,7 @@ private:
     float autoParam[kTotalSlots][kFxParams];   // automated built-in values (< 0 = not automated)
     float stripMulNow[kMixTracks][kModStripParams];   // the modulated VOLUME / SENDS the last block ended on
     bool  anyModLeft = false;                          // modulation was on last block
+    float stripAuto[kMixTracks][kModStripParams];      // automated VOLUME / SENDS (< 0 = not)
     int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];
     DelayLine slotDelay[kTotalSlots];      // a bypassed plug-in keeps its delay

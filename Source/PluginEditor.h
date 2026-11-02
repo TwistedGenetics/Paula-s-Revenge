@@ -6,6 +6,7 @@
 #include <optional>
 #include <thread>
 #include "PluginProcessor.h"
+#include "ui/AutomationPanel.h"
 #include "ui/Widgets.h"
 #include "Autosave.h"
 #include "ui/PatternEditor.h"
@@ -68,6 +69,7 @@ public:
     prv::ui::PatternEditor& getPattern() { return pattern; }
     prv::ui::SequencePanel& getSequence() { return sequence; }
     prv::ui::Spectrum& getSpectrum() { return spectrum; }
+    prv::ui::AutomationPanel& getAutomation() { return automation; }
     prv::ui::InstrumentPanel& getInstruments() { return instruments; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
     // the File menu (the standalone's menu bar; tests)
@@ -185,7 +187,7 @@ private:
     // song strip
     PixButton viewBtn { "BIG VIEW", true };
     PixButton mixerBtn { "MIXER", true };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true }, radioBtn { "RADIO", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true }, radioBtn { "RADIO", true }, autoBtn { "AUTOMATION", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
@@ -193,6 +195,7 @@ private:
     prv::ui::BlockPanel blockPanel;
     prv::ui::InstrumentPanel instruments;
     prv::ui::Spectrum spectrum;
+    prv::ui::AutomationPanel automation { proc };
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;
