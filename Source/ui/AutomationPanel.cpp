@@ -13,6 +13,9 @@ namespace
     juce::String fullName (PaulaProcessor& proc, int target, int param)
     {
         if (target >= kModMacroBase && target < kModMacroBase + kMods) return "MOD " + juce::String (target - kModMacroBase + 1) + " MACRO";
+        if (target >= kInstMacroBase && target < kInstMacroBase + kMixInstruments * kInstMacros)
+            return "INSTRUMENT " + juce::String::toHexString ((target - kInstMacroBase) / kInstMacros + 1).toUpperCase().paddedLeft ('0', 2)
+                 + " MACRO " + juce::String ((target - kInstMacroBase) % kInstMacros + 1);
         if (target >= kAutoInstrumentBase && target < kAutoInstrumentBase + kMaxInstruments)
         {
             const int ins = target - kAutoInstrumentBase;
@@ -113,6 +116,8 @@ void AutomationPanel::rebuildList()
     // the instrument being played: its own inserts, and a plug-in's own parameters
     const int ins = juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument);
     const juce::String insName = "I" + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2) + " ";
+    for (int k = 0; k < kInstMacros; ++k)
+        if (proc.song.mixer.instMacro[ins][k].routes() > 0) add (kInstMacroBase + ins * kInstMacros + k, 0, insName + "MACRO " + juce::String (k + 1));
     for (int k = 0; k < kInserts; ++k) addSlot (instrumentSlot (ins, k), insName);
     if (auto* sy = proc.synthAt (ins))
     {

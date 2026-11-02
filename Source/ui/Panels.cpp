@@ -768,6 +768,9 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c)
             for (auto& s : proc.song.sequence)
                 if (s > del) --s;
                 else if (s == del) s = std::max (0, del - 1);
+            for (auto& in : proc.song.instruments)   // (PHRASEs keep pointing at the same block; its own goes)
+                if (in.phraseBlock == del) in.phraseBlock = -1;
+                else if (in.phraseBlock > del) --in.phraseBlock;
         });
         st.block = std::max (0, del - 1);
         st.line = std::min (st.line, proc.song.blocks[(size_t) st.block].lines - 1);

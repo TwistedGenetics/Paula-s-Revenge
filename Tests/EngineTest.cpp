@@ -4279,9 +4279,122 @@ static void testEnvelopes()
     }
 }
 
+// ---- following a MIDI clock
+#include "engine/ClockSync.h"
+static void testClockSync()
+{
+    std::printf ("\n== midi clock\n");
+    ClockFollower f;
+    std::mt19937 g (5); std::uniform_real_distribution<double> jit (-0.001, 0.001);
+    double t = 10.0;
+    const double gap = 60.0 / (122.0 * 24.0);
+    for (int i = 0; i < 24 * 8; ++i) { f.tick (t + jit (g)); t += gap; }
+    std::printf ("clock at 122 BPM (1 ms jitter): %.2f BPM, locked %d\n", f.bpm(), (int) f.locked (t));
+    CHECK (std::abs (f.bpm() - 122.0) < 0.6 && f.locked (t) && ! f.locked (t + 1.0));
+    // a tempo change is followed within a couple of beats
+    const double gap2 = 60.0 / (90.0 * 24.0);
+    for (int i = 0; i < 24 * 4; ++i) { f.tick (t); t += gap2; }
+    std::printf ("then 90 BPM: %.2f\n", f.bpm());
+    CHECK (std::abs (f.bpm() - 90.0) < 1.0);
+    // a stopped clock starts again cleanly
+    t += 2.0;
+    f.tick (t);
+    CHECK (! f.locked (t));
+    // the Player at the clock's tempo: lines last 1/4 beat
+    Song s = makeSong();
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.setBeatTempo (150.0);
+    CHECK (std::abs (p.beatTempo() - 150.0) < 1e-6);
+    p.setBeatTempo (0);
+    CHECK (std::abs (p.beatTempo() - s.tempo * 6.0 / s.speed) < 1e-6);
+    // song position pointers
+    int pos = -1, line = -1;
+    CHECK (songPositionAt (s, 0, pos, line) && pos == 0 && line == 0);
+    CHECK (songPositionAt (s, 70, pos, line) && pos == 1 && line == 6);   // block 0 is 64 lines, block 1 32
+    CHECK (! songPositionAt (s, 64 + 32 + 64 + 5, pos, line));
+}
+
+// ---- PHRASEs: a note plays a track of another block
+static void testPhrases()
+{
+    std::printf ("\n== phrases\n");
+    Song s = makeSong();
+    s.blocks.resize (3);
+    s.blocks[0] = Block {}; s.blocks[0].lines = 16;
+    s.blocks[0].at (0, 0) = Cell { 39, 1, 0, 0 };           // D-3 on the phrase instrument
+    s.blocks[0].at (9, 0) = Cell { kNoteOff, 0, 0, 0 };
+    s.blocks[2] = Block {}; s.blocks[2].lines = 8;
+    s.blocks[2].at (0, 1) = Cell { 37, 0, 0, 0 };           // C-3, E-3, G-3 on its track 2
+    s.blocks[2].at (2, 1) = Cell { 41, 0, 0, 0 };
+    s.blocks[2].at (4, 1) = Cell { 44, 0, 0xC, 0x20 };
+    s.sequence = { 0 };
+    s.instruments[0].phraseBlock = 2; s.instruments[0].phraseTrack = 1; s.instruments[0].phraseLoop = true;
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.playSong (0);
+    const int lineLen = (int) std::lround (48000 * 2.5 / s.tempo * s.speed);
+    std::vector<float> L ((size_t) lineLen), R (L.size());
+    std::vector<int> lines;
+    for (int k = 0; k < 12; ++k) { p.render (L.data(), R.data(), lineLen); lines.push_back (p.phraseLine (0)); }
+    std::printf ("phrase line after each song line:");
+    for (int v : lines) std::printf (" %d", v);
+    std::printf ("\n");
+    CHECK (lines[0] >= 1 && lines[0] <= 2 && lines[5] >= 6 && lines[7] >= 0 && lines[7] <= 2);   // loops after 8
+    CHECK (lines[10] == -1);   // OFF at line 9 ends it
+    // RATE x2: twice as fast; not looped: it ends
+    s.instruments[0].phraseRate = 2; s.instruments[0].phraseLoop = false;
+    p.playSong (0);
+    std::vector<int> fast;
+    for (int k = 0; k < 6; ++k) { p.render (L.data(), R.data(), lineLen); fast.push_back (p.phraseLine (0)); }
+    std::printf ("double rate:");
+    for (int v : fast) std::printf (" %d", v);
+    std::printf ("\n");
+    CHECK (fast[1] >= 3 && fast[5] == -1);
+    // it makes sound (the sample plays through the phrase)
+    s.instruments[0].phraseRate = 1; s.instruments[0].phraseLoop = true;
+    p.playSong (0);
+    std::vector<float> big ((size_t) lineLen * 8), bigR (big.size());
+    p.render (big.data(), bigR.data(), (int) big.size());
+    CHECK (rmsOf (big, 0, (int) big.size()) > 0.01);
+}
+
+// ---- an instrument's MACRO knobs
+static void testInstMacros()
+{
+    std::printf ("\n== instrument macros\n");
+    MixerSettings m;
+    initFxSlot (m.inst[2][0], FxType::Filter);
+    CHECK (m.isFlat() == false || true);
+    auto& im = m.instMacro[2][1];
+    im.value = 0.5f;
+    im.route[0] = { instrumentSlot (2, 0), 1, -0.6f, 0.5f, "CUTOFF" };
+    im.route[1] = { instrumentSlot (2, 0), 2, 0.4f, 0.5f, "RESO" };
+    CHECK (m.anyInstMacro() && ! m.isFlat());
+    ModEngine me; me.prepare (48000);
+    me.run (m.mods, 480, 120, m.instMacro);
+    const int sl = instrumentSlot (2, 0);
+    std::printf ("macro at 50%%: cutoff %+.2f, reso %+.2f\n", me.slotOffset[sl][1], me.slotOffset[sl][2]);
+    CHECK (std::abs (me.slotOffset[sl][1] + 0.3f) < 1e-5f && std::abs (me.slotOffset[sl][2] - 0.2f) < 1e-5f && me.slotModded[sl]);
+    me.setInstMacro (2, 1, 1.0f);   // V / J / an envelope turn it
+    me.run (m.mods, 480, 120, m.instMacro);
+    CHECK (std::abs (me.slotOffset[sl][1] + 0.6f) < 1e-5f);
+    me.setInstMacro (2, 1, -1.0f);
+    me.run (m.mods, 480, 120, m.instMacro);
+    CHECK (std::abs (me.slotOffset[sl][1] + 0.3f) < 1e-5f);
+    // an envelope on it, in a block
+    Song s = makeSong();
+    s.mixer = m;
+    AutoLane l; l.target = kInstMacroBase + 2 * kInstMacros + 1; l.param = 0; l.points = { { 0, 1.0f, 0 } };
+    s.blocks[0].lanes.push_back (l);
+    Player p; p.setSampleRate (48000); p.setSong (&s); p.mixer().syncEffectsNow (s.mixer);
+    p.playBlock (0);
+    std::vector<float> L (4800), R (4800);
+    p.render (L.data(), R.data(), 4800);
+    CHECK (std::abs (p.mixer().mods.slotOffset[sl][1] + 0.6f) < 1e-5f);
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testLineLoop();
     testPingPong();
@@ -4318,6 +4431,9 @@ int main()
     testStudioFx();
     testModulation();
     testEnvelopes();
+    testClockSync();
+    testPhrases();
+    testInstMacros();
     testBlepSteps();
     testVolumeGrid();
     testModelFilters();

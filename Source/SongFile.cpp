@@ -11,7 +11,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 26;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 27;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
@@ -20,7 +20,7 @@ namespace
                                   // v17: block names, v18: START / END, cents, BEAT SYNC, v19: CV out,
                                   // v20: EQ points (up to 8, typed), the instruments' UTILITY, v21: CV DELAY, v22: GROOVE,
                                   // v23: the instruments' own EQ, v24: effect parameters 7-12 (the studio effects),
-                                  // v25: MODULATION, v26: AUTOMATION envelopes in the blocks
+                                  // v25: MODULATION, v26: AUTOMATION envelopes in the blocks, v27: PHRASEs, instrument MACROs
 
     void writeLong (juce::OutputStream& o, const void* data, size_t size)
     {
@@ -63,7 +63,8 @@ namespace
         std::vector<uint8_t> nm;
         if (! readLong (in, nm, 1 << 12)) return false;
         t.name.assign (nm.begin(), nm.end());
-        const bool macro = t.target >= kModMacroBase && t.target < kModMacroBase + kMods;
+        const bool macro = (t.target >= kModMacroBase && t.target < kModMacroBase + kMods)
+                        || (t.target >= kInstMacroBase && t.target < kInstMacroBase + kMixInstruments * kInstMacros);
         if (! macro && (t.target < -1 || t.target >= kAutoInstrumentBase + kMaxInstruments || (t.target >= kTotalSlots && t.target < kAutoInstrumentBase) || t.param < -1))
             t = AutoTarget {};
         return true;
@@ -417,6 +418,41 @@ juce::MemoryBlock writeSong (const Song& song)
                 for (const auto& p : l.points) { raw.writeFloatBigEndian (p.pos); raw.writeFloatBigEndian (p.value); raw.writeFloatBigEndian (p.curve); }
             }
         }
+    }
+
+    // v27: PHRASEs
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.hasPhrase()) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (! in.hasPhrase()) continue;
+            raw.writeByte ((char) i); raw.writeShortBigEndian ((short) in.phraseBlock); raw.writeByte ((char) in.phraseTrack);
+            raw.writeByte ((char) (in.phraseLoop ? 1 : 0)); raw.writeByte ((char) in.phraseRate);
+        }
+    }
+    // v27: the instruments' MACRO knobs (those set or used)
+    {
+        int used = 0;
+        for (const auto& in : song.mixer.instMacro) for (const auto& m : in) if (m.routes() > 0 || m.value != 0.0f) ++used;
+        raw.writeShortBigEndian ((short) used);
+        for (int i = 0; i < kMixInstruments; ++i)
+            for (int k = 0; k < kInstMacros; ++k)
+            {
+                const auto& m = song.mixer.instMacro[i][k];
+                if (m.routes() == 0 && m.value == 0.0f) continue;
+                raw.writeByte ((char) i); raw.writeByte ((char) k); raw.writeFloatBigEndian (m.value);
+                raw.writeByte ((char) m.routes());
+                for (const auto& r : m.route)
+                {
+                    if (! r.valid()) continue;
+                    raw.writeIntBigEndian (r.target); raw.writeIntBigEndian (r.param);
+                    raw.writeFloatBigEndian (r.amount); raw.writeFloatBigEndian (r.base);
+                    writeLong (raw, r.name.data(), r.name.size());
+                }
+            }
     }
 
     juce::MemoryOutputStream packed;
@@ -868,6 +904,44 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 }
                 if (bad) break;
                 if (bi < (int) s.blocks.size()) s.blocks[(size_t) bi].lanes = std::move (got);
+            }
+        }
+        if (version >= 27 && ! in.isExhausted())
+        {
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int b = (int) (uint16_t) in.readShortBigEndian();
+                const int t = (int) (uint8_t) in.readByte();
+                const bool loop = in.readByte() != 0;
+                const int rate = std::clamp ((int) (uint8_t) in.readByte(), 0, 2);
+                if (i >= kMaxInstruments) continue;
+                auto& ins = s.instruments[(size_t) i];
+                ins.phraseBlock = b < (int) s.blocks.size() ? b : -1;
+                ins.phraseTrack = std::clamp (t, 0, kMaxTracks - 1);
+                ins.phraseLoop = loop; ins.phraseRate = rate;
+            }
+            const int macros = in.isExhausted() ? 0 : (int) (uint16_t) in.readShortBigEndian();
+            for (int n = 0; n < macros && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte(), k = (int) (uint8_t) in.readByte();
+                InstMacro m;
+                m.value = readFloat (in, 0.0f, 1.0f, 0.0f);
+                const int routes = (int) (uint8_t) in.readByte();
+                bool bad = false;
+                for (int j = 0; j < routes; ++j)
+                {
+                    ModRoute r;
+                    r.target = in.readIntBigEndian(); r.param = in.readIntBigEndian();
+                    r.amount = readFloat (in, -1.0f, 1.0f, 0.0f); r.base = readFloat (in, 0.0f, 1.0f, 0.5f);
+                    std::vector<uint8_t> nm;
+                    if (! readLong (in, nm, 1 << 12)) { bad = true; break; }
+                    r.name.assign (nm.begin(), nm.end());
+                    if (r.target >= 0 && r.target < kTotalSlots && r.param >= 0 && j < kInstMacroRoutes) m.route[j] = r;
+                }
+                if (bad) break;
+                if (i < kMixInstruments && k < kInstMacros) s.mixer.instMacro[i][k] = m;
             }
         }
     }

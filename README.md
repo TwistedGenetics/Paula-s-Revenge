@@ -636,6 +636,26 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 
 Envelopes belong to their block: a block played twice plays its envelopes twice, and DOUBLE / HALVE take them along. Before the first point the control sits at the first point's value, after the last at the last's. When the block stops (or the next block has no envelope for that control) the control goes back to its own setting. They're undoable, saved in the song (v0.37 or later), and used by RENDER. An envelope and `V` / `J` on the same control: the latest wins.
 
+## Phrases
+
+**PHRASE...** (at the end of the EQ / FX row on an instrument's PARAMS page) makes a note on that instrument play a little pattern instead of the sample: a track of a block, moved up or down by how far the note is from C-3. Clicking it the first time makes a new, empty 16-line block for the phrase (it isn't in the song) and the button then reads **PHRASE 003** (its block). Click it again for:
+* **EDIT IT** — the pattern jumps to that block and track: write the phrase from C-3 (notes, `Cxx` volume, and the commands a note takes when it starts: `9xx`, `Ixx`, `Pxx`, `Sxx`…). A note with no instrument plays this instrument's sample; one with another instrument plays that instrument.
+* **LOOP** (round again at its end, until the next note or OFF), **RATE** (the song's line rate, half or double), **TRACK** (which of the block's tracks), **ANOTHER BLOCK...**, **PHRASE OFF**.
+
+A phrase stops at its end (unless it loops), on the track's next note, or on OFF. Phrases are saved in the song (v0.38 or later).
+
+## Instrument macros
+
+An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–4**. **TARGETS...** next to one adds controls from the instrument's own inserts (up to 4 a knob: pick the insert, then the control); clicking a target there lets you **TURN IT THE OTHER WAY** or **REMOVE IT**. Turning the knob moves all its targets together, each from where its own slider is set (an orange ring shows on the effect's page). Envelopes can move them too (they're in the AUTOMATION list as `I01 MACRO 1`…), and so can `V` / `J`. Saved in the song (v0.38 or later).
+
+## Resampling in one step
+
+**Shift+Cmd+B** (or **RESAMPLE** at the bottom of the bounce menu, Cmd+B) records the highlighted lines and tracks — or, with nothing highlighted, the whole block — with all their effects, into the first empty instrument, and gets it ready to play: cut to exactly that many lines, sliced a beat a slice (a line a slice when it's under 8 lines), notes play the slices (C-3 the first, C#3 the next…), and BEAT SYNC'd so it stays in time at any tempo.
+
+## Following a MIDI clock
+
+**View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
+
 ## Plug-in instruments (VST3 / AU)
 
 (On a PC: VST3 only.)

@@ -1,5 +1,6 @@
 // Paula's Revenge - instrument parameters page (envelopes, filter, pan)
 #include "ParamsPage.h"
+#include "ChoiceBox.h"
 #include "../engine/SampleTools.h"
 
 namespace prv::ui
@@ -118,6 +119,10 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
         if (pluginMode()) { if (onBackToPlugin) onBackToPlugin(); }
         else if (onUsePlugin) onUsePlugin();
     };
+    // PHRASE: on (a new block to write it in), then its menu
+    phraseBtn.setClickingTogglesState (false);
+    phraseBtn.onClick = [this] { phraseClicked(); };
+    addAndMakeVisible (phraseBtn);
     onBtn.onClick = [this] { toggleOn(); };
     learnA.onClick = [this] { armLearn (0); };
     learnB.onClick = [this] { armLearn (1); };
@@ -246,6 +251,43 @@ bool ParamsPage::pluginMode() const
     return in.isPlugin() && ! in.isMidiOut() && ! in.isCvOut();
 }
 
+void ParamsPage::phraseClicked()
+{
+    const auto& in = inst();
+    if (! in.hasPhrase())
+    {
+        // a new, empty block to write the phrase in (16 lines; it isn't in the song)
+        proc.history.structure ("NEW PHRASE BLOCK");
+        int b = 0;
+        proc.withLock ([&] { prv::Block nb; nb.lines = 16; proc.song.blocks.push_back (nb); b = (int) proc.song.blocks.size() - 1; });
+        edit ([b] (Instrument& i) { i.phraseBlock = b; i.phraseTrack = 0; });
+        refresh();
+        if (onStatus) onStatus ("PHRASE: A NOTE NOW PLAYS BLOCK " + juce::String (b).paddedLeft ('0', 3) + " TRACK 1 (MOVED BY HOW FAR IT IS FROM C-3) - CLICK PHRASE AGAIN TO EDIT IT");
+        return;
+    }
+    juce::Component::SafePointer<ParamsPage> safe (this);
+    const int b = in.phraseBlock, t = in.phraseTrack;
+    std::vector<MenuItem> items;
+    items.push_back ({ "EDIT IT (BLOCK " + juce::String (b).paddedLeft ('0', 3) + " TRACK " + juce::String (t + 1) + ")", [safe, b, t] { if (safe && safe->onEditPhrase) safe->onEditPhrase (b, t); } });
+    items.push_back ({ juce::String ("LOOP: ") + (in.phraseLoop ? "ON (TURN OFF)" : "OFF (TURN ON)"), [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseLoop = ! i.phraseLoop; }); safe->refresh(); } } });
+    items.push_back ({ juce::String ("RATE: ") + (in.phraseRate == 0 ? "HALF" : in.phraseRate == 2 ? "DOUBLE" : "THE SONG'S") + " (CHANGE)",
+                       [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseRate = (i.phraseRate + 1) % 3; }); safe->refresh(); } } });
+    items.push_back ({ "TRACK " + juce::String (t % kMaxTracks + 2 > kMaxTracks ? 1 : t + 2) + " OF THE BLOCK INSTEAD",
+                       [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseTrack = (i.phraseTrack + 1) % kMaxTracks; }); safe->refresh(); } } });
+    items.push_back ({ "ANOTHER BLOCK...", [safe]
+    {
+        if (! safe) return;
+        std::vector<MenuItem> bl;
+        const int n = (int) safe->proc.song.blocks.size();
+        for (int k = std::max (0, n - 14); k < n; ++k)
+            bl.push_back ({ "BLOCK " + juce::String (k).paddedLeft ('0', 3) + (safe->proc.song.blocks[(size_t) k].name.empty() ? juce::String() : " " + juce::String (safe->proc.song.blocks[(size_t) k].name).toUpperCase()),
+                            [safe, k] { if (safe) { safe->edit ([k] (Instrument& i) { i.phraseBlock = k; }); safe->refresh(); } } });
+        showMenu ("THE PHRASE'S BLOCK", std::move (bl));
+    } });
+    items.push_back ({ "PHRASE OFF", [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseBlock = -1; }); safe->refresh(); } } });
+    showMenu ("PHRASE", std::move (items));
+}
+
 void ParamsPage::refresh()
 {
     fxRow.refresh();
@@ -257,6 +299,11 @@ void ParamsPage::refresh()
         pluginBtn.setButtonText (pm ? "BACK TO THE PLUG-IN" : "PLUG-IN / MIDI OUT...");
     }
     utility.refresh();
+    {
+        const auto& in = inst();
+        phraseBtn.setToggleState (in.hasPhrase(), juce::dontSendNotification);
+        phraseBtn.setButtonText (in.hasPhrase() ? "PHRASE " + juce::String (in.phraseBlock).paddedLeft ('0', 3) : juce::String ("PHRASE..."));
+    }
     if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
     const auto& in = inst();
@@ -340,7 +387,12 @@ void ParamsPage::resized()
     }
     r.removeFromBottom (gap * 2);
     // the instrument's own EQ and effects: a row across the page (room for the effects' names)
-    fxRow.setBounds (r.removeFromBottom (rowH));
+    {
+        // (and PHRASE at its end)
+        auto row = r.removeFromBottom (rowH);
+        phraseBtn.setBounds (row.removeFromRight (charsW (11))); row.removeFromRight (gap * 2);
+        fxRow.setBounds (row);
+    }
     r.removeFromBottom (gap * 2);
 
     const int colGap = gap * 3;

@@ -111,6 +111,7 @@ public:
     std::function<void (int)> onMoveSequence;   // Alt+Up/Down
     // the highlighted area: Cmd+B bounces it; a right-click inside it asks what to do
     std::function<void()> onBounce;
+    std::function<void()> onResample;   // Shift+Cmd+B: RESAMPLE (chopped, in time)
     std::function<void (int line, int track, int group)> onSelectionMenu;
 
 private:

@@ -106,6 +106,7 @@ void MixerEngine::clearAutomation()
     for (auto& s : stripAuto) for (auto& a : s) a = -1.0f;
     for (auto& s : autoParam) for (auto& a : s) a = -1.0f;
     for (int m = 0; m < kMods; ++m) mods.setMacro (m, -1.0f);   // (MACROs back to their knobs)
+    for (int i = 0; i < kMixInstruments; ++i) for (int k = 0; k < kInstMacros; ++k) mods.setInstMacro (i, k, -1.0f);
     clearOnOff();
 }
 
@@ -198,11 +199,11 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
     }
 
     // MODULATION: it hears every track first (for the followers), then works out this block
-    const bool modsOn = m.mods.any();
+    const bool modsOn = m.mods.any() || m.anyInstMacro();
     if (modsOn || anyModLeft)
     {
         if (modsOn) for (int t = 0; t < numTracks && t < kMixTracks; ++t) mods.listen (t, tL[t], tR[t], n);
-        mods.run (m.mods, n, bpm);   // (with none left on: everything goes back to where it's set)
+        mods.run (m.mods, n, bpm, m.instMacro);   // (with none left on: everything goes back to where it's set)
         for (const auto& ps : mods.pluginSets)
             if (ps.slot >= 0 && ps.slot < kTotalSlots && fxType[ps.slot] == FxType::Plugin && fx[ps.slot])
                 fx[ps.slot]->setParameter (ps.param, ps.value);

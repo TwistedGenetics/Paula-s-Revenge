@@ -38,6 +38,7 @@ enum CommandIDs
     cmdFullVelocity  = 0x2021,
     cmdFollowInstr   = 0x2022,
     cmdSeparation    = 0x2023,
+    cmdFollowClock   = 0x2024,
     cmdSharedFolder  = 0x2030,
     cmdOpenShared    = 0x2031,
     cmdSaveShared    = 0x2032,
@@ -312,6 +313,7 @@ public:
         m.addCommandItem (&commands, cmdFullVelocity);
         m.addCommandItem (&commands, cmdFollowInstr);
         m.addCommandItem (&commands, cmdSeparation);
+        m.addCommandItem (&commands, cmdFollowClock);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -327,7 +329,7 @@ public:
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
-                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation,
+                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
     }
 
@@ -387,6 +389,12 @@ public:
             auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
             info.setTicked (proc != nullptr && proc->fullVelocity.load());
         }
+        else if (id == cmdFollowClock)
+        {
+            info.setInfo ("Follow MIDI Clock", "Tempo, start, stop and song position from the MIDI input's clock (another app or a drum machine leads)", "View", 0);
+            auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
+            info.setTicked (proc != nullptr && proc->followClock.load());
+        }
         else if (id == cmdSharedFolder) info.setInfo ("Shared Folder...", "The synced folder (Dropbox, iCloud Drive, OneDrive) your computers share songs through", "File", 0);
         else if (id == cmdOpenShared)   info.setInfo ("Open from Shared Folder...", "Open a song from the shared folder", "File", 0);
         else if (id == cmdSaveShared)   info.setInfo ("Save to Shared Folder", "Save the song into the shared folder, for your other computer", "File", 0);
@@ -426,6 +434,7 @@ public:
                 case cmdNoteOffs:      ed->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs()); commands.commandStatusChanged(); return true;
                 case cmdFullVelocity:  ed->setFullVelocity (! ed->fullVelocityOn()); commands.commandStatusChanged(); return true;
                 case cmdSeparation:    ed->showSeparationMenu(); return true;
+                case cmdFollowClock:   ed->setFollowClock (! ed->followClockOn()); commands.commandStatusChanged(); return true;
                 case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
                 case cmdOpenShared:    ed->openShared(); return true;
                 case cmdSaveShared:    ed->saveToShared(); return true;

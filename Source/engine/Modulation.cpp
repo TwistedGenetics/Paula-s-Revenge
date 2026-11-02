@@ -141,7 +141,7 @@ std::string modSummary (const Modulator& m)
 void ModEngine::prepare (double sampleRate)
 {
     sr = sampleRate;
-    pluginSets.reserve (kMods * kModRoutes);
+    pluginSets.reserve (kMods * kModRoutes + kMixInstruments * kInstMacros * kInstMacroRoutes);
     reset();
 }
 
@@ -154,6 +154,7 @@ void ModEngine::reset()
         uiOut[m].store (0.0f, std::memory_order_relaxed);
     }
     for (int t = 0; t <= kMixTracks; ++t) { noteOfTrack[t] = 37; velOfTrack[t] = 1.0f; noteSerial[t] = 0; }
+    for (auto& in : instMacroAuto) for (auto& v : in) v = -1.0f;
     for (auto& l : level) l = 0;
     std::memset (slotModded, 0, sizeof slotModded);
     std::memset (slotOffset, 0, sizeof slotOffset);
@@ -171,6 +172,11 @@ void ModEngine::noteOn (int track, int note, float vel)
     }
 }
 
+void ModEngine::setInstMacro (int ins, int k, float v)
+{
+    if (ins >= 0 && ins < kMixInstruments && k >= 0 && k < kInstMacros) instMacroAuto[ins][k] = v < 0 ? -1.0f : std::clamp (v, 0.0f, 1.0f);
+}
+
 void ModEngine::setMacro (int m, float v)
 {
     if (m >= 0 && m < kMods) macroAuto[m] = v < 0 ? -1.0f : std::clamp (v, 0.0f, 1.0f);
@@ -184,7 +190,7 @@ void ModEngine::listen (int track, const float* L, const float* R, int n)
     level[track] = pk;
 }
 
-void ModEngine::run (const ModSettings& s, int n, double bpm)
+void ModEngine::run (const ModSettings& s, int n, double bpm, const InstMacro (*instMacros)[kInstMacros])
 {
     const double bps = std::max (20.0, bpm) / 60.0;
     const double dt = (double) n / sr;
@@ -329,5 +335,21 @@ void ModEngine::run (const ModSettings& s, int n, double bpm)
                 stripMul[r.target - kModStripBase][r.param] *= std::max (0.0f, 1.0f + v);
         }
     }
+    // the instruments' MACRO knobs, the same way
+    if (instMacros != nullptr)
+        for (int ins = 0; ins < kMixInstruments; ++ins)
+            for (int k = 0; k < kInstMacros; ++k)
+            {
+                const auto& im = instMacros[ins][k];
+                if (im.routes() == 0) continue;
+                const float val = instMacroAuto[ins][k] >= 0 ? instMacroAuto[ins][k] : im.value;
+                for (const auto& r : im.route)
+                {
+                    if (! r.valid() || r.target >= kTotalSlots) continue;
+                    const float v = val * r.amount;
+                    if (r.param < kFxParams) { slotOffset[r.target][r.param] += v; slotModded[r.target] = true; }
+                    if (pluginSets.size() < pluginSets.capacity()) pluginSets.push_back ({ r.target, r.param, std::clamp (r.base + v, 0.0f, 1.0f) });
+                }
+            }
 }
 } // namespace prv

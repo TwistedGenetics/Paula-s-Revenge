@@ -55,7 +55,7 @@ bool MixerSettings::isFlat() const
     if (master.volumeDb != 0.0f) return false;
     for (const auto& s : master.inserts) if (s.active()) return false;
     for (int i = 0; i < kMixInstruments; ++i) if (instrumentChain (i)) return false;
-    if (mods.any()) return false;
+    if (mods.any() || anyInstMacro()) return false;
     return true;   // (returns only hear what's sent to them)
 }
 

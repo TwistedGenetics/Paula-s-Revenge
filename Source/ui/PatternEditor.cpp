@@ -1609,6 +1609,7 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         if (ch == 'x') { if (hasSelection() && ! shift) copySelection (true);  else if (shift) { copyBlock (true); lastCopy = LastCopy::Block; } else { copyTrack (true); lastCopy = LastCopy::Track; } return true; }
         if (ch == 'v') { if (shift) pasteBlock(); else if (lastCopy == LastCopy::Selection) pasteSelection(); else pasteTrack(); return true; }
         if (ch == 'a') { selectAll(); return true; }
+        if (ch == 'b' && shift) { if (onResample) onResample(); return true; }   // RESAMPLE (the selection, or the whole block)
         if (ch == 'b')
         {
             if (hasSelection() && onBounce) onBounce();

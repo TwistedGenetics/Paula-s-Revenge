@@ -60,6 +60,11 @@ public:
     void toggleHelp();                                // HELP (F1, Cmd+/)
     enum BounceFx { BounceNoFx = 0, BounceInstrumentFx, BounceMixerFx, BounceAllFx };
     bool bounceSelection (int fx);                    // the highlighted area to a new instrument (a BounceFx)
+    // RESAMPLE: the highlighted area (or, with none, the whole block) with all its FX to a new
+    // instrument in one go - cut to its length, a slice a beat (a line when short), BEAT SYNC'd
+    void setFollowClock (bool on);                    // FOLLOW MIDI CLOCK (the View menu)
+    bool followClockOn() const { return proc.followClock.load(); }
+    bool resampleChop();
     void askBounce();                                 // DRY or WITH FX?
     int  captureNow();                                // CAPTURE (Cmd+R): what was played into the pattern; notes written
     void showMeterColourMenu (bool forSpectrum);      // right-click a level meter / the spectrum: its colour
@@ -196,6 +201,7 @@ private:
     prv::ui::InstrumentPanel instruments;
     prv::ui::Spectrum spectrum;
     prv::ui::AutomationPanel automation { proc };
+    float shownClockBpm = -1;
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;

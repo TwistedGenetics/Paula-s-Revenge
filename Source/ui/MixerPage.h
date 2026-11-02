@@ -131,6 +131,14 @@ private:
     PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" }, modsBtn { "MODULATION" };
     std::unique_ptr<ModPage> modPage;
     PixButton modulateBtn { "MODULATE", true };
+    // an instrument's page: its 4 MACRO knobs
+    std::unique_ptr<MiniBar> macroBar[kInstMacros];
+    std::unique_ptr<PixButton> macroBtn[kInstMacros];
+    juce::Rectangle<float> chMacroBox;
+    void showMacroMenu (int knob);
+public:
+    void addMacroTarget (int knob, int slot, int param);   // (tests: as picked in its menu)
+private:
     PixButton prevBtn { "<" }, nextBtn { ">" };
 
     // strips page

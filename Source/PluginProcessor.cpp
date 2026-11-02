@@ -44,6 +44,7 @@ PaulaProcessor::PaulaProcessor()
     addStarterInstruments (song);
     song.chords = globalChords;
     fullVelocity = prv::prefs().getBoolValue ("fullVelocity", false);
+    followClock = prv::prefs().getBoolValue ("followMidiClock", false);
     player.setSong (&song);
     player.mixer().pluginFactory = [this] (int slot, const prv::FxSlot& s, double sr) { return pluginHost.create (slot, s, sr); };
     pluginHost.onAsyncReady = [this] (int slot) { reloadMixerSlot (slot); };
@@ -467,6 +468,20 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         {
             player.jamAllOff();
         }
+        // FOLLOW MIDI CLOCK: the tempo from its ticks; start, continue, stop and position too
+        else if (followClock.load (std::memory_order_relaxed) && (msg.isMidiClock() || msg.isMidiStart() || msg.isMidiContinue() || msg.isMidiStop() || msg.isSongPositionPointer()))
+        {
+            const double t = (clockSamples + meta.samplePosition) / std::max (1.0, currentRate);
+            if (msg.isMidiClock())
+            {
+                clockIn.tick (t);
+                if (clockIn.locked (t)) { player.setBeatTempo (clockIn.bpm()); clockBpm.store ((float) clockIn.bpm(), std::memory_order_relaxed); }
+            }
+            else if (msg.isMidiStart()) { player.playSong (0, 0); sppPos = sppLine = 0; }
+            else if (msg.isMidiContinue()) player.playSong (sppPos, sppLine);
+            else if (msg.isMidiStop()) player.stop();
+            else if (msg.isSongPositionPointer()) prv::songPositionAt (song, msg.getSongPositionPointerMidiBeat(), sppPos, sppLine);
+        }
         else if (msg.isController())
         {
             lastCcNumber = msg.getControllerNumber();
@@ -474,6 +489,8 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         }
     }
     renderTo (n);
+    clockSamples += n;
+    if (followClock.load (std::memory_order_relaxed) && ! clockIn.locked (clockSamples / std::max (1.0, currentRate))) clockBpm.store (0.0f, std::memory_order_relaxed);
     renderPreview (scratchL.get(), scratchR.get(), n);
 
     {
@@ -655,6 +672,13 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new PaulaProcessor();
+}
+
+void PaulaProcessor::setFollowClock (bool on)
+{
+    followClock = on;
+    prv::prefs().setValue ("followMidiClock", on);
+    if (! on) withLock ([&] { player.setBeatTempo (0); clockIn.reset(); clockBpm = 0; });
 }
 
 void PaulaProcessor::setFullVelocity (bool on)

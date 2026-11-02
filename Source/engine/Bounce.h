@@ -18,6 +18,7 @@ struct BounceResult
     std::vector<float> left, right;   // the audio (at the sample rate asked for)
     std::vector<int> instruments;     // the instruments played in the range (0-based) that are in the audio
     std::vector<int> leftOut;         // MIDI-out instruments in the range: hardware, so not in the audio
+    double secondsPerLine = 0;        // how long a line lasted at the start (the tempo and speed there)
 };
 
 // the instruments whose notes are in the range (a note without an instrument number counts

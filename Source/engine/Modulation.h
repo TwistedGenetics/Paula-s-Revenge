@@ -32,7 +32,8 @@ public:
     void setMacro (int mod, float v01);                    // V / J on a MACRO (-1 = back to its knob)
     // ---- from the mixer: each track's sound this block (before its EQ), then run
     void listen (int track, const float* L, const float* R, int n);
-    void run (const ModSettings&, int n, double bpm);
+    void run (const ModSettings&, int n, double bpm, const InstMacro (*instMacros)[kInstMacros] = nullptr);
+    void setInstMacro (int ins, int knob, float v01);      // V / J / an envelope on an instrument's MACRO (-1 = its knob)
 
     // what the routes add, after run()
     bool  slotModded[kTotalSlots] {};
@@ -60,6 +61,7 @@ private:
     int   noteSerial[kMixTracks + 1] {}, seenSerial[kMods] {};
     float level[kMixTracks] {};                            // each track's peak this block
     float macroAuto[kMods];
+    float instMacroAuto[kMixInstruments][kInstMacros];
     uint32_t rng = 0x2545F491u;
     float random01() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return (rng >> 8) * (1.0f / 16777216.0f); }
 };

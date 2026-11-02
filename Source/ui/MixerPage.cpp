@@ -635,6 +635,16 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     addChildComponent (modsBtn);
     modulateBtn.onClick = [this] { modulate(); };
     addChildComponent (modulateBtn);
+    for (int k = 0; k < kInstMacros; ++k)
+    {
+        macroBar[k] = std::make_unique<MiniBar> ("MACRO " + juce::String (k + 1));
+        macroBar[k]->onDragStart = [this, k] { proc.history.mixer ("INSTRUMENT MACRO " + juce::String (k + 1), true); };
+        macroBar[k]->onChange = [this, k] (float v) { if (chInstrument >= 0) proc.withLock ([&] { proc.song.mixer.instMacro[chInstrument][k].value = v; }); };
+        macroBtn[k] = std::make_unique<PixButton> ("TARGETS...");
+        macroBtn[k]->onClick = [this, k] { showMacroMenu (k); };
+        addChildComponent (*macroBar[k]);
+        addChildComponent (*macroBtn[k]);
+    }
     resetAllBtn.onClick = [this]
     {
         edit ("RESET MIXER", false, [] (MixerSettings& m) { m = MixerSettings {}; }, true);
@@ -889,6 +899,78 @@ void MixerPage::editMixer (const juce::String& label, bool merge, std::function<
     edit (label, merge, [&fn] (MixerSettings& m) { fn (m); }, effectsChanged);
 }
 
+void MixerPage::addMacroTarget (int k, int slot, int param)
+{
+    if (chInstrument < 0 || k < 0 || k >= kInstMacros) return;
+    const int ins = chInstrument;
+    auto& im = proc.song.mixer.instMacro[ins][k];
+    int free = -1;
+    for (int j = 0; j < kInstMacroRoutes; ++j)
+    {
+        if (im.route[j].valid() && im.route[j].target == slot && im.route[j].param == param) return;
+        if (free < 0 && ! im.route[j].valid()) free = j;
+    }
+    if (free < 0) { if (onStatus) onStatus ("MACRO " + juce::String (k + 1) + " HAS 4 TARGETS - REMOVE ONE FIRST"); return; }
+    ModRoute r;
+    r.target = slot; r.param = param; r.amount = 1.0f;
+    const auto vals = slotParamValues (slot);
+    r.base = param < (int) vals.size() ? vals[(size_t) param] : 0.5f;
+    r.name = ModPage::targetName (proc, slot, param).toStdString();
+    edit ("INSTRUMENT MACRO " + juce::String (k + 1) + " > " + juce::String (r.name), false, [ins, k, free, r] (MixerSettings& m) { m.instMacro[ins][k].route[free] = r; });
+    if (onStatus) onStatus ("MACRO " + juce::String (k + 1) + " NOW TURNS " + juce::String (r.name) + " (UP FROM WHERE IT'S SET)");
+}
+
+void MixerPage::showMacroMenu (int k)
+{
+    if (chInstrument < 0) return;
+    const int ins = chInstrument;
+    juce::Component::SafePointer<MixerPage> safe (this);
+    std::vector<MenuItem> items;
+    // add: one of the instrument's own effects, then its control
+    for (int s = 0; s < kInserts; ++s)
+    {
+        const int slot = instrumentSlot (ins, s);
+        const auto& fs = proc.song.mixer.slot (slot);
+        if (fs.type == FxType::None) continue;
+        const juce::String owner = "INSERT " + juce::String (s + 1) + ": " + (fs.type == FxType::Plugin ? juce::String (fs.pluginName).toUpperCase() : juce::String (fxName (fs.type)));
+        items.push_back ({ "ADD " + owner + "...", [safe, k, slot, owner]
+        {
+            if (! safe) return;
+            std::vector<MenuItem> ps;
+            const auto& sl = safe->proc.song.mixer.slot (slot);
+            if (sl.type == FxType::Plugin)
+            {
+                if (auto* pe = safe->proc.pluginAt (slot))
+                    for (int i = 0; i < (int) prv::PluginHost::parameterValues (pe->instance()).size() && i < 16; ++i)
+                        ps.push_back ({ prv::PluginHost::parameterName (pe->instance(), i).toUpperCase(), [safe, k, slot, i] { if (safe) safe->addMacroTarget (k, slot, i); } });
+            }
+            else
+                for (int i = 0; i < (int) fxParams (sl.type).size(); ++i)
+                    ps.push_back ({ juce::String (fxParams (sl.type)[(size_t) i].name), [safe, k, slot, i] { if (safe) safe->addMacroTarget (k, slot, i); } });
+            showMenu (owner, std::move (ps));
+        } });
+    }
+    // the ones it has: turn the other way, or remove
+    const auto& im = proc.song.mixer.instMacro[ins][k];
+    for (int j = 0; j < kInstMacroRoutes; ++j)
+    {
+        if (! im.route[j].valid()) continue;
+        const juce::String n (im.route[j].name);
+        items.push_back ({ n + "...", [safe, ins, k, j, n]
+        {
+            showMenu (n, { { "TURN IT THE OTHER WAY", [safe, ins, k, j] { if (safe) safe->edit ("INSTRUMENT MACRO AMOUNT", false, [ins, k, j] (MixerSettings& m) { m.instMacro[ins][k].route[j].amount = -m.instMacro[ins][k].route[j].amount; }); } },
+                           { "REMOVE IT", [safe, ins, k, j] { if (safe) safe->edit ("INSTRUMENT MACRO REMOVE", false, [ins, k, j] (MixerSettings& m)
+                               {
+                                   auto& r = m.instMacro[ins][k].route;
+                                   for (int x = j; x + 1 < kInstMacroRoutes; ++x) r[x] = r[x + 1];
+                                   r[kInstMacroRoutes - 1] = ModRoute {};
+                               }); } } });
+        } });
+    }
+    if (items.empty()) { if (onStatus) onStatus ("PUT AN EFFECT IN ONE OF THE INSTRUMENT'S INSERTS FIRST - A MACRO TURNS ITS CONTROLS"); return; }
+    showMenu ("MACRO " + juce::String (k + 1), std::move (items));
+}
+
 void MixerPage::showMods (int mod)
 {
     if (mod >= 0) modPage->select (mod);
@@ -1121,6 +1203,7 @@ void MixerPage::updateVisibility()
     for (auto& b : chPre) b.setVisible (ch && ! insPage);
     chFader.setVisible (ch && ! insPage);
     chClearA.setVisible (ch && ! insPage); chClearB.setVisible (ch && ! insPage);
+    for (int k = 0; k < kInstMacros; ++k) { macroBar[k]->setVisible (insPage); macroBtn[k]->setVisible (insPage); }
     learner.cancel();
     effectBtn.setVisible (fx); presetBtn.setVisible (fx);
     for (auto* c : std::initializer_list<juce::Component*> { &pluginBtn, &rescanBtn, &editPluginBtn, &listCloseBtn, &pluginList,
@@ -1192,6 +1275,13 @@ void MixerPage::refreshChannel()
         chPre[s].setToggleState (c.sendPre[s], juce::dontSendNotification);
     }
     chFader.setValue (FaderMeter::dbToPos (c.volumeDb));
+    if (chInstrument >= 0)
+        for (int k = 0; k < kInstMacros; ++k)
+        {
+            const auto& im = proc.song.mixer.instMacro[chInstrument][k];
+            macroBar[k]->setValue (im.value);
+            macroBtn[k]->setButtonText (im.routes() > 0 ? juce::String (im.routes()) + " TARGET" + (im.routes() == 1 ? "" : "S") : juce::String ("TARGETS..."));
+        }
     eqGraph.repaint();
 }
 
@@ -1424,6 +1514,21 @@ void MixerPage::tick()
                         now += r.amount * proc.player.mixer().mods.uiOut[m].load (std::memory_order_relaxed);
                     }
             }
+            if (isInstrumentSlot (fxSlot))
+            {
+                const int ins = (fxSlot - kMixerSlots) / kInserts;
+                for (int k = 0; k < kInstMacros; ++k)
+                {
+                    const auto& im = proc.song.mixer.instMacro[ins][k];
+                    for (const auto& r : im.route)
+                        if (r.valid() && r.target == fxSlot && r.param == i)
+                        {
+                            any = true;
+                            lo += std::min (0.0f, r.amount); hi += std::max (0.0f, r.amount);
+                            now += r.amount * im.value;
+                        }
+                }
+            }
             if (any && s.type != FxType::Plugin)
                 param[i]->setMod (juce::jlimit (0.0f, 1.0f, s.p[i] + lo), juce::jlimit (0.0f, 1.0f, s.p[i] + hi), juce::jlimit (0.0f, 1.0f, s.p[i] + now));
             else param[i]->setMod (-1, -1, -1);
@@ -1636,6 +1741,7 @@ void MixerPage::paint (juce::Graphics& g)
                 auto fitT = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
                 PixelFont::drawLeft (g, fitT (l, r.getWidth()), r.removeFromTop (lh), px, l.contains ("(") ? Theme::palFor (*this).faint : Theme::palFor (*this).ink);
             }
+            if (! chMacroBox.isEmpty()) Theme::panelBox (g, chMacroBox, "MACROS", Theme::palFor (*this));
             return;
         }
         Theme::panelBox (g, chSendsBox, "SENDS AND FADER", Theme::palFor (*this));
@@ -1804,6 +1910,20 @@ void MixerPage::layoutChannel (juce::Rectangle<int> r)
         chFader.setBounds (in.removeFromTop (rowH));
     }
     right.removeFromTop (gap * 2);
+    chMacroBox = {};
+    if (chInstrument >= 0)
+    {
+        chMacroBox = right.removeFromTop (std::min (right.getHeight(), titleH + (rowH + gap) * kInstMacros + gap * 2)).toFloat();
+        auto in = chMacroBox.toNearestInt().reduced (gap);
+        in.removeFromTop (titleH);
+        for (int k = 0; k < kInstMacros; ++k)
+        {
+            auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
+            macroBtn[k]->setBounds (row.removeFromRight (charsW (10))); row.removeFromRight (gap);
+            macroBar[k]->setBounds (row);
+        }
+        right.removeFromTop (gap * 2);
+    }
     chAutoBox = right.removeFromTop (titleH + (rowH + gap) * 2 + gap * 2).toFloat();
     {
         auto in = chAutoBox.toNearestInt().reduced (gap);

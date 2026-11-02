@@ -93,6 +93,16 @@ bool bounceRange (const Song& song, const PaulaOptions& options, double sampleRa
             drop (c.cmd, c.param); drop (c.cmd2, c.param2);
             part.at (l, t) = c;
         }
+    // (and the block's envelopes, from the first line)
+    for (const auto& lane : src.lanes)
+    {
+        AutoLane cut = lane;
+        cut.points.clear();
+        if (! lane.points.empty()) cut.points.push_back ({ 0.0f, lane.valueAt (r.line0), 0.0f });
+        for (const auto& p : lane.points)
+            if (p.pos > r.line0 && p.pos <= r.line1 + 1) { auto q = p; q.pos -= (float) r.line0; cut.points.push_back (q); }
+        if (! cut.points.empty()) part.lanes.push_back (cut);
+    }
     // the first note on each track knows its instrument
     for (int t = r.track0; t <= r.track1; ++t)
         for (int l = 0; l < part.lines; ++l)
@@ -110,6 +120,7 @@ bool bounceRange (const Song& song, const PaulaOptions& options, double sampleRa
             for (auto [cmd, p] : { std::pair<uint8_t, uint8_t> { c.cmd, c.param }, { c.cmd2, c.param2 } })
                 if (cmd == 0xF && p > 0) { if (p < 0x20) s.speed = p; else s.tempo = p; }
         }
+    out.secondsPerLine = std::max (1, s.speed) * 2.5 / std::max (32, s.tempo);
     Block tail;
     tail.lines = kMaxLines;
     s.blocks = { part, tail };

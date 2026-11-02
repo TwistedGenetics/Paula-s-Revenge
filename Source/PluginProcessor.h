@@ -5,6 +5,7 @@
 #include <deque>
 #include "engine/Song.h"
 #include "engine/Player.h"
+#include "engine/ClockSync.h"
 #include "engine/Recorder.h"
 #include "History.h"
 #include "PluginHost.h"
@@ -114,6 +115,9 @@ public:
     std::atomic<float> inputGain { 1.0f };      // on the input, before the recorder and the monitor
     std::atomic<bool>  monitorInput { false };  // hear the input through the app
     std::atomic<bool>  fullVelocity { false };  // FULL VEL: MIDI notes play (and record) at 127, whatever the keyboard sent
+    std::atomic<bool>  followClock { false };   // FOLLOW MIDI CLOCK: tempo, start, stop and position from the MIDI input
+    std::atomic<float> clockBpm { 0 };           // the tempo it's following (0 = no clock coming in)
+    void setFollowClock (bool on);
     void setFullVelocity (bool on);             // (and the prefs)
     std::atomic<int>   inputChannels { 0 };     // input channels the audio device gives (0 = none)
     std::atomic<bool>  audioRunning { false };  // processBlock has run recently (a device is open)
@@ -206,6 +210,9 @@ public:
     // mono copy of the output for the spectrum display (message thread reads)
     int readScope (float* dest, int maxSamples);
 
+    prv::ClockFollower clockIn;
+    double clockSamples = 0;                     // samples since the start (the clock's time line)
+    int sppPos = 0, sppLine = 0;                 // where CONTINUE starts (the last Song Position Pointer)
 private:
     double currentRate = 44100.0;
     juce::HeapBlock<float> scratchL, scratchR;

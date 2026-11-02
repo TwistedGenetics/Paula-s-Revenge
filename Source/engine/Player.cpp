@@ -262,6 +262,8 @@ void Player::applyLane (int kind, int a, int b, float v)
         if (! t.valid()) return;
         if (t.target < kAutoInstrumentBase) mixerEngine.setAutomation (t.target, t.param, v);
         else if (t.target >= kModMacroBase && t.target < kModMacroBase + kMods) mixerEngine.mods.setMacro (t.target - kModMacroBase, v);   // a MACRO
+        else if (t.target >= kInstMacroBase && t.target < kInstMacroBase + kMixInstruments * kInstMacros)
+            mixerEngine.mods.setInstMacro ((t.target - kInstMacroBase) / kInstMacros, (t.target - kInstMacroBase) % kInstMacros, v);   // an instrument's MACRO
         else if (t.param == kAutoOnOff) setInstrumentOn (t.target - kAutoInstrumentBase, autoValueOn (v) ? 1 : 0);
         else if (auto* s = rack.at (t.target - kAutoInstrumentBase)) s->setParameterAt (t.param, v, chunkPos);
     }
@@ -278,6 +280,8 @@ void Player::releaseEnvelope (int target, int param)
     if (target >= 0 && target < kTotalSlots) mixerEngine.releaseAutomation (target, param);
     else if (target >= kModStripBase && target < kModStripBase + kMixTracks) mixerEngine.setStripAutomation (target - kModStripBase, param, -1.0f);
     else if (target >= kModMacroBase && target < kModMacroBase + kMods) mixerEngine.mods.setMacro (target - kModMacroBase, -1.0f);
+    else if (target >= kInstMacroBase && target < kInstMacroBase + kMixInstruments * kInstMacros)
+        mixerEngine.mods.setInstMacro ((target - kInstMacroBase) / kInstMacros, (target - kInstMacroBase) % kInstMacros, -1.0f);
 }
 
 bool Player::applyEnvelopes()
@@ -304,6 +308,8 @@ bool Player::applyEnvelopes()
             }
             else if (l.target >= kModStripBase && l.target < kModStripBase + kMixTracks) mixerEngine.setStripAutomation (l.target - kModStripBase, l.param, v);
             else if (l.target >= kModMacroBase && l.target < kModMacroBase + kMods) mixerEngine.mods.setMacro (l.target - kModMacroBase, v);
+            else if (l.target >= kInstMacroBase && l.target < kInstMacroBase + kMixInstruments * kInstMacros)
+                mixerEngine.mods.setInstMacro ((l.target - kInstMacroBase) / kInstMacros, (l.target - kInstMacroBase) % kInstMacros, v);
             else if (l.target >= kAutoInstrumentBase && l.target < kAutoInstrumentBase + kMaxInstruments)
             {
                 if (auto* s = rack.at (l.target - kAutoInstrumentBase)) s->setParameterAt (l.param, v, 0);
@@ -431,7 +437,7 @@ void Player::playSong (int pos, int startLine)
     synthAllOff();
     resetSwitches();
     for (auto& g : pendingGlide) g = 0;
-    for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
+    for (int i = 0; i < kMaxTracks; ++i) { voices[i] = Voice{}; phrase[i] = PhraseRun {}; }
     seqPos = std::clamp (pos, 0, (int) song->sequence.size() - 1);
     block  = song->safeBlock (song->sequence[(size_t) seqPos]);
     line   = std::clamp (startLine, 0, song->blocks[(size_t) block].lines - 1);
@@ -455,7 +461,7 @@ void Player::playBlock (int b, int startLine)
     synthAllOff();
     resetSwitches();
     for (auto& g : pendingGlide) g = 0;
-    for (int i = 0; i < kMaxTracks; ++i) voices[i] = Voice{};
+    for (int i = 0; i < kMaxTracks; ++i) { voices[i] = Voice{}; phrase[i] = PhraseRun {}; }
     block = song->safeBlock (b);
     line  = std::clamp (startLine, 0, song->blocks[(size_t) block].lines - 1);
     tick = 0; tickRemain = 0;
@@ -492,6 +498,7 @@ void Player::stop()
     clockStartPending = false;
     synthAllOff();
     resetSwitches();
+    for (auto& ph : phrase) ph = PhraseRun {};
     mode = Mode::Stopped;
     for (int i = 0; i < kMaxTracks; ++i) { voices[i].active = false; voices[i].microDelay = -1; }
 }
@@ -692,6 +699,18 @@ void Player::setInstrument (Voice& v, int instrNumber)
 void Player::triggerNote (Voice& v, const Cell& cell, int ch)
 {
     if (v.instr < 0) { v.active = false; return; }
+    if (! phraseTriggering && ch >= 0 && ch < kMaxTracks)
+    {
+        phrase[ch].instr = -1;   // (a new note ends the phrase that was playing)
+        const auto& pin = song->instruments[(size_t) v.instr];
+        if (pin.hasPhrase() && pin.phraseBlock < (int) song->blocks.size() && instrumentIsOn (v.instr))
+        {
+            // this note plays the instrument's phrase, starting now
+            phrase[ch] = { v.instr, (int) cell.note, 0, 1.0 };
+            stepPhrase (ch);
+            return;
+        }
+    }
     if (isSynthVoice (v)) { synthTrigger (v, cell, ch); return; }
     const auto& in = song->instruments[(size_t) v.instr];
     if (! in.hasData()) { v.active = false; return; }
@@ -813,8 +832,51 @@ void Player::startShaping (Voice& v)
     v.svf = {};
 }
 
+void Player::stepPhrases()
+{
+    if (song == nullptr) return;
+    for (int ch = 0; ch < kMaxTracks; ++ch) if (phrase[ch].instr >= 0) stepPhrase (ch);
+}
+
+void Player::stepPhrase (int ch)
+{
+    {
+        auto& ph = phrase[ch];
+        if (ph.instr < 0) return;
+        ph.until -= 1.0;
+        if (ph.until > 0) return;
+        const auto& in = song->instruments[(size_t) ph.instr];
+        if (! in.hasPhrase() || in.phraseBlock >= (int) song->blocks.size()) { ph.instr = -1; return; }
+        const Block& b = song->blocks[(size_t) in.phraseBlock];
+        if (ph.line >= b.lines)
+        {
+            if (! in.phraseLoop) { ph.instr = -1; return; }
+            ph.line = 0;
+        }
+        const Cell c = b.at (ph.line, std::clamp (in.phraseTrack, 0, kMaxTracks - 1));
+        Voice& v = voices[ch];
+        phraseTriggering = true;
+        if (c.note == kNoteOff) releaseVoice (v);
+        else if (c.note > 0)
+        {
+            Cell t = c;
+            t.note = (uint8_t) std::clamp ((int) c.note + ph.root - 37, 1, (int) kNoteMax);
+            setInstrument (v, c.instr > 0 ? c.instr : (uint8_t) (ph.instr + 1));
+            if (c.cmd == 0xC) v.volume = std::min (64, (int) c.param);
+            else if (c.cmd2 == 0xC) v.volume = std::min (64, (int) c.param2);
+            triggerNote (v, t, ch);
+        }
+        phraseTriggering = false;
+        ++ph.line;
+        const double mul = in.phraseRate == 0 ? 2.0 : in.phraseRate == 2 ? 0.5 : 1.0;
+        ph.until += samplesPerTick() * std::max (1, speed) * mul;
+    }
+}
+
 void Player::releaseVoice (Voice& v)
 {
+    if (! phraseTriggering)
+        for (int ch = 0; ch < kMaxTracks; ++ch) if (&voices[ch] == &v) phrase[ch].instr = -1;   // (OFF ends a phrase)
     if (&v >= voices && &v < voices + kMaxTracks) cvRel[&v - voices] = true;   // (CV SOURCES: an ENV's release)
     synthRelease (v);
     if (! v.active || v.instr < 0 || song == nullptr) { v.active = false; return; }
@@ -1641,6 +1703,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 if (anyClock) while (ppq * 24.0 >= (double) nextClock) { sendClock (0, i); ++nextClock; }
                 else nextClock = (long long) std::ceil (ppq * 24.0 - 1e-9);
             }
+            stepPhrases();   // (PHRASE: their next lines)
             // micro-moved notes (Mxx) start part-way through a line
             for (int ch = 0; ch < kMaxTracks; ++ch)
             {

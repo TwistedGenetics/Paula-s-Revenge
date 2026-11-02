@@ -70,6 +70,12 @@ public:
     UtilityStrip& utilityStrip() { return utility; }   // (tests)
 private:
 
+    // PHRASE: a note plays a track of a block instead
+    PixButton phraseBtn { "PHRASE...", true };
+    void phraseClicked();
+public:
+    std::function<void (int block, int track)> onEditPhrase;   // EDIT IT: the pattern on that block and track
+private:
     PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, resetBtn { "RESET ALL" }, closeBtn { "CLOSE" },
               pluginBtn { "PLUG-IN / MIDI OUT..." };
     // switching the instrument on / off (and learning that as a track's AUTO A / B)

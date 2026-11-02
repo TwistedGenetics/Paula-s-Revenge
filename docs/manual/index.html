@@ -118,7 +118,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.37</span>
+  <span class="ver">MANUAL &middot; V0.38</span>
 </header>
 
 <div class="app">
@@ -484,6 +484,18 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>The sound goes through the instrument's effects first, then into the strip of the track it plays on. Every note goes through the one chain, so a delay or reverb carries on across notes; its output goes to the track of the instrument's <b>latest</b> note.</li>
     <li>The effects belong to the instrument: saved in the song, undo steps, and copied with it (COPY / PASTE / DUPLICATE). RENDER WAV and bouncing include them. A plug-in's own delay on an instrument slot isn't compensated.</li>
   </ul>
+  <h3>Macros</h3>
+  <p>The EQ AND EFFECTS page has <b>MACROS</b>: four knobs, each turning up to four controls of the instrument's own effects together. <span class="b">TARGETS...</span> adds one (the insert, then the control); click a target there to turn it the other way or remove it. Envelopes and <code>V</code> / <code>J</code> can turn them too.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/macros.png" alt="An instrument's EQ AND EFFECTS page: BUILT-IN EFFECTS with DRIVE in slot 1, IN THIS ORDER, and MACROS with MACRO 1 at 80% and 1 TARGET, MACROS 2 to 4 with TARGETS... buttons." width="1440" height="900" loading="lazy"></div>
+    <figcaption>MACRO 1 turning DRIVE up</figcaption>
+  </figure>
+  <h3>Phrases</h3>
+  <p><span class="b">PHRASE...</span> at the end of the EQ / FX row makes a note play a little pattern instead: a track of a block, moved by how far the note is from C-3. The first click makes a new 16-line block for it; click again for <b>EDIT IT</b> (the pattern jumps there), <b>LOOP</b>, <b>RATE</b> (half, the song's, double), <b>TRACK</b>, <b>ANOTHER BLOCK...</b> and <b>PHRASE OFF</b>. It stops at its end (unless it loops), on the next note, or on OFF.</p>
+  <h3>Resampling in one step</h3>
+  <p><kbd>Shift</kbd><kbd>Cmd</kbd><kbd>B</kbd> (or RESAMPLE in the bounce menu) records the highlighted notes &mdash; or the whole block &mdash; with all their effects into a new instrument: cut to its length, a slice a beat, notes playing the slices, BEAT SYNC'd to stay in time at any tempo.</p>
+  <h3>Following a MIDI clock</h3>
+  <p><b>View &rarr; Follow MIDI Clock</b>: another app or a drum machine leads. The tempo follows its clock; Start, Continue (from the last song position) and Stop work too.</p>
 </section>
 
 <!-- ============================================================ 007 -->
@@ -1001,6 +1013,6 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.37</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.38</footer>
 </main>
 </div>

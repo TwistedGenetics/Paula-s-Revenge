@@ -47,6 +47,18 @@ struct Modulator
     }
 };
 
+// an instrument's 4 MACRO knobs: each turns up to 4 controls of the instrument's own inserts,
+// each by its own amount (V / J and envelopes can turn them: kInstMacroBase + instrument * 4 + knob)
+constexpr int kInstMacros = 4, kInstMacroRoutes = 4;
+constexpr int kInstMacroBase = 4000;
+struct InstMacro
+{
+    float value = 0.0f;
+    ModRoute route[kInstMacroRoutes];
+    int routes() const { int n = 0; for (const auto& r : route) n += r.valid(); return n; }
+    bool operator== (const InstMacro& o) const { if (value != o.value) return false; for (int i = 0; i < kInstMacroRoutes; ++i) if (! (route[i] == o.route[i])) return false; return true; }
+};
+
 struct ModSettings
 {
     Modulator mod[kMods];

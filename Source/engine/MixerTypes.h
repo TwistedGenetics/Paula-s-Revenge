@@ -166,6 +166,8 @@ struct MixerSettings
     AutoTarget   trackAuto[kMixTracks][kTrackKnobs];   // each track's AUTO A (V) and AUTO B (J)
     FxSlot       inst[kMixInstruments][kInserts];      // each instrument's own inserts
     ModSettings  mods;                                  // MODULATION: 16 modulators and their routes
+    InstMacro    instMacro[kMixInstruments][kInstMacros];   // each instrument's 4 MACRO knobs
+    bool anyInstMacro() const { for (const auto& in : instMacro) for (const auto& m : in) if (m.routes() > 0) return true; return false; }
     bool instrumentChain (int ins) const               // anything in an instrument's inserts?
     {
         if (ins < 0 || ins >= kMixInstruments) return false;

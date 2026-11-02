@@ -167,6 +167,12 @@ struct Instrument
     Envelope   filterEnv { true, 0.005f, 0.3f, 0.0f, 0.2f };
     float      filterEnvAmount = 0.0f;      // octaves, -8..+8
     float      keyTrack    = 0.0f;          // 0..1 (1 = cutoff follows the note fully)
+    // PHRASE: a note plays a track of a block instead (its notes moved by how far the note is
+    // from C-3), at the song's line rate x RATE; -1 = none
+    int  phraseBlock = -1, phraseTrack = 0;
+    bool phraseLoop  = false;
+    int  phraseRate  = 1;                   // 0 = half, 1 = the song's, 2 = double
+    bool hasPhrase() const { return phraseBlock >= 0; }
     bool       amigaPan    = true;          // follow the Amiga L/R track layout
     int        pan         = 128;           // 0..255 when amigaPan is off
 

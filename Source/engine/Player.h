@@ -145,6 +145,9 @@ public:
 
     // External tempo control (plugin host sync)
     void setTempoOverride (double bpm) { tempoOverride = bpm; }
+    // an outside tempo in beats a minute (4 lines a beat): MIDI CLOCK; 0 = the song's own again
+    void setBeatTempo (double beatBpm) { tempoOverride = beatBpm > 0 ? beatBpm * std::max (1, speed) / 6.0 : 0.0; }
+    double beatTempo() const { return (tempoOverride > 0 ? tempoOverride : (double) tempo) * 6.0 / std::max (1, speed); }
     void setLed (bool on) { ledOn = on; uiLed = on; }
 
     PaulaOptions options;
@@ -250,6 +253,16 @@ private:
         // switched off while sounding: fades out
         int    fadeOut = 0, fadeLen = 1;
     };
+
+    // PHRASE: a track playing an instrument's phrase (a block's track, from its note)
+    struct PhraseRun { int instr = -1, root = 37, line = 0; double until = 0; };
+    PhraseRun phrase[kMaxTracks];
+    bool phraseTriggering = false;              // (a phrase's own notes don't start phrases)
+    void stepPhrases();
+    void stepPhrase (int track);
+public:
+    int phraseLine (int track) const { return track >= 0 && track < kMaxTracks && phrase[track].instr >= 0 ? phrase[track].line : -1; }   // (tests, UI)
+private:
 
     // automation: a value moving (or gliding) towards its target, one per knob
     struct Lane { float cur = -1.0f, target = 0.0f, step = 0.0f; int ticks = 0; };

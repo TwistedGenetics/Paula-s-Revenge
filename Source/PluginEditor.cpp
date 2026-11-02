@@ -229,6 +229,17 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     pattern.onStateChanged = [this] { refreshAll(); };
     pattern.onBounce = [this] { askBounce(); };
+    params.onEditPhrase = [this] (int b, int t)
+    {
+        auto& st = proc.editorState;
+        st.block = proc.song.safeBlock (b);
+        st.track = juce::jlimit (0, proc.song.numTracks - 1, t);
+        st.line = 0;
+        setView (View::Pattern);
+        refreshAll();
+        setStatus ("THE PHRASE: BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " TRACK " + juce::String (st.track + 1) + " - WRITE IT FROM C-3 (THE NOTE PLAYED MOVES IT)");
+    };
+    pattern.onResample = [this] { resampleChop(); };
     pattern.onFollowInstrument = [this] (int ins)
     {
         if (proc.editorState.instrument == ins) return;
@@ -580,6 +591,16 @@ void PaulaEditor::timerCallback()
     }
     pattern.tick();
     if (automation.isVisible()) automation.tick();
+    if (proc.followClock.load())
+    {
+        // the tempo it's following, when it changes by a whole BPM
+        const float b = proc.clockBpm.load();
+        if (std::abs (b - shownClockBpm) >= 1.0f || (b == 0) != (shownClockBpm == 0))
+        {
+            shownClockBpm = b;
+            setStatus (b > 0 ? "MIDI CLOCK: " + juce::String (b, 1) + " BPM" : juce::String ("MIDI CLOCK: WAITING FOR A CLOCK ON THE MIDI INPUT"));
+        }
+    }
     if (spectrum.isVisible())
     {
         // at instrument level (its PARAMS or plug-in page) the strip shows just that instrument
@@ -1728,9 +1749,11 @@ void PaulaEditor::askBounce()
 {
     juce::Component::SafePointer<PaulaEditor> safe (this);
     choice.show (*this, "BOUNCE THE HIGHLIGHTED NOTES",
-                 { "NO FX (DRY)", "INSTRUMENT FX ONLY (THE INSTRUMENTS' OWN INSERTS)", "MIXER FX ONLY (EQ, INSERTS, FADER, SENDS)", "ALL FX (INSTRUMENTS AND MIXER)" }, [safe] (int a)
+                 { "NO FX (DRY)", "INSTRUMENT FX ONLY (THE INSTRUMENTS' OWN INSERTS)", "MIXER FX ONLY (EQ, INSERTS, FADER, SENDS)", "ALL FX (INSTRUMENTS AND MIXER)",
+                   "RESAMPLE: ALL FX, CHOPPED A SLICE A BEAT, IN TIME" }, [safe] (int a)
     {
-        if (safe != nullptr && a >= 0) safe->bounceSelection (a);
+        if (safe == nullptr || a < 0) return;
+        if (a == 4) safe->resampleChop(); else safe->bounceSelection (a);
     });
 }
 
@@ -1794,6 +1817,75 @@ bool PaulaEditor::bounceSelection (int fx)
                    + " (" + juce::String (res.left.size() / rate, 2) + " S" + (fx == BounceAllFx ? ", ALL FX" : fx == BounceMixerFx ? ", MIXER FX" : fx == BounceInstrumentFx ? ", INSTRUMENT FX" : ", DRY") + ") - C-3 PLAYS IT AS RECORDED";
     if (! res.leftOut.empty()) m << " - MIDI OUT ISN'T IN IT (HARDWARE)";
     setStatus (m);
+    refreshAll();
+    return true;
+}
+
+void PaulaEditor::setFollowClock (bool on)
+{
+    proc.setFollowClock (on);
+    setStatus (on ? "FOLLOWING MIDI CLOCK: THE TEMPO, START, STOP AND POSITION COME FROM THE MIDI INPUT (TURN ITS DEVICE ON IN AUDIO/MIDI SETTINGS)"
+                  : "MIDI CLOCK OFF: THE SONG'S OWN TEMPO AGAIN");
+}
+
+bool PaulaEditor::resampleChop()
+{
+    prv::BounceRange r;
+    if (! pattern.selectionArea (r.block, r.line0, r.line1, r.track0, r.track1))
+    {
+        // nothing highlighted: the whole block, every track
+        r.block = proc.editorState.block; r.line0 = 0; r.line1 = proc.song.blocks[(size_t) r.block].lines - 1;
+        r.track0 = 0; r.track1 = proc.song.numTracks - 1;
+    }
+    r.withFx = r.instrumentFx = true;
+    int slot = -1;
+    for (int i = 0; i < prv::kMaxInstruments && slot < 0; ++i)
+    {
+        const auto& in = proc.song.instruments[(size_t) i];
+        if (! in.hasData() && ! in.isPlugin()) slot = i;
+    }
+    if (slot < 0) { setStatus ("CAN'T RESAMPLE: ALL 63 INSTRUMENTS ARE IN USE"); return false; }
+    prv::Song copy;
+    prv::PaulaOptions opts;
+    proc.capturePluginStates();
+    proc.withLock ([&] { copy = proc.song; opts = proc.player.options; });
+    prv::BounceResult res;
+    std::string err;
+    const double rate = 44100.0;
+    if (! prv::bounceRange (copy, opts, rate, r, res, proc.synthFactory(), err, proc.pluginFactory()))
+    {
+        setStatus ("CAN'T RESAMPLE: " + juce::String (err));
+        return false;
+    }
+    // cut to exactly its lines (the tail would make it loop late), a slice a beat
+    const int lines = r.line1 - r.line0 + 1;
+    const size_t len = (size_t) std::lround (lines * res.secondsPerLine * rate);   // (exactly its lines: silence where it went quiet)
+    res.left.resize (len, 0.0f); res.right.resize (len, 0.0f);
+    const int per = lines >= 8 ? 4 : 1;
+    prv::Instrument made;
+    const juce::String name = "RESAMPLE B" + juce::String (r.block).paddedLeft ('0', 3) + " " + juce::String (r.line0).paddedLeft ('0', 3) + "-" + juce::String (r.line1).paddedLeft ('0', 3);
+    made.name = name.toStdString();
+    made.rate = rate;
+    made.volume = 64;
+    made.data.resize (len); made.dataR.resize (len);
+    bool stereo = false;
+    for (size_t k = 0; k < len; ++k)
+    {
+        // (a 2 ms fade at the end: no click where it's cut)
+        const float g = std::min (1.0f, (float) (len - k) / (float) (rate * 0.002));
+        made.data[k]  = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (res.left[k] * g * 32767.0f));
+        made.dataR[k] = (int16_t) juce::jlimit (-32768, 32767, (int) std::lround (res.right[k] * g * 32767.0f));
+        stereo = stereo || made.data[k] != made.dataR[k];
+    }
+    if (! stereo) made.dataR.clear();
+    for (int l = 0; l < lines; l += per) made.slices.push_back ((int) std::lround (l * res.secondsPerLine * rate));
+    made.sliceKeys = true;
+    made.syncLines = lines;
+    proc.history.instrument (slot, "RESAMPLE " + name);
+    proc.withLock ([&] { proc.song.instruments[(size_t) slot] = std::move (made); });
+    proc.editorState.instrument = slot;
+    setStatus ("RESAMPLED TO INSTRUMENT " + juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2) + ": " + juce::String ((lines + per - 1) / per)
+               + " SLICES (A " + (per == 4 ? "BEAT" : "LINE") + " EACH), IN TIME AT ANY TEMPO - C-3, C#3... PLAY THE SLICES");
     refreshAll();
     return true;
 }
