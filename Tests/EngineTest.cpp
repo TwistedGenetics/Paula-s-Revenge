@@ -3770,7 +3770,8 @@ namespace
 static void testStudioFx()
 {
     std::printf ("\n== studio effects\n");
-    const FxType types[] = { FxType::Vast, FxType::Space, FxType::TapeEcho, FxType::Ensemble };
+    std::vector<FxType> types;
+    for (int t = (int) FxType::Vast; t < (int) FxType::Count; ++t) types.push_back ((FxType) t);
     // the descriptions: every built-in effect in one group of the menu, presets that fit
     for (int t = 1; t < (int) FxType::Count; ++t)
     {
@@ -3893,6 +3894,142 @@ static void testStudioFx()
         std::printf ("ENSEMBLE %s: level x%.2f, L-R %.1f\n", fxParamText (FxType::Ensemble, 0, paramsOf (FxType::Ensemble, { { 0, mode / 3.0f } }).data()).c_str(), ratio, diff);
         CHECK (ratio > 0.6 && ratio < 1.6 && diff > 50);
     }
+    auto sine = [] (int n, double hz, float amp = 0.3f)
+    {
+        Stereo t { std::vector<float> ((size_t) n), std::vector<float> ((size_t) n) };
+        for (int i = 0; i < n; ++i) t.L[(size_t) i] = t.R[(size_t) i] = amp * (float) std::sin (2 * 3.14159265358979 * hz * i / 48000.0);
+        return t;
+    };
+    // ROOMS: the tail lasts about as long as DECAY says, the types differ
+    {
+        const float v = (float) (std::log (2.0 / 0.3) / std::log (40.0 / 0.3));
+        const auto p = paramsOf (FxType::Rooms, { { 0, 1.0f }, { 3, v }, { 4, 0 }, { 6, 0 }, { 7, 0 }, { 8, 1 }, { 9, 0 } });
+        auto out = runFx (FxType::Rooms, noiseBurst (48000 * 3, 4800), p.data());
+        const double db = 20 * std::log10 (rms2 (out, 24000, 28800) / rms2 (out, 72000, 76800));
+        std::printf ("ROOMS 2 s decay: fell %.1f dB in a second (expect ~30)\n", db);
+        CHECK (db > 20 && db < 40);
+    }
+    // DUB DELAY: repeats on the beat, and HOLD keeps the loop going with nothing new coming in
+    {
+        auto out = runFx (FxType::DubDelay, impulse (30000), paramsOf (FxType::DubDelay, { { 0, 0.5f }, { 2, 0 }, { 3, 0.4f }, { 4, 0 }, { 5, 0 }, { 7, 0 }, { 8, 0 }, { 9, 1 } }).data());
+        const int a = peakAfter (out.L, 10, 20000);
+        std::printf ("DUB DELAY 1/8: repeat at %d (expect ~12000)\n", a);
+        CHECK (std::abs (a - 12000) < 40);
+        auto fx = makeEffect (FxType::DubDelay); fx->prepare (48000);
+        auto open = paramsOf (FxType::DubDelay, { { 2, 0.5f }, { 9, 1.0f } }), held = open;
+        held[6] = 1.0f;
+        auto noise = noiseBurst (48000 * 5, 48000 * 5);
+        for (int i = 0; i < 48000 * 5; i += 480) fx->process (noise.L.data() + i, noise.R.data() + i, 480, i < 24000 ? open.data() : held.data(), 120.0);
+        const double h1 = rms2 (noise, 48000, 52800), h4 = rms2 (noise, 48000 * 4, 48000 * 4 + 4800);
+        std::printf ("DUB DELAY held: %.3f after 1 s, %.3f after 4 s\n", h1, h4);
+        CHECK (h1 > 0.02 && h4 > 0.7 * h1 && h4 < 1.3 * h1);
+    }
+    // BBD: a longer delay is darker
+    {
+        const auto shortP = paramsOf (FxType::BbdDelay, { { 0, (float) (std::log (100.0) / std::log (2000.0)) }, { 2, 0 }, { 4, 0 }, { 5, 0 }, { 8, 1 } });
+        const auto longP = paramsOf (FxType::BbdDelay, { { 0, (float) (std::log (800.0) / std::log (2000.0)) }, { 2, 0 }, { 4, 0 }, { 5, 0 }, { 8, 1 } });
+        auto a = runFx (FxType::BbdDelay, impulse (48000), shortP.data()), b = runFx (FxType::BbdDelay, impulse (48000), longP.data());
+        const int at = peakAfter (a.L, 10, 20000);
+        std::printf ("BBD 100 ms: repeat at %d; peak %.3f vs %.3f at 800 ms\n", at, a.L[(size_t) at], b.L[(size_t) peakAfter (b.L, 20000, 48000)]);
+        CHECK (std::abs (at - 4800) < 30 && std::abs (b.L[(size_t) peakAfter (b.L, 20000, 48000)]) < std::abs (a.L[(size_t) at]));
+    }
+    // GRAIN DELAY: the pitch goes where PITCH says, in both modes
+    for (int mode = 0; mode < 2; ++mode)
+    {
+        const auto up = runFx (FxType::Grain, sine (48000 * 2, 440), paramsOf (FxType::Grain, { { 0, (float) mode }, { 1, 0.5f }, { 3, 0 }, { 4, 1.0f }, { 5, 0 }, { 8, 1 } }).data());
+        const auto same = runFx (FxType::Grain, sine (48000 * 2, 440), paramsOf (FxType::Grain, { { 0, (float) mode }, { 1, 0.5f }, { 3, 0 }, { 4, 0.5f }, { 5, 0 }, { 8, 1 } }).data());
+        const double u880 = toneLevel (up.L, 48000, 96000, 880), u440 = toneLevel (up.L, 48000, 96000, 440);
+        const double s440 = toneLevel (same.L, 48000, 96000, 440), s880 = toneLevel (same.L, 48000, 96000, 880);
+        std::printf ("GRAIN %s: +12 -> 880 %.4f / 440 %.4f;  0 -> 440 %.4f / 880 %.4f\n", mode ? "GRAINS" : "REVERSE", u880, u440, s440, s880);
+        CHECK (u880 > 4 * u440 && s440 > 4 * s880);
+    }
+    // GRAIN REVERSE plays backwards: a rising ramp comes back falling
+    {
+        Stereo ramp { std::vector<float> (48000 * 2), std::vector<float> (48000 * 2) };
+        for (int i = 0; i < 48000 * 2; ++i) ramp.L[(size_t) i] = ramp.R[(size_t) i] = 0.5f * (float) ((i % 24000) / 24000.0) * (float) std::sin (2 * 3.14159265358979 * 1000 * i / 48000.0);
+        const auto out = runFx (FxType::Grain, ramp, paramsOf (FxType::Grain, { { 0, 0 }, { 1, 0.5f }, { 3, 0 }, { 5, 0 }, { 8, 1 } }).data());   // 1/8 = 12000
+        // within a reversed stretch the level falls: compare early and late quarters of stretches
+        double early = 0, late = 0;
+        for (int st = 4; st < 7; ++st) { early += rmsOf (out.L, st * 12000 + 1500, st * 12000 + 4500); late += rmsOf (out.L, st * 12000 + 7500, st * 12000 + 10500); }
+        std::printf ("GRAIN REVERSE on a rising ramp: early %.3f, late %.3f in each stretch\n", early, late);
+        CHECK (std::abs (early - late) > 0.05);
+    }
+    // MULTI-TAP: 4 straight taps, left and right in turn
+    {
+        auto out = runFx (FxType::MultiTap, impulse (60000), paramsOf (FxType::MultiTap, { { 0, 0.5f }, { 2, 0 }, { 3, 3.0f / 7 }, { 4, 0 }, { 5, 0 }, { 6, 1 }, { 7, 1 }, { 8, 1 } }).data());
+        const int t1 = peakAfter (out.L, 10, 18000), t2 = peakAfter (out.R, 18000, 30000), t3 = peakAfter (out.L, 30000, 42000), t4 = peakAfter (out.R, 42000, 54000);
+        std::printf ("MULTI-TAP: L %d, R %d, L %d, R %d (expect 12000 24000 36000 48000); R at the first %.3f\n", t1, t2, t3, t4, out.R[(size_t) t1]);
+        CHECK (std::abs (t1 - 12000) <= 3 && std::abs (t2 - 24000) <= 3 && std::abs (t3 - 36000) <= 3 && std::abs (t4 - 48000) <= 3 && std::abs (out.R[(size_t) t1]) < 0.05);
+    }
+    // FLANGER: a comb with a notch at 1 / (2 x delay); through-zero at the centre is flat
+    {
+        const float man = (float) std::sqrt ((1.0 - 0.3) / 7.7);   // 1 ms
+        auto comb = runFx (FxType::Flanger, noiseBurst (48000, 48000), paramsOf (FxType::Flanger, { { 1, 0 }, { 2, man }, { 3, 0.5f }, { 6, 0.5f } }).data());
+        auto flat = runFx (FxType::Flanger, noiseBurst (48000, 48000), paramsOf (FxType::Flanger, { { 1, 0 }, { 2, man }, { 3, 0.5f }, { 4, 1 }, { 6, 0.5f } }).data());
+        const double n500 = toneLevel (comb.L, 4800, 48000, 500), p1k = toneLevel (comb.L, 4800, 48000, 1000);
+        const double f500 = toneLevel (flat.L, 4800, 48000, 500), f1k = toneLevel (flat.L, 4800, 48000, 1000);
+        std::printf ("FLANGER 1 ms: 500 Hz %.5f vs 1 kHz %.5f; through-zero centred: %.5f vs %.5f\n", n500, p1k, f500, f1k);
+        CHECK (n500 < 0.2 * p1k && f500 > 0.4 * f1k);
+    }
+    // TREMOLO synced to 1/4 at 120 BPM: two dips a second, down to nothing at full depth
+    {
+        auto out = runFx (FxType::Tremolo, sine (48000 * 2, 1000), paramsOf (FxType::Tremolo, { { 1, 0.75f }, { 2, 1 }, { 3, 1.0f } }).data());
+        double lo = 1, hi = 0;
+        for (int w = 48000; w < 96000; w += 480) { const double r = rmsOf (out.L, w, w + 480); lo = std::min (lo, r); hi = std::max (hi, r); }
+        std::printf ("TREMOLO: level from %.4f to %.4f\n", lo, hi);
+        CHECK (lo < 0.03 * hi && hi > 0.15);
+        auto pan = runFx (FxType::Tremolo, sine (48000, 1000), paramsOf (FxType::Tremolo, { { 0, 0.5f }, { 1, 0.75f }, { 2, 1 }, { 3, 1.0f } }).data());
+        double maxDiff = 0; for (int w = 4800; w < 48000; w += 480) maxDiff = std::max (maxDiff, std::abs (rmsOf (pan.L, w, w + 480) - rmsOf (pan.R, w, w + 480)));
+        CHECK (maxDiff > 0.2);
+    }
+    // FREQ SHIFTER: +100 Hz moves a 1 kHz tone to 1.1 kHz; RING MOD makes 900 and 1100
+    {
+        const float f100 = (float) ((std::cbrt (0.1) + 1.0) / 2.0);
+        auto sh = runFx (FxType::FreqShift, sine (48000, 1000), paramsOf (FxType::FreqShift, { { 0, 0 }, { 1, f100 }, { 2, 0.5f }, { 5, 1 } }).data());
+        const double a1100 = toneLevel (sh.L, 4800, 48000, 1100), a900 = toneLevel (sh.L, 4800, 48000, 900), a1000 = toneLevel (sh.L, 4800, 48000, 1000);
+        std::printf ("FREQ SHIFT +100: 1100 %.4f, 900 %.4f, 1000 %.4f\n", a1100, a900, a1000);
+        CHECK (a1100 > 20 * a900 && a1100 > 20 * a1000);
+        const float r100 = (float) (std::log (100.0) / std::log (2000.0));
+        auto rm = runFx (FxType::FreqShift, sine (48000, 1000), paramsOf (FxType::FreqShift, { { 0, 1 }, { 1, r100 }, { 2, 0.5f }, { 5, 1 } }).data());
+        const double r1100 = toneLevel (rm.L, 4800, 48000, 1100), r900 = toneLevel (rm.L, 4800, 48000, 900), r1000 = toneLevel (rm.L, 4800, 48000, 1000);
+        std::printf ("RING MOD 100: 1100 %.4f, 900 %.4f, 1000 %.4f\n", r1100, r900, r1000);
+        CHECK (r1100 > 10 * r1000 && r900 > 10 * r1000 && std::abs (r1100 - r900) < 0.3 * r1100);
+    }
+    // AUTO-FILTER: the envelope opens it (loud is brighter than quiet, relatively)
+    {
+        const auto p = paramsOf (FxType::AutoFilter, { { 1, 0.3f }, { 5, 0 }, { 6, 1.0f }, { 7, 0.2f } });
+        auto quiet = runFx (FxType::AutoFilter, sine (24000, 3000, 0.01f), p.data()), loud = runFx (FxType::AutoFilter, sine (24000, 3000, 0.5f), p.data());
+        const double gq = rmsOf (quiet.L, 4800, 24000) / 0.00707, gl = rmsOf (loud.L, 4800, 24000) / 0.3536;
+        std::printf ("AUTO-FILTER 3 kHz through: quiet x%.3f, loud x%.3f\n", gq, gl);
+        CHECK (gl > 3 * gq);
+    }
+    // DIMENSION: wide, but the two sides add up to (nearly) the dry sound
+    {
+        Stereo n = noiseBurst (48000, 48000);
+        for (size_t i = 0; i < n.R.size(); ++i) n.R[i] = n.L[i];
+        auto out = runFx (FxType::Dimension, n, paramsOf (FxType::Dimension, { { 0, 1 } }).data());
+        double diff = 0, sumErr = 0, ref = 0;
+        for (int i = 4800; i < 48000; ++i)
+        {
+            diff += std::abs (out.L[(size_t) i] - out.R[(size_t) i]);
+            const double m = 0.5 * (out.L[(size_t) i] + out.R[(size_t) i]);
+            sumErr += (m - n.L[(size_t) i]) * (m - n.L[(size_t) i]); ref += n.L[(size_t) i] * n.L[(size_t) i];
+        }
+        std::printf ("DIMENSION: L-R %.1f, mono sum off by %.1f dB\n", diff, 10 * std::log10 (sumErr / ref));
+        CHECK (diff > 100 && sumErr / ref < 0.1);
+    }
+    // ROTARY: FAST spins the horn up to about 6.7 Hz (the level of a high tone pulses at that rate)
+    {
+        auto out = runFx (FxType::Rotary, sine (48000 * 6, 3000), paramsOf (FxType::Rotary, { { 0, 1 }, { 1, 0 }, { 2, 1.0f } }).data());
+        // its level, 5 ms at a time, less its average
+        std::vector<float> envl (out.L.size());
+        for (size_t i = 0; i + 240 <= out.L.size(); i += 240) { const float r = (float) rmsOf (out.L, (int) i, (int) i + 240); for (size_t j = i; j < i + 240; ++j) envl[j] = r; }
+        double mean = 0; for (int i = 48000 * 3; i < 48000 * 6; ++i) mean += envl[(size_t) i]; mean /= 48000 * 3;
+        for (auto& e : envl) e -= (float) mean;
+        const double fastA = toneLevel (envl, 48000 * 3, 48000 * 6, 6.7), slowA = toneLevel (envl, 48000 * 3, 48000 * 6, 0.8);
+        std::printf ("ROTARY fast: envelope at 6.7 Hz %.4f, at 0.8 Hz %.4f\n", fastA, slowA);
+        CHECK (fastA > 3 * slowA);
+    }
     // no zipper noise: MIX and DELAY jumping between blocks don't click
     for (auto t : types)
     {
@@ -3900,7 +4037,10 @@ static void testStudioFx()
         for (int i = 0; i < 48000; ++i) tone.L[(size_t) i] = tone.R[(size_t) i] = 0.5f * (float) std::sin (2 * 3.14159265358979 * 100 * i / 48000.0);
         auto fx = makeEffect (t); fx->prepare (48000);
         auto a = paramsOf (t, {}), b = a;
-        const int mixAt = t == FxType::TapeEcho ? 10 : t == FxType::Ensemble ? 6 : 0;
+        int mixAt = -1;
+        for (int i = 0; i < (int) fxParams (t).size(); ++i) if (fxParams (t)[(size_t) i].name == "MIX") mixAt = i;
+        if (mixAt < 0) for (int i = 0; i < (int) fxParams (t).size(); ++i) if (fxParams (t)[(size_t) i].name == "DEPTH") mixAt = i;
+        CHECK (mixAt >= 0);
         a[(size_t) mixAt] = 0; b[(size_t) mixAt] = 1;
         if (t == FxType::Vast) { b[1] = 0.1f; }
         for (int i = 0; i < 48000; i += 480) fx->process (tone.L.data() + i, tone.R.data() + i, 480, (i / 4800) % 2 ? b.data() : a.data(), 120.0);

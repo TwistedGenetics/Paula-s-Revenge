@@ -1485,16 +1485,29 @@ juce::String MixerPage::effectInfo (FxType t)
 {
     switch (t)
     {
-        case FxType::Filter:     return "RESONANT FILTER: LOW, BAND OR HIGH-PASS";
-        case FxType::Drive:      return "DRIVE, BIT CRUSH AND SAMPLE-RATE REDUCTION";
-        case FxType::Compressor: return "COMPRESSOR - MIX BELOW 100% FOR PARALLEL SQUASH";
-        case FxType::Delay:      return "STEREO DELAY - SYNC LOCKS TIME TO THE SONG TEMPO";
+        case FxType::Filter:     return "FILTER - RESONANT LOW, BAND OR HIGH-PASS";
+        case FxType::Drive:      return "DRIVE - DRIVE, BIT CRUSH, SAMPLE-RATE CUT";
+        case FxType::Compressor: return "COMPRESSOR - MIX BELOW 100% FOR PARALLEL";
+        case FxType::Delay:      return "DELAY - CLEAN STEREO, SYNC LOCKS IT TO THE TEMPO";
         case FxType::Reverb:     return "REVERB - ON A SEND, KEEP MIX AT 100%";
-        case FxType::Chorus:     return "STEREO CHORUS";
+        case FxType::Chorus:     return "CHORUS - THE ORIGINAL STEREO CHORUS";
         case FxType::Vast:       return "VAST - ECHOES THAT SMEAR INTO A HUGE REVERB";
         case FxType::Space:      return "SPACE - ROOM TO HALL, WITH SHIMMER AND FREEZE";
         case FxType::TapeEcho:   return "TAPE ECHO - 3 HEADS, WOW, FLUTTER, SATURATION";
         case FxType::Ensemble:   return "ENSEMBLE - POLYSYNTH CHORUS AND STRING MACHINE";
+        case FxType::Rooms:      return "ROOMS - ROOM, CHAMBER, HALL OR PLATE";
+        case FxType::Spring:     return "SPRING - THE AMP'S SPRING TANK, 1 TO 3 SPRINGS";
+        case FxType::DubDelay:   return "DUB DELAY - FILTERED FEEDBACK, HOLD TO LOOP IT";
+        case FxType::BbdDelay:   return "BBD DELAY - DARK, WARBLY ANALOG ECHO";
+        case FxType::Grain:      return "GRAIN DELAY - REVERSED ECHOES OR PITCHED GRAINS";
+        case FxType::MultiTap:   return "MULTI-TAP - UP TO 8 ECHOES IN A RHYTHM";
+        case FxType::Flanger:    return "FLANGER - JET SWEEPS, THROUGH-ZERO TOO";
+        case FxType::Phaser:     return "PHASER - 4, 8 OR 12 STAGES";
+        case FxType::Rotary:     return "ROTARY - A SPINNING ORGAN SPEAKER, SLOW / FAST";
+        case FxType::Tremolo:    return "TREMOLO - VOLUME, AUTO-PAN OR HARMONIC PULSE";
+        case FxType::FreqShift:  return "FREQ SHIFTER - SHIFT EVERY PITCH, OR RING MOD";
+        case FxType::AutoFilter: return "AUTO-FILTER - SWEPT BY AN LFO AND THE SOUND";
+        case FxType::Dimension:  return "DIMENSION - WIDE, CLEAN STEREO SPACE (4 MODES)";
         case FxType::Plugin:     return "VST3 / AU PLUG-IN - ITS OWN WINDOW HAS THE CONTROLS";
         default:                 return "EMPTY SLOT - PICK ONE WITH EFFECT ABOVE";
     }

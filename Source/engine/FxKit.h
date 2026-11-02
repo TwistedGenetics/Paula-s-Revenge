@@ -96,6 +96,59 @@ struct Lfo
     inline void advance() { phase += inc; if (phase >= 1.0) phase -= 1.0; }
 };
 
+// ---- a state-variable filter (TPT: stable when swept fast); g = tan (pi fc / sr), k = 1 / Q
+struct Svf
+{
+    float ic1 = 0, ic2 = 0;
+    void reset() { ic1 = ic2 = 0; }
+    static inline float gFor (double hz, double sr) { return (float) std::tan (kPi * std::clamp (hz, 5.0, sr * 0.45) / sr); }
+    inline void tick (float x, float g, float k, float& lp, float& bp, float& hp)
+    {
+        const float a1 = 1.0f / (1.0f + g * (g + k)), a2 = g * a1, a3 = g * a2;
+        const float v3 = x - ic2;
+        const float v1 = a1 * ic1 + a2 * v3;
+        const float v2 = ic2 + a2 * ic1 + a3 * v3;
+        ic1 = 2.0f * v1 - ic1; ic2 = 2.0f * v2 - ic2;
+        lp = v2; bp = v1; hp = x - k * v1 - v2;
+    }
+};
+
+// ---- first-order allpass (phasers, dispersion)
+struct Allpass1
+{
+    float x1 = 0, y1 = 0;
+    void reset() { x1 = y1 = 0; }
+    inline float process (float x, float a) { const float y = a * x + x1 - a * y1; x1 = x; y1 = y; return y; }
+    static inline float coefFor (double hz, double sr) { const double t = std::tan (kPi * std::clamp (hz, 5.0, sr * 0.45) / sr); return (float) ((t - 1.0) / (t + 1.0)); }
+};
+
+// ---- a Hilbert pair: two allpass chains whose outputs are 90 degrees apart over ~20 HZ .. 20 KHZ
+// (Olli Niemitalo's coefficients); for frequency shifting
+class Hilbert
+{
+public:
+    void reset() { for (auto& c : st) c = {}; }
+    inline void process (float x, float& re, float& im)
+    {
+        static constexpr double a[4] = { 0.6923878, 0.9360654322959, 0.9882295226860, 0.9987488452737 };
+        static constexpr double b[4] = { 0.4021921162426, 0.8561710882420, 0.9722909545651, 0.9952884791278 };
+        double u = x, v = x;
+        for (int i = 0; i < 4; ++i) { u = section (st[i], u, a[i] * a[i]); v = section (st[4 + i], v, b[i] * b[i]); }
+        re = (float) delayed; delayed = u;   // (the first chain one sample late)
+        im = (float) v;
+    }
+private:
+    struct S { double x1 = 0, x2 = 0, y1 = 0, y2 = 0; };
+    S st[8];
+    double delayed = 0;
+    static inline double section (S& s, double x, double c)
+    {
+        const double y = c * (x + s.y2) - s.x2;
+        s.x2 = s.x1; s.x1 = x; s.y2 = s.y1; s.y1 = y;
+        return y;
+    }
+};
+
 // ---- noise (xorshift)
 struct Noise
 {

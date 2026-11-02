@@ -12,5 +12,6 @@
 
 namespace prv
 {
-std::unique_ptr<Effect> makeStudioEffect (FxType);   // nullptr for the other types
+std::unique_ptr<Effect> makeStudioEffect (FxType);    // nullptr for the other types
+std::unique_ptr<Effect> makeStudioEffect2 (FxType);   // (v0.35's: ROOMS ... DIMENSION)
 }

@@ -33,7 +33,9 @@ inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < 
 
 // (new types go at the end: the numbers are in the songs)
 enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin,
-                              Vast, Space, TapeEcho, Ensemble, Count };
+                              Vast, Space, TapeEcho, Ensemble,
+                              Rooms, Spring, DubDelay, BbdDelay, Grain, MultiTap, Flanger, Phaser, Rotary, Tremolo,
+                              FreqShift, AutoFilter, Dimension, Count };
 inline bool isBuiltinFx (FxType t) { return t != FxType::None && t != FxType::Plugin && t < FxType::Count; }
 
 // the EFFECT menu's groups
@@ -204,6 +206,13 @@ double vastModRateHz (float v);            // 0.02 .. 8 HZ
 double spaceDecaySeconds (float v);        // 0.3 .. 40 S
 double tapeToneHz (float v);               // 1.2 .. 16 KHZ
 double ensembleRateScale (float v);        // X0.25 .. X4
+double lfoHz (float v);                    // 0.02 .. 8 HZ (the modulation effects' RATE)
+double tremoloHz (float v);                // 0.1 .. 20 HZ
+double syncedHz (float v, double bpm);     // a note length (as SYNC'd delays) as a rate
+double grainPitch (float v);               // -12 .. +12 semitones
+double freqShiftHz (float v);              // -1000 .. +1000 HZ (finer near 0)
+double ringHz (float v);                   // 1 .. 2000 HZ
+std::string divisionName (float v);        // "1/8 D" ...
 
 // Delay time in seconds for parameters p (time, sync) at a song tempo (BPM)
 double delaySeconds (const float* p, double bpm);

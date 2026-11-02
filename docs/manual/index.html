@@ -118,7 +118,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.34</span>
+  <span class="ver">MANUAL &middot; V0.35</span>
 </header>
 
 <div class="app">
@@ -566,7 +566,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
         <li><b>Right-click</b> a point for its type (BELL, LOW / HIGH SHELF, HIGH- / LOW-PASS), SWITCH OFF, RESET GAIN and REMOVE POINT; <kbd>Delete</kbd> removes the selected one.</li>
         <li>Under the graph: the selected point's type, ON, REMOVE POINT, FREQ, GAIN and Q. <span class="b">EQ FLAT</span> removes them all. Songs from before v0.25 keep their bands that were on.</li>
       </ul></li>
-    <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
+    <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect: 23 built in. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
     <li><b>Returns:</b> SEND A starts with a reverb and SEND B with a delay, fully wet, silent until a track sends to them.</li>
     <li><b>Delay compensation:</b> plug-ins that give their sound back late (lookahead limiters, linear-phase EQs) are lined up, so every track stays in time, sends included. The strips page title shows the total delay.</li>
   </ul>
@@ -593,13 +593,40 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">SPACE</span></td><td>A room, plate or hall: <b>SIZE</b>, <b>DECAY</b> 0.3&ndash;40&nbsp;s, <b>PRE-DELAY</b> with <b>PRE ECHO</b>, <b>DAMP</b>, <b>LOW CUT</b>, <b>MOD</b>, <b>CHARACTER</b> (GROUNDED, AIRY, COSMIC), <b>SHIMMER</b> (an octave up in the tail), <b>FREEZE</b> (holds the tail) and <b>WIDTH</b>.</td></tr>
       <tr><td><span class="b">TAPE ECHO</span></td><td>A tape loop with three heads at 1, 2 and 3 times <b>TIME</b> (<b>HEADS</b> picks them). <b>FEEDBACK</b> past 100% for runaway dub (the tape saturates, it doesn't explode), <b>WOW</b>, <b>FLUTTER</b>, <b>SATURATE</b>, <b>TONE</b>, <b>WEAR</b> (hiss, dropouts), <b>SPREAD</b>.</td></tr>
       <tr><td><span class="b">ENSEMBLE</span></td><td>The polysynth bucket-brigade chorus: <b>MODE</b> I, II, I+II or STRINGS (three voices: the string-machine sound), <b>RATE</b>, <b>DEPTH</b>, <b>WIDTH</b>, <b>TONE</b>, <b>NOISE</b>.</td></tr>
+      <tr><td><span class="b">ROOMS</span></td><td>A room, chamber, hall or plate (<b>TYPE</b>) with early reflections: <b>SIZE</b>, <b>DECAY</b>, <b>PRE-DELAY</b>, <b>EARLY</b> (reflections against the tail), <b>DAMP</b>, <b>LOW CUT</b>, <b>HIGH CUT</b>, <b>MOD</b>, <b>WIDTH</b>.</td></tr>
+      <tr><td><span class="b">SPRING</span></td><td>An amp's spring tank: 1&ndash;3 <b>SPRINGS</b>, <b>DECAY</b>, <b>TONE</b>, <b>DRIP</b> (the splash on hits), <b>DRIVE</b>.</td></tr>
+      <tr><td><span class="b">DUB DELAY</span></td><td>Repeats through a band-pass <b>FILTER</b> with <b>RESO</b> and <b>DRIVE</b>, feedback past 100%. <b>HOLD</b> loops what's in it and lets nothing new in. <b>PING</b>, <b>WOBBLE</b>.</td></tr>
+      <tr><td><span class="b">BBD DELAY</span></td><td>An analog bucket-brigade echo up to 1&nbsp;s: darker the longer it is. <b>MOD RATE</b>, <b>MOD DEPTH</b>, <b>AGE</b> (hiss, duller), <b>DRIVE</b>.</td></tr>
+      <tr><td><span class="b">MULTI-TAP</span></td><td>Up to 8 <b>TAPS</b> in a <b>PATTERN</b> (STRAIGHT, DOTTED, TRIPLET, SWING, SPEED UP, SLOW DOWN, SCATTER), each quieter by <b>DECAY</b>, bounced by <b>SPREAD</b>.</td></tr>
+      <tr><td><span class="b">GRAIN DELAY</span></td><td><b>MODE</b> REVERSE plays each stretch backwards; GRAINS sprays grains from the past. <b>PITCH</b> &minus;12 to +12, <b>SPRAY</b>, <b>DENSITY</b>, <b>FEEDBACK</b>.</td></tr>
+      <tr><td><span class="b">DIMENSION</span></td><td>4 modes of wide, clean stereo that sums back to mono cleanly.</td></tr>
+      <tr><td><span class="b">FLANGER</span></td><td><b>RATE</b>, <b>DEPTH</b>, <b>MANUAL</b>, <b>FEEDBACK</b> (&plusmn;), <b>STEREO</b>; <b>THRU-ZERO</b> sweeps through the dry sound for the tape-flanging cancel.</td></tr>
+      <tr><td><span class="b">PHASER</span></td><td>4, 8 or 12 <b>STAGES</b>, <b>RATE</b>, <b>DEPTH</b>, <b>CENTRE</b>, <b>FEEDBACK</b> (&plusmn;), <b>STEREO</b>.</td></tr>
+      <tr><td><span class="b">ROTARY</span></td><td>A spinning organ speaker, horn and drum: <b>FAST</b> switches speed and they ramp like the real thing (<b>ACCEL</b>). <b>HORN</b> balance, <b>DRIVE</b>, <b>WIDTH</b>.</td></tr>
+      <tr><td><span class="b">TREMOLO</span></td><td>TREMOLO, AUTO-PAN or HARMONIC; <b>RATE</b> or <b>SYNC</b>; <b>SHAPE</b> sine to square; <b>STEREO</b>.</td></tr>
+      <tr><td><span class="b">FREQ SHIFTER</span></td><td>SHIFT moves every frequency by the same Hz (spirals with <b>FEEDBACK</b>); RING MOD for metallic, robotic tones.</td></tr>
+      <tr><td><span class="b">AUTO-FILTER</span></td><td>Low-, band- or high-pass moved by an LFO (synced or free) and by the sound's own level (<b>ENV AMOUNT</b> &plusmn;, <b>ENV SPEED</b>): envelope funk, wah, sweeps.</td></tr>
       <tr><td>The originals</td><td>FILTER, DRIVE, COMP, DELAY, REVERB and CHORUS are still there, in their groups.</td></tr>
     </tbody>
   </table></div>
+  <div class="two">
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/dub_delay.png" alt="The DUB DELAY page with the KING TUBBY preset: TIME 1/8 D, SYNC ON, FEEDBACK, FILTER, RESO, DRIVE, HOLD OFF, PING ON, WOBBLE and MIX in two columns." width="1440" height="900" loading="lazy"></div>
+        <figcaption>DUB DELAY: HOLD loops it</figcaption>
+      </figure>
+    </div>
+    <div>
+      <figure>
+        <div class="frame sunken"><img src="img/auto_filter.png" alt="The AUTO-FILTER page with the ENVELOPE FUNK preset: MODE LOW-PASS, CUTOFF, RESO, LFO RATE, SYNC, LFO DEPTH, ENV AMOUNT, ENV SPEED, DRIVE and MIX." width="1440" height="900" loading="lazy"></div>
+        <figcaption>AUTO-FILTER: an LFO and the sound's own level move it</figcaption>
+      </figure>
+    </div>
+  </div>
   <ul>
     <li><b>Presets:</b> <span class="b">PRESETS...</span> lists the factory presets, then yours as <b>MY &hellip;</b>. <span class="b">SAVE THESE SETTINGS AS MY PRESET...</span> keeps them under a name on this computer, for any slot in any song; <span class="b">DELETE ONE OF MY PRESETS...</span> removes one. Choosing a preset is one undo step.</li>
     <li>Every control glides to a new value (no zipper noise), so they all automate smoothly with <code>V</code> and <code>J</code>. The saturation runs at twice the sample rate, and everything is true stereo.</li>
-    <li>Songs that use them need v0.34 or later.</li>
+    <li>Songs that use VAST, SPACE, TAPE ECHO or ENSEMBLE need v0.34 or later; the others, v0.35.</li>
   </ul>
 </section>
 
@@ -917,6 +944,6 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.34</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.35</footer>
 </main>
 </div>

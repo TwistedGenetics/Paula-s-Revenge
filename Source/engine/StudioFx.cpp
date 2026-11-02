@@ -446,7 +446,7 @@ std::unique_ptr<Effect> makeStudioEffect (FxType t)
         case FxType::Space:    return std::make_unique<SpaceFx>();
         case FxType::TapeEcho: return std::make_unique<TapeEchoFx>();
         case FxType::Ensemble: return std::make_unique<EnsembleFx>();
-        default:               return nullptr;
+        default:               return makeStudioEffect2 (t);
     }
 }
 } // namespace prv
