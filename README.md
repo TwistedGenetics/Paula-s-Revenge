@@ -40,7 +40,11 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays) and the status line. The song's name (top) is its file's name, set when you save or load |
 
-The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white; **SPECTRUM** hides the strip.
+The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white (WORKBENCH); **SPECTRUM** hides the strip.
+
+**Skins:** WORKBENCH (black on light grey), DARK (cream on blue-black), KICKSTART 1.3 (white on the old blue, orange when pressed) and HIGH CONTRAST (white on black, yellow when pressed). Right-click **DARK**, or View > Skin, for all four; the button reads KS 1.3 or HI CON when one of those is on. **CRT** in the same menu adds scanlines and darker corners (only a look: clicks go through). The skin is kept for next time.
+
+Colour means the same thing everywhere: a button that's on has a stripe along its foot - red for recording (EDIT, REC AUTO, RECORD), orange for learning and modulating, blue for the rest - and orange marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.
 
 ## Right-click menus
 
@@ -60,6 +64,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 | Mixer: a strip's name | COPY STRIP, PASTE STRIP, RESET STRIP, OPEN CHANNEL (the returns and master: RESET) |
 | Mixer: an insert slot | COPY EFFECT, PASTE EFFECT, CLEAR SLOT, BYPASS ON / OFF, OPEN |
 | CHORDS page slots | COPY, PASTE, CLEAR (all the picked slots), COLOUR, PLAY, RECORD CHORDS, NOTE |
+| DARK button | THE SKINS, CRT |
 | HELP text | COPY THIS CHAPTER, COPY ALL OF IT |
 
 Copied instruments, strips, effects and chords stay in the app (paste them into another slot or another song); HELP text goes to the system clipboard.

@@ -20,6 +20,8 @@ public:
     static bool& ctrlKeyNames();
     static juce::String forScreen (const juce::String& text);
     static float textHeight (float px) { return kCellH * px; }
+    // screen pixels per unit (2 on Retina): text starts on a whole screen pixel, so it stays crisp
+    static inline float snapScale = 1.0f;
 
     // Adds the text's pixels to a rectangle list (fast for big blocks of text)
     static void addText (juce::RectangleList<float>& list, const juce::String& text, float x, float y, float px);

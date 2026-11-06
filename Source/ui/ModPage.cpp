@@ -356,7 +356,7 @@ void ModPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     const auto& P = Theme::palFor (*this);
-    const juce::Colour accent (0xffffa030);
+    const juce::Colour accent = Theme::skin.accentMod;
     auto meter = [&] (juce::Rectangle<float> r, float v, bool bipolar)
     {
         g.setColour (P.paper); g.fillRect (r);

@@ -23,8 +23,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), samplePage (p), cvPage (p), cvSources (p), outMeter (p)
 {
     auto& st = proc.editorState;
-    Theme::setSkin (st.darkSkin);
-    skinBtn.onClick = [this, &st] { st.darkSkin = skinBtn.getToggleState(); Theme::setSkin (st.darkSkin); repaint(); refreshAll(); };
+    Theme::setSkinId ((Theme::SkinId) juce::jlimit (0, 3, st.skin));
+    Theme::crt = st.crt;
+    // DARK: click flips WORKBENCH / DARK; right-click (or the View menu) has every SKIN and CRT
+    skinBtn.setClickingTogglesState (false);
+    skinBtn.onClick = [this, &st] { setSkin (st.skin == 0 ? 1 : 0); };
+    skinBtn.onRightClick = [this] { showSkinMenu(); };
     specBtn.onClick = [this, &st] { st.showSpectrum = specBtn.getToggleState(); resized(); };
     autoBtn.onClick = [this, &st]
     {
@@ -361,6 +365,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (sampleEditor);
     addChildComponent (browser);
     addChildComponent (automation);
+    addChildComponent (crtOverlay);
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
@@ -537,7 +542,9 @@ void PaulaEditor::refreshAll()
     stepBox.setValue (st.step);
 
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
-    skinBtn.setToggleState (st.darkSkin, juce::dontSendNotification);
+    if (st.darkSkin != (st.skin != 0)) st.skin = st.darkSkin ? 1 : 0;   // (something set DARK directly)
+    skinBtn.setToggleState (st.skin != 0, juce::dontSendNotification);
+    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : "DARK");
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
     automation.refresh();
@@ -717,7 +724,18 @@ void PaulaEditor::resized()
     using prv::ui::Theme;
     auto& st = proc.editorState;
     const float base = std::min ((float) getHeight() / 300.0f, (float) getWidth() / 480.0f);
+    // (text and lines snap to whole screen pixels: crisp at any size)
+    {
+        float scale = 1.0f;
+        if (auto* d = juce::Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds())) scale = (float) d->scale;
+        scale = std::max (1.0f, std::round (scale));
+        Theme::deviceScale = scale;
+        prv::ui::PixelFont::snapScale = scale;
+    }
     Theme::px = juce::jlimit (1.5f, 5.0f, std::floor (base * 2.0f) / 2.0f + st.uiZoom * 0.5f);
+    crtOverlay.setBounds (getLocalBounds());
+    crtOverlay.setVisible (Theme::crt);
+    crtOverlay.toFront (false);
     const float px = Theme::px;
     const int rowH = (int) (px * 11);
     const int gap = (int) std::max (2.0f, px * 1.5f);
@@ -778,7 +796,7 @@ void PaulaEditor::resized()
 
     viewBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     panelsBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
-    skinBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
+    skinBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
     recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
@@ -1819,6 +1837,38 @@ bool PaulaEditor::bounceSelection (int fx)
     setStatus (m);
     refreshAll();
     return true;
+}
+
+void PaulaEditor::setSkin (int id)
+{
+    auto& st = proc.editorState;
+    st.skin = juce::jlimit (0, 3, id);
+    st.darkSkin = st.skin != 0;
+    prv::ui::Theme::setSkinId ((prv::ui::Theme::SkinId) st.skin);
+    refreshAll();
+    resized();
+    repaint();
+    setStatus ("SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) st.skin) + " - RIGHT-CLICK FOR MORE");
+}
+
+void PaulaEditor::setCrt (bool on)
+{
+    proc.editorState.crt = on;
+    prv::ui::Theme::crt = on;
+    crtOverlay.setVisible (on);
+    crtOverlay.toFront (false);
+    repaint();
+    setStatus (on ? "CRT: SCANLINES ON" : "CRT OFF");
+}
+
+void PaulaEditor::showSkinMenu()
+{
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    std::vector<prv::ui::MenuItem> items;
+    for (int i = 0; i < 4; ++i)
+        items.push_back ({ (proc.editorState.skin == i ? "> " : "  ") + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), [safe, i] { if (safe) safe->setSkin (i); } });
+    items.push_back ({ juce::String ("  CRT: ") + (proc.editorState.crt ? "ON (TURN OFF)" : "OFF (TURN ON)"), [safe] { if (safe) safe->setCrt (! safe->proc.editorState.crt); } });
+    prv::ui::showMenu ("SKIN", std::move (items));
 }
 
 void PaulaEditor::setFollowClock (bool on)

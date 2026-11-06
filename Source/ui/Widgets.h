@@ -9,39 +9,50 @@ namespace prv::ui
 {
 struct Theme
 {
-    static inline const juce::Colour paper  { 0xffffffff };   // main background
-    static inline const juce::Colour panel  { 0xffe6e6e6 };   // panel fill
-    static inline const juce::Colour light  { 0xffffffff };   // bevel highlight
-    static inline const juce::Colour shadow { 0xff7a7a7a };   // bevel shadow
-    static inline const juce::Colour ink    { 0xff000000 };   // text and lines
-    static inline const juce::Colour stripe { 0xffefefef };   // every-4th-line band
-    static inline const juce::Colour band   { 0xffc4c4c4 };   // cursor line
-    static inline const juce::Colour pressed{ 0xffb0b0b0 };   // pressed/on buttons
-    static inline const juce::Colour faint  { 0xff8c8c8c };   // dimmed text (still dark on light)
+    // the window's own colours (the chrome): set by the skin (WORKBENCH by default)
+    static inline juce::Colour paper  { 0xffffffff };   // main background
+    static inline juce::Colour panel  { 0xffe6e6e6 };   // panel fill
+    static inline juce::Colour light  { 0xffffffff };   // bevel highlight
+    static inline juce::Colour shadow { 0xff7a7a7a };   // bevel shadow
+    static inline juce::Colour ink    { 0xff000000 };   // text and lines
+    static inline juce::Colour stripe { 0xffefefef };   // every-4th-line band
+    static inline juce::Colour band   { 0xffc4c4c4 };   // cursor line
+    static inline juce::Colour pressed{ 0xffb0b0b0 };   // pressed/on buttons
+    static inline juce::Colour faint  { 0xff8c8c8c };   // dimmed text (still dark on light)
 
-    // size of one font pixel for the UI, set by the editor on resize
+    // size of one font pixel for the UI, set by the editor on resize; and how many screen
+    // pixels make one of ours (2 on a Retina screen) - text and lines snap to them
     static float px;
+    static inline float deviceScale = 1.0f;
+    static float snap (float v) { return std::round (v * deviceScale) / deviceScale; }
 
-    // Colours for the pattern area and spectrum strip. Two variants:
-    // light (black text on white) and dark (cream text on deep blue-black).
+    // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST
+    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Count };
+    static juce::String skinName (SkinId);
+    // Colours for the pattern area and spectrum strip (and the accents everywhere):
+    // SELECTED, MODULATED (orange), RECORDING (red), one colour per track.
     struct Skin
     {
+        SkinId id = SkinId::Workbench;
         bool dark = false;
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
+        juce::Colour accentSel, accentMod, accentRec;
         juce::Colour track[8];
     };
     static Skin skin;
-    static void setSkin (bool dark);
+    static void setSkin (bool dark);         // WORKBENCH or DARK
+    static void setSkinId (SkinId);
+    static inline bool crt = false;          // CRT: scanlines over the window
 
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title);
 
-    // The page colours. Most of the window keeps the light grey chrome in both skins; a page
-    // marked dark (the instrument, MIDI-out and mixer / effect pages) goes dark with light
-    // text in the dark skin. Widgets look theirs up from the page they're on.
-    struct Palette { juce::Colour paper, panel, light, shadow, ink, pressed, faint, hover, edge; };
-    static const Palette& lightPalette();
-    static const Palette& darkPalette();
+    // The page colours. The chrome palette is the window's; a page marked dark (the instrument,
+    // MIDI-out and mixer / effect pages) uses the page palette (dark in the dark skin; the
+    // same as the chrome in the others). Widgets look theirs up from the page they're on.
+    struct Palette { juce::Colour paper, panel, light, shadow, ink, pressed, faint, hover, edge, pressedInk; };
+    static const Palette& lightPalette();    // the chrome
+    static const Palette& darkPalette();     // a marked page's
     static const Palette& palFor (const juce::Component& c);
     static void markDarkPage (juce::Component& c) { c.getProperties().set ("prvDarkPage", true); }
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette&);
@@ -54,6 +65,9 @@ public:
     explicit PixButton (const juce::String& buttonText, bool toggle = false);
     void paintButton (juce::Graphics&, bool over, bool down) override;
     float textScale = 1.0f;
+    // lit with a colour when on: a stripe along its foot (Theme::skin.accentRec for recording,
+    // accentMod for learning / modulating, accentSel for the page you're on); transparent = none
+    juce::Colour onAccent { juce::Colours::transparentBlack };
     std::function<void()> onRightClick;   // set: a right-click opens this instead of clicking the button
     void mouseDown (const juce::MouseEvent& e) override
     {
@@ -192,9 +206,32 @@ public:
     const juce::String& getText() const { return text; }
     void paint (juce::Graphics& g) override;
     float textScale = 1.0f;
-    juce::Colour colour = Theme::ink;
+    juce::Colour colour { juce::Colours::transparentBlack };   // (none: the page's text colour)
 private:
     juce::String text;
     bool centre;
+};
+// CRT: scanlines along the font's pixel rows and darker corners, over everything; it never takes a
+// click (shown when Theme::crt is on)
+class CrtOverlay : public juce::Component
+{
+public:
+    CrtOverlay() { setInterceptsMouseClicks (false, false); setAlwaysOnTop (false); }
+    void paint (juce::Graphics& g) override
+    {
+        const float px = Theme::px;
+        const auto clip = g.getClipBounds().toFloat();
+        g.setColour (juce::Colours::black.withAlpha (0.16f));
+        const float line = std::max (1.0f / Theme::deviceScale, Theme::snap (px * 0.34f));
+        for (float y = std::floor (clip.getY() / px) * px; y < clip.getBottom(); y += px)
+            g.fillRect (clip.getX(), Theme::snap (y + px - line), clip.getWidth(), line);
+        // the tube's corners
+        const auto b = getLocalBounds().toFloat();
+        juce::ColourGradient vg (juce::Colours::transparentBlack, b.getCentre(), juce::Colours::black.withAlpha (0.28f),
+                                 b.getTopLeft(), true);
+        vg.addColour (0.75, juce::Colours::transparentBlack);
+        g.setGradientFill (vg);
+        g.fillRect (clip);
+    }
 };
 } // namespace prv::ui

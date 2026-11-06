@@ -486,7 +486,7 @@ void AutomationPanel::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
     const auto& P = Theme::palFor (*this);
-    const juce::Colour accent (0xffffa030);
+    const juce::Colour accent = Theme::skin.accentMod;
     g.fillAll (P.panel);
     // the grab strip along the top
     g.setColour (P.ink.withAlpha (0.35f));

@@ -202,6 +202,14 @@ private:
     prv::ui::Spectrum spectrum;
     prv::ui::AutomationPanel automation { proc };
     float shownClockBpm = -1;
+    prv::ui::CrtOverlay crtOverlay;
+public:
+    void setSkin (int skinId);          // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
+    void setCrt (bool on);
+    int  skinId() const { return proc.editorState.skin; }
+    bool crtOn() const { return proc.editorState.crt; }
+    void showSkinMenu();
+private:
     prv::ui::SampleEditor sampleEditor;
     prv::ui::SampleBrowser browser;
     prv::ui::ParamsPage params;

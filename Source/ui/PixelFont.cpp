@@ -151,13 +151,22 @@ void PixelFont::addText (juce::RectangleList<float>& list, const juce::String& r
 {
     const auto& t = table();
     const auto text = forScreen (rawText);
+    x = std::round (x * snapScale) / snapScale;
+    y = std::round (y * snapScale) / snapScale;
     for (auto ch : text)
     {
         juce::juce_wchar c = ch;
         if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
         if (c > 0 && c < 128)
             for (auto& r : t.glyphs[c].runs)
-                list.addWithoutMerging ({ x + (float) r.getX() * px, y + (float) r.getY() * px, (float) r.getWidth() * px, px });
+            {
+                // each edge on a whole screen pixel: crisp even when a font pixel is 2.5 of them
+                const float x0 = std::round ((x + (float) r.getX() * px) * snapScale) / snapScale;
+                const float x1 = std::round ((x + (float) r.getRight() * px) * snapScale) / snapScale;
+                const float y0 = std::round ((y + (float) r.getY() * px) * snapScale) / snapScale;
+                const float y1 = std::round ((y + (float) (r.getY() + 1) * px) * snapScale) / snapScale;
+                list.addWithoutMerging ({ x0, y0, x1 - x0, y1 - y0 });
+            }
         x += kCellW * px;
     }
 }

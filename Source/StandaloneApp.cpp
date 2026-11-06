@@ -39,6 +39,8 @@ enum CommandIDs
     cmdFollowInstr   = 0x2022,
     cmdSeparation    = 0x2023,
     cmdFollowClock   = 0x2024,
+    cmdSkin0         = 0x2030,   // .. 0x2033: the SKINs
+    cmdCrt           = 0x2034,
     cmdSharedFolder  = 0x2030,
     cmdOpenShared    = 0x2031,
     cmdSaveShared    = 0x2032,
@@ -315,6 +317,14 @@ public:
         m.addCommandItem (&commands, cmdSeparation);
         m.addCommandItem (&commands, cmdFollowClock);
         m.addSeparator();
+        {
+            juce::PopupMenu sk;
+            for (int i = 0; i < 4; ++i) sk.addCommandItem (&commands, cmdSkin0 + i);
+            sk.addSeparator();
+            sk.addCommandItem (&commands, cmdCrt);
+            m.addSubMenu ("Skin", sk);
+        }
+        m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
         m.addCommandItem (&commands, cmdFollowOutput);
@@ -331,6 +341,7 @@ public:
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
                       cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
+        for (int i = 0; i < 5; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, then CRT
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -389,6 +400,19 @@ public:
             auto* proc = holder != nullptr ? dynamic_cast<PaulaProcessor*> (holder->processor.get()) : nullptr;
             info.setTicked (proc != nullptr && proc->fullVelocity.load());
         }
+        else if (id >= cmdSkin0 && id < cmdSkin0 + 4)
+        {
+            const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast" };
+            info.setInfo (names[id - cmdSkin0], "The window's colours", "View", 0);
+            auto* ed = editor();
+            info.setTicked (ed != nullptr && ed->skinId() == id - cmdSkin0);
+        }
+        else if (id == cmdCrt)
+        {
+            info.setInfo ("CRT Scanlines", "Scanlines and darker corners, like a monitor of the time", "View", 0);
+            auto* ed = editor();
+            info.setTicked (ed != nullptr && ed->crtOn());
+        }
         else if (id == cmdFollowClock)
         {
             info.setInfo ("Follow MIDI Clock", "Tempo, start, stop and song position from the MIDI input's clock (another app or a drum machine leads)", "View", 0);
@@ -420,6 +444,12 @@ public:
         if (info.commandID == cmdFullScreen)    { toggleFullScreen(); return true; }
         if (info.commandID == cmdCapture)       { if (auto* ed = editor()) ed->captureNow(); return true; }
         if (info.commandID == cmdSample)        { if (auto* ed = editor()) ed->toggleSample(); return true; }
+        if (auto* ed = editor(); ed != nullptr && info.commandID >= cmdSkin0 && info.commandID < cmdSkin0 + 4)
+        {
+            ed->setSkin (info.commandID - cmdSkin0);
+            commands.commandStatusChanged();
+            return true;
+        }
         if (auto* ed = editor())
         {
             switch (info.commandID)
@@ -435,6 +465,7 @@ public:
                 case cmdFullVelocity:  ed->setFullVelocity (! ed->fullVelocityOn()); commands.commandStatusChanged(); return true;
                 case cmdSeparation:    ed->showSeparationMenu(); return true;
                 case cmdFollowClock:   ed->setFollowClock (! ed->followClockOn()); commands.commandStatusChanged(); return true;
+                case cmdCrt:           ed->setCrt (! ed->crtOn()); commands.commandStatusChanged(); return true;
                 case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
                 case cmdOpenShared:    ed->openShared(); return true;
                 case cmdSaveShared:    ed->saveToShared(); return true;

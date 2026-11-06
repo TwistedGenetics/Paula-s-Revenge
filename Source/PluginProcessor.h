@@ -140,7 +140,9 @@ public:
         bool editMode = false;
         bool follow = true;
         bool fourTrackView = true;  // "BIG VIEW": 4 tracks at a time with large text
-        bool darkSkin = true;
+        bool darkSkin = true;         // (kept in step with skin: anything but WORKBENCH)
+        int  skin = 1;                // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
+        bool crt = false;             // CRT: scanlines over the window
         enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources, Radio } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)

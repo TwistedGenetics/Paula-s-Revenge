@@ -43,6 +43,9 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--ink); outline-o
 .titlebar .name { font-family: var(--pixel); font-weight: 700; font-size: clamp(24px, 4vw, 40px); letter-spacing: 0.04em; white-space: nowrap; }
 .rules { flex: 1; min-width: 30px; height: 26px; background: repeating-linear-gradient(to bottom, var(--ink) 0 3px, transparent 3px 7px); }
 .titlebar .ver { font-family: var(--pixel); font-size: 20px; white-space: nowrap; }
+.titlebar .dl { font-family: var(--pixel); font-size: 20px; white-space: nowrap; color: var(--ink); text-decoration: none; padding: 4px 12px; border: 2px solid var(--ink); }
+.titlebar button.dl { background: transparent; cursor: pointer; }
+.titlebar .dl:hover, .titlebar .dl:focus-visible { text-decoration: underline; }
 
 .app { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
 
@@ -118,7 +121,10 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.38</span>
+  <span class="ver">MANUAL &middot; V0.39</span>
+  <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
+  <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
+  <span class="ver" id="dlMsg" role="status"></span>
 </header>
 
 <div class="app">
@@ -193,7 +199,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
     </tbody>
   </table></div>
-  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to black on white, as in this manual. Every song has 8 tracks (a 4-channel MOD fills tracks 1–4). <span class="b">BIG VIEW</span> shows 4 at a time with large text, with a tall <span class="b">TRACKS 5-8 &#9654;</span> tab beside them; click it for tracks 5–8, and <span class="b">&#9664; TRACKS 1-4</span> brings you back (<kbd>Tab</kbd> past track 4 flips too). The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
+  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to the black-on-white WORKBENCH skin, as in this manual (more skins below). Every song has 8 tracks (a 4-channel MOD fills tracks 1–4). <span class="b">BIG VIEW</span> shows 4 at a time with large text, with a tall <span class="b">TRACKS 5-8 &#9654;</span> tab beside them; click it for tracks 5–8, and <span class="b">&#9664; TRACKS 1-4</span> brings you back (<kbd>Tab</kbd> past track 4 flips too). The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
   <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
   <h3>Right-click menus</h3>
   <p>Right-click almost anything for the things you can do to it. Everything they do can be undone.</p>
@@ -213,12 +219,21 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Any level meter: the bar at the right of each track, the L / R meter, the mixer's meters</td><td>Their colour, one for all of them: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
       <tr><td>The spectrum strip</td><td>Its colour: the same choices, or rainbow (the track colours, as it starts)</td></tr>
       <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture, NOTE-OFFS, FULL VEL, FOLLOW INSTRUMENT</td></tr>
+      <tr><td><span class="b">DARK</span></td><td>The skins, and CRT</td></tr>
       <tr><td>A HELP page</td><td>Copy the chapter, or all of HELP</td></tr>
     </tbody>
   </table></div>
   <h3>HELP and searching it</h3>
   <p><span class="b">HELP</span> has this manual's text. Just type to search it: every match is highlighted and the chapter list shows only the chapters with matches. <kbd>Enter</kbd> (or <kbd>Cmd</kbd><kbd>G</kbd>) goes to the next match, <kbd>Shift</kbd><kbd>Enter</kbd> the one before. <kbd>Esc</kbd> clears the search, then closes HELP.</p>
   <p>In the dark skin, the plug-in pages (an effect opened from the mixer, a plug-in instrument's page) and the parameter pages are dark too.</p>
+  <h3>Skins and CRT</h3>
+  <p>Four skins: <b>WORKBENCH</b> (black on light grey), <b>DARK</b> (cream on blue-black), <b>KICKSTART 1.3</b> (white on the old blue, orange when pressed) and <b>HIGH CONTRAST</b> (white on black, yellow when pressed). Click <span class="b">DARK</span> to swap between WORKBENCH and DARK; right-click it, or use <b>View &rarr; Skin</b>, for all four. The button shows <b>KS 1.3</b> or <b>HI CON</b> when one of those is on. The skin is kept for next time.</p>
+  <p><b>CRT</b> (in the same menu) lays scanlines and darker corners over everything, like an old monitor. It is only a look: clicks go through.</p>
+  <p>Colour means the same thing everywhere: a button that's on has a stripe along its foot &mdash; red for recording (<span class="b">EDIT</span>, <span class="b">REC AUTO</span>, RECORD), orange for learning and modulating, blue (in KICKSTART, white) for the rest. Orange also marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/skins.png" alt="The main screen in the KICKSTART 1.3 skin: white text on Amiga blue, the cursor and pressed buttons orange, and the 8 tracks in their colours." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The KICKSTART 1.3 skin</figcaption>
+  </figure>
 </section>
 
 <!-- ============================================================ 002 -->
@@ -1013,6 +1028,28 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.38</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.39</footer>
 </main>
 </div>
+<script>
+(async () => {
+  const btn = document.getElementById('dlPdf'), msg = document.getElementById('dlMsg');
+  let downloads = null;
+  try { downloads = window.claude ? await window.claude.use('downloads') : null; } catch (e) { downloads = null; }
+  if (!downloads) return;   // (the GitHub link stays)
+  btn.hidden = false;
+  btn.addEventListener('click', async () => {
+    msg.textContent = '';
+    btn.disabled = true;
+    try {
+      const r = await fetch('Paulas-Revenge-Manual.pdf');
+      if (!r.ok) throw { code: 'fetch' };
+      await downloads.save({ filename: 'Paulas Revenge Manual.pdf', data: await r.blob() });
+    } catch (e) {
+      if (e && e.code === 'declined') {}
+      else if (e && e.code === 'rate_limited') msg.textContent = 'TRY AGAIN IN A MOMENT';
+      else msg.textContent = 'USE THE GITHUB LINK';
+    } finally { btn.disabled = false; }
+  });
+})();
+</script>

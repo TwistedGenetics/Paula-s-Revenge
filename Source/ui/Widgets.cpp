@@ -6,50 +6,94 @@ namespace prv::ui
 float Theme::px = 3.0f;
 Theme::Skin Theme::skin;
 
-void Theme::setSkin (bool dark)
+namespace
+{
+    Theme::Palette chromePal, pagePal;
+    juce::Colour C (juce::uint32 v) { return juce::Colour (v); }
+}
+
+juce::String Theme::skinName (SkinId id)
+{
+    switch (id)
+    {
+        case SkinId::Workbench:    return "WORKBENCH";
+        case SkinId::Dark:         return "DARK";
+        case SkinId::Kickstart:    return "KICKSTART 1.3";
+        case SkinId::HighContrast: return "HIGH CONTRAST";
+        default:                   return {};
+    }
+}
+
+void Theme::setSkin (bool dark) { setSkinId (dark ? SkinId::Dark : SkinId::Workbench); }
+
+void Theme::setSkinId (SkinId id)
 {
     Skin k;
-    k.dark = dark;
-    if (dark)
+    k.id = id;
+    k.dark = id != SkinId::Workbench;
+    //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
+    const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xfff4f4f4), C (0xff000000), C (0xff000000) };
+    // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
+    const Palette darkPage  { C (0xff0b0f17), C (0xff161c28), C (0xff3c465c), C (0xff020304), C (0xfff4ecd6), C (0xff33415e), C (0xff7d8597), C (0xff222a3a), C (0xff6a7590), C (0xfff4ecd6) };
+    // Workbench 1.3's blue, white, black and orange (orange with black on it: chosen, as it was)
+    const Palette kick      { C (0xff0055aa), C (0xff0055aa), C (0xffffffff), C (0xff000822), C (0xffffffff), C (0xffff8800), C (0xffa8c8ee), C (0xff1666bb), C (0xff000822), C (0xff000822) };
+    // pure black and white; chosen = yellow with black on it
+    const Palette hc        { C (0xff000000), C (0xff000000), C (0xffffffff), C (0xff8a8a8a), C (0xffffffff), C (0xffffe000), C (0xffc8c8c8), C (0xff262626), C (0xffffffff), C (0xff000000) };
+    switch (id)
     {
-        k.bg = juce::Colour (0xff141a24);       k.text = juce::Colour (0xfff4ecd6);
-        k.dim = juce::Colour (0xff566074);      k.stripe = juce::Colour (0xff1c2432);
-        k.band = juce::Colour (0xff334058);     k.cursor = juce::Colour (0xff5a6a88);
-        k.cursorEdge = juce::Colour (0xfff4ecd6); k.rule = juce::Colour (0xff3a4458);
-        k.hot = juce::Colour (0xffff5a4a);      k.specBar = juce::Colour (0xfff4ecd6);
-        const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
-        for (int i = 0; i < 8; ++i) k.track[i] = juce::Colour (t[i]);
+        case SkinId::Dark:
+            chromePal = workbench; pagePal = darkPage;
+            k.bg = C (0xff141a24); k.text = C (0xfff4ecd6); k.dim = C (0xff566074); k.stripe = C (0xff1c2432);
+            k.band = C (0xff334058); k.cursor = C (0xff5a6a88); k.cursorEdge = C (0xfff4ecd6); k.rule = C (0xff3a4458);
+            k.hot = C (0xffff5a4a); k.specBar = C (0xfff4ecd6);
+            k.accentSel = C (0xff6aa4ff); k.accentMod = C (0xffffa030); k.accentRec = C (0xffff4a3a);
+            break;
+        case SkinId::Kickstart:
+            chromePal = kick; pagePal = kick;
+            k.bg = C (0xff0055aa); k.text = C (0xffffffff); k.dim = C (0xffa8c8ee); k.stripe = C (0xff004c99);
+            k.band = C (0xff1f6bbf); k.cursor = C (0xffff8800); k.cursorEdge = C (0xffffffff); k.rule = C (0xffffffff);
+            k.hot = C (0xffff8800); k.specBar = C (0xffffffff);
+            k.accentSel = C (0xffffffff); k.accentMod = C (0xffff8800); k.accentRec = C (0xffff4a3a);
+            break;
+        case SkinId::HighContrast:
+            chromePal = hc; pagePal = hc;
+            k.bg = C (0xff000000); k.text = C (0xffffffff); k.dim = C (0xffb0b0b0); k.stripe = C (0xff141414);
+            k.band = C (0xff3a3a3a); k.cursor = C (0xffffe000); k.cursorEdge = C (0xffffffff); k.rule = C (0xffffffff);
+            k.hot = C (0xffff4040); k.specBar = C (0xffffffff);
+            k.accentSel = C (0xffffe000); k.accentMod = C (0xffffa030); k.accentRec = C (0xffff4040);
+            break;
+        default:
+            chromePal = workbench; pagePal = workbench;
+            k.bg = C (0xffffffff); k.text = C (0xff000000); k.dim = C (0xff8c8c8c); k.stripe = C (0xffefefef);
+            k.band = C (0xffc4c4c4); k.cursor = C (0xffb0b0b0); k.cursorEdge = C (0xff000000); k.rule = C (0xff000000);
+            k.hot = C (0xffd01818); k.specBar = C (0xff000000);
+            k.accentSel = C (0xff2f5fb0); k.accentMod = C (0xffd86a00); k.accentRec = C (0xffd01818);
+            break;
+    }
+    if (id == SkinId::Workbench)
+    {
+        const juce::uint32 t[8] = { 0xff00869c, 0xff9c1f94, 0xffb85e00, 0xff2f8010, 0xff1f56c0, 0xffc0301f, 0xff7a6c00, 0xff0a8058 };
+        for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
     }
     else
     {
-        k.bg = juce::Colour (0xffffffff);       k.text = juce::Colour (0xff000000);
-        k.dim = juce::Colour (0xff8c8c8c);      k.stripe = juce::Colour (0xffefefef);
-        k.band = juce::Colour (0xffc4c4c4);     k.cursor = juce::Colour (0xffb0b0b0);
-        k.cursorEdge = juce::Colour (0xff000000); k.rule = juce::Colour (0xff000000);
-        k.hot = juce::Colour (0xffd01818);      k.specBar = juce::Colour (0xff000000);
-        const juce::uint32 t[8] = { 0xff00869c, 0xff9c1f94, 0xffb85e00, 0xff2f8010, 0xff1f56c0, 0xffc0301f, 0xff7a6c00, 0xff0a8058 };
-        for (int i = 0; i < 8; ++i) k.track[i] = juce::Colour (t[i]);
+        const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
+        for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
+        if (id == SkinId::Kickstart) { k.track[4] = C (0xffc8e0ff); k.track[0] = C (0xff6af0ff); }   // (no blue on blue)
     }
     skin = k;
+    // the chrome colours everything else draws with
+    paper = chromePal.paper; panel = chromePal.panel; light = chromePal.light; shadow = chromePal.shadow; ink = chromePal.ink;
+    pressed = chromePal.pressed; faint = chromePal.faint;
+    stripe = id == SkinId::Workbench || id == SkinId::Dark ? C (0xffefefef) : k.stripe;
+    band = id == SkinId::Workbench || id == SkinId::Dark ? C (0xffc4c4c4) : k.band;
 }
 
 void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t) { bevel (g, r, raised, t, lightPalette()); }
 void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title) { panelBox (g, r, title, lightPalette()); }
 
-const Theme::Palette& Theme::lightPalette()
-{
-    static const Palette p { paper, panel, light, shadow, ink, pressed, faint, juce::Colour (0xfff4f4f4), ink };
-    return p;
-}
-
-const Theme::Palette& Theme::darkPalette()
-{
-    // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
-    static const Palette p { juce::Colour (0xff0b0f17), juce::Colour (0xff161c28), juce::Colour (0xff3c465c), juce::Colour (0xff020304),
-                             juce::Colour (0xfff4ecd6), juce::Colour (0xff33415e), juce::Colour (0xff7d8597), juce::Colour (0xff222a3a),
-                             juce::Colour (0xff6a7590) };
-    return p;
-}
+const Theme::Palette& Theme::lightPalette() { if (chromePal.ink.isTransparent()) setSkinId (SkinId::Workbench); return chromePal; }
+const Theme::Palette& Theme::darkPalette()  { if (pagePal.ink.isTransparent()) setSkinId (SkinId::Workbench); return pagePal; }
 
 const Theme::Palette& Theme::palFor (const juce::Component& c)
 {
@@ -61,6 +105,9 @@ const Theme::Palette& Theme::palFor (const juce::Component& c)
 
 void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette& P)
 {
+    // (whole screen pixels: crisp at any size)
+    t = std::max (1.0f / deviceScale, snap (t));
+    r = juce::Rectangle<float> (snap (r.getX()), snap (r.getY()), snap (r.getWidth()), snap (r.getHeight()));
     const auto tl = raised ? P.light : P.shadow;
     const auto br = raised ? P.shadow : P.light;
     g.setColour (tl);
@@ -70,7 +117,7 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
     g.fillRect (r.getX(), r.getBottom() - t, r.getWidth(), t);
     g.fillRect (r.getRight() - t, r.getY(), t, r.getHeight());
     g.setColour (P.edge);
-    g.drawRect (r.expanded (1.0f), 1.0f);
+    g.drawRect (r.expanded (1.0f / deviceScale), 1.0f / deviceScale);
 }
 
 void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
@@ -121,7 +168,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         float y = area.getCentreY() - lh * (float) lines.size() * 0.5f;
         for (const auto& l : lines)
         {
-            PixelFont::drawCentred (g, l, juce::Rectangle<float> (area.getX(), y, area.getWidth(), lh), px, isEnabled() ? P.ink : P.faint);
+            PixelFont::drawCentred (g, l, juce::Rectangle<float> (area.getX(), y, area.getWidth(), lh), px, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
             y += lh;
         }
         return;
@@ -129,7 +176,33 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     float usePx = px;
     // (the text's own width: the last character's spacing column doesn't count)
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
-    PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? P.ink : P.faint);
+    PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
+    auto accent = onAccent;
+    if (accent.isTransparent())
+    {
+        // colour that means something: recording is red, learning / modulating is the mod colour, the rest (pages, views) the selection
+        const auto u = label.toUpperCase();
+        accent = (u.contains ("REC") || u.contains ("EDIT") || u.contains ("ARM")) ? Theme::skin.accentRec
+               : (u.contains ("LEARN") || u.contains ("MODUL") || u.startsWith ("MOD")) ? Theme::skin.accentMod
+               : Theme::skin.accentSel;
+    }
+    if (onAccent.isTransparent() && Theme::skin.id == Theme::SkinId::Dark && &P == &Theme::lightPalette())
+    {
+        // DARK's chrome is the light Workbench chrome: its accents too
+        const auto u = label.toUpperCase();
+        accent = (u.contains ("REC") || u.contains ("EDIT") || u.contains ("ARM")) ? juce::Colour (0xffd01818)
+               : (u.contains ("LEARN") || u.contains ("MODUL") || u.startsWith ("MOD")) ? juce::Colour (0xffd86a00)
+               : juce::Colour (0xff2f5fb0);
+    }
+    if (std::abs (accent.getPerceivedBrightness() - P.pressed.getPerceivedBrightness()) < 0.2f)
+        accent = P.pressedInk;                                   // (too close to the pressed face to see)
+    if (getToggleState() && ! accent.isTransparent())
+    {
+        // the accent: a stripe along the foot
+        const float h = std::max (2.0f / Theme::deviceScale, Theme::snap (Theme::px * 0.6f));
+        g.setColour (accent);
+        g.fillRect (r.getX() + Theme::px, r.getBottom() - h - Theme::px * 0.5f, r.getWidth() - Theme::px * 2, h);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -266,7 +339,7 @@ void PixSlider::paint (juce::Graphics& g)
     if (modLo >= 0.0f)
     {
         // modulated: an orange band for its range along the bottom, and a line where it is now
-        const juce::Colour accent (0xffff8c1a);
+        const juce::Colour accent = Theme::skin.accentMod;
         auto in = t.reduced (px);
         const float x0 = in.getX() + in.getWidth() * modLo, x1 = in.getX() + in.getWidth() * modHi;
         g.setColour (accent);
@@ -322,7 +395,7 @@ void PixLabel::paint (juce::Graphics& g)
 {
     float px = Theme::px * textScale;
     while (px > 1.5f && PixelFont::textWidth (text, px) > (float) getWidth()) px -= 0.5f;
-    const auto c = colour == Theme::ink ? Theme::palFor (*this).ink : colour;   // (the page's text colour)
+    const auto c = (colour.isTransparent() || colour == Theme::ink) ? Theme::palFor (*this).ink : colour;   // (the page's text colour)
     if (centre) PixelFont::drawCentred (g, text, getLocalBounds().toFloat(), px, c);
     else        PixelFont::drawLeft (g, text, getLocalBounds().toFloat(), px, c);
 }

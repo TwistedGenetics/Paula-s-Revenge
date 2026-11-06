@@ -59,7 +59,8 @@ void MiniBar::paint (juce::Graphics& g)
         else g.fillRect (in.withWidth (in.getWidth() * value));
     }
     Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f), Theme::palFor (*this));
-    const juce::String t = label.isEmpty() ? format (value) : label + " " + format (value);
+    juce::String t = label.isEmpty() ? format (value) : label + " " + format (value);
+    if (PixelFont::textWidth (t, px) - px > r.getWidth() - px * 2) t = format (value);   // (no room for both: the value, never squashed)
     PixelFont::drawCentred (g, t, r, px, isEnabled() ? Theme::palFor (*this).ink : Theme::palFor (*this).faint);
 }
 
