@@ -120,8 +120,8 @@ void OutputMeter::tick()
 {
     auto upd = [] (float in, float& v, float& hold, int& count)
     {
-        v = std::max (in, v * 0.85f);
-        if (v >= hold) { hold = v; count = 20; } else if (--count < 0) hold = std::max (0.0f, hold - 0.02f);
+        v = std::max (in, v * 0.922f);
+        if (v >= hold) { hold = v; count = 40; } else if (--count < 0) hold = std::max (0.0f, hold - 0.01f);
     };
     upd (proc.player.uiOutL.load(), l, holdL, holdCountL);
     upd (proc.player.uiOutR.load(), r, holdR, holdCountR);

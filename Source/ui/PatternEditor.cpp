@@ -209,12 +209,20 @@ float PatternEditor::fontPx() const
 float PatternEditor::helpHeight() const { return st.column >= 3 ? Theme::px * 12 : 0.0f; }
 
 float PatternEditor::rowH() const     { return fontPx() * (PixelFont::kCellH + 3); }
-float PatternEditor::headerH() const  { return fontPx() * 24; }
+float PatternEditor::tabH() const     { return fontPx() * 24; }
+float PatternEditor::scopeH() const   { return st.scopes ? fontPx() * 20 : 0.0f; }
+float PatternEditor::headerH() const  { return tabH() + scopeH(); }
+
+juce::Rectangle<float> PatternEditor::scopeRect (int slot) const
+{
+    const float cw = fontPx() * PixelFont::kCellW;
+    return juce::Rectangle<float> (lineNumW() + slot * trackW() - cw * 0.5f, tabH(), trackW() - cw * 0.5f, scopeH()).reduced (fontPx() * 0.5f, fontPx());
+}
 
 juce::Rectangle<float> PatternEditor::headerRect (int slot) const
 {
     const float cw = fontPx() * PixelFont::kCellW;
-    return juce::Rectangle<float> (lineNumW() + slot * trackW() - cw * 0.5f, 0, trackW() - cw * 0.5f, headerH()).reduced (fontPx() * 0.5f, fontPx());
+    return juce::Rectangle<float> (lineNumW() + slot * trackW() - cw * 0.5f, 0, trackW() - cw * 0.5f, tabH()).reduced (fontPx() * 0.5f, fontPx());
 }
 
 juce::Rectangle<float> PatternEditor::panRect (int slot) const
@@ -272,6 +280,45 @@ int PatternEditor::blockLines() const
 }
 
 // ---------------------------------------------------------------- painting
+// a track's scope, the ProTracker way: its sound as a line of pixels, held still on a rising zero crossing
+void PatternEditor::paintScope (juce::Graphics& g, juce::Rectangle<float> r, int t)
+{
+    const auto& sk = Theme::skin;
+    const float px = fontPx();
+    const float dot = std::max (1.0f / Theme::deviceScale, Theme::snap (px * 0.5f));
+    g.setColour (sk.bg);
+    g.fillRect (r);
+    Theme::bevel (g, r, false, std::max (1.0f, px * 0.5f));
+    auto in = r.reduced (px);
+    const bool muted = proc.player.mute[t].load();
+    g.setColour (sk.text.withAlpha (0.18f));
+    g.fillRect (in.getX(), Theme::snap (in.getCentreY()), in.getWidth(), dot);       // (the zero line)
+    if (muted) return;
+    const auto& ring = proc.player.uiScope[t];
+    constexpr int mask = Player::kScopeLen - 1;
+    const uint32_t w = proc.player.uiScopeWrite.load (std::memory_order_relaxed);
+    const int span = 768;                                                            // (16 ms at 48 kHz)
+    uint32_t start = w - (uint32_t) span;
+    for (int k = 0; k < 700; ++k)                                                    // (a trigger: the latest rising crossing that still leaves a full span)
+    {
+        const uint32_t a = start - (uint32_t) k;
+        if (ring[(a - 1) & mask] < 0.0f && ring[a & mask] >= 0.0f) { start = a; break; }
+    }
+    const int cols = std::max (2, (int) (in.getWidth() / dot));
+    const float half = in.getHeight() * 0.5f - dot;
+    g.setColour (sk.track[t]);
+    float lastY = 0;
+    for (int c = 0; c < cols; ++c)
+    {
+        const float v = juce::jlimit (-1.0f, 1.0f, ring[(start + (uint32_t) (c * span / cols)) & mask] * 1.4f);
+        const float y = Theme::snap (in.getCentreY() - v * half);
+        const float x = in.getX() + c * dot;
+        if (c > 0 && std::abs (y - lastY) > dot) g.fillRect (x, std::min (y, lastY), dot, std::abs (y - lastY));   // (joined, no gaps)
+        else g.fillRect (x, y, dot, dot);
+        lastY = y;
+    }
+}
+
 void PatternEditor::paint (juce::Graphics& g)
 {
     const auto& sk = Theme::skin;
@@ -299,6 +346,11 @@ void PatternEditor::paint (juce::Graphics& g)
         const bool muted = proc.player.mute[t].load();
         g.setColour (muted ? Theme::pressed : Theme::panel);
         g.fillRect (r);
+        if (! muted && flash[t] > 0.02f)
+        {
+            g.setColour (sk.track[t].withAlpha (0.45f * flash[t]));   // a new note: the header lights up in the track's colour
+            g.fillRect (r);
+        }
         Theme::bevel (g, r, ! muted, line);
         auto top = r.withHeight (r.getHeight() * 0.5f);
         g.setColour (muted ? Theme::faint : sk.track[t]);
@@ -323,6 +375,10 @@ void PatternEditor::paint (juce::Graphics& g)
         g.setColour (pan < 0 ? Theme::faint : Theme::ink);
         g.fillRect (mx - px * 0.75f, trough.getY() - px * 0.5f, px * 1.5f, trough.getHeight() + px);
     }
+
+    // ---- the scopes
+    if (st.scopes)
+        for (int s = 0; s < nVis; ++s) paintScope (g, scopeRect (s), first + s);
 
     // ---- corner: the block being edited
     {
@@ -518,7 +574,7 @@ void PatternEditor::tick()
     for (int t = 0; t < kMaxTracks; ++t)
     {
         const float lv = proc.player.uiLevel[t].load();
-        const float nv = std::max (lv, vu[t] * 0.82f);
+        const float nv = std::max (lv, vu[t] * 0.906f);   // (60 frames a second)
         if (std::abs (nv - vu[t]) > 0.004f) dirty = true;
         vu[t] = nv < 0.002f ? 0.0f : nv;
     }
@@ -556,7 +612,26 @@ void PatternEditor::tick()
     if (playBlockNow != lastPlayBlock || playLineNow != lastPlayLine) dirty = true;
     lastPlayBlock = playBlockNow; lastPlayLine = playLineNow;
 
+    // note flashes, and the scopes moving: just the header
+    bool headerDirty = false;
+    for (int t = 0; t < kMaxTracks; ++t)
+    {
+        const int n = proc.player.uiNotes[t].load (std::memory_order_relaxed);
+        if (n != notesSeen[t]) { notesSeen[t] = n; flash[t] = 1.0f; headerDirty = true; }
+        else if (flash[t] > 0) { flash[t] = flash[t] < 0.03f ? 0.0f : flash[t] * 0.86f; headerDirty = true; }
+    }
+    if (st.scopes)
+    {
+        bool live = false;
+        const uint32_t w = proc.player.uiScopeWrite.load (std::memory_order_relaxed);
+        for (int t = 0; t < kMaxTracks && ! live; ++t)
+            for (int k = 1; k <= 256 && ! live; k += 8)
+                live = proc.player.uiScope[t][(w - (uint32_t) k) & (Player::kScopeLen - 1)] != 0.0f;
+        if (live || scopeLive) headerDirty = true;   // (once more after it goes quiet: a flat line)
+        scopeLive = live;
+    }
     if (dirty || st.line != lastDrawnLine || st.block != lastDrawnBlock) { repaint(); ++repaintsAsked; }
+    else if (headerDirty) { repaint (0, 0, getWidth(), (int) std::ceil (headerH())); ++headerRepaints; }
     lastDrawnLine = st.line; lastDrawnBlock = st.block;
 }
 
@@ -857,9 +932,9 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     const int slot = (int) std::floor ((e.position.x - lineNumW() + px * PixelFont::kCellW * 0.5f) / trackW());
     if (e.position.y < hh)
     {
-        if (slot >= 0 && slot < nVis && e.position.y > headerRect (slot).getCentreY())
+        if (slot >= 0 && slot < nVis && e.position.y > headerRect (slot).getCentreY() && e.position.y < tabH())
         {
-            // pan row: drag to pan, double-click for automatic (Amiga) panning
+            // pan row (the scopes under it mute / solo, like the name): drag to pan, double-click for automatic (Amiga) panning
             panDragTrack = first + slot;
             setPanFromX (panDragTrack, e.position.x);
             return;
@@ -1168,7 +1243,7 @@ void PatternEditor::mouseDoubleClick (const juce::MouseEvent& e)
 {
     if (e.position.y >= headerH()) return;
     const int slot = (int) std::floor ((e.position.x - lineNumW() + fontPx() * PixelFont::kCellW * 0.5f) / trackW());
-    if (slot >= 0 && slot < visibleTracks() && e.position.y > headerRect (slot).getCentreY())
+    if (slot >= 0 && slot < visibleTracks() && e.position.y > headerRect (slot).getCentreY() && e.position.y < tabH())
     {
         const int t = firstTrack() + slot;
         proc.history.settings ("TRACK " + juce::String (t + 1) + " PAN AUTO");

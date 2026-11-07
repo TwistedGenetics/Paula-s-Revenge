@@ -37,7 +37,7 @@ public:
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
     void keyStateFromElsewhere (bool isDown);   // key releases while a plug-in window is in front
-    void refreshMeters() { timerCallback(); }   // also used by the screenshot test
+    void refreshMeters() { frame |= 1; timerCallback(); }   // (a whole frame: the 30-a-second part too) also used by the screenshot test
     void setView (PaulaProcessor::EditorState::View);
     prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
     prv::ui::SampleBrowser& getBrowser() { return browser; }
@@ -203,9 +203,13 @@ private:
     prv::ui::AutomationPanel automation { proc };
     float shownClockBpm = -1;
     prv::ui::CrtOverlay crtOverlay;
+    prv::ui::DragReadout dragReadout;   // the value beside whatever is being dragged
+    unsigned frame = 0;                 // (60 frames a second: the meters, scopes and play line every one, the rest every other)
 public:
     void setSkin (int skinId);          // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
     void setCrt (bool on);
+    void setScopes (bool on);
+    bool scopesOn() const { return proc.editorState.scopes; }
     int  skinId() const { return proc.editorState.skin; }
     bool crtOn() const { return proc.editorState.crt; }
     void showSkinMenu();

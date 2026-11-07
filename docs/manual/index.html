@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.39</span>
+  <span class="ver">MANUAL &middot; V0.40</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -194,7 +194,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
-      <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track.</td></tr>
+      <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track. Under that, each track's scope (click it to mute, right-click to solo).</td></tr>
       <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, the master <span class="b">VOL</span> and an L/R meter. Stereo separation (SEP): right-click a machine button.</td></tr>
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
     </tbody>
@@ -233,6 +233,14 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <figure>
     <div class="frame sunken"><img src="img/skins.png" alt="The main screen in the KICKSTART 1.3 skin: white text on Amiga blue, the cursor and pressed buttons orange, and the 8 tracks in their colours." width="1440" height="900" loading="lazy"></div>
     <figcaption>The KICKSTART 1.3 skin</figcaption>
+  </figure>
+  <h3>Live feedback</h3>
+  <p>Under each track's name and pan bar is its <b>scope</b>: the track's sound as a moving line in the track's colour, held still on each cycle the way ProTracker's scopes were. A silent track is a flat line; a muted one shows only the zero line. Click a scope to mute its track, right-click (or Alt-click) to solo it &mdash; the same as its name. <b>View &rarr; Track Scopes</b> hides them for more rows; the choice is kept.</p>
+  <p>Each new note lights the track's header up in its colour, fading out in a moment, so you can see which tracks are playing at a glance. The meters, scopes and play line move 60 times a second.</p>
+  <p>While you drag a slider, a mixer fader or one of the strips' small bars, its value shows big in a box beside it (<b>VOL -6.0</b>, <b>WIDTH 150%</b>), and goes when you let go. Buttons light up under the mouse and sink when you press them.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/scopes.png" alt="The pattern while playing: under each track's header a scope shows its waveform in the track's colour - a saw on track 1, sines on tracks 2 and 3, a flat line on silent track 4 - and the headers of the tracks that just played a note are lit." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The track scopes while playing</figcaption>
   </figure>
 </section>
 
@@ -1028,7 +1036,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.39</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.40</footer>
 </main>
 </div>
 <script>

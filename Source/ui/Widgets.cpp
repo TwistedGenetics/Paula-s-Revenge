@@ -32,7 +32,7 @@ void Theme::setSkinId (SkinId id)
     k.id = id;
     k.dark = id != SkinId::Workbench;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
-    const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xfff4f4f4), C (0xff000000), C (0xff000000) };
+    const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
     const Palette darkPage  { C (0xff0b0f17), C (0xff161c28), C (0xff3c465c), C (0xff020304), C (0xfff4ecd6), C (0xff33415e), C (0xff7d8597), C (0xff222a3a), C (0xff6a7590), C (0xfff4ecd6) };
     // Workbench 1.3's blue, white, black and orange (orange with black on it: chosen, as it was)
@@ -149,6 +149,8 @@ PixButton::PixButton (const juce::String& buttonText, bool toggle) : juce::Butto
     setMouseClickGrabsKeyboardFocus (false);
 }
 
+namespace { float pressShift() { return std::max (1.0f, Theme::snap (Theme::px * 0.34f)); } }
+
 void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
 {
     auto r = getLocalBounds().toFloat().reduced (1.0f);
@@ -164,7 +166,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         // lines stacked (a tall, narrow button)
         juce::StringArray lines; lines.addLines (label);
         const float lh = px * (PixelFont::kCellH + 3);
-        auto area = r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f);
+        auto area = r.translated (on ? pressShift() : 0.0f, on ? pressShift() : 0.0f);
         float y = area.getCentreY() - lh * (float) lines.size() * 0.5f;
         for (const auto& l : lines)
         {
@@ -176,7 +178,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     float usePx = px;
     // (the text's own width: the last character's spacing column doesn't count)
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
-    PixelFont::drawCentred (g, label, r.translated (on ? 1.0f : 0.0f, on ? 1.0f : 0.0f), usePx, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
+    PixelFont::drawCentred (g, label, r.translated (on ? pressShift() : 0.0f, on ? pressShift() : 0.0f), usePx, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
     auto accent = onAccent;
     if (accent.isTransparent())
     {
@@ -365,6 +367,7 @@ void PixSlider::mouseDown (const juce::MouseEvent& e)
     // a click in the trough jumps there; dragging then moves relative to that, calmly
     if (trough().contains (e.position) && ! e.mods.isShiftDown()) setFromX (e.position.x);
     dragStartValue = value;
+    DragReadout::show (*this, label + " " + format (value));
 }
 
 void PixSlider::mouseDrag (const juce::MouseEvent& e)
@@ -372,7 +375,10 @@ void PixSlider::mouseDrag (const juce::MouseEvent& e)
     auto t = trough().reduced (Theme::px);
     const float fine = e.mods.isShiftDown() ? 0.1f : 1.0f;   // Shift: fine
     setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);
+    DragReadout::show (*this, label + " " + format (value));
 }
+
+void PixSlider::mouseUp (const juce::MouseEvent&) { DragReadout::hide(); }
 
 void PixSlider::mouseDoubleClick (const juce::MouseEvent&)
 {
@@ -398,5 +404,47 @@ void PixLabel::paint (juce::Graphics& g)
     const auto c = (colour.isTransparent() || colour == Theme::ink) ? Theme::palFor (*this).ink : colour;   // (the page's text colour)
     if (centre) PixelFont::drawCentred (g, text, getLocalBounds().toFloat(), px, c);
     else        PixelFont::drawLeft (g, text, getLocalBounds().toFloat(), px, c);
+}
+} // namespace prv::ui
+
+namespace prv::ui
+{
+// ---------------------------------------------------------------- the drag readout
+void DragReadout::show (juce::Component& from, const juce::String& t)
+{
+    auto* r = instance;
+    auto* parent = r != nullptr ? r->getParentComponent() : nullptr;
+    if (parent == nullptr || ! parent->isParentOf (&from)) return;
+    r->text = t.trim().toUpperCase();
+    const float px = Theme::px;
+    const int w = (int) std::ceil (PixelFont::textWidth (r->text, px) + px * 4);
+    const int h = (int) std::ceil (px * (PixelFont::kCellH + 5));
+    const auto area = parent->getLocalArea (&from, from.getLocalBounds());
+    int x = area.getCentreX() - w / 2;
+    int y = area.getY() - h - (int) px;
+    if (y < 0) y = area.getBottom() + (int) px;                    // (no room above: below it)
+    x = juce::jlimit (0, std::max (0, parent->getWidth() - w), x);
+    y = juce::jlimit (0, std::max (0, parent->getHeight() - h), y);
+    r->setBounds (x, y, w, h);
+    r->setVisible (true);
+    r->toFront (false);
+    r->repaint();
+}
+
+void DragReadout::hide()
+{
+    if (instance != nullptr) instance->setVisible (false);
+}
+
+void DragReadout::paint (juce::Graphics& g)
+{
+    const auto& P = Theme::lightPalette();
+    auto r = getLocalBounds().toFloat();
+    g.setColour (P.ink);
+    g.fillRect (r);                                               // (a hard edge, like a Workbench requester)
+    r = r.reduced (std::max (1.0f, Theme::snap (Theme::px * 0.5f)));
+    g.setColour (P.paper);
+    g.fillRect (r);
+    PixelFont::drawCentred (g, text, r, Theme::px, P.ink);
 }
 } // namespace prv::ui

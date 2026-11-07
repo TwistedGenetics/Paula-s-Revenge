@@ -366,6 +366,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (browser);
     addChildComponent (automation);
     addChildComponent (crtOverlay);
+    addChildComponent (dragReadout);
+    prv::ui::DragReadout::instance = &dragReadout;
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
@@ -384,7 +386,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     setSize (1440, 900);
     refreshAll();
     setView (st.view == View::Browser ? View::Pattern : st.view);
-    startTimerHz (30);
+    startTimerHz (60);
     juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PaulaEditor> (this)] { if (safe) safe->pattern.grabKeyboardFocus(); });
 
     // with a plug-in's window in front, the computer keyboard still plays (and edits) here
@@ -414,6 +416,7 @@ void PaulaEditor::keyStateFromElsewhere (bool down)
 PaulaEditor::~PaulaEditor()
 {
     prv::ui::menuHook() = nullptr;
+    if (prv::ui::DragReadout::instance == &dragReadout) prv::ui::DragReadout::instance = nullptr;
     proc.pluginHost.onWindowKey = nullptr;
     proc.pluginHost.onWindowKeyState = nullptr;
     stopTimer();
@@ -571,6 +574,11 @@ void PaulaEditor::setStatus (const juce::String& s)
 
 void PaulaEditor::timerCallback()
 {
+    // LIVE FEEDBACK at 60 frames a second: the pattern (play line, meters, scopes, note flashes) and the output meter
+    pattern.tick();
+    outMeter.tick();
+    if (mixer.isVisible()) mixer.tickMeters();
+    if ((++frame & 1) != 0) return;   // everything else, 30 times a second as before
     prv::Diagnostics::get().tick();   // (slow audio blocks into the log; a stall of this window too)
     {
         // the radio's changes, and it running dry (the network too slow), into the log
@@ -596,7 +604,6 @@ void PaulaEditor::timerCallback()
         auto* f = juce::Component::getCurrentlyFocusedComponent();
         if ((f == nullptr || f == this) && isShowing() && getPeer() != nullptr && getPeer()->isFocused()) pattern.grabKeyboardFocus();
     }
-    pattern.tick();
     if (automation.isVisible()) automation.tick();
     if (proc.followClock.load())
     {
@@ -640,7 +647,6 @@ void PaulaEditor::timerCallback()
     recordAutomation();
     if (arrange.isVisible()) arrange.tick();
     if (mixer.isVisible()) mixer.tick();
-    outMeter.tick();
     if (autosave != nullptr) autosave->tick();
     auto& st = proc.editorState;
     const bool playing = proc.player.isPlaying();
@@ -1849,6 +1855,14 @@ void PaulaEditor::setSkin (int id)
     resized();
     repaint();
     setStatus ("SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) st.skin) + " - RIGHT-CLICK FOR MORE");
+}
+
+void PaulaEditor::setScopes (bool on)
+{
+    proc.editorState.scopes = on;
+    pattern.resized();
+    pattern.repaint();
+    setStatus (on ? "TRACK SCOPES ON (VIEW > TRACK SCOPES)" : "TRACK SCOPES OFF");
 }
 
 void PaulaEditor::setCrt (bool on)

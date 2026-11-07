@@ -41,6 +41,7 @@ enum CommandIDs
     cmdFollowClock   = 0x2024,
     cmdSkin0         = 0x2030,   // .. 0x2033: the SKINs
     cmdCrt           = 0x2034,
+    cmdScopes        = 0x2035,
     cmdSharedFolder  = 0x2030,
     cmdOpenShared    = 0x2031,
     cmdSaveShared    = 0x2032,
@@ -324,6 +325,7 @@ public:
             sk.addCommandItem (&commands, cmdCrt);
             m.addSubMenu ("Skin", sk);
         }
+        m.addCommandItem (&commands, cmdScopes);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -341,7 +343,7 @@ public:
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
                       cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
-        for (int i = 0; i < 5; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, then CRT
+        for (int i = 0; i < 6; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, CRT, SCOPES
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -413,6 +415,12 @@ public:
             auto* ed = editor();
             info.setTicked (ed != nullptr && ed->crtOn());
         }
+        else if (id == cmdScopes)
+        {
+            info.setInfo ("Track Scopes", "Each track's sound as a moving line under its header", "View", 0);
+            auto* ed = editor();
+            info.setTicked (ed != nullptr && ed->scopesOn());
+        }
         else if (id == cmdFollowClock)
         {
             info.setInfo ("Follow MIDI Clock", "Tempo, start, stop and song position from the MIDI input's clock (another app or a drum machine leads)", "View", 0);
@@ -466,6 +474,7 @@ public:
                 case cmdSeparation:    ed->showSeparationMenu(); return true;
                 case cmdFollowClock:   ed->setFollowClock (! ed->followClockOn()); commands.commandStatusChanged(); return true;
                 case cmdCrt:           ed->setCrt (! ed->crtOn()); commands.commandStatusChanged(); return true;
+                case cmdScopes:        ed->setScopes (! ed->scopesOn()); commands.commandStatusChanged(); return true;
                 case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
                 case cmdOpenShared:    ed->openShared(); return true;
                 case cmdSaveShared:    ed->saveToShared(); return true;

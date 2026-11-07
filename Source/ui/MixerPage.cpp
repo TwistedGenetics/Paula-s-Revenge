@@ -68,6 +68,7 @@ void MiniBar::mouseDown (const juce::MouseEvent&)
 {
     if (onDragStart) onDragStart();
     dragStartValue = value;
+    DragReadout::show (*this, label + " " + format (value));
 }
 
 void MiniBar::mouseDrag (const juce::MouseEvent& e)
@@ -75,7 +76,10 @@ void MiniBar::mouseDrag (const juce::MouseEvent& e)
     // relative and calm: the whole range takes about two widths of travel (Shift = fine)
     const float span = std::max (40.0f, (float) getWidth() * 2.0f) * (e.mods.isShiftDown() ? 8.0f : 1.0f);
     setValue (dragStartValue + (e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY()) / span, true);
+    DragReadout::show (*this, label + " " + format (value));
 }
+
+void MiniBar::mouseUp (const juce::MouseEvent&) { DragReadout::hide(); }
 
 void MiniBar::mouseDoubleClick (const juce::MouseEvent&)
 {
@@ -129,10 +133,10 @@ void FaderMeter::setLevels (float l, float r)
 {
     auto step = [] (float in, float& lvl, float& hold, int& count)
     {
-        lvl = std::max (in, lvl * 0.82f);
-        if (in >= hold) { hold = in; count = 40; }
+        lvl = std::max (in, lvl * 0.906f);                   // (60 frames a second: the same fall as before, smoother)
+        if (in >= hold) { hold = in; count = 80; }
         else if (count > 0) --count;
-        else hold *= 0.9f;
+        else hold *= 0.949f;
     };
     const float oldL = levelL, oldR = levelR, oldHL = holdL, oldHR = holdR;
     step (l, levelL, holdL, holdCountL);
@@ -224,6 +228,7 @@ void FaderMeter::mouseDown (const juce::MouseEvent& e)
     if (! e.mods.isShiftDown() && std::abs (e.position.y - capY) > Theme::px * 4 && t.expanded (Theme::px * 2, 0).contains (e.position))
         setDb (posToDb ((t.getBottom() - e.position.y) / std::max (1.0f, t.getHeight())), true);
     dragStartDb = db;
+    DragReadout::show (*this, "VOL " + dbText (db));
 }
 
 void FaderMeter::mouseDrag (const juce::MouseEvent& e)
@@ -233,7 +238,10 @@ void FaderMeter::mouseDrag (const juce::MouseEvent& e)
     const float fine = e.mods.isShiftDown() ? 0.15f : 1.0f;
     const float pos = dbToPos (dragStartDb) - e.getDistanceFromDragStartY() / std::max (1.0f, t.getHeight()) * fine;
     setDb (posToDb (pos), true);
+    DragReadout::show (*this, "VOL " + dbText (db));
 }
+
+void FaderMeter::mouseUp (const juce::MouseEvent&) { DragReadout::hide(); }
 
 void FaderMeter::mouseDoubleClick (const juce::MouseEvent&)
 {
@@ -1461,6 +1469,13 @@ void MixerPage::finishLearn (int param)
                             + (param == kAutoOnOff ? juce::String (" (00 = OFF, 01-FF = ON)") : juce::String()));
 }
 
+void MixerPage::tickMeters()
+{
+    // 60 frames a second: the strips' meters
+    if (currentPage == Page::Strips)
+        for (auto& s : strips) if (s->isVisible()) s->tick();
+}
+
 void MixerPage::tick()
 {
     if (proc.player.latencySamples() != shownDelay) { shownDelay = proc.player.latencySamples(); repaint (titleArea.toNearestInt()); }
@@ -1475,11 +1490,7 @@ void MixerPage::tick()
         if (st != lastScanStatus) { lastScanStatus = st; repaint (listStatusArea.toNearestInt()); }
         if (proc.pluginHost.isScanning() && (int) proc.pluginHost.effects().size() != listedPluginTotal) refreshPluginList();
     }
-    if (currentPage == Page::Strips)
-    {
-        for (auto& s : strips) if (s->isVisible()) s->tick();
-    }
-    else
+    if (currentPage != Page::Strips)
     {
         if (currentPage == Page::Channel) eqGraph.tick();
         if (currentPage == Page::Effect && instSpectrum.isVisible())

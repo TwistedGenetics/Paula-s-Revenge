@@ -133,6 +133,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     float defaultValue = 0.5f;
@@ -151,6 +152,21 @@ private:
     float wheelAccum = 0;
     juce::Rectangle<float> trough() const;
     void setFromX (float x);
+};
+
+// LIVE FEEDBACK: the value, big, beside whatever is being dragged (sliders, faders, mini bars).
+// The editor owns the one bubble; controls call show() while dragging and hide() on release.
+class DragReadout : public juce::Component
+{
+public:
+    DragReadout() { setInterceptsMouseClicks (false, false); setAlwaysOnTop (true); }
+    static inline DragReadout* instance = nullptr;
+    static void show (juce::Component& from, const juce::String& text);
+    static void hide();
+    static juce::String current() { return instance != nullptr && instance->isVisible() ? instance->text : juce::String(); }
+    void paint (juce::Graphics&) override;
+private:
+    juce::String text;
 };
 
 // Turns mouse-wheel / trackpad scrolling into whole steps at a calm rate:

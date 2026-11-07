@@ -29,6 +29,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
@@ -54,6 +55,7 @@ public:
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
@@ -89,7 +91,8 @@ public:
     Page page() const { return currentPage; }
     void opened();          // shown: back to the strips, refreshed
     void refresh();         // controls follow the song (after undo, load, ...)
-    void tick();            // meters
+    void tick();            // everything else, 30 times a second
+    void tickMeters();      // the strips' meters, 60 times a second
     void showStrips();
     void openChannel (int track);
     void openInstrument (int ins);   // an instrument's own EQ and its 3 insert effects (BACK: its page)

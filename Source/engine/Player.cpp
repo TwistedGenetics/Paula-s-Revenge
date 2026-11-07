@@ -159,7 +159,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     const auto& in = song->instruments[(size_t) v.instr];
     if (ch >= 0 && ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // AUTO: out of this track from now on (and its inserts'; a muted track's note doesn't take it)
     if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;
-    if (ch >= 0 && ch < kMaxTracks) mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f);   // (MODULATION: retrigger, KEY, VELOCITY)
+    if (ch >= 0 && ch < kMaxTracks) { mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f); uiNotes[ch].fetch_add (1, std::memory_order_relaxed); }   // (MODULATION: retrigger, KEY, VELOCITY; the UI's note flash)
     synthRelease (v);   // one note at a time on a track, as with samples
     uint8_t p = 0;
     int note = (int) cell.note + in.transpose;
@@ -723,7 +723,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     v.fadeOut = 0;
     if (ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track; not a muted one)
     if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;   // (CV SOURCES: an ENV starts)
-    if (ch >= 0 && ch < kMaxTracks) mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f);   // (MODULATION)
+    if (ch >= 0 && ch < kMaxTracks) { mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f); uiNotes[ch].fetch_add (1, std::memory_order_relaxed); }   // (MODULATION; the UI's note flash)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;
@@ -1621,6 +1621,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         for (auto& b : blepCh) b.reset();
     }
     if (blepClock > 1.0e12) { blepClock = 0; for (auto& b : blepCh) b.reset(); }   // (after years of playing)
+    const uint32_t scopeBase = uiScopeWrite.load (std::memory_order_relaxed);
     if (rack.any()) updateSynths (numSamples);
     else { for (auto& d : sampleDelay) d = 0; for (int t = 0; t < kMaxTracks; ++t) mixerEngine.setInputLatency (t, 0); mixerEngine.setExtraDelay (0); }
     bool anyClock = false;
@@ -1778,6 +1779,12 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             }
         }
         blepClock += 1.0;
+        {
+            // the scopes: each track's voice, as it sounds (silent when muted)
+            const uint32_t at = (scopeBase + (uint32_t) i) & (kScopeLen - 1);
+            for (int t = 0; t < kMaxTracks; ++t)
+                uiScope[t][at] = (t < nt && ! mute[t].load (std::memory_order_relaxed)) ? (st[t] ? (valL[t] + valR[t]) * 0.5f : valL[t]) : 0.0f;
+        }
 
         // Pans: 8xx in the pattern, then the track's pan, then the instrument's
         // pan; otherwise mono voices follow the Amiga L-R-R-L layout scaled by
@@ -1904,6 +1911,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 const float l = synthL[i] * g, r = synthR[i] * g;
                 trkL[t][i] += l; trkR[t][i] += r;
                 pk = std::max ({ pk, std::abs (l), std::abs (r) });
+                uiScope[t][(scopeBase + (uint32_t) i) & (kScopeLen - 1)] += (l + r) * 0.5f;   // (its scope too)
             }
             peaks[t] = std::max (peaks[t], pk);
         }
@@ -1927,6 +1935,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             {
                 trkL[t][i] += instL[ins][i]; trkR[t][i] += instR[ins][i];
                 pk = std::max ({ pk, std::abs (instL[ins][i]), std::abs (instR[ins][i]) });
+                if (rack.at (ins) != nullptr) uiScope[t][(scopeBase + (uint32_t) i) & (kScopeLen - 1)] += (instL[ins][i] + instR[ins][i]) * 0.5f;
             }
             peaks[t] = std::max (peaks[t], pk);
         }
@@ -1951,6 +1960,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     if (stemTap != nullptr && ! stemsBeforeMixer) stemTap->add (kStems - 1, left, right, numSamples);
     if (tapIns >= 0) insTap.push (tapL, tapR, numSamples);
 
+    uiScopeWrite.store (scopeBase + (uint32_t) numSamples, std::memory_order_relaxed);
     for (int t = 0; t < kMaxTracks; ++t)
     {
         uiLevel[t].store (peaks[t], std::memory_order_relaxed);

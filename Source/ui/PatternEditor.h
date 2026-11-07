@@ -212,6 +212,18 @@ public:
     static void setDetectChords (bool);
 private:
     float vu[prv::kMaxTracks] {};
+    // LIVE FEEDBACK: each track's scope (under its header) and a flash on each new note
+    float flash[prv::kMaxTracks] {};
+    int   notesSeen[prv::kMaxTracks] {};
+    bool  scopeLive = false;                       // (something on a scope: redraw the header each frame)
+    float tabH() const;                            // the name / pan part of the header
+    float scopeH() const;                          // the scopes under it (0 when off)
+    void  paintScope (juce::Graphics&, juce::Rectangle<float>, int track);
+public:
+    juce::Rectangle<float> scopeRect (int slot) const;   // (tests use it too)
+    float flashOf (int track) const { return flash[track]; }
+    int   headerRepaints = 0;
+private:
     int lastDrawnLine = -1, lastDrawnBlock = -1;
     int lastPlayLine = -1, lastPlayBlock = -1;   // (the play-line marker as last drawn)
 public:

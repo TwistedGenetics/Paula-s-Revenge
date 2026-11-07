@@ -200,6 +200,11 @@ public:
     std::atomic<bool>  uiLed { false };
     std::atomic<int>   songWraps { 0 };   // counts each time the song loops back (or stops on F00)
     std::atomic<float> uiLevel[kMaxTracks] {};
+    // live feedback: each track's sound (a ring the UI's scopes read) and a count of its notes (the flashes)
+    static constexpr int kScopeLen = 2048;
+    float uiScope[kMaxTracks][kScopeLen] {};
+    std::atomic<uint32_t> uiScopeWrite { 0 };              // where the next sample goes (all tracks)
+    std::atomic<int> uiNotes[kMaxTracks] {};
     std::atomic<float> uiOutL { 0.0f }, uiOutR { 0.0f };   // output peaks of the last block
     std::atomic<int>   uiJamPos[kJamVoices] {};             // jam voice positions (-1 = silent), for playheads
     std::atomic<int>   uiJamInstr[kJamVoices] {};

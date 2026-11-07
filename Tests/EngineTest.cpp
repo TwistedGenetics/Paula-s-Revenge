@@ -4392,10 +4392,41 @@ static void testInstMacros()
     CHECK (std::abs (p.mixer().mods.slotOffset[sl][1] + 0.6f) < 1e-5f);
 }
 
+// ---- live feedback: each track's scope and note count
+static void testScopes()
+{
+    std::printf ("\n== scopes\n");
+    Song s = makeSong();
+    s.blocks[0] = Block {}; s.blocks[0].lines = 16;
+    s.blocks[0].at (0, 1) = Cell { 37, 1, 0, 0 };            // C-3 on track 2 only
+    s.blocks[0].at (4, 1) = Cell { 39, 1, 0, 0 };
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.playSong (0);
+    const int lineLen = (int) std::lround (48000 * 2.5 / s.tempo * s.speed);
+    std::vector<float> L ((size_t) lineLen * 6), R (L.size());
+    const uint32_t w0 = p.uiScopeWrite.load();
+    p.render (L.data(), R.data(), (int) L.size());
+    const uint32_t w1 = p.uiScopeWrite.load();
+    float pk[kMaxTracks] {};
+    for (int t = 0; t < kMaxTracks; ++t) for (float v : p.uiScope[t]) pk[t] = std::max (pk[t], std::abs (v));
+    std::printf ("scope peaks: track 1 %.3f, track 2 %.3f; written %u; notes on track 2: %d\n", pk[0], pk[1], w1 - w0, p.uiNotes[1].load());
+    CHECK (w1 - w0 == (uint32_t) L.size());
+    CHECK (pk[1] > 0.05f && pk[0] == 0.0f);
+    CHECK (p.uiNotes[1].load() == 2 && p.uiNotes[0].load() == 0);
+    // muted: a flat line
+    p.mute[1].store (true);
+    p.render (L.data(), R.data(), Player::kScopeLen);
+    float m = 0; for (float v : p.uiScope[1]) m = std::max (m, std::abs (v));
+    CHECK (m == 0.0f);
+    p.mute[1].store (false);
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
+    testScopes();
     testLineLoop();
     testPingPong();
     testSlices();
