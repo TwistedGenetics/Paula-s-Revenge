@@ -55,7 +55,7 @@ void ArrangePage::opened()
 
 void ArrangePage::tick()
 {
-    if (proc.player.isPlaying()) repaint (listArea.toNearestInt());
+    if (proc.player.isPlaying()) { repaint (listArea.toNearestInt()); repaint (mapArea.toNearestInt()); }
 }
 
 // ------------------------------------------------------------------ editing
@@ -126,7 +126,65 @@ void ArrangePage::resized()
         redoBtn.setBounds (row3.removeFromLeft ((int) unit)); row3.removeFromLeft (gap);
         closeBtn.setBounds (row3);
     }
+    mapArea = r.removeFromBottom ((int) (px * 16)).toFloat();
+    r.removeFromBottom (gap);
     listArea = r.toFloat();
+}
+
+void ArrangePage::scrollFromMap (float x)
+{
+    const int n = (int) proc.song.sequence.size();
+    if (n <= 0) return;
+    const int at = juce::jlimit (0, n - 1, (int) ((x - mapArea.getX()) / std::max (1.0f, mapArea.getWidth()) * n));
+    scroll = juce::jlimit (0, std::max (0, n - visibleRows()), at - visibleRows() / 2);
+    repaint();
+}
+
+void ArrangePage::paintMap (juce::Graphics& g)
+{
+    // every song position as a column: its block's notes per track (in the tracks' colours), the sections,
+    // the playing position, and a frame round the positions the list shows
+    const auto& sk = Theme::skin;
+    const float px = Theme::px;
+    g.setColour (sk.bg);
+    g.fillRect (mapArea);
+    const int n = (int) proc.song.sequence.size();
+    const int nt = std::max (1, proc.song.numTracks);
+    auto in = mapArea.reduced (px);
+    const float colW = in.getWidth() / (float) std::max (1, n);
+    const float laneH = in.getHeight() / (float) nt;
+    for (int p = 0; p < n; ++p)
+    {
+        const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (proc.song.sequence[(size_t) p])];
+        for (int t = 0; t < nt; ++t)
+        {
+            int notes = 0;
+            for (int l = 0; l < b.lines; ++l) if (b.at (l, t).note > 0 && b.at (l, t).note <= kNoteMax) ++notes;
+            if (notes == 0) continue;
+            const float dens = juce::jlimit (0.25f, 1.0f, (float) notes / (float) std::max (1, b.lines / 4));   // (busier = brighter)
+            g.setColour (sk.track[t].withAlpha (dens));
+            g.fillRect (in.getX() + p * colW, in.getY() + t * laneH, std::max (1.0f, colW - (colW > 3 ? 1.0f : 0.0f)), std::max (1.0f, laneH - 1.0f));
+        }
+        if (sectionAt (proc.song.sections, p) >= 0 && (p == 0 || sectionAt (proc.song.sections, p) != sectionAt (proc.song.sections, p - 1)))
+        {
+            g.setColour (sk.hot);
+            g.fillRect (in.getX() + p * colW, mapArea.getY(), std::max (1.0f, px * 0.5f), mapArea.getHeight());
+        }
+    }
+    const int playPos = proc.player.getMode() == Player::Mode::Song ? proc.player.uiSeqPos.load() : -1;
+    if (playPos >= 0 && playPos < n)
+    {
+        g.setColour (sk.text);
+        g.fillRect (in.getX() + (playPos + 0.5f) * colW - px * 0.5f, mapArea.getY(), px, mapArea.getHeight());
+    }
+    if (n > 0)
+    {
+        const int last = std::min (n, scroll + visibleRows());
+        auto view = juce::Rectangle<float> (in.getX() + scroll * colW, mapArea.getY(), std::max (px * 2, (last - scroll) * colW), mapArea.getHeight());
+        g.setColour (sk.text);
+        g.drawRect (view, std::max (1.0f, px * 0.5f));
+    }
+    Theme::bevel (g, mapArea, false, std::max (1.0f, px * 0.5f));
 }
 
 float ArrangePage::tagX() const
@@ -225,6 +283,7 @@ void ArrangePage::paint (juce::Graphics& g)
     }
     g.restoreState();
     Theme::bevel (g, listArea, false, std::max (1.0f, px * 0.5f));
+    paintMap (g);
 
     if (hasKeyboardFocus (true))
     {
@@ -256,6 +315,7 @@ void ArrangePage::showPositionMenu (int row)
 void ArrangePage::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    if (mapArea.contains (e.position)) { mapDragging = true; scrollFromMap (e.position.x); return; }
     if (! listArea.contains (e.position)) return;
     const int row = rowAt (e.position.y);
     const int n = (int) proc.song.sequence.size();
@@ -280,6 +340,7 @@ void ArrangePage::mouseDown (const juce::MouseEvent& e)
 
 void ArrangePage::mouseDrag (const juce::MouseEvent& e)
 {
+    if (mapDragging) { scrollFromMap (e.position.x); return; }
     if (dragFrom < 0) return;
     if (! dragging && e.getDistanceFromDragStart() < 6) return;
     dragging = true;
@@ -312,6 +373,7 @@ void ArrangePage::mouseDrag (const juce::MouseEvent& e)
 void ArrangePage::mouseUp (const juce::MouseEvent&)
 {
     edgeScroll.stop();
+    mapDragging = false;
     if (dragging && ! selecting && dropAt >= 0) moveSelectionTo (dropAt);
     dragging = selecting = false; dragFrom = dropAt = -1;
     repaint();

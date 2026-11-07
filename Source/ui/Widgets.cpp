@@ -149,6 +149,43 @@ PixButton::PixButton (const juce::String& buttonText, bool toggle) : juce::Butto
     setMouseClickGrabsKeyboardFocus (false);
 }
 
+// ---- the pixel icons: 7 x 7, like a character
+namespace
+{
+    const char* const kIcons[][7] = {
+        { "", "", "", "", "", "", "" },
+        { ".......", "###....", "#..####", "#.....#", "#.....#", "#.....#", "#######" },   // folder
+        { "######.", "#.##..#", "#.##..#", "#.....#", "#.###.#", "#.###.#", "#######" },   // disk
+        { "####...", "#..##..", "#...##.", "#....#.", "#....#.", "#....#.", "######." },   // page
+        { ".#####.", "##...##", "....##.", "...##..", "...##..", ".......", "...##.." },   // ?
+        { "..#....", ".##....", "######.", ".##...#", "..#...#", "......#", "..####." },   // undo
+        { "....#..", "....##.", ".######", "#...##.", "#...#..", "#......", ".####.." },   // redo
+        { ".#...#.", "###..#.", ".#...#.", ".#..###", ".#...#.", ".#...#.", ".#...#." },   // faders
+        { "......#", "....#.#", "....#.#", "..#.#.#", "..#.#.#", "#.#.#.#", "#.#.#.#" },   // spectrum
+        { "..#....", ".#.#...", ".#..#..", "#....#.", "#.....#", ".......", "#######" },   // envelope
+        { "#.....#", ".#...#.", "..#.#..", "...#...", "...#...", "..###..", ".#####." },   // antenna
+        { "###....", ".......", "..####.", ".......", "####...", ".......", "...####" },   // arrange
+        { "..###..", ".#...#.", "#..#..#", "#..#..#", "#.....#", ".#...#.", "..###.." },   // knob
+        { ".###...", "#...#..", "#...#..", "#...#..", ".###...", "....##.", ".....##" },   // search
+    };
+}
+
+void PixButton::drawIcon (juce::Graphics& g, Icon icon, float x, float y, float px, juce::Colour c)
+{
+    const auto& rows = kIcons[(int) icon];
+    juce::RectangleList<float> cells;
+    for (int r = 0; r < 7; ++r)
+        for (int k = 0; rows[r][k] != 0; ++k)
+            if (rows[r][k] == '#')
+            {
+                const float x0 = Theme::snap (x + k * px), x1 = Theme::snap (x + (k + 1) * px);
+                const float y0 = Theme::snap (y + r * px), y1 = Theme::snap (y + (r + 1) * px);
+                cells.addWithoutMerging ({ x0, y0, x1 - x0, y1 - y0 });
+            }
+    g.setColour (c);
+    g.fillRectList (cells);
+}
+
 namespace { float pressShift() { return std::max (1.0f, Theme::snap (Theme::px * 0.34f)); } }
 
 void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
@@ -175,10 +212,23 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         }
         return;
     }
+    if (decorate) decorate (g, r, P);
     float usePx = px;
     // (the text's own width: the last character's spacing column doesn't count)
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
-    PixelFont::drawCentred (g, label, r.translated (on ? pressShift() : 0.0f, on ? pressShift() : 0.0f), usePx, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
+    const auto inkNow = isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint;
+    const float shift = on ? pressShift() : 0.0f;
+    const float textW = PixelFont::textWidth (label, usePx) - usePx;
+    const float iconW = usePx * 9;   // (7 dots and a gap of 2)
+    iconShown = icon != Icon::None && usePx == px && textW + iconW <= r.getWidth() - px * 3;
+    if (iconShown)
+    {
+        const float x0 = std::round (r.getCentreX() - (textW + iconW) * 0.5f) + shift;
+        const float y0 = std::round (r.getCentreY() - 3.5f * usePx) + shift;
+        drawIcon (g, icon, x0, y0, usePx, inkNow);
+        PixelFont::drawCentred (g, label, juce::Rectangle<float> (x0 + iconW, r.getY() + shift, textW + usePx, r.getHeight()), usePx, inkNow);
+    }
+    else PixelFont::drawCentred (g, label, r.translated (shift, shift), usePx, inkNow);
     auto accent = onAccent;
     if (accent.isTransparent())
     {

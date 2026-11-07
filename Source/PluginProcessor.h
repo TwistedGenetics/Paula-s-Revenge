@@ -144,6 +144,8 @@ public:
         int  skin = 1;                // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
         bool crt = false;             // CRT: scanlines over the window
         bool scopes = true;           // the tracks' scopes in the pattern's header
+        int  sidebarFold = 0;         // folded sidebar panels: 1 SEQUENCE, 2 BLOCK, 4 INSTRUMENTS
+        bool sidebarTabs = false;     // one sidebar panel open at a time
         enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources, Radio } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)

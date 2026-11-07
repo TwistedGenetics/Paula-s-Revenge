@@ -616,6 +616,8 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("skin", e.skin, nullptr);
     st.setProperty ("crt", e.crt, nullptr);
     st.setProperty ("scopes", e.scopes, nullptr);
+    st.setProperty ("sidebarFold", e.sidebarFold, nullptr);
+    st.setProperty ("sidebarTabs", e.sidebarTabs, nullptr);
     st.setProperty ("spectrum", e.showSpectrum, nullptr);
     st.setProperty ("automation", e.showAutomation, nullptr);
     st.setProperty ("autoHeight", e.autoHeight, nullptr);
@@ -664,6 +666,8 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     if (e.darkSkin != (e.skin != 0)) e.skin = e.darkSkin ? 1 : 0;   // (an older DARK setting wins)
     e.crt = st.getProperty ("crt", false);
     e.scopes = st.getProperty ("scopes", true);
+    e.sidebarFold = juce::jlimit (0, 7, (int) st.getProperty ("sidebarFold", 0));
+    e.sidebarTabs = st.getProperty ("sidebarTabs", false);
     e.showSpectrum = st.getProperty ("spectrum", true);
     e.showAutomation = st.getProperty ("automation", false);
     e.autoHeight = st.getProperty ("autoHeight", 0);

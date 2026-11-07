@@ -280,6 +280,30 @@ public:
         fader.track = kind == Kind::Track ? index : (kind == Kind::Return ? 5 + index : 3);
         fader.onColourMenu = [this] { if (page.onMeterColourMenu) page.onMeterColourMenu(); };
         eqBtn.onClick = [this] { if (kind == Kind::Track) page.openChannel (index); refresh(); };
+        // PICTURES: the channel's EQ curve drawn faintly behind EQ (flat: nothing)
+        eqBtn.decorate = [this] (juce::Graphics& g, juce::Rectangle<float> r, const Theme::Palette& P)
+        {
+            if (kind != Kind::Track) return;
+            const auto& eq = page.processor().song.mixer.ch[index].eq;
+            if (! eq.anyOn()) return;
+            const float dot = std::max (1.0f / Theme::deviceScale, Theme::snap (Theme::px * 0.5f));
+            auto in = r.reduced (Theme::px * 1.5f, Theme::px * 1.0f);
+            const int cols = std::max (2, (int) (in.getWidth() / dot));
+            juce::RectangleList<float> line;
+            float lastY = 0;
+            for (int c = 0; c < cols; ++c)
+            {
+                const double hz = 20.0 * std::pow (1000.0, (double) c / (cols - 1));   // 20 Hz .. 20 kHz
+                const float db = (float) juce::jlimit (-18.0, 18.0, prv::ChannelEqProcessor::responseDb (eq, hz, 48000.0));
+                const float y = Theme::snap (in.getCentreY() - db / 18.0f * in.getHeight() * 0.5f);
+                const float x = in.getX() + c * dot;
+                if (c > 0 && std::abs (y - lastY) > dot) line.addWithoutMerging ({ x, std::min (y, lastY), dot, std::abs (y - lastY) });
+                else line.addWithoutMerging ({ x, y, dot, dot });
+                lastY = y;
+            }
+            g.setColour (Theme::skin.accentSel.interpolatedWith (P.pressed, 0.35f));
+            g.fillRectList (line);
+        };
         nameBtn.onRightClick = [this] { stripMenu(); };
         for (int k2 = 0; k2 < kInserts; ++k2)
         {

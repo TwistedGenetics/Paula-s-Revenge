@@ -25,6 +25,7 @@
 #include "ui/MixerPage.h"
 #include "ui/CvPage.h"
 #include "ui/RadioPage.h"
+#include "ui/CommandPalette.h"
 #include "StemsJob.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -204,11 +205,25 @@ private:
     float shownClockBpm = -1;
     prv::ui::CrtOverlay crtOverlay;
     prv::ui::DragReadout dragReadout;   // the value beside whatever is being dragged
+    prv::ui::CommandPalette palette;    // Cmd+K
+    prv::ui::FoldBar seqFold { "SEQUENCE" }, blockFold { "BLOCK" }, instFold { "INSTRUMENTS" };
+    struct TitleClicks : juce::MouseListener { PaulaEditor* ed = nullptr; void mouseDown (const juce::MouseEvent&) override; } titleClicks;
+    void showSidebarMenu();
     unsigned frame = 0;                 // (60 frames a second: the meters, scopes and play line every one, the rest every other)
 public:
     void setSkin (int skinId);          // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
     void setCrt (bool on);
     void setScopes (bool on);
+    // SMARTER LAYOUT: fold a sidebar panel to its title (1 SEQUENCE, 2 BLOCK, 4 INSTRUMENTS); TABS: one open at a time
+    void foldPanel (int bit, bool folded);
+    void setSidebarTabs (bool on);
+    int  sidebarFold() const { return proc.editorState.sidebarFold; }
+    bool sidebarTabs() const { return proc.editorState.sidebarTabs; }
+    // Cmd+K
+    void showPalette();
+    prv::ui::CommandPalette& getPalette() { return palette; }
+    std::vector<prv::ui::PaletteItem> paletteItems();
+    std::function<void (std::vector<prv::ui::PaletteItem>&)> addAppCommands;   // the app's menu commands (the standalone app sets it)
     bool scopesOn() const { return proc.editorState.scopes; }
     int  skinId() const { return proc.editorState.skin; }
     bool crtOn() const { return proc.editorState.crt; }

@@ -60,6 +60,12 @@ void PixList::paint (juce::Graphics& g)
         const float ty = std::round (rr.getY() + (rh - 7 * px) * 0.5f);
         if (row == playing) PixelFont::addText (text, juce::String::charToString ((juce::juce_wchar) 1), px * 1.0f, ty, px);
         PixelFont::addText (isRowDim (row) ? dim : text, getRowText (row), px * 8.0f, ty, px);
+        if (paintRowPicture && rowPictureW > 0)
+        {
+            const float textEnd = px * 8.0f + PixelFont::textWidth (getRowText (row), px) + px * 3;
+            auto pic = juce::Rectangle<float> (listW - rowPictureW - px * 2, rr.getY() + px * 1.5f, rowPictureW, rh - px * 3);
+            if (pic.getX() > textEnd) paintRowPicture (g, row, pic);
+        }
         if (isRowLooped && isRowLooped (row))
         {
             g.setColour (Theme::skin.hot);
@@ -962,6 +968,29 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     wave.openSample = [this] { if (openSample) openSample(); };
     auto& st = proc.editorState;
     list.getNumRows = [] { return kMaxInstruments; };
+    // PICTURES: each sample's waveform at the row's right end
+    list.paintRowPicture = [this] (juce::Graphics& g, int r, juce::Rectangle<float> area)
+    {
+        const auto& in = proc.song.instruments[(size_t) r];
+        if (in.isPlugin() || in.data.empty()) return;
+        const auto& sk = Theme::skin;
+        const float dot = std::max (1.0f / Theme::deviceScale, Theme::snap (Theme::px * 0.5f));
+        const int cols = std::max (2, (int) (area.getWidth() / dot));
+        const size_t n = in.data.size();
+        const float mid = area.getCentreY(), half = area.getHeight() * 0.5f;
+        juce::RectangleList<float> bars;
+        for (int c = 0; c < cols; ++c)
+        {
+            const size_t a = n * (size_t) c / (size_t) cols, b = std::max (a + 1, n * (size_t) (c + 1) / (size_t) cols);
+            const size_t step = std::max<size_t> (1, (b - a) / 24);   // (a few dozen looks per column: quick for long samples)
+            int lo = 0, hi = 0;
+            for (size_t i = a; i < b && i < n; i += step) { lo = std::min<int> (lo, in.data[i]); hi = std::max<int> (hi, in.data[i]); }
+            const float y0 = Theme::snap (mid - hi / 32768.0f * half), y1 = Theme::snap (mid - lo / 32768.0f * half);
+            bars.addWithoutMerging ({ area.getX() + c * dot, y0, dot, std::max (dot, y1 - y0) });
+        }
+        g.setColour ((proc.player.instrumentIsOn (r) ? sk.text : sk.dim).withAlpha (0.75f));
+        g.fillRectList (bars);
+    };
     list.getRowText = [this] (int r)
     {
         const auto& in = proc.song.instruments[(size_t) r];
@@ -1111,6 +1140,7 @@ void InstrumentPanel::paint (juce::Graphics& g) { Theme::panelBox (g, getLocalBo
 void InstrumentPanel::resized()
 {
     const float px = Theme::px;
+    list.rowPictureW = px * 20;
     auto r = getLocalBounds().reduced ((int) (px * 2));
     r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
     const int rowH = (int) (px * 11);

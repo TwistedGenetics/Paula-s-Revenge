@@ -69,6 +69,13 @@ public:
     // accentMod for learning / modulating, accentSel for the page you're on); transparent = none
     juce::Colour onAccent { juce::Colours::transparentBlack };
     std::function<void()> onRightClick;   // set: a right-click opens this instead of clicking the button
+    // PICTURES: a small pixel icon left of the label - only when it fits beside the label at full size
+    // (never instead of it, never shrinking it); and anything drawn behind the label (an EQ's curve...)
+    enum class Icon { None, Folder, Disk, Page, Help, Undo, Redo, Mixer, Spectrum, Curve, Radio, Arrange, Knob, Search };
+    Icon icon = Icon::None;
+    std::function<void (juce::Graphics&, juce::Rectangle<float>, const Theme::Palette&)> decorate;
+    bool iconShown = false;               // (the last paint had room for it: tests)
+    static void drawIcon (juce::Graphics&, Icon, float x, float y, float px, juce::Colour);
     void mouseDown (const juce::MouseEvent& e) override
     {
         if (onRightClick && e.mods.isPopupMenu()) { rightDown = true; onRightClick(); return; }
@@ -152,6 +159,28 @@ private:
     float wheelAccum = 0;
     juce::Rectangle<float> trough() const;
     void setFromX (float x);
+};
+
+// SMARTER LAYOUT: a folded sidebar panel - just its title bar (click it to open the panel)
+class FoldBar : public juce::Component
+{
+public:
+    explicit FoldBar (const juce::String& t) : title (t) { setWantsKeyboardFocus (false); setMouseClickGrabsKeyboardFocus (false); }
+    juce::String title;
+    std::function<void()> onClick, onRightClick;
+    void paint (juce::Graphics& g) override
+    {
+        const auto& P = Theme::palFor (*this);
+        Theme::panelBox (g, getLocalBounds().toFloat(), juce::String::charToString ((juce::juce_wchar) 4) + " " + title, P);
+        if (isMouseOver()) { g.setColour (P.ink.withAlpha (0.08f)); g.fillRect (getLocalBounds()); }
+    }
+    void mouseEnter (const juce::MouseEvent&) override { repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { repaint(); }
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        if (e.mods.isPopupMenu()) { if (onRightClick) onRightClick(); }
+        else if (onClick) onClick();
+    }
 };
 
 // LIVE FEEDBACK: the value, big, beside whatever is being dragged (sliders, faders, mini bars).

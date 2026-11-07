@@ -46,6 +46,15 @@ private:
     PaulaProcessor& proc;
     SeqEditor ops { proc };
     int scroll = 0;
+    // PICTURES: the MINIMAP - the whole song in one strip; the part the list shows is framed; click or drag to go there
+    juce::Rectangle<float> mapArea;
+    bool mapDragging = false;
+    void paintMap (juce::Graphics&);
+    void scrollFromMap (float x);
+public:
+    juce::Rectangle<float> minimapArea() const { return mapArea; }   // (tests)
+    int listScroll() const { return scroll; }
+private:
     bool selecting = false;           // dragging out a highlight (not moving one)
     int cursorPos() const { return proc.editorState.seqPos; }
     int dragFrom = -1, dropAt = -1;

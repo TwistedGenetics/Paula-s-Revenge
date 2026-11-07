@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.40</span>
+  <span class="ver">MANUAL &middot; V0.41</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -241,6 +241,20 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <figure>
     <div class="frame sunken"><img src="img/scopes.png" alt="The pattern while playing: under each track's header a scope shows its waveform in the track's colour - a saw on track 1, sines on tracks 2 and 3, a flat line on silent track 4 - and the headers of the tracks that just played a note are lit." width="1440" height="900" loading="lazy"></div>
     <figcaption>The track scopes while playing</figcaption>
+  </figure>
+  <h3>The command palette</h3>
+  <p><kbd>Cmd</kbd><kbd>K</kbd> (or <b>View &rarr; Command Palette</b>) opens a box for typing a command. Type a few letters of anything the app can do &mdash; a button on screen, a page (<b>PAGE: MIXER</b>), a skin, a menu command &mdash; and the list narrows as you type. Letters in order are enough: <b>SVAS</b> finds SAVE AS. <kbd>Up</kbd> / <kbd>Down</kbd> pick, <kbd>Enter</kbd> does it, <kbd>Esc</kbd> closes it. A menu command shows its shortcut beside it in orange, so the palette teaches the keys as you go.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/palette.png" alt="The command palette over the main screen: SK typed in the box, and the matching commands listed - the four skins and the sidebar's BLOCK panel." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Cmd+K, with SK typed</figcaption>
+  </figure>
+  <h3>Folding the sidebar</h3>
+  <p>Click the title of a sidebar panel &mdash; <b>SEQUENCE</b>, <b>BLOCK</b> or <b>INSTRUMENTS</b> &mdash; to fold it down to just its title; its room goes to the others. Fold SEQUENCE and BLOCK and the instrument list fills the side. Click a folded title (marked with &#9660;) to open it again. Right-click a folded title for <b>TABS</b>, one panel open at a time (click a title to switch), or <b>OPEN ALL PANELS</b>. The sidebar is kept as you left it.</p>
+  <h3>Pictures</h3>
+  <p>The instrument list shows each sample's waveform at the right of its row, when the name leaves room. On the mixer, a track whose EQ is on has its EQ curve drawn behind its <span class="b">EQ</span> button. HELP, LOAD and other buttons in the top row get a small icon beside the label when the window has room for both &mdash; never instead of the label, and never making it smaller. The arrange page has a minimap of the whole song (see <a href="#song">Blocks &amp; the song</a>).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/folded.png" alt="The main screen with the SEQUENCE and BLOCK panels folded to their titles, so the instrument list fills the side, each sample's waveform drawn at the right of its row." width="1440" height="900" loading="lazy"></div>
+    <figcaption>SEQUENCE and BLOCK folded: the instruments, with their waveforms, get the room</figcaption>
   </figure>
 </section>
 
@@ -380,6 +394,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </ul>
   <h3>The arrange page</h3>
   <p><span class="b">ARRANGE</span> shows the song order full size, with a picture of each block's notes. It shares the highlight and clipboard with the sequence panel. <span class="b">INSERT</span> adds the BLOCK number after the cursor, <span class="b">SET</span> makes the highlighted positions play it.</p>
+  <p>Under the list is the <b>minimap</b>: the whole song in one strip, a column for each position with its notes in the tracks' colours (brighter = busier), the sections marked in red, the playing position as a line and a frame round the positions the list is showing. Click or drag in it to go there.</p>
   <figure>
     <div class="frame sunken"><img src="img/arrange.png" alt="The arrange page with song positions, their blocks drawn as little note pictures, and INTRO and DROP section names." width="1440" height="900" loading="lazy"></div>
     <figcaption>The arrange page, with two sections</figcaption>
@@ -1005,6 +1020,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>KEY</th><th>ACTION</th></tr></thead>
     <tbody>
+      <tr><td><kbd>Cmd</kbd><kbd>K</kbd></td><td>The command palette: type any command, button or page</td></tr>
       <tr><td><kbd>Z</kbd> <kbd>S</kbd> <kbd>X</kbd> <kbd>D</kbd> <kbd>C</kbd>…</td><td>Notes, lower octave (<kbd>,</kbd> <kbd>L</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>/</kbd> carry on up)</td></tr>
       <tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd>…</td><td>Notes, upper octave</td></tr>
       <tr><td><kbd>1</kbd></td><td>Note off</td></tr>
@@ -1036,7 +1052,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.40</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.41</footer>
 </main>
 </div>
 <script>

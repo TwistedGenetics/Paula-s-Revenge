@@ -367,6 +367,20 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (automation);
     addChildComponent (crtOverlay);
     addChildComponent (dragReadout);
+    // SMARTER LAYOUT: the sidebar panels fold to their titles
+    for (auto* f : { &seqFold, &blockFold, &instFold }) { addChildComponent (*f); f->onRightClick = [this] { showSidebarMenu(); }; }
+    seqFold.onClick   = [this] { foldPanel (1, false); };
+    blockFold.onClick = [this] { foldPanel (2, false); };
+    instFold.onClick  = [this] { foldPanel (4, false); };
+    titleClicks.ed = this;
+    sequence.addMouseListener (&titleClicks, false);
+    blockPanel.addMouseListener (&titleClicks, false);
+    instruments.addMouseListener (&titleClicks, false);
+    // PICTURES: icons beside the labels (when there's room for both at full size)
+    using Icon = prv::ui::PixButton::Icon;
+    helpBtn.icon = Icon::Help; newBtn.icon = Icon::Page; loadBtn.icon = Icon::Folder; saveBtn.icon = Icon::Disk; saveAsBtn.icon = Icon::Disk;
+    undoBtn.icon = Icon::Undo; redoBtn.icon = Icon::Redo; mixerBtn.icon = Icon::Mixer; specBtn.icon = Icon::Spectrum;
+    radioBtn.icon = Icon::Radio; autoBtn.icon = Icon::Curve;
     prv::ui::DragReadout::instance = &dragReadout;
 
     for (auto* c : std::initializer_list<juce::Component*> {
@@ -417,6 +431,9 @@ PaulaEditor::~PaulaEditor()
 {
     prv::ui::menuHook() = nullptr;
     if (prv::ui::DragReadout::instance == &dragReadout) prv::ui::DragReadout::instance = nullptr;
+    sequence.removeMouseListener (&titleClicks);
+    blockPanel.removeMouseListener (&titleClicks);
+    instruments.removeMouseListener (&titleClicks);
     proc.pluginHost.onWindowKey = nullptr;
     proc.pluginHost.onWindowKeyState = nullptr;
     stopTimer();
@@ -755,18 +772,27 @@ void PaulaEditor::resized()
     const int buttonsW = 2 * (charsW (2) + gap) + charsW (7) + charsW (9) + charsW (8) + 2 * charsW (4) + charsW (7)
                        + charsW (5) + charsW (4) + charsW (3) + charsW (4) + gap * 7;
     const int wide = buttonsW + gap * 3 * 4 <= title.getWidth() ? gap * 3 : gap;
+    // PICTURES: the spare room left of the buttons buys icons, most useful first (labels never shrink for them)
+    std::map<prv::ui::PixButton*, int> plus;
+    {
+        int spare = title.getWidth() - buttonsW - wide * 4 - charsW (4);   // (keep some of the title's rules)
+        const int iconW = (int) std::ceil (px * 9);
+        for (auto* b : { &helpBtn, &loadBtn, &saveBtn, &newBtn, &undoBtn, &redoBtn, &saveAsBtn })
+            if (spare >= iconW) { plus[b] = iconW; spare -= iconW; }
+    }
+    auto withIcon = [&plus] (prv::ui::PixButton& b, int w) { auto it = plus.find (&b); return w + (it != plus.end() ? it->second : 0); };
     zoomIn.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (gap);
     zoomOut.setBounds (title.removeFromRight (charsW (2) + gap)); title.removeFromRight (wide);
     captureBtn.setBounds (title.removeFromRight (charsW (7))); title.removeFromRight (gap);
     noteOffsBtn.setBounds (title.removeFromRight (charsW (9))); title.removeFromRight (gap);
     fullVelBtn.setBounds (title.removeFromRight (charsW (8))); title.removeFromRight (wide);
-    redoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
-    undoBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (wide);
-    saveAsBtn.setBounds (title.removeFromRight (charsW (7))); title.removeFromRight (gap);
-    saveBtn.setBounds (title.removeFromRight (charsW (5))); title.removeFromRight (gap);
-    loadBtn.setBounds (title.removeFromRight (charsW (4))); title.removeFromRight (gap);
-    newBtn.setBounds (title.removeFromRight (charsW (3))); title.removeFromRight (wide);
-    helpBtn.setBounds (title.removeFromRight (charsW (4)));
+    redoBtn.setBounds (title.removeFromRight (withIcon (redoBtn, charsW (4)))); title.removeFromRight (gap);
+    undoBtn.setBounds (title.removeFromRight (withIcon (undoBtn, charsW (4)))); title.removeFromRight (wide);
+    saveAsBtn.setBounds (title.removeFromRight (withIcon (saveAsBtn, charsW (7)))); title.removeFromRight (gap);
+    saveBtn.setBounds (title.removeFromRight (withIcon (saveBtn, charsW (5)))); title.removeFromRight (gap);
+    loadBtn.setBounds (title.removeFromRight (withIcon (loadBtn, charsW (4)))); title.removeFromRight (gap);
+    newBtn.setBounds (title.removeFromRight (withIcon (newBtn, charsW (3)))); title.removeFromRight (wide);
+    helpBtn.setBounds (title.removeFromRight (withIcon (helpBtn, charsW (4))));
 
     r.removeFromTop (gap);
 
@@ -841,21 +867,34 @@ void PaulaEditor::resized()
     radioPage.setBounds (main);
     const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources || st.view == View::Radio;
     const bool panels = showPanels && ! wideView;
-    sequence.setVisible (panels);
-    blockPanel.setVisible (panels);
-    instruments.setVisible (panels);
+    // SMARTER LAYOUT: a folded panel is just its title bar; the open ones share the room
+    const int fold = st.sidebarFold;
+    sequence.setVisible (panels && (fold & 1) == 0);
+    blockPanel.setVisible (panels && (fold & 2) == 0);
+    instruments.setVisible (panels && (fold & 4) == 0);
+    seqFold.setVisible (panels && (fold & 1) != 0);
+    blockFold.setVisible (panels && (fold & 2) != 0);
+    instFold.setVisible (panels && (fold & 4) != 0);
     if (panels)
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
         main.removeFromLeft (gap * 2);
+        const int foldH = (int) (prv::ui::PixelFont::textHeight (px) + px * 3);
+        const int blockH = (int) (px * 14) + rowH * 3 + gap * 3;
+        const bool seqOpen = (fold & 1) == 0, blockOpen = (fold & 2) == 0, instOpen = (fold & 4) == 0;
+        // what's left for the two lists once the block panel and the folded titles have theirs
+        int room = left.getHeight() - gap * 2 - (blockOpen ? blockH : foldH) - (seqOpen ? 0 : foldH) - (instOpen ? 0 : foldH);
         // (a fourth row of sequence buttons: LOOP SELECTION / LOOP SECTION, taken from the instrument list)
-        // (the freed SEP / VOL row pays for most of it)
-        const int seqH = std::max (rowH * 9, (int) ((left.getHeight() - rowH - gap) * 0.40f) + rowH + gap);
-        sequence.setBounds (left.removeFromTop (seqH));
+        const int seqH = ! seqOpen ? foldH
+                       : ! instOpen ? room
+                       : std::max (rowH * 9, (int) ((left.getHeight() - rowH - gap) * 0.40f) + rowH + gap);
+        (seqOpen ? (juce::Component&) sequence : (juce::Component&) seqFold).setBounds (left.removeFromTop (seqH));
         left.removeFromTop (gap);
-        blockPanel.setBounds (left.removeFromTop ((int) (px * 14) + rowH * 3 + gap * 3));
+        (blockOpen ? (juce::Component&) blockPanel : (juce::Component&) blockFold).setBounds (left.removeFromTop (blockOpen ? blockH : foldH));
         left.removeFromTop (gap);
-        instruments.setBounds (left);
+        if (instOpen) instruments.setBounds (left);
+        else instFold.setBounds (left.removeFromTop (foldH));
+        juce::ignoreUnused (room);
     }
     // AUTOMATION under the pattern takes the spectrum's place (and as much room as it's dragged to)
     const bool autoShown = st.showAutomation && st.view == View::Pattern;
@@ -1080,6 +1119,12 @@ void PaulaEditor::toggleHelp()
 
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
 {
+    // Cmd+K: the command palette
+    if (k.getModifiers().isCommandDown() && ! k.getModifiers().isShiftDown() && (k.getKeyCode() == 'K' || k.getKeyCode() == 'k'))
+    {
+        showPalette();
+        return true;
+    }
     // HELP: F1 or Cmd+/ (Cmd+?)
     if (k.getKeyCode() == juce::KeyPress::F1Key
         || (k.getModifiers().isCommandDown() && (k.getKeyCode() == '/' || k.getKeyCode() == '?' || k.getTextCharacter() == '/' || k.getTextCharacter() == '?')))
@@ -1855,6 +1900,110 @@ void PaulaEditor::setSkin (int id)
     resized();
     repaint();
     setStatus ("SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) st.skin) + " - RIGHT-CLICK FOR MORE");
+}
+
+// ---- SMARTER LAYOUT: the sidebar's panels fold to their titles
+void PaulaEditor::TitleClicks::mouseDown (const juce::MouseEvent& e)
+{
+    if (ed == nullptr || e.mods.isPopupMenu()) return;
+    const float titleH = prv::ui::PixelFont::textHeight (prv::ui::Theme::px) + prv::ui::Theme::px * 2;
+    if (e.position.y > titleH) return;
+    const int bit = e.eventComponent == &ed->sequence ? 1 : e.eventComponent == &ed->blockPanel ? 2 : e.eventComponent == &ed->instruments ? 4 : 0;
+    if (bit == 0) return;
+    juce::Component::SafePointer<PaulaEditor> safe (ed);
+    juce::MessageManager::callAsync ([safe, bit] { if (safe != nullptr && ! safe->sidebarTabs()) safe->foldPanel (bit, true); });   // (after this click is done with the panel)
+}
+
+void PaulaEditor::foldPanel (int bit, bool folded)
+{
+    auto& st = proc.editorState;
+    if (st.sidebarTabs) st.sidebarFold = folded ? st.sidebarFold : (7 & ~bit);   // TABS: this one open, the others folded
+    else st.sidebarFold = folded ? (st.sidebarFold | bit) : (st.sidebarFold & ~bit);
+    resized();
+    repaint();
+    const juce::String name = bit == 1 ? "SEQUENCE" : bit == 2 ? "BLOCK" : "INSTRUMENTS";
+    setStatus (name + (folded ? " FOLDED - CLICK ITS TITLE TO OPEN IT (RIGHT-CLICK: TABS)" : " OPEN - CLICK ITS TITLE TO FOLD IT"));
+}
+
+void PaulaEditor::setSidebarTabs (bool on)
+{
+    auto& st = proc.editorState;
+    st.sidebarTabs = on;
+    if (on)
+    {
+        // keep the instruments open (or whichever is open now)
+        const int open = (st.sidebarFold & 4) == 0 ? 4 : (st.sidebarFold & 1) == 0 ? 1 : (st.sidebarFold & 2) == 0 ? 2 : 4;
+        st.sidebarFold = 7 & ~open;
+    }
+    else st.sidebarFold = 0;
+    resized();
+    repaint();
+    setStatus (on ? "SIDEBAR TABS: ONE PANEL AT A TIME - CLICK A TITLE TO SWITCH" : "SIDEBAR: ALL PANELS OPEN");
+}
+
+void PaulaEditor::showSidebarMenu()
+{
+    auto& st = proc.editorState;
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    prv::ui::showMenu ("SIDEBAR", {
+        { st.sidebarTabs ? "TABS: OFF (ALL PANELS)" : "TABS: ONE PANEL AT A TIME", [safe] { if (safe) safe->setSidebarTabs (! safe->sidebarTabs()); } },
+        { "OPEN ALL PANELS", [safe] { if (safe) { safe->proc.editorState.sidebarTabs = false; safe->proc.editorState.sidebarFold = 0; safe->resized(); safe->repaint(); } } },
+    });
+}
+
+// ---- Cmd+K: everything the app can do, by name
+std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
+{
+    std::vector<prv::ui::PaletteItem> out;
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    // every button on screen (by its label)
+    std::function<void (juce::Component&)> walk = [&] (juce::Component& c)
+    {
+        for (auto* ch : c.getChildren())
+        {
+            if (! ch->isVisible() || ch == &palette) continue;
+            if (auto* b = dynamic_cast<prv::ui::PixButton*> (ch); b != nullptr && b->isEnabled())
+            {
+                const auto t = b->getButtonText().replaceCharacter ('\n', ' ').trim();
+                bool word = false;
+                for (auto ch2 : t) if (juce::CharacterFunctions::isLetter (ch2)) word = true;
+                if (t.length() >= 2 && word)
+                {
+                    juce::Component::SafePointer<prv::ui::PixButton> sb (b);
+                    out.push_back ({ t.toUpperCase(), {}, "BUTTON", [sb] { if (sb != nullptr) sb->triggerClick(); } });
+                }
+            }
+            walk (*ch);
+        }
+    };
+    walk (*this);
+    // the pages
+    using V = View;
+    const std::pair<const char*, V> pages[] = { { "PAGE: PATTERN", V::Pattern }, { "PAGE: MIXER", V::Mixer }, { "PAGE: ARRANGE", V::Arrange },
+                                                { "PAGE: CHORDS", V::Chords }, { "PAGE: RADIO", V::Radio }, { "PAGE: INSTRUMENT PARAMS", V::Params },
+                                                { "PAGE: SAMPLE EDITOR", V::SampleEdit }, { "PAGE: SAMPLE (RECORD)", V::Sample } };
+    for (auto& [n, v] : pages) { const auto vv = v; out.push_back ({ n, {}, "PAGE", [safe, vv] { if (safe) safe->setView (vv); } }); }
+    out.push_back ({ "PAGE: HELP", "F1", "PAGE", [safe] { if (safe) safe->toggleHelp(); } });
+    // the look and the layout
+    const char* skins[] = { "WORKBENCH", "DARK", "KICKSTART 1.3", "HIGH CONTRAST" };
+    for (int i = 0; i < 4; ++i) out.push_back ({ juce::String ("SKIN: ") + skins[i], {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
+    out.push_back ({ "CRT SCANLINES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setCrt (! safe->crtOn()); } });
+    out.push_back ({ "TRACK SCOPES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setScopes (! safe->scopesOn()); } });
+    out.push_back ({ "SIDEBAR TABS ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setSidebarTabs (! safe->sidebarTabs()); } });
+    out.push_back ({ "SIDEBAR: OPEN ALL PANELS", {}, "VIEW", [safe] { if (safe) { safe->proc.editorState.sidebarTabs = false; safe->proc.editorState.sidebarFold = 0; safe->resized(); } } });
+    for (int b = 1; b <= 4; b <<= 1)
+    {
+        const juce::String n = b == 1 ? "SEQUENCE" : b == 2 ? "BLOCK" : "INSTRUMENTS";
+        out.push_back ({ "SIDEBAR: FOLD / OPEN " + n, {}, "VIEW", [safe, b] { if (safe) safe->foldPanel (b, (safe->sidebarFold() & b) == 0); } });
+    }
+    if (addAppCommands) addAppCommands (out);
+    return out;
+}
+
+void PaulaEditor::showPalette()
+{
+    palette.open (*this, paletteItems());
+    setStatus ("COMMANDS: TYPE A FEW LETTERS, ENTER DOES IT");
 }
 
 void PaulaEditor::setScopes (bool on)

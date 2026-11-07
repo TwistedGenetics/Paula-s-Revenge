@@ -42,6 +42,7 @@ enum CommandIDs
     cmdSkin0         = 0x2030,   // .. 0x2033: the SKINs
     cmdCrt           = 0x2034,
     cmdScopes        = 0x2035,
+    cmdPalette       = 0x2036,
     cmdSharedFolder  = 0x2030,
     cmdOpenShared    = 0x2031,
     cmdSaveShared    = 0x2032,
@@ -222,6 +223,24 @@ public:
         window->addKeyListener (commands.getKeyMappings());
         if (auto* ed = editor()) ed->openAudioSettings = [this] { if (holder != nullptr) holder->showAudioSettingsDialog(); };
         if (auto* ed = editor()) ed->startAutosave();   // (and, after a crash, the offer to recover)
+        if (auto* ed = editor())
+            ed->addAppCommands = [this] (std::vector<prv::ui::PaletteItem>& out)
+            {
+                // Cmd+K: the menus' commands too, with their keys
+                juce::Array<juce::CommandID> ids;
+                for (int cat = 0; cat < commands.getCommandCategories().size(); ++cat)
+                    ids.addArray (commands.getCommandsInCategory (commands.getCommandCategories()[cat]));
+                for (auto id : ids)
+                {
+                    if (id == cmdPalette) continue;
+                    const auto* ci = commands.getCommandForID (id);
+                    if (ci == nullptr || ci->shortName.isEmpty()) continue;
+                    juce::String keys;
+                    const auto kp = commands.getKeyMappings()->getKeyPressesAssignedToCommand (id);
+                    if (! kp.isEmpty()) keys = kp[0].getTextDescriptionWithIcons().toUpperCase().replace ("COMMAND", "CMD");
+                    out.push_back ({ ci->shortName.toUpperCase(), keys, "MENU", [this, id] { commands.invokeDirectly (id, true); } });
+                }
+            };
         window->setVisible (true);
 
        #if JUCE_MAC
@@ -326,6 +345,7 @@ public:
             m.addSubMenu ("Skin", sk);
         }
         m.addCommandItem (&commands, cmdScopes);
+        m.addCommandItem (&commands, cmdPalette);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
        #if JUCE_MAC
@@ -343,7 +363,7 @@ public:
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
                       cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
-        for (int i = 0; i < 6; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, CRT, SCOPES
+        for (int i = 0; i < 7; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, CRT, SCOPES, the PALETTE
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -415,6 +435,11 @@ public:
             auto* ed = editor();
             info.setTicked (ed != nullptr && ed->crtOn());
         }
+        else if (id == cmdPalette)
+        {
+            info.setInfo ("Command Palette...", "Type a few letters of any command, button or page; Enter does it", "View", 0);
+            info.addDefaultKeypress ('k', juce::ModifierKeys::commandModifier);
+        }
         else if (id == cmdScopes)
         {
             info.setInfo ("Track Scopes", "Each track's sound as a moving line under its header", "View", 0);
@@ -475,6 +500,7 @@ public:
                 case cmdFollowClock:   ed->setFollowClock (! ed->followClockOn()); commands.commandStatusChanged(); return true;
                 case cmdCrt:           ed->setCrt (! ed->crtOn()); commands.commandStatusChanged(); return true;
                 case cmdScopes:        ed->setScopes (! ed->scopesOn()); commands.commandStatusChanged(); return true;
+                case cmdPalette:       ed->showPalette(); return true;
                 case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
                 case cmdOpenShared:    ed->openShared(); return true;
                 case cmdSaveShared:    ed->saveToShared(); return true;

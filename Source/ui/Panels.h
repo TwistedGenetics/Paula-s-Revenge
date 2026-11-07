@@ -38,6 +38,9 @@ public:
     std::function<bool (int)> isRowLooped;           // marked at the left edge
     std::function<void (int)> onTagClick;
     std::function<juce::String (int)> getRowName;    // a name shown after the row's text, before any section label
+    // PICTURES: a small picture at the row's right end (an instrument's waveform), in the room the text leaves
+    std::function<void (juce::Graphics&, int row, juce::Rectangle<float>)> paintRowPicture;
+    float rowPictureW = 0;                           // its width (0 = none)
     float tagZoneX = -1;                             // x where the label zone starts (-1 = none)
     // NAME ZONE (the sequence): the row's name drawn from nameX to nameEndX (too long: it scrolls, on the
     // playing / selected / hovered row), then getRowNumber's text at numberX, then the section zone

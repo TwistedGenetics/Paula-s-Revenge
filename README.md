@@ -46,6 +46,12 @@ The app opens with the **dark** skin (cream on blue-black, coloured tracks, leve
 
 Colour means the same thing everywhere: a button that's on has a stripe along its foot - red for recording (EDIT, REC AUTO, RECORD), orange for learning and modulating, blue for the rest - and orange marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.
 
+**Command palette (Cmd+K):** type a few letters of anything - a button on screen, a page, a skin, a menu command - and Enter does it (Up/Down picks, Esc closes). Letters in order are enough: "SVAS" finds SAVE AS. Each menu command shows its shortcut beside it, so it teaches the keys as you go.
+
+**Folding the sidebar:** click a sidebar panel's title (SEQUENCE, BLOCK, INSTRUMENTS) to fold it to just its title, and its room goes to the others - fold SEQUENCE and BLOCK and the instrument list fills the side. Click the folded title to open it again. Right-click a folded title for **TABS** (one panel open at a time: click a title to switch) or OPEN ALL PANELS. Kept for next time.
+
+**Pictures:** each sample's waveform at the right of its row in the instrument list; a track's EQ curve drawn behind its EQ button on the mixer; small icons beside HELP, LOAD and others when there's room for both (never instead of the label, never shrinking it); and on the ARRANGE page a **minimap** of the whole song under the list - each position's notes in the tracks' colours, the sections in red, a frame round what the list shows. Click or drag in it to go there.
+
 **Live feedback:** the meters, scopes and play line move 60 times a second. While you drag a slider, a mixer fader or one of the strips' small bars, its value shows big beside it. Buttons light up under the mouse and sink when pressed.
 
 ## Right-click menus
