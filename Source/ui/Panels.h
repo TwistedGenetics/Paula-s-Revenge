@@ -29,7 +29,19 @@ public:
     std::function<void()> onRelease;                  // the mouse let go (after a click on a row)
     std::function<void (int, float)> onDoubleClickAt; // a double-click and its x (if set, instead of onDoubleClick)
     float textX() const { return Theme::px * 8.0f; } // where the rows' text starts
-    float rowY (int row) const { return (float) (row - scroll) * rowHeight(); }   // (may be off the list)
+    float rowY (int row) const { return rowOrigin (row).y; }   // (may be off the list)
+    // COLUMNS: the rows run down the first column, then the next (SHOW ALL on the sequence)
+    int columns = 1;
+    int rowsPerColumn() const { return std::max (1, (int) (getHeight() / rowHeight())); }
+    float columnWidth() const { return ((float) getWidth() - barWidth()) / (float) std::max (1, columns); }
+    juce::Point<float> rowOrigin (int row) const
+    {
+        const int i = row - scroll, rpc = rowsPerColumn();
+        if (columns <= 1 || i < 0) return { 0.0f, (float) i * rowHeight() };
+        return { (float) (i / rpc) * columnWidth(), (float) (i % rpc) * rowHeight() };
+    }
+    int  rowAtPoint (juce::Point<float>) const;
+    int  shownRows() const { return visibleRows(); }
     int selected = 0;
     int playing = -1;   // row marked with a play arrow
 
@@ -70,14 +82,14 @@ private:
     int scroll = 0;
     WheelSteps wheel;
     EdgeScroller edgeScroll;
-    float lastDragY = 0;
+    juce::Point<float> lastDragPos;
     int hoverTagRow = -1;
     int repeatDir = 0;            // arrow button held: -1 up, +1 down
     int dragRow = -1, dropRow = -1;
     bool reordering = false, rangeDragging = false;
     float thumbGrab = -1.0f;      // y offset inside the thumb while dragging it
     int rowAt (float y) const;
-    int visibleRows() const { return std::max (1, (int) (getHeight() / rowHeight())); }
+    int visibleRows() const { return rowsPerColumn() * std::max (1, columns); }
     int maxScroll() const;
     float barWidth() const { return Theme::px * 9; }
     juce::Rectangle<float> barArea() const { return getLocalBounds().toFloat().removeFromRight (barWidth()); }
@@ -114,6 +126,14 @@ private:
 public:
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> openArrange;
+public:
+    // SHOW ALL (in the title bar): the sequence gets the whole sidebar, the other panels fold to their titles
+    PixButton wholeBtn { "SHOW ALL", true };
+    std::function<void (bool)> onShowAll;
+    int visibleListRows() const { return list.getHeight() > 0 ? list.shownRows() : 0; }
+    int listColumns() const { return list.columns; }
+    int rowsPerListColumn() const { return list.rowsPerColumn(); }
+    void layoutList();   // the columns (SHOW ALL) and each row's zones
     std::function<void (const juce::String&)> onStatus;
     void moveSelected (int delta);
     void cloneInPlace();

@@ -662,8 +662,8 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.seqPos = st.getProperty ("seqPos", 0);
     e.fourTrackView = st.getProperty ("fourTrack", true);
     e.darkSkin = st.getProperty ("dark", true);
-    e.skin = juce::jlimit (0, 3, (int) st.getProperty ("skin", e.darkSkin ? 1 : 0));
-    if (e.darkSkin != (e.skin != 0)) e.skin = e.darkSkin ? 1 : 0;   // (an older DARK setting wins)
+    e.skin = juce::jlimit (0, prv::ui::Theme::kSkins - 1, (int) st.getProperty ("skin", e.darkSkin ? 1 : 0));
+    if (e.darkSkin != prv::ui::Theme::skinIsDark (e.skin)) e.skin = e.darkSkin ? 1 : 0;   // (an older DARK setting wins)
     e.crt = st.getProperty ("crt", false);
     e.scopes = st.getProperty ("scopes", true);
     e.sidebarFold = juce::jlimit (0, 7, (int) st.getProperty ("sidebarFold", 0));

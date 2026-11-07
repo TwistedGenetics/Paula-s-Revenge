@@ -34,11 +34,22 @@ void PixList::paint (juce::Graphics& g)
     scroll = juce::jlimit (0, maxScroll(), scroll);
     juce::RectangleList<float> text, dim;
     bool anyScroll = false;
-    for (int i = 0; i < visibleRows() + 1; ++i)
+    const float fullW = listW;
+    const bool multi = columns > 1;
+    for (int i = 0; i < visibleRows() + (multi ? 0 : 1); ++i)
     {
         const int row = scroll + i;
         if (row >= n) break;
-        auto rr = juce::Rectangle<float> (0, i * rh, listW, rh);
+        // (each row drawn in its column's own coordinates)
+        const auto o = rowOrigin (row);
+        const float listW = multi ? columnWidth() : fullW;
+        juce::Graphics::ScopedSaveState colState (g);
+        if (multi)
+        {
+            g.reduceClipRegion (juce::Rectangle<float> (o.x, 0, listW, r.getHeight()).toNearestInt());
+            g.addTransform (juce::AffineTransform::translation (o.x, 0));
+        }
+        auto rr = juce::Rectangle<float> (0, o.y, listW, rh);
         if (isRowInRange && isRowInRange (row) && row != selected)
         {
             g.setColour (Theme::skin.hot.withAlpha (0.30f));
@@ -120,7 +131,19 @@ void PixList::paint (juce::Graphics& g)
             PixelFont::draw (g, t, listW - PixelFont::textWidth (t, px) - px * 2, ty, px,
                              tag.isNotEmpty() ? Theme::skin.hot : Theme::skin.dim);
         }
+        if (multi)
+        {
+            // (in columns, each row's text goes down with its column's transform)
+            g.setColour (Theme::skin.dim);  g.fillRectList (dim);  dim.clear();
+            g.setColour (Theme::skin.text); g.fillRectList (text); text.clear();
+        }
     }
+    if (multi)
+        for (int c = 1; c < columns; ++c)
+        {
+            g.setColour (Theme::skin.rule.withAlpha (0.6f));   // (the columns' dividers)
+            g.fillRect (Theme::snap (c * columnWidth()) - px * 0.25f, 0.0f, std::max (1.0f, px * 0.5f), r.getHeight());
+        }
     g.saveState();
     g.reduceClipRegion (juce::Rectangle<float> (0, 0, listW, r.getHeight()).toNearestInt());
     g.setColour (Theme::skin.dim);
@@ -135,9 +158,10 @@ void PixList::paint (juce::Graphics& g)
     // drop marker while dragging a row
     if (reordering && ! rangeDragging && dropRow >= 0)
     {
-        const float y = (dropRow - scroll + (dropRow > dragRow ? 1 : 0)) * rh;
+        const auto o = rowOrigin (dropRow);
+        const float y = o.y + (dropRow > dragRow ? rh : 0.0f);
         g.setColour (Theme::skin.hot);
-        g.fillRect (0.0f, y - px * 0.75f, listW, px * 1.5f);
+        g.fillRect (o.x, y - px * 0.75f, columns > 1 ? columnWidth() : listW, px * 1.5f);
     }
 
     // scrollbar: arrow buttons + track + thumb
@@ -165,6 +189,14 @@ void PixList::paint (juce::Graphics& g)
 
 int PixList::rowAt (float y) const { return scroll + (int) std::floor (y / rowHeight()); }
 
+int PixList::rowAtPoint (juce::Point<float> p) const
+{
+    if (columns <= 1) return rowAt (p.y);
+    const int c = juce::jlimit (0, columns - 1, (int) std::floor (p.x / columnWidth()));
+    const int line = juce::jlimit (0, rowsPerColumn() - 1, (int) std::floor (p.y / rowHeight()));
+    return scroll + c * rowsPerColumn() + line;
+}
+
 void PixList::scrollBy (int rows)
 {
     scroll = juce::jlimit (0, maxScroll(), scroll + rows);
@@ -173,10 +205,11 @@ void PixList::scrollBy (int rows)
 
 bool PixList::onTag (int row, float x) const
 {
+    if (columns > 1) x -= rowOrigin (row).x;   // (in the row's own column)
     if (tagZoneX < 0 || x < tagZoneX || ! getRowTag) return false;
     // only on the label itself (or where "+ SECTION" shows), at the right
     const float px = Theme::px;
-    const float listW = (float) getWidth() - barWidth();
+    const float listW = columns > 1 ? columnWidth() : (float) getWidth() - barWidth();
     const auto tag = getRowTag (row);
     const float w = PixelFont::textWidth (tag.isNotEmpty() ? tag : juce::String ("+ SECTION"), px);
     return x >= listW - w - px * 4 && x < listW;
@@ -215,7 +248,7 @@ void PixList::mouseDown (const juce::MouseEvent& e)
         repaint();
         return;
     }
-    const int row = rowAt (e.position.y);
+    const int row = rowAtPoint (e.position);
     dragRow = -1; reordering = false; rangeDragging = false;
     if (getNumRows && row >= 0 && row < getNumRows() && onTagClick && ! e.mods.isPopupMenu() && ! e.mods.isShiftDown() && onTag (row, e.position.x))
     {
@@ -225,7 +258,7 @@ void PixList::mouseDown (const juce::MouseEvent& e)
     if (getNumRows && row >= 0 && row < getNumRows())
     {
         // decided before the click changes the selection: a drag from the grab column moves, else it highlights
-        const bool moves = (grabX < 0 || e.position.x < grabX) && (! dragMoves || dragMoves (row));
+        const bool moves = (grabX < 0 || e.position.x - rowOrigin (row).x < grabX) && (! dragMoves || dragMoves (row));
         if (onClick) onClick (row, e);
         if (onMove && moves) dragRow = row;
         else if (onDragSelect && ! e.mods.isShiftDown()) { dragRow = row; rangeDragging = true; }
@@ -247,10 +280,10 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
     if (! reordering && e.getDistanceFromDragStart() < 6) return;
     reordering = true;
     // held past the ends: scroll at a steady pace
-    lastDragY = e.position.y;
+    lastDragPos = e.position;
     auto place = [this]
     {
-        dropRow = juce::jlimit (0, getNumRows() - 1, rowAt (juce::jlimit (0.0f, (float) getHeight() - 1, lastDragY)));
+        dropRow = juce::jlimit (0, getNumRows() - 1, rowAtPoint ({ lastDragPos.x, juce::jlimit (0.0f, (float) getHeight() - 1, lastDragPos.y) }));
         if (rangeDragging && onDragSelect) onDragSelect (dropRow);
         repaint();
     };
@@ -272,14 +305,14 @@ void PixList::mouseUp (const juce::MouseEvent&)
 
 void PixList::mouseMove (const juce::MouseEvent& e)
 {
-    const int row = rowAt (e.position.y);
+    const int row = rowAtPoint (e.position);
     const int n = getNumRows ? getNumRows() : 0;
     const int hr = row >= 0 && row < n && ! barArea().contains (e.position) ? row : -1;
     if (hr != hoverRow) { hoverRow = hr; repaint(); }
     const int h = (row >= 0 && row < n && ! barArea().contains (e.position) && onTag (row, e.position.x)) ? row : -1;
     if (h != hoverTagRow) { hoverTagRow = h; repaint(); }
     // the grab column: a hand (a drag there moves the highlighted positions)
-    const bool grab = grabX >= 0 && e.position.x < grabX && hr >= 0 && onMove && (! dragMoves || dragMoves (hr));
+    const bool grab = grabX >= 0 && hr >= 0 && e.position.x - rowOrigin (hr).x < grabX && onMove && (! dragMoves || dragMoves (hr));
     setMouseCursor (grab ? juce::MouseCursor::DraggingHandCursor : juce::MouseCursor::NormalCursor);
     if (onHover) onHover (row >= 0 && row < n && ! barArea().contains (e.position) ? row : -1);
 }
@@ -293,10 +326,10 @@ void PixList::mouseExit (const juce::MouseEvent&)
 void PixList::mouseDoubleClick (const juce::MouseEvent& e)
 {
     if (barArea().contains (e.position)) return;
-    const int row = rowAt (e.position.y);
+    const int row = rowAtPoint (e.position);
     if (getNumRows && row >= 0 && row < getNumRows())
     {
-        if (onDoubleClickAt) onDoubleClickAt (row, e.position.x);
+        if (onDoubleClickAt) onDoubleClickAt (row, e.position.x - rowOrigin (row).x);
         else if (onDoubleClick) onDoubleClick (row);
     }
 }
@@ -351,7 +384,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
             return;
         }
         if (e.mods.isShiftDown()) { ops.select (ops.anchor(), r); this->changed(); return; }
-        if (ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd() && e.position.x < list.grabX) return;   // (a drag from the numbers moves the highlight)
+        if (ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd() && e.position.x - list.rowOrigin (r).x < list.grabX) return;   // (a drag from the numbers moves the highlight)
         selectPosition (r);
     };
     list.isRowInRange = [this] (int r) { return ops.hasRange() && r >= ops.selStart() && r <= ops.selEnd(); };
@@ -417,6 +450,9 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
     cloneInPlaceBtn.onClick = [this] { cloneInPlace(); };
     arrangeBtn.onClick = [this] { if (openArrange) openArrange(); };
     addAndMakeVisible (arrangeBtn);
+    addAndMakeVisible (wholeBtn);
+    wholeBtn.setClickingTogglesState (false);
+    wholeBtn.onClick = [this] { if (onShowAll) onShowAll (! wholeBtn.getToggleState()); };
     addAndMakeVisible (upBtn);
     addAndMakeVisible (downBtn);
     addAndMakeVisible (cloneInPlaceBtn);
@@ -534,6 +570,7 @@ void SequencePanel::refresh()
     auto& st = proc.editorState;
     st.seqPos = juce::jlimit (0, (int) proc.song.sequence.size() - 1, st.seqPos);
     list.selected = st.seqPos;
+    if (wholeBtn.getToggleState()) layoutList();   // (more positions: perhaps another column)
     list.playing = proc.player.getMode() == Player::Mode::Song ? proc.player.uiSeqPos.load() : -1;
     list.ensureVisible (list.playing >= 0 ? list.playing : st.seqPos);   // (the list follows the song as it plays)
     syncSectionLoop (proc);
@@ -587,15 +624,22 @@ void SequencePanel::resized()
     //   LOOP SELECTION   LOOP SECTION
     const float px = Theme::px;
     auto r = getLocalBounds().reduced ((int) (px * 2));
-    r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
     const int rowH = (int) (px * 11);
     const int gap = (int) px;
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+    {
+        // SHOW ALL sits at the right end of the title bar
+        auto titleRow = r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
+        wholeBtn.setBounds (titleRow.removeFromRight (charsW (8)).withTrimmedTop (-(int) px).withTrimmedBottom ((int) (px * 0.5f)));
+    }
 
     auto row4 = r.removeFromBottom (rowH); r.removeFromBottom (gap);
     auto row3 = r.removeFromBottom (rowH); r.removeFromBottom (gap);
     auto row2 = r.removeFromBottom (rowH); r.removeFromBottom (gap);
     auto row1 = r.removeFromBottom (rowH); r.removeFromBottom ((int) px * 2);
+    // (spread wide by SHOW ALL: the buttons keep their sidebar size, at the left)
+    const int btnW = charsW (31);
+    for (auto* row : { &row1, &row2, &row3, &row4 }) if (row->getWidth() > btnW + charsW (4)) *row = row->withWidth (btnW);
 
     delBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap);
     newBtn.setBounds (row1.removeFromRight (charsW (4))); row1.removeFromRight (gap);
@@ -622,11 +666,26 @@ void SequencePanel::resized()
     share (row4, { &loopSelBtn, &loopSectBtn });
 
     list.setBounds (r);
+    layoutList();
+}
+
+void SequencePanel::layoutList()
+{
+    const float px = Theme::px;
+    // SHOW ALL: as many columns as the song needs, each wide enough for a row (at least 22 characters)
+    {
+        const float all = (float) list.getWidth() - px * 9;
+        const int n = std::max (1, (int) proc.song.sequence.size());
+        const int fit = std::max (1, (int) (all / (px * PixelFont::kCellW * 22)));
+        const int want = (n + list.rowsPerColumn() - 1) / list.rowsPerColumn();
+        const int cols = wholeBtn.getToggleState() ? juce::jlimit (1, fit, want) : 1;
+        if (cols != list.columns) { list.columns = cols; list.repaint(); }
+    }
     // each row: "000  NAME....  000  SECTION": the position, the block's name (BLOCK when it has none) in a zone
     // that takes about half of what's left, the block number (it never changes), then the section label
     {
         const float cell = px * PixelFont::kCellW;
-        const float listW = (float) r.getWidth() - px * 9;   // (less the scrollbar)
+        const float listW = list.columns > 1 ? list.columnWidth() : (float) list.getWidth() - px * 9;   // (less the scrollbar)
         list.nameX = px * 8.0f + PixelFont::textWidth ("000  ", px);
         const float rest = listW - list.nameX - PixelFont::textWidth (" 000  ", px);
         const int nameChars = juce::jlimit (5, 18, (int) (rest * 0.55f / cell));

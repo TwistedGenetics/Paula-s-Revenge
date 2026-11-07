@@ -209,6 +209,11 @@ private:
     prv::ui::FoldBar seqFold { "SEQUENCE" }, blockFold { "BLOCK" }, instFold { "INSTRUMENTS" };
     struct TitleClicks : juce::MouseListener { PaulaEditor* ed = nullptr; void mouseDown (const juce::MouseEvent&) override; } titleClicks;
     void showSidebarMenu();
+    int foldBeforeShowAll = 0;
+    bool seqSpread = false;   // SHOW ALL spread the sequence over the main area
+public:
+    bool sequenceSpread() const { return seqSpread; }
+private:
     unsigned frame = 0;                 // (60 frames a second: the meters, scopes and play line every one, the rest every other)
 public:
     void setSkin (int skinId);          // SKIN: 0 WORKBENCH, 1 DARK, 2 KICKSTART 1.3, 3 HIGH CONTRAST
@@ -217,6 +222,8 @@ public:
     // SMARTER LAYOUT: fold a sidebar panel to its title (1 SEQUENCE, 2 BLOCK, 4 INSTRUMENTS); TABS: one open at a time
     void foldPanel (int bit, bool folded);
     void setSidebarTabs (bool on);
+    void setSequenceShowAll (bool on);   // SHOW ALL: the sequence takes the whole sidebar
+    bool sequenceShowAll() const { return (proc.editorState.sidebarFold & 7) == 6; }
     int  sidebarFold() const { return proc.editorState.sidebarFold; }
     bool sidebarTabs() const { return proc.editorState.sidebarTabs; }
     // Cmd+K

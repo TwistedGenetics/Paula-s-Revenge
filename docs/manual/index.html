@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.41</span>
+  <span class="ver">MANUAL &middot; V0.42</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -227,12 +227,21 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p><span class="b">HELP</span> has this manual's text. Just type to search it: every match is highlighted and the chapter list shows only the chapters with matches. <kbd>Enter</kbd> (or <kbd>Cmd</kbd><kbd>G</kbd>) goes to the next match, <kbd>Shift</kbd><kbd>Enter</kbd> the one before. <kbd>Esc</kbd> clears the search, then closes HELP.</p>
   <p>In the dark skin, the plug-in pages (an effect opened from the mixer, a plug-in instrument's page) and the parameter pages are dark too.</p>
   <h3>Skins and CRT</h3>
-  <p>Four skins: <b>WORKBENCH</b> (black on light grey), <b>DARK</b> (cream on blue-black), <b>KICKSTART 1.3</b> (white on the old blue, orange when pressed) and <b>HIGH CONTRAST</b> (white on black, yellow when pressed). Click <span class="b">DARK</span> to swap between WORKBENCH and DARK; right-click it, or use <b>View &rarr; Skin</b>, for all four. The button shows <b>KS 1.3</b> or <b>HI CON</b> when one of those is on. The skin is kept for next time.</p>
+  <p>Six skins: <b>WORKBENCH</b> (black on light grey), <b>DARK</b> (cream on blue-black), <b>KICKSTART 1.3</b> (white on the old blue, orange when pressed), <b>HIGH CONTRAST</b> (white on black, yellow when pressed), <b>GLASS</b> and <b>MODERN</b>. Click <span class="b">DARK</span> to swap between WORKBENCH and DARK; right-click it, or use <b>View &rarr; Skin</b>, for all six. The button shows the skin's name (<b>KS 1.3</b>, <b>HI CON</b>, <b>GLASS</b>, <b>MODERN</b>) when one of those is on. The skin is kept for next time.</p>
+  <p><b>GLASS</b> is deep blue glass: every button and pane has a gloss over its top half and a bright rim, every field and list a soft shadow inside its top edge, and what's chosen glows cyan. Panel titles sit on their own at the left over a thin accent line. <b>MODERN</b> is light and flat: white and soft grey, no bevels &mdash; just thin borders and a faint drop under raised things &mdash; and what's chosen is solid blue with white text.</p>
   <p><b>CRT</b> (in the same menu) lays scanlines and darker corners over everything, like an old monitor. It is only a look: clicks go through.</p>
   <p>Colour means the same thing everywhere: a button that's on has a stripe along its foot &mdash; red for recording (<span class="b">EDIT</span>, <span class="b">REC AUTO</span>, RECORD), orange for learning and modulating, blue (in KICKSTART, white) for the rest. Orange also marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.</p>
   <figure>
     <div class="frame sunken"><img src="img/skins.png" alt="The main screen in the KICKSTART 1.3 skin: white text on Amiga blue, the cursor and pressed buttons orange, and the 8 tracks in their colours." width="1440" height="900" loading="lazy"></div>
     <figcaption>The KICKSTART 1.3 skin</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/glass.png" alt="The main screen in the GLASS skin: deep blue panes with a gloss on every button, the track scopes and pattern on dark glass, chosen buttons glowing cyan." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The GLASS skin</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/modern.png" alt="The main screen in the MODERN skin: white and soft grey, flat buttons with thin borders, chosen buttons solid blue with white text." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The MODERN skin</figcaption>
   </figure>
   <h3>Live feedback</h3>
   <p>Under each track's name and pan bar is its <b>scope</b>: the track's sound as a moving line in the track's colour, held still on each cycle the way ProTracker's scopes were. A silent track is a flat line; a muted one shows only the zero line. Click a scope to mute its track, right-click (or Alt-click) to solo it &mdash; the same as its name. <b>View &rarr; Track Scopes</b> hides them for more rows; the choice is kept.</p>
@@ -247,6 +256,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <figure>
     <div class="frame sunken"><img src="img/palette.png" alt="The command palette over the main screen: SK typed in the box, and the matching commands listed - the four skins and the sidebar's BLOCK panel." width="1440" height="900" loading="lazy"></div>
     <figcaption>Cmd+K, with SK typed</figcaption>
+  </figure>
+  <h3>Showing the whole sequence</h3>
+  <p><span class="b">SHOW ALL</span>, at the right of the SEQUENCE title, gives the sequence the whole side: BLOCK and INSTRUMENTS fold down to their titles. When the song is longer than the side can show, the sequence spreads over the main area as well, in columns, so the whole song is in view at once &mdash; about 48 positions at 1440 &times; 900 (<span class="b">A-</span> fits more; a longer song still scrolls). The buttons stay at the left, the size they always are. Clicking, dragging to move, highlighting and the section labels work in every column. Click <span class="b">SHOW ALL</span> again to get the pattern and the other panels back as they were.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/show_all.png" alt="SHOW ALL on a long song: the sequence fills the window in three columns, positions 000 to 047 with their blocks and the INTRO, DROP, OUTRO and BREAK sections, position 045 chosen." width="1440" height="900" loading="lazy"></div>
+    <figcaption>SHOW ALL: the whole song in columns</figcaption>
   </figure>
   <h3>Folding the sidebar</h3>
   <p>Click the title of a sidebar panel &mdash; <b>SEQUENCE</b>, <b>BLOCK</b> or <b>INSTRUMENTS</b> &mdash; to fold it down to just its title; its room goes to the others. Fold SEQUENCE and BLOCK and the instrument list fills the side. Click a folded title (marked with &#9660;) to open it again. Right-click a folded title for <b>TABS</b>, one panel open at a time (click a title to switch), or <b>OPEN ALL PANELS</b>. The sidebar is kept as you left it.</p>
@@ -1052,7 +1067,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.41</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.42</footer>
 </main>
 </div>
 <script>

@@ -26,14 +26,20 @@ struct Theme
     static inline float deviceScale = 1.0f;
     static float snap (float v) { return std::round (v * deviceScale) / deviceScale; }
 
-    // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST
-    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Count };
+    // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST,
+    // GLASS (deep blue, glossy), MODERN (light and flat)
+    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Count };
+    static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
+    static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern; }
+    // how raised and sunken things are drawn: Amiga bevels, glass (a gloss on top, a soft inner shadow), or flat (thin borders)
+    enum class Style { Bevel, Glass, Flat };
     // Colours for the pattern area and spectrum strip (and the accents everywhere):
     // SELECTED, MODULATED (orange), RECORDING (red), one colour per track.
     struct Skin
     {
         SkinId id = SkinId::Workbench;
+        Style style = Style::Bevel;
         bool dark = false;
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;

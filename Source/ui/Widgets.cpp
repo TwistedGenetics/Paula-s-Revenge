@@ -20,6 +20,8 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Dark:         return "DARK";
         case SkinId::Kickstart:    return "KICKSTART 1.3";
         case SkinId::HighContrast: return "HIGH CONTRAST";
+        case SkinId::Glass:        return "GLASS";
+        case SkinId::Modern:       return "MODERN";
         default:                   return {};
     }
 }
@@ -30,7 +32,8 @@ void Theme::setSkinId (SkinId id)
 {
     Skin k;
     k.id = id;
-    k.dark = id != SkinId::Workbench;
+    k.dark = skinIsDark ((int) id);
+    k.style = id == SkinId::Glass ? Style::Glass : id == SkinId::Modern ? Style::Flat : Style::Bevel;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -39,8 +42,26 @@ void Theme::setSkinId (SkinId id)
     const Palette kick      { C (0xff0055aa), C (0xff0055aa), C (0xffffffff), C (0xff000822), C (0xffffffff), C (0xffff8800), C (0xffa8c8ee), C (0xff1666bb), C (0xff000822), C (0xff000822) };
     // pure black and white; chosen = yellow with black on it
     const Palette hc        { C (0xff000000), C (0xff000000), C (0xffffffff), C (0xff8a8a8a), C (0xffffffff), C (0xffffe000), C (0xffc8c8c8), C (0xff262626), C (0xffffffff), C (0xff000000) };
+    // GLASS: deep blue panes with a gloss; pressed glows cyan
+    const Palette glass     { C (0xff0c1626), C (0xff1a2b45), C (0xff9cc4f0), C (0xff03070e), C (0xffeaf4ff), C (0xff1f7fc8), C (0xff8aa0bf), C (0xff26406a), C (0xff4f74a8), C (0xffffffff) };
+    // MODERN: white and soft grey, thin borders, blue for chosen
+    const Palette modern    { C (0xffffffff), C (0xfff2f4f8), C (0xffffffff), C (0xffc9ced8), C (0xff1b2130), C (0xff2f66f0), C (0xff7e8799), C (0xffe6ebf3), C (0xffb8bfcc), C (0xffffffff) };
     switch (id)
     {
+        case SkinId::Glass:
+            chromePal = glass; pagePal = glass;
+            k.bg = C (0xff08111f); k.text = C (0xffdcecff); k.dim = C (0xff5c7496); k.stripe = C (0xff0e1a2d);
+            k.band = C (0xff1d3558); k.cursor = C (0xff2a8fd8); k.cursorEdge = C (0xffeaf4ff); k.rule = C (0xff3a5a86);
+            k.hot = C (0xffff5c74); k.specBar = C (0xff7fd4ff);
+            k.accentSel = C (0xff4fd2ff); k.accentMod = C (0xffffb347); k.accentRec = C (0xffff5c74);
+            break;
+        case SkinId::Modern:
+            chromePal = modern; pagePal = modern;
+            k.bg = C (0xffffffff); k.text = C (0xff1b2130); k.dim = C (0xff9aa3b4); k.stripe = C (0xfff6f8fb);
+            k.band = C (0xffdde6f7); k.cursor = C (0xffb9cdf7); k.cursorEdge = C (0xff1747c8); k.rule = C (0xffc9ced8);
+            k.hot = C (0xffe11d48); k.specBar = C (0xff1747c8);
+            k.accentSel = C (0xff1f5bff); k.accentMod = C (0xffe57a00); k.accentRec = C (0xffe11d48);
+            break;
         case SkinId::Dark:
             chromePal = workbench; pagePal = darkPage;
             k.bg = C (0xff141a24); k.text = C (0xfff4ecd6); k.dim = C (0xff566074); k.stripe = C (0xff1c2432);
@@ -70,7 +91,7 @@ void Theme::setSkinId (SkinId id)
             k.accentSel = C (0xff2f5fb0); k.accentMod = C (0xffd86a00); k.accentRec = C (0xffd01818);
             break;
     }
-    if (id == SkinId::Workbench)
+    if (id == SkinId::Workbench || id == SkinId::Modern)
     {
         const juce::uint32 t[8] = { 0xff00869c, 0xff9c1f94, 0xffb85e00, 0xff2f8010, 0xff1f56c0, 0xffc0301f, 0xff7a6c00, 0xff0a8058 };
         for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
@@ -108,6 +129,53 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
     // (whole screen pixels: crisp at any size)
     t = std::max (1.0f / deviceScale, snap (t));
     r = juce::Rectangle<float> (snap (r.getX()), snap (r.getY()), snap (r.getWidth()), snap (r.getHeight()));
+    const float hair = 1.0f / deviceScale;
+    if (skin.style == Style::Flat)
+    {
+        // MODERN: no bevels - a thin border, a touch darker under raised things (a soft drop)
+        g.setColour (P.edge);
+        g.drawRect (r, hair);
+        if (raised)
+        {
+            g.setColour (P.shadow.withAlpha (0.55f));
+            g.fillRect (r.getX() + hair, r.getBottom(), r.getWidth() - hair, hair);
+        }
+        return;
+    }
+    if (skin.style == Style::Glass)
+    {
+        // GLASS: a gloss over the top (strong on small things like buttons, a soft sheen on big panes),
+        // a bright rim along the top, and sunken things lit from inside with a shadow under their top edge
+        const float h = r.getHeight();
+        const bool small = h < px * 24;
+        if (raised)
+        {
+            const float gh = small ? h * 0.5f : std::min (h * 0.5f, px * 40);
+            juce::ColourGradient gloss (juce::Colours::white.withAlpha (small ? 0.40f : 0.16f), 0, r.getY(),
+                                        juce::Colours::white.withAlpha (small ? 0.10f : 0.02f), 0, r.getY() + gh, false);
+            g.setGradientFill (gloss);
+            g.fillRect (r.withHeight (gh));
+            juce::ColourGradient low (juce::Colours::transparentBlack, 0, r.getY() + h * 0.55f, juce::Colours::black.withAlpha (small ? 0.22f : 0.12f), 0, r.getBottom(), false);
+            g.setGradientFill (low);
+            g.fillRect (r.withTrimmedTop (h * 0.55f));
+            g.setColour (P.light.withAlpha (0.85f));
+            g.fillRect (r.getX() + t, r.getY(), r.getWidth() - t * 2, t);           // (the rim)
+            g.setColour (P.light.withAlpha (0.25f));
+            g.fillRect (r.getX(), r.getY(), t, r.getHeight());
+        }
+        else
+        {
+            const float sh = std::min (h * 0.5f, px * 4);
+            juce::ColourGradient in (juce::Colours::black.withAlpha (0.45f), 0, r.getY(), juce::Colours::transparentBlack, 0, r.getY() + sh, false);
+            g.setGradientFill (in);
+            g.fillRect (r.withHeight (sh));
+            g.setColour (P.light.withAlpha (0.35f));
+            g.fillRect (r.getX(), r.getBottom() - hair, r.getWidth(), hair);         // (light caught on the bottom lip)
+        }
+        g.setColour (P.edge.withAlpha (0.9f));
+        g.drawRect (r.expanded (hair), hair);
+        return;
+    }
     const auto tl = raised ? P.light : P.shadow;
     const auto br = raised ? P.shadow : P.light;
     g.setColour (tl);
@@ -125,7 +193,16 @@ void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::S
     g.setColour (P.panel);
     g.fillRect (r);
     bevel (g, r, true, std::max (1.0f, px * 0.5f), P);
-    if (title.isNotEmpty())
+    if (title.isNotEmpty() && skin.style != Style::Bevel)
+    {
+        // GLASS / MODERN: the title on its own, left, over an accent line (no Amiga rules)
+        const float h = PixelFont::textHeight (px) + px * 2;
+        auto bar = r.removeFromTop (h).reduced (px * 2, px * 0.5f);
+        PixelFont::drawLeft (g, title, bar, px, P.ink);
+        g.setColour (skin.accentSel.withAlpha (skin.style == Style::Glass ? 0.8f : 1.0f));
+        g.fillRect (bar.getX(), Theme::snap (bar.getBottom()), std::min (bar.getWidth(), PixelFont::textWidth (title, px) + px * 2), std::max (1.0f / deviceScale, Theme::snap (px * 0.5f)));
+    }
+    else if (title.isNotEmpty())
     {
         const float h = PixelFont::textHeight (px) + px * 2;
         auto bar = r.removeFromTop (h).reduced (px, px * 0.5f);

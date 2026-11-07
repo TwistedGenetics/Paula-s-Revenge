@@ -42,11 +42,13 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white (WORKBENCH); **SPECTRUM** hides the strip.
 
-**Skins:** WORKBENCH (black on light grey), DARK (cream on blue-black), KICKSTART 1.3 (white on the old blue, orange when pressed) and HIGH CONTRAST (white on black, yellow when pressed). Right-click **DARK**, or View > Skin, for all four; the button reads KS 1.3 or HI CON when one of those is on. **CRT** in the same menu adds scanlines and darker corners (only a look: clicks go through). The skin is kept for next time.
+**Skins:** WORKBENCH (black on light grey), DARK (cream on blue-black), KICKSTART 1.3 (white on the old blue, orange when pressed), HIGH CONTRAST (white on black, yellow when pressed), GLASS (deep blue glass: a gloss over every button and pane, a soft shadow inside every field, chosen glows cyan) and MODERN (white and soft grey, flat with thin borders, chosen is solid blue). Right-click **DARK**, or View > Skin, for all six; the button shows the skin's name when it isn't WORKBENCH or DARK. **CRT** in the same menu adds scanlines and darker corners (only a look: clicks go through). The skin is kept for next time.
 
 Colour means the same thing everywhere: a button that's on has a stripe along its foot - red for recording (EDIT, REC AUTO, RECORD), orange for learning and modulating, blue for the rest - and orange marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.
 
 **Command palette (Cmd+K):** type a few letters of anything - a button on screen, a page, a skin, a menu command - and Enter does it (Up/Down picks, Esc closes). Letters in order are enough: "SVAS" finds SAVE AS. Each menu command shows its shortcut beside it, so it teaches the keys as you go.
+
+**SHOW ALL (the sequence):** the SHOW ALL button at the right of the SEQUENCE title gives the sequence the whole side (BLOCK and INSTRUMENTS fold to their titles). When the song is longer than that, the sequence spreads over the main area too, in columns, so you see the whole song at once (about 48 positions at 1440 x 900; A- fits more). Clicks, drags and highlights work in every column. Click SHOW ALL again for the pattern and the other panels.
 
 **Folding the sidebar:** click a sidebar panel's title (SEQUENCE, BLOCK, INSTRUMENTS) to fold it to just its title, and its room goes to the others - fold SEQUENCE and BLOCK and the instrument list fills the side. Click the folded title to open it again. Right-click a folded title for **TABS** (one panel open at a time: click a title to switch) or OPEN ALL PANELS. Kept for next time.
 

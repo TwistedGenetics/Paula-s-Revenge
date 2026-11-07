@@ -23,7 +23,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
       spectrum (p), sampleEditor (p), browser (p), params (p), synthPage (p), midiPage (p), arrange (p), mixer (p), chords (p), samplePage (p), cvPage (p), cvSources (p), outMeter (p)
 {
     auto& st = proc.editorState;
-    Theme::setSkinId ((Theme::SkinId) juce::jlimit (0, 3, st.skin));
+    Theme::setSkinId ((Theme::SkinId) juce::jlimit (0, Theme::kSkins - 1, st.skin));
     Theme::crt = st.crt;
     // DARK: click flips WORKBENCH / DARK; right-click (or the View menu) has every SKIN and CRT
     skinBtn.setClickingTogglesState (false);
@@ -373,6 +373,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     blockFold.onClick = [this] { foldPanel (2, false); };
     instFold.onClick  = [this] { foldPanel (4, false); };
     titleClicks.ed = this;
+    sequence.onShowAll = [this] (bool on) { setSequenceShowAll (on); };
     sequence.addMouseListener (&titleClicks, false);
     blockPanel.addMouseListener (&titleClicks, false);
     instruments.addMouseListener (&titleClicks, false);
@@ -562,9 +563,11 @@ void PaulaEditor::refreshAll()
     stepBox.setValue (st.step);
 
     viewBtn.setToggleState (st.fourTrackView, juce::dontSendNotification);
-    if (st.darkSkin != (st.skin != 0)) st.skin = st.darkSkin ? 1 : 0;   // (something set DARK directly)
+    if (st.darkSkin != prv::ui::Theme::skinIsDark (st.skin)) st.skin = st.darkSkin ? 1 : 0;   // (something set DARK directly)
     skinBtn.setToggleState (st.skin != 0, juce::dontSendNotification);
-    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : "DARK");
+    if (sequence.wholeBtn.getToggleState() && seqSpread != (sequence.visibleListRows() < (int) proc.song.sequence.size() || seqSpread))
+        resized();   // (SHOW ALL: the song grew past the sidebar)
+    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : "DARK");
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
     automation.refresh();
@@ -869,6 +872,7 @@ void PaulaEditor::resized()
     const bool panels = showPanels && ! wideView;
     // SMARTER LAYOUT: a folded panel is just its title bar; the open ones share the room
     const int fold = st.sidebarFold;
+    sequence.wholeBtn.setToggleState ((fold & 7) == 6, juce::dontSendNotification);
     sequence.setVisible (panels && (fold & 1) == 0);
     blockPanel.setVisible (panels && (fold & 2) == 0);
     instruments.setVisible (panels && (fold & 4) == 0);
@@ -895,6 +899,21 @@ void PaulaEditor::resized()
         if (instOpen) instruments.setBounds (left);
         else instFold.setBounds (left.removeFromTop (foldH));
         juce::ignoreUnused (room);
+        // SHOW ALL: when the song is longer than the sidebar shows, the sequence spreads across the main area
+        // too, in columns (the pattern is back when SHOW ALL is off)
+        sequence.layoutList();
+        if (sequence.wholeBtn.getToggleState() && sequence.visibleListRows() < (int) proc.song.sequence.size())
+        {
+            // (the whole of the side and the main area: the folded titles wait under it until SHOW ALL is off)
+            sequence.setBounds (sequence.getBounds().withRight (main.getRight()).withBottom (std::max (main.getBottom(), sequence.getBottom())));
+            blockFold.setVisible (false);
+            instFold.setVisible (false);
+            sequence.layoutList();
+            sequence.toFront (false);
+            crtOverlay.toFront (false);
+            seqSpread = true;
+        }
+        else seqSpread = false;
     }
     // AUTOMATION under the pattern takes the spectrum's place (and as much room as it's dragged to)
     const bool autoShown = st.showAutomation && st.view == View::Pattern;
@@ -1893,8 +1912,8 @@ bool PaulaEditor::bounceSelection (int fx)
 void PaulaEditor::setSkin (int id)
 {
     auto& st = proc.editorState;
-    st.skin = juce::jlimit (0, 3, id);
-    st.darkSkin = st.skin != 0;
+    st.skin = juce::jlimit (0, prv::ui::Theme::kSkins - 1, id);
+    st.darkSkin = prv::ui::Theme::skinIsDark (st.skin);
     prv::ui::Theme::setSkinId ((prv::ui::Theme::SkinId) st.skin);
     refreshAll();
     resized();
@@ -1923,6 +1942,18 @@ void PaulaEditor::foldPanel (int bit, bool folded)
     repaint();
     const juce::String name = bit == 1 ? "SEQUENCE" : bit == 2 ? "BLOCK" : "INSTRUMENTS";
     setStatus (name + (folded ? " FOLDED - CLICK ITS TITLE TO OPEN IT (RIGHT-CLICK: TABS)" : " OPEN - CLICK ITS TITLE TO FOLD IT"));
+}
+
+void PaulaEditor::setSequenceShowAll (bool on)
+{
+    auto& st = proc.editorState;
+    if (on == sequenceShowAll()) return;
+    if (on) { foldBeforeShowAll = st.sidebarFold; st.sidebarFold = 6; }
+    else st.sidebarFold = (foldBeforeShowAll & 6) == 6 || (foldBeforeShowAll & 1) != 0 ? (st.sidebarTabs ? 3 : 0) : foldBeforeShowAll;
+    resized();
+    repaint();
+    setStatus (on ? "SEQUENCE: SHOW ALL - " + juce::String ((int) proc.song.sequence.size()) + " POSITIONS (CLICK SHOW ALL AGAIN FOR THE OTHER PANELS)"
+                  : "SEQUENCE: THE OTHER PANELS ARE BACK");
 }
 
 void PaulaEditor::setSidebarTabs (bool on)
@@ -1985,8 +2016,8 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
     for (auto& [n, v] : pages) { const auto vv = v; out.push_back ({ n, {}, "PAGE", [safe, vv] { if (safe) safe->setView (vv); } }); }
     out.push_back ({ "PAGE: HELP", "F1", "PAGE", [safe] { if (safe) safe->toggleHelp(); } });
     // the look and the layout
-    const char* skins[] = { "WORKBENCH", "DARK", "KICKSTART 1.3", "HIGH CONTRAST" };
-    for (int i = 0; i < 4; ++i) out.push_back ({ juce::String ("SKIN: ") + skins[i], {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
+    for (int i = 0; i < prv::ui::Theme::kSkins; ++i)
+        out.push_back ({ "SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
     out.push_back ({ "CRT SCANLINES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setCrt (! safe->crtOn()); } });
     out.push_back ({ "TRACK SCOPES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setScopes (! safe->scopesOn()); } });
     out.push_back ({ "SIDEBAR TABS ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setSidebarTabs (! safe->sidebarTabs()); } });
@@ -2028,7 +2059,7 @@ void PaulaEditor::showSkinMenu()
 {
     juce::Component::SafePointer<PaulaEditor> safe (this);
     std::vector<prv::ui::MenuItem> items;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < prv::ui::Theme::kSkins; ++i)
         items.push_back ({ (proc.editorState.skin == i ? "> " : "  ") + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), [safe, i] { if (safe) safe->setSkin (i); } });
     items.push_back ({ juce::String ("  CRT: ") + (proc.editorState.crt ? "ON (TURN OFF)" : "OFF (TURN ON)"), [safe] { if (safe) safe->setCrt (! safe->proc.editorState.crt); } });
     prv::ui::showMenu ("SKIN", std::move (items));
