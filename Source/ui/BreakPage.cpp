@@ -28,13 +28,14 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     setWantsKeyboardFocus (true);
     setOpaque (true);
     for (auto* b : { &closeBtn, &insDown, &insUp, &autoBtn, &evenBtn, &sensDown, &sensUp, &barsDown, &barsUp, &trackDown, &trackUp,
-                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn })
+                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn })
         addAndMakeVisible (*b);
     for (auto& b : rebuildBtns) addAndMakeVisible (b);
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     auto& st = proc.editorState;
-    insDown.onClick = [this, &st] { st.instrument = (st.instrument + kMaxInstruments - 1) % kMaxInstruments; changed(); };
-    insUp.onClick   = [this, &st] { st.instrument = (st.instrument + 1) % kMaxInstruments; changed(); };
+    auto syncKeep = [this] { keepBtn.setToggleState (proc.song.instruments[(size_t) instrument()].stretchMode > 0, juce::dontSendNotification); };
+    insDown.onClick = [this, &st, syncKeep] { st.instrument = (st.instrument + kMaxInstruments - 1) % kMaxInstruments; syncKeep(); changed(); };
+    insUp.onClick   = [this, &st, syncKeep] { st.instrument = (st.instrument + 1) % kMaxInstruments; syncKeep(); changed(); };
     autoBtn.onClick = [this] { sliceAuto(); };
     evenBtn.onClick = [this] { sliceEven(); };
     sensDown.onClick = [this] { sens = std::max (1, sens - 5); repaint(); };
@@ -70,6 +71,7 @@ void BreakPage::opened()
     auto& st = proc.editorState;
     if (! proc.song.instruments[(size_t) instrument()].hasData())
         for (int i = 0; i < kMaxInstruments; ++i) if (proc.song.instruments[(size_t) i].hasData()) { st.instrument = i; break; }
+    keepBtn.setToggleState (proc.song.instruments[(size_t) instrument()].stretchMode > 0, juce::dontSendNotification);
     grabKeyboardFocus();
     status ("BREAK: SLICE IT, MAKE BLOCK, THEN RE-EDIT - RIGHT-CLICK A SLICE TO SAY WHAT IT IS");
     repaint();
@@ -173,7 +175,10 @@ int BreakPage::chopHere()
         const int span = std::min (b.lines, 16 * bars);
         placed = prv::chopToPattern (proc.song, ins, blk, st.track, span);
         for (int l = span; l < b.lines; ++l) b.at (l, st.track) = b.at (l % span, st.track);   // (again to the block's end)
-        if (fitBtn.getToggleState()) proc.song.instruments[(size_t) ins].syncLines = span;
+        auto& w = proc.song.instruments[(size_t) ins];
+        if (fitBtn.getToggleState()) w.syncLines = span;
+        // KEEP PITCH: fitted by stretching (the window's timer makes the stretch)
+        if (fitBtn.getToggleState() && keepBtn.getToggleState() && w.stretchMode == 0) w.stretchMode = 1;
     });
     status ("CHOPPED " + juce::String (placed) + " SLICES INTO BLOCK " + juce::String (blk).paddedLeft ('0', 3) + ", TRACK " + juce::String (st.track + 1)
             + (fitBtn.getToggleState() ? " - FITTED TO THE TEMPO (BEAT SYNC " + juce::String (std::min (partLines(), 16 * bars)) + " LINES)" : juce::String()));
@@ -360,7 +365,8 @@ void BreakPage::resized()
     trackUp.setBounds (row.removeFromLeft (charsW (1))); row.removeFromLeft (gap * 3);
     makeBtn.setBounds (row.removeFromLeft (charsW (10))); row.removeFromLeft (gap);
     chopBtn.setBounds (row.removeFromLeft (charsW (9))); row.removeFromLeft (gap);
-    fitBtn.setBounds (row.removeFromLeft (charsW (12))); row.removeFromLeft (gap * 3);
+    fitBtn.setBounds (row.removeFromLeft (charsW (12))); row.removeFromLeft (gap);
+    keepBtn.setBounds (row.removeFromLeft (charsW (10))); row.removeFromLeft (gap * 3);
     playBtn.setBounds (row.removeFromLeft (charsW (4))); row.removeFromLeft (gap);
     stopBtn.setBounds (row.removeFromLeft (charsW (4)));
     rows.removeFromTop (gap);

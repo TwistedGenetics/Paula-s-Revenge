@@ -1,6 +1,7 @@
 // Paula's Revenge - native song format, sample import and WAV rendering
 #include <memory>
 #include "SongFile.h"
+#include "engine/StretchSync.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/CvOut.h"
@@ -11,7 +12,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 27;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
+    constexpr int kVersion = 28;   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
                                   // v11: CHORD, MIDI out, sample instruments switched off, v12: the song's chord table,
@@ -112,8 +113,18 @@ namespace
     }
 }
 
-juce::MemoryBlock writeSong (const Song& song)
+juce::MemoryBlock writeSong (const Song& songIn)
 {
+    // STRETCH: the original samples are saved (the stretch is made again when it loads)
+    std::unique_ptr<Song> unstretched;
+    for (const auto& in : songIn.instruments)
+        if (! in.stretchSrc.empty())
+        {
+            unstretched = std::make_unique<Song> (songIn);
+            for (auto& i : unstretched->instruments) i = stretch::original (i);
+            break;
+        }
+    const Song& song = unstretched != nullptr ? *unstretched : songIn;
     juce::MemoryOutputStream raw;
     raw.writeIntBigEndian ((int) kMagic);
     raw.writeIntBigEndian (kVersion);
@@ -453,6 +464,18 @@ juce::MemoryBlock writeSong (const Song& song)
                     writeLong (raw, r.name.data(), r.name.size());
                 }
             }
+    }
+    // v28: STRETCH
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.stretchMode != 0 || in.stretchSemis != 0) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (in.stretchMode == 0 && in.stretchSemis == 0) continue;
+            raw.writeByte ((char) i); raw.writeByte ((char) in.stretchMode); raw.writeByte ((char) (int8_t) in.stretchSemis);
+        }
     }
 
     juce::MemoryOutputStream packed;
@@ -942,6 +965,18 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 }
                 if (bad) break;
                 if (i < kMixInstruments && k < kInstMacros) s.mixer.instMacro[i][k] = m;
+            }
+        }
+        if (version >= 28 && ! in.isExhausted())
+        {
+            // v28: STRETCH (BEAT SYNC that keeps the pitch); the sample saved is the original
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int mode = std::clamp ((int) (uint8_t) in.readByte(), 0, 2);
+                const int semis = std::clamp ((int) (int8_t) in.readByte(), -24, 24);
+                if (i < kMaxInstruments) { s.instruments[(size_t) i].stretchMode = mode; s.instruments[(size_t) i].stretchSemis = semis; }
             }
         }
     }

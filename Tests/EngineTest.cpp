@@ -9,6 +9,7 @@
 #include "engine/CvOut.h"
 #include "engine/Groove.h"
 #include "engine/BreakTools.h"
+#include "engine/StretchSync.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -4484,12 +4485,73 @@ static void testBreakTools()
     CHECK (rebuild (b, 2, 0, none, 64, 1, rebuildTemplate (1), 3) > 0);
 }
 
+// ---- STRETCH: BEAT SYNC that keeps the pitch
+static void testStretchSync()
+{
+    std::printf ("\n== stretch sync\n");
+    Instrument in;
+    in.rate = 44100; in.natRate = 44100;
+    in.data.resize (88200);   // 2 s of a 441 Hz tone
+    for (size_t i = 0; i < in.data.size(); ++i) in.data[i] = (int16_t) (12000 * std::sin (2 * 3.14159265 * 441.0 * i / 44100.0));
+    in.slices = { 0, 22050, 44100, 66150 };
+    in.loopStart = 0; in.loopLength = 0;
+    in.syncLines = 16;
+    const auto orig = in.data;
+    CHECK (! stretch::wanted (in));
+    in.stretchMode = 1;
+    CHECK (stretch::wanted (in) && ! stretch::active (in));
+    stretch::begin (in);
+    CHECK (stretch::needsRender (in, 125, 6));
+    // 125 BPM, speed 6: a line is 0.12 s, 16 lines 1.92 s: the 2 s break squeezed to 0.96
+    const double f = stretch::factorFor (in, 125, 6);
+    std::printf ("factor at 125: %.4f\n", f);
+    CHECK (std::abs (f - 0.96) < 1e-6);
+    auto r = stretch::make (in, 125, 6);
+    CHECK (r.has_value());
+    stretch::apply (in, std::move (*r));
+    std::printf ("rendered %d samples (source %d), slices %d %d %d %d\n", (int) in.data.size(), (int) orig.size(), in.slices[0], in.slices[1], in.slices[2], in.slices[3]);
+    CHECK (stretch::active (in) && ! stretch::needsRender (in, 125, 6) && ! stretch::edited (in));
+    CHECK (std::abs ((int) in.data.size() - 84672) < 1500);
+    CHECK (in.slices.size() == 4 && std::abs (in.slices[2] - (int) in.data.size() / 2) < 400);
+    // the pitch stays: count zero crossings in the middle - 441 Hz still
+    {
+        int zc = 0;
+        for (size_t i = 20001; i < 64101; ++i) if ((in.data[i - 1] < 0) != (in.data[i] < 0)) ++zc;
+        const double hz = zc / 2.0 / (44100.0 / 44100.0);
+        std::printf ("pitch after the stretch: %.0f Hz\n", hz);
+        CHECK (std::abs (hz - 441) < 30);   // (the cycle joins add a crossing now and then)
+    }
+    // a faster tempo: needs a new render, shorter
+    CHECK (stretch::needsRender (in, 170, 6) && ! stretch::needsRender (in, 125.2, 6));
+    r = stretch::make (in, 170, 6);
+    stretch::apply (in, std::move (*r));
+    CHECK (std::abs ((int) in.data.size() - (int) (88200 * 0.70588)) < 1500);
+    // PITCH +12: a new render, the same length, an octave up
+    in.stretchSemis = 12;
+    CHECK (stretch::needsRender (in, 170, 6));
+    stretch::apply (in, std::move (*stretch::make (in, 170, 6)));
+    {
+        int zc = 0;
+        for (size_t i = 10001; i < 50001; ++i) if ((in.data[i - 1] < 0) != (in.data[i] < 0)) ++zc;
+        std::printf ("pitch +12: %.0f Hz\n", zc / 2.0 / (40000.0 / 44100.0));
+        CHECK (std::abs (zc / 2.0 / (40000.0 / 44100.0) - 882) < 30);
+    }
+    // the original, for saving; and back, untouched
+    CHECK (stretch::original (in).data == orig && stretch::original (in).slices == std::vector<int> ({ 0, 22050, 44100, 66150 }));
+    // an edit to what plays shows
+    in.data[100] ^= 0x1234; in.data[in.data.size() / 64] ^= 0x777;
+    CHECK (stretch::edited (in));
+    stretch::restore (in);
+    CHECK (in.data == orig && in.stretchSrc.empty() && ! stretch::active (in));
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); testStretchSync(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testScopes();
     testBreakTools();
+    testStretchSync();
     testLineLoop();
     testPingPong();
     testSlices();

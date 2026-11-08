@@ -43,7 +43,7 @@ public:
     PixButton closeBtn { "CLOSE" }, insDown { "-" }, insUp { "+" };
     PixButton autoBtn { "AUTO" }, evenBtn { "EVEN 16" }, sensDown { "-" }, sensUp { "+" }, barsDown { "-" }, barsUp { "+" };
     PixButton trackDown { "-" }, trackUp { "+" }, makeBtn { "MAKE BLOCK" }, chopBtn { "CHOP HERE" }, playBtn { "PLAY" }, stopBtn { "STOP" };
-    PixButton fitBtn { "FIT TO TEMPO", true };
+    PixButton fitBtn { "FIT TO TEMPO", true }, keepBtn { "KEEP PITCH", true };
     PixButton shuffleBtn { "SHUFFLE" }, ghostBtn { "GHOST ROLL" }, halfBtn { "HALF-TIME" }, doubleBtn { "DOUBLE-TIME" };
     PixButton rebuildBtns[kRebuilds] { PixButton { "CLASSIC '94" }, PixButton { "ROLLER" }, PixButton { "TWO-STEP" }, PixButton { "HALF-STEP" } };
     PixButton variationsBtn { "4 VARIATIONS" };

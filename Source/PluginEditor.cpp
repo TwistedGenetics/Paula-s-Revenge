@@ -608,6 +608,12 @@ void PaulaEditor::timerCallback()
     outMeter.tick();
     if (mixer.isVisible()) mixer.tickMeters();
     if ((++frame & 1) != 0) return;   // everything else, 30 times a second as before
+    if ((frame & 15) == 0)
+    {
+        // STRETCH: refit stretched instruments when the tempo or LINES changed (about 4 times a second)
+        const auto said = proc.refreshStretches();
+        if (! said.isEmpty()) { setStatus (said[said.size() - 1]); instruments.repaint(); if (params.isVisible()) params.refresh(); }
+    }
     prv::Diagnostics::get().tick();   // (slow audio blocks into the log; a stall of this window too)
     {
         // the radio's changes, and it running dry (the network too slow), into the log

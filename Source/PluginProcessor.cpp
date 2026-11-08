@@ -1,5 +1,6 @@
 // Paula's Revenge - audio processor
 #include "PluginProcessor.h"
+#include "engine/StretchSync.h"
 #include "Diagnostics.h"
 #include "PluginEditor.h"
 #include "SongFile.h"
@@ -197,11 +198,57 @@ void PaulaProcessor::updateMixerEffects()
     // `old` is freed here, outside the audio lock
 }
 
+// STRETCH: keep each stretched instrument fitted to the song's tempo (the message thread, a few times a second).
+// Rendering happens outside the lock; only the swap is inside. Returns what changed, for the status line.
+juce::StringArray PaulaProcessor::refreshStretches()
+{
+    juce::StringArray said;
+    const double bpm = song.tempo;
+    const int spd = song.speed;
+    for (int i = 0; i < prv::kMaxInstruments; ++i)
+    {
+        auto& in = song.instruments[(size_t) i];
+        const bool want = prv::stretch::wanted (in);
+        const auto hex = juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2);
+        if (! want && ! in.stretchSrc.empty())
+        {
+            withLock ([&] { prv::stretch::restore (in); });
+            said.add ("STRETCH OFF: INSTRUMENT " + hex + " IS ITS ORIGINAL AGAIN");
+            continue;
+        }
+        if (! want) continue;
+        if (prv::stretch::edited (in))
+        {
+            withLock ([&] { prv::stretch::bake (in); });
+            said.add ("INSTRUMENT " + hex + " WAS EDITED: ITS STRETCH IS KEPT AS THE SAMPLE (STRETCH OFF)");
+            continue;
+        }
+        if (in.stretchSrc.empty()) withLock ([&] { prv::stretch::begin (in); });
+        if (! prv::stretch::needsRender (in, bpm, spd)) continue;
+        // (the render reads the source, which only this thread changes)
+        auto r = prv::stretch::make (in, bpm, spd);
+        if (! r) continue;
+        const double f = r->factor;
+        withLock ([&] { prv::stretch::apply (in, std::move (*r)); });
+        said.add ("STRETCH (" + juce::String (prv::stretch::modeName (in.stretchMode)) + "): INSTRUMENT " + hex + " FITTED TO " + juce::String (in.syncLines)
+                  + " LINES AT " + juce::String ((int) bpm) + " BPM (x" + juce::String (f, 2) + (in.stretchSemis != 0 ? ", " + juce::String (in.stretchSemis > 0 ? "+" : "") + juce::String (in.stretchSemis) + " SEMITONES" : juce::String()) + ")");
+    }
+    return said;
+}
+
 void PaulaProcessor::replaceSong (prv::Song&& newSong)
 {
     std::vector<std::unique_ptr<prv::Effect>> oldEffects;   // declared first: freed after the lock is released
     std::vector<std::unique_ptr<prv::PluginSynth>> oldSynths;
     if (! newSong.chordsSaved) { newSong.chords = globalChords; newSong.chordsSaved = true; }
+    // STRETCH: the song keeps the originals; make the stretches for its tempo before it plays
+    for (auto& in : newSong.instruments)
+        if (prv::stretch::wanted (in) && in.stretchSrc.empty())
+        {
+            prv::stretch::begin (in);
+            if (auto r = prv::stretch::make (in, newSong.tempo, newSong.speed)) prv::stretch::apply (in, std::move (*r));
+            else prv::stretch::restore (in);
+        }
     // make the new song's effects (and load its plug-ins) before taking the lock
     auto changes = player.mixer().plan (newSong.mixer, true);
     auto synthChanges = player.synths().plan (newSong, currentRate, true);

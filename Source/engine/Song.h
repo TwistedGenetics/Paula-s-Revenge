@@ -155,6 +155,20 @@ struct Instrument
     int transpose  = 0;          // semitones
     int cents      = 0;          // FINE on PARAMS: -100..+100 cents (on top of finetune)
     int syncLines  = 0;          // BEAT SYNC: the sample (START to END) lasts this many lines at C-3, repitched (0 = off)
+    // STRETCH: BEAT SYNC that keeps the pitch - the sample is time-stretched (Akai CLASSIC or AKAIZER) to the
+    // length BEAT SYNC wants, again whenever the tempo changes; the original is kept in stretchSrc
+    int stretchMode  = 0;          // 0 = off (BEAT SYNC repitches), 1 = CLASSIC, 2 = AKAIZER
+    int stretchSemis = 0;          // pitch, -24..+24 semitones, without changing the length
+    struct StretchSource
+    {
+        std::vector<int16_t> data, dataR;
+        std::vector<int> slices;
+        int playStart = 0, playEnd = 0, loopStart = 0, loopLength = 0;
+        double factor = 0;         // the stretch rendered now (0 = none yet)
+        int semis = 0, mode = 0;   // (and what it was rendered with)
+        uint64_t mark = 0;         // a fingerprint of the rendered data: an edit to it shows
+        bool empty() const { return data.empty(); }
+    } stretchSrc;
     double rate    = kAmigaC3Rate; // Hz the sample plays at on C-3
     double natRate = 0;            // rate at which it sounds as recorded (0 = same as rate); RATE changes move away from it
     double pitchShift() const { return natRate > 0 ? 12.0 * std::log2 (rate / natRate) : 0.0; }   // semitones

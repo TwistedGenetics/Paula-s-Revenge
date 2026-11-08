@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.43</span>
+  <span class="ver">MANUAL &middot; V0.44</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -445,7 +445,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <ul>
     <li><b>The waveform</b> shows the break's slices, each tinted and tagged with what it is: <b>K</b> kick (red), <b>S</b> snare (orange), <b>H</b> hat (blue), <b>O</b> anything else. Paula works it out from each hit's first 60 ms &mdash; how much low end, how noisy, how loud. Click a slice to hear it; right-click it to put it right when it guessed wrong.</li>
     <li><span class="b">AUTO</span> finds the hits (<b>SENS</b> &minus; / + for quieter ones); <span class="b">EVEN 16</span> cuts it into 16ths. <b>BARS</b> (1, 2 or 4) is how long the break is.</li>
-    <li><span class="b">MAKE BLOCK</span> adds a new block after the current position with the break chopped onto <b>TRACK</b>, each slice where it falls, repeated to the block's end. <span class="b">CHOP HERE</span> does it on the current block. <span class="b">FIT TO TEMPO</span> (on to start with) sets BEAT SYNC so the break plays in time at any BPM. <span class="b">PLAY</span> / <span class="b">STOP</span> (or <kbd>Space</kbd>) play the block.</li>
+    <li><span class="b">MAKE BLOCK</span> adds a new block after the current position with the break chopped onto <b>TRACK</b>, each slice where it falls, repeated to the block's end. <span class="b">CHOP HERE</span> does it on the current block. <span class="b">FIT TO TEMPO</span> (on to start with) sets BEAT SYNC so the break plays in time at any BPM; with <span class="b">KEEP PITCH</span> as well, it's stretched to fit rather than repitched. <span class="b">PLAY</span> / <span class="b">STOP</span> (or <kbd>Space</kbd>) play the block.</li>
     <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>.</li>
     <li><b>REBUILD</b> it from its own kicks, snares and hats, 16 steps a bar: <span class="b">CLASSIC '94</span> (the cut-up amen &mdash; kick pushed, a ghost snare before the second half, a snare on the last 16th), <span class="b">ROLLER</span>, <span class="b">TWO-STEP</span>, <span class="b">HALF-STEP</span>. Ghost snares go in quiet, as <code>C14</code>.</li>
     <li><span class="b">4 VARIATIONS</span> makes four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll.</li>
@@ -535,6 +535,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Spectrum:</b> while PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
     <li><b>Tuning:</b> <span class="b">PITCH</span> (±48 semitones) and <span class="b">FINE</span> (±100 cents). <span class="b">TUNE TO C</span> listens to the sample and sets them so <code>C-3</code> plays a C.</li>
     <li><b>BEAT SYNC</b> (like Renoise): the sample lasts <span class="b">LINES</span> lines at <code>C-3</code> at any tempo, repitched live to fit. <span class="b">STRETCH...</span> opens the time stretch set to those lines, to fit it at its own pitch instead.</li>
+    <li><b>KEEP PITCH</b>: BEAT SYNC stretches the sample instead of repitching it, with the old-sampler stretch &mdash; the break stays at its own pitch and keeps the grainy 90s sound. The stretch is made again whenever BPM, SPD or LINES change, and the original is kept: switch KEEP PITCH off and it's back exactly as it was (songs save the original, and make the stretch again when they load). Right-click KEEP PITCH for <b>CLASSIC</b> (the Akai S-series sound) or <b>AKAIZER</b> (smoother grains). <b>SEMI</b> (&minus;24 to +24) moves the pitch without changing the length &mdash; a break pitched up and still in time, no chipmunk. Tempo changes while playing (<code>Fxx</code>) are followed by repitching a little until the next stretch. Editing the stretched sample keeps the stretch as the sample (KEEP PITCH goes off).</li>
     <li><span class="b">&#9654; HOLD TO PLAY</span> or the keys to hear it; <span class="b">RESET ALL</span> puts everything back; double-click any slider for its default.</li>
     <li><span class="b">ON</span> switches the instrument off and on. To switch it from the pattern, pick a track, press <span class="b">LEARN A (V)</span> or <span class="b">LEARN B (J)</span>, then click ON: that track's <code>V00</code> switches it off and <code>V01</code>–<code>VFF</code> on.</li>
     <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
@@ -1083,7 +1084,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.43</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.44</footer>
 </main>
 </div>
 <script>

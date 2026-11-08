@@ -114,6 +114,22 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
     tuneBtn.onClick = [this] { tuneToC(); };
     syncBtn.onClick = [this] { setBeatSync (syncBtn.getToggleState()); };
     fitBtn.onClick = [this] { if (onFitStretch) onFitStretch (linesBox.getValue()); };
+    keepBtn.setClickingTogglesState (false);
+    keepBtn.onClick = [this] { setKeepPitch (inst().stretchMode == 0 ? 1 : 0); };
+    keepModeBtn.onClick = [this] { setKeepPitch (inst().stretchMode == 1 ? 2 : 1); };
+    keepBtn.onRightClick = [this]
+    {
+        juce::Component::SafePointer<ParamsPage> safe (this);
+        const int m = inst().stretchMode;
+        showMenu ("KEEP PITCH", {
+            { juce::String (m == 1 ? "> " : "") + "CLASSIC (THE AKAI S-SERIES SOUND)", [safe] { if (safe) safe->setKeepPitch (1); } },
+            { juce::String (m == 2 ? "> " : "") + "AKAIZER (SMOOTHER GRAINS)", [safe] { if (safe) safe->setKeepPitch (2); } },
+            { juce::String (m == 0 ? "> " : "") + "OFF (BEAT SYNC REPITCHES)", [safe] { if (safe) safe->setKeepPitch (0); } },
+        });
+    };
+    semiBox.compact = true; semiBox.valueChars = 3; semiBox.labelChars = 4;
+    semiBox.format = [] (int v) { return v > 0 ? "+" + juce::String (v) : juce::String (v); };
+    semiBox.onChange = [this] (int v) { setStretchSemis (v); };
     pluginBtn.onClick = [this]
     {
         if (pluginMode()) { if (onBackToPlugin) onBackToPlugin(); }
@@ -131,7 +147,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 
     for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk,
                                                              &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn,
-                                                             &onBtn, &learnA, &learnB, &trackBox, &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn })
+                                                             &onBtn, &learnA, &learnB, &trackBox, &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox })
         addAndMakeVisible (c);
     refresh();
 }
@@ -200,6 +216,25 @@ void ParamsPage::setBeatSync (bool on)
     edit ([lines] (Instrument& i) { i.syncLines = lines; });
     if (onStatus) onStatus (on ? "BEAT SYNC: C-3 PLAYS IT OVER " + juce::String (lines) + " LINES AT ANY TEMPO (REPITCHED) - CHANGE LINES TO FIT"
                                : juce::String ("BEAT SYNC OFF"));
+    refresh();
+}
+
+void ParamsPage::setKeepPitch (int mode)
+{
+    mode = juce::jlimit (0, 2, mode);
+    if (mode > 0 && inst().syncLines == 0) setBeatSync (true);   // (KEEP PITCH works through BEAT SYNC)
+    edit ([mode] (Instrument& i) { i.stretchMode = mode; });
+    if (onStatus) onStatus (mode == 0 ? juce::String ("KEEP PITCH OFF: BEAT SYNC REPITCHES AGAIN (THE ORIGINAL SAMPLE IS BACK)")
+                                      : "KEEP PITCH (" + juce::String (mode == 1 ? "CLASSIC" : "AKAIZER") + "): BEAT SYNC STRETCHES IT TO " + juce::String (inst().syncLines)
+                                        + " LINES, REDONE WHEN THE TEMPO CHANGES - THE ORIGINAL IS KEPT");
+    refresh();
+}
+
+void ParamsPage::setStretchSemis (int s)
+{
+    s = juce::jlimit (-24, 24, s);
+    edit ([s] (Instrument& i) { i.stretchSemis = s; });
+    if (onStatus) onStatus ("KEEP PITCH: " + juce::String (s > 0 ? "+" : "") + juce::String (s) + " SEMITONES, THE SAME LENGTH" + (inst().stretchMode == 0 ? juce::String (" (SWITCH KEEP PITCH ON)") : juce::String()));
     refresh();
 }
 
@@ -294,7 +329,7 @@ void ParamsPage::refresh()
     {
         // a VST3 / AU instrument: no sample tuning, BEAT SYNC or pan here; back to its page instead
         const bool pm = pluginMode();
-        for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &amigaBtn, &pan })
+        for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan })
             c->setVisible (! pm);
         pluginBtn.setButtonText (pm ? "BACK TO THE PLUG-IN" : "PLUG-IN / MIDI OUT...");
     }
@@ -331,6 +366,11 @@ void ParamsPage::refresh()
     pitchBox.setValue (in.transpose);
     fineBox.setValue (in.cents);
     syncBtn.setToggleState (in.syncLines > 0, juce::dontSendNotification);
+    keepBtn.setToggleState (in.stretchMode > 0, juce::dontSendNotification);
+    keepModeBtn.setButtonText (in.stretchMode == 2 ? "AKAIZER" : "CLASSIC");
+    keepModeBtn.setAlpha (in.stretchMode > 0 ? 1.0f : 0.6f);
+    semiBox.setValue (in.stretchSemis);
+    semiBox.setAlpha (in.stretchMode > 0 ? 1.0f : 0.6f);
     if (in.syncLines > 0) linesBox.setValue (in.syncLines);
     linesBox.setAlpha (in.syncLines > 0 ? 1.0f : 0.6f);
     amigaBtn.setToggleState (in.amigaPan, juce::dontSendNotification);
@@ -410,6 +450,11 @@ void ParamsPage::resized()
     // the instrument's own effects, tuning and BEAT SYNC: under the volume envelope (its graph has the room)
     {
         auto row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
+        // KEEP PITCH  SEMI -0+   (CLASSIC / AKAIZER: right-click KEEP PITCH)
+        semiBox.setBounds (row.removeFromRight (std::min (row.getWidth() / 2, semiBox.preferredWidth (px)))); row.removeFromRight (gap);
+        keepBtn.setBounds (row);
+        keepModeBtn.setBounds ({});
+        row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
         linesBox.setBounds (row.removeFromLeft (linesBox.preferredWidth (px))); row.removeFromLeft (gap);
         fitBtn.setBounds (row);
         row = left.removeFromBottom (rowH); left.removeFromBottom (gap);

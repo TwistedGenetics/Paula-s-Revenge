@@ -63,6 +63,13 @@ private:
 
     NumberBox pitchBox { "PITCH", -48, 48, 0 }, fineBox { "FINE", -100, 100, 0 }, linesBox { "LINES", 1, 512, 16 };
     PixButton tuneBtn { "TUNE TO C" }, syncBtn { "BEAT SYNC", true }, fitBtn { "STRETCH..." };
+    // KEEP PITCH: BEAT SYNC stretches instead of repitching (CLASSIC / AKAIZER), SEMI moves the pitch alone
+public:
+    PixButton keepBtn { "KEEP PITCH", true }, keepModeBtn { "CLASSIC" };
+    NumberBox semiBox { "SEMI", -24, 24, 0 };
+    void setKeepPitch (int mode);   // 0 off, 1 CLASSIC, 2 AKAIZER
+    void setStretchSemis (int s);
+private:
     PixButton amigaBtn { "AMIGA L/R", true };
     PixSlider pan { "PAN" };
     UtilityStrip utility { proc };   // WIDTH, MONO BELOW, VOL (= the instrument's VOL)

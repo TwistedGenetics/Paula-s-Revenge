@@ -83,6 +83,7 @@ public:
     void reloadInstrumentPlugin (int instrument);
 
     // Replace the whole song (loading). Stops playback.
+    juce::StringArray refreshStretches();       // STRETCH: refit stretched instruments to the tempo (message thread)
     void replaceSong (prv::Song&& newSong);   // (a song without its own chord table gets the global set)
     prv::ChordTable globalChords = prv::loadGlobalChords();
     // output fade (0..1): the standalone app fades out, switches the output device, fades back in
