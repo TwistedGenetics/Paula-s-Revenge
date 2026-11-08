@@ -8,6 +8,7 @@
 #include "engine/SampleTools.h"
 #include "engine/CvOut.h"
 #include "engine/Groove.h"
+#include "engine/BreakTools.h"
 #include "engine/ModuleIO.h"
 #include "engine/SongOps.h"
 #include "engine/Commands.h"
@@ -4422,11 +4423,73 @@ static void testScopes()
     p.mute[1].store (false);
 }
 
+// ---- the BREAK page: which slices are kicks, snares, hats; the re-edits
+static void testBreakTools()
+{
+    std::printf ("\n== break tools\n");
+    Instrument in;
+    in.rate = 44100; in.natRate = 44100;
+    const char* pat = "KHSHKKSHKHSHKHSS";
+    const int sliceLen = 5512;   // (a 16th at 120 BPM)
+    uint32_t seed = 12345;
+    auto noise = [&] { seed = seed * 1664525u + 1013904223u; return ((seed >> 9) / 4194304.0f) * 2 - 1; };
+    in.data.assign ((size_t) sliceLen * 16, 0);
+    for (int i = 0; i < 16; ++i)
+    {
+        in.slices.push_back (i * sliceLen);
+        float prevN = 0;
+        for (int k = 0; k < sliceLen; ++k)
+        {
+            const double t = k / 44100.0;
+            float v = 0;
+            if (pat[i] == 'K') v = (float) (0.9 * std::sin (2 * 3.14159 * (55 + 60 * std::exp (-t * 30)) * t) * std::exp (-t * 12));
+            if (pat[i] == 'S') v = (float) ((0.55 * noise() + 0.4 * std::sin (2 * 3.14159 * 190 * t)) * std::exp (-t * 14));
+            if (pat[i] == 'H') { const float nn = noise(); v = (float) (0.35 * (nn - prevN) * std::exp (-t * 40)); prevN = nn; }
+            in.data[(size_t) (i * sliceLen + k)] = (int16_t) std::clamp (v * 32767.0f, -32767.0f, 32767.0f);
+        }
+    }
+    const auto kinds = classifySlices (in);
+    std::string got;
+    for (auto k : kinds) got += hitLetter (k);
+    std::printf ("kinds: %s (made %s)\n", got.c_str(), pat);
+    CHECK (got == pat);
+    CHECK (sliceOfKind (kinds, HitKind::Snare) == 2 && sliceOfKind (kinds, HitKind::Snare, 1) == 6 && sliceOfKind (kinds, HitKind::Kick, 2) == 5);
+
+    Block b; b.lines = 64;
+    // CLASSIC '94 over one bar: kick on line 0, snare on the 5th 16th (line 16), a quiet ghost (C14) on line 28
+    int n = rebuild (b, 0, 3, kinds, 64, 1, rebuildTemplate (0), 0);
+    std::printf ("CLASSIC '94: %d notes\n", n);
+    CHECK (n == 11);
+    CHECK (b.at (0, 0).note == kSliceC3 + 0 && b.at (0, 0).instr == 4);
+    CHECK (b.at (16, 0).note == kSliceC3 + 2);
+    CHECK (b.at (28, 0).cmd == 0x0C && b.at (28, 0).param == 0x14);
+    CHECK (b.at (4, 0).isEmpty());
+    // two bars over 64 lines: the second bar's kick a different one
+    rebuild (b, 0, 3, kinds, 64, 2, rebuildTemplate (0), 0);
+    CHECK (b.at (0, 0).note == kSliceC3 + 0 && b.at (32, 0).note == kSliceC3 + 4);
+    // GHOST ROLL: the last 16 lines, kick then snares getting louder
+    n = ghostRoll (b, 0, 3, kinds, 64);
+    CHECK (n == 16 && b.at (48, 0).note == kSliceC3 + 0);
+    CHECK (b.at (49, 0).cmd == 0x0C && b.at (49, 0).param < b.at (63, 0).param && b.at (63, 0).param == 0x40);
+    // HALF-TIME / DOUBLE-TIME
+    Block h; h.lines = 16;
+    for (int l = 0; l < 16; l += 2) h.at (l, 1) = Cell { (uint8_t) (kSliceC3 + l / 2), 1, 0, 0 };
+    Block d = h;
+    n = halfTime (h, 1, 16);
+    CHECK (n == 4 && h.at (0, 1).note == kSliceC3 && h.at (4, 1).note == kSliceC3 + 1 && h.at (2, 1).isEmpty() && h.at (12, 1).note == kSliceC3 + 3);
+    n = doubleTime (d, 1, 16);
+    CHECK (n == 16 && d.at (1, 1).note == kSliceC3 + 1 && d.at (8, 1).note == kSliceC3 && d.at (15, 1).note == kSliceC3 + 7);
+    // no kinds found: stand-ins, nothing crashes
+    std::vector<HitKind> none (8, HitKind::Other);
+    CHECK (rebuild (b, 2, 0, none, 64, 1, rebuildTemplate (1), 3) > 0);
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testScopes();
+    testBreakTools();
     testLineLoop();
     testPingPong();
     testSlices();

@@ -128,6 +128,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     radioPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
     radioPage.onGrabbed = [this] (int) { refreshAll(); setView (View::SampleEdit); };
     addChildComponent (radioPage);
+    // the BREAK page
+    addChildComponent (breakPage);
+    breakPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    breakPage.onChanged = [this] { refreshAll(); };
+    breakPage.onClose = [this] { setView (breakReturn == View::Break ? View::Pattern : breakReturn); };
+    instruments.openBreak = [this] { openBreak(); };
     grooveBtn.setClickingTogglesState (false);
     grooveBtn.onClick = [this] { showGrooveMenu(); };
     recAutoBtn.onClick = [this, &st]
@@ -299,6 +305,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             case View::CvOut:      cvPage.grabKeyboardFocus(); break;
             case View::CvSources:  cvSources.grabKeyboardFocus(); break;
             case View::Radio:      radioPage.grabKeyboardFocus(); break;
+            case View::Break:      breakPage.grabKeyboardFocus(); break;
             case View::Pattern:    pattern.grabKeyboardFocus(); break;
         }
     };
@@ -466,7 +473,7 @@ void PaulaEditor::setView (View v)
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::CvOut && v != View::CvOut) proc.withLock ([&] { proc.player.jamAllOff(); });
-    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources || w == View::Radio; };
+    auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources || w == View::Radio || w == View::Break; };
     const bool layoutChange = wide (st.view) != wide (v);
     st.view = v;
     if (layoutChange) resized();
@@ -484,6 +491,7 @@ void PaulaEditor::setView (View v)
     cvPage.setVisible (v == View::CvOut);
     cvSources.setVisible (v == View::CvSources);
     radioPage.setVisible (v == View::Radio);
+    breakPage.setVisible (v == View::Break);
     radioBtn.setToggleState (v == View::Radio || proc.radio.state() != prv::RadioPlayer::State::Stopped, juce::dontSendNotification);
     helpBtn.setToggleState (v == View::Help, juce::dontSendNotification);
     mixerBtn.setToggleState (v == View::Mixer, juce::dontSendNotification);
@@ -500,6 +508,7 @@ void PaulaEditor::setView (View v)
     else if (v == View::CvOut) cvPage.opened();
     else if (v == View::CvSources) cvSources.opened();
     else if (v == View::Radio) radioPage.opened();
+    else if (v == View::Break) breakPage.opened();
     else pattern.grabKeyboardFocus();
     refreshAll();
 }
@@ -652,6 +661,7 @@ void PaulaEditor::timerCallback()
     if (midiPage.isVisible()) midiPage.tick();
     if (cvPage.isVisible()) cvPage.tick();
     if (radioPage.isVisible()) radioPage.tick();
+    if (breakPage.isVisible()) breakPage.tick();
     if (stemsPanel.isVisible()) stemsPanel.repaint();
     radioBtn.setToggleState (proc.editorState.view == View::Radio || proc.radio.state() != prv::RadioPlayer::State::Stopped, juce::dontSendNotification);
     // the PARAMS page follows the instrument: a plug-in or MIDI-out instrument shows its own page
@@ -868,7 +878,8 @@ void PaulaEditor::resized()
     chords.setBounds (main);
     cvSources.setBounds (main);
     radioPage.setBounds (main);
-    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources || st.view == View::Radio;
+    breakPage.setBounds (main);
+    const bool wideView = st.view == View::Mixer || st.view == View::Help || st.view == View::Chords || st.view == View::CvSources || st.view == View::Radio || st.view == View::Break;
     const bool panels = showPanels && ! wideView;
     // SMARTER LAYOUT: a folded panel is just its title bar; the open ones share the room
     const int fold = st.sidebarFold;
@@ -1214,6 +1225,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         if (ch == '3') { if (proc.editorState.view == View::Chords) chords.onClose(); else openChords(); return true; }
         if (ch == '4') { toggleSample(); return true; }
         if (ch == '5') { radioBtn.onClick(); return true; }   // INTERNET RADIO (again to go back)
+        if (ch == '6') { openBreak(); return true; }          // the BREAK page (again to go back)
         if (ch == 'r' && ! m.isShiftDown()) { captureNow(); return true; }
     }
     // keys that land on the window (e.g. after clicking a button) go to the active view
@@ -1232,6 +1244,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         case View::CvOut:      return cvPage.keyPressed (k);
         case View::CvSources:  return cvSources.keyPressed (k);
         case View::Radio:      return radioPage.keyPressed (k);
+        case View::Break:      return breakPage.keyPressed (k) || pattern.keyPressed (k);
         default:               return pattern.keyPressed (k);
     }
 }
@@ -2015,6 +2028,7 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
                                                 { "PAGE: SAMPLE EDITOR", V::SampleEdit }, { "PAGE: SAMPLE (RECORD)", V::Sample } };
     for (auto& [n, v] : pages) { const auto vv = v; out.push_back ({ n, {}, "PAGE", [safe, vv] { if (safe) safe->setView (vv); } }); }
     out.push_back ({ "PAGE: HELP", "F1", "PAGE", [safe] { if (safe) safe->toggleHelp(); } });
+    out.push_back ({ "PAGE: BREAK", "CMD+6", "PAGE", [safe] { if (safe) safe->openBreak(); } });
     // the look and the layout
     for (int i = 0; i < prv::ui::Theme::kSkins; ++i)
         out.push_back ({ "SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
@@ -2035,6 +2049,13 @@ void PaulaEditor::showPalette()
 {
     palette.open (*this, paletteItems());
     setStatus ("COMMANDS: TYPE A FEW LETTERS, ENTER DOES IT");
+}
+
+void PaulaEditor::openBreak()
+{
+    if (proc.editorState.view == View::Break) { breakPage.onClose(); return; }
+    breakReturn = proc.editorState.view;
+    setView (View::Break);
 }
 
 void PaulaEditor::setScopes (bool on)

@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.42</span>
+  <span class="ver">MANUAL &middot; V0.43</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -440,6 +440,21 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>Each instrument has a RATE: the speed it plays at on <code>C-3</code>. Samples load at their own rate, so they sound as recorded. <span class="b">RATE</span> changes it without touching the data (lower rate, lower and slower); <span class="b">RESAMPLE</span> converts the data to a new rate and keeps the pitch, with <span class="b">RAW</span> for the rough, unfiltered old-sampler way.</p>
   <h3>Slicing</h3>
   <p><span class="b">SLICE</span> opens the slicer. <span class="b">AUTO</span> finds the hits (<span class="b">SENS</span> sets how quiet), <span class="b">EVEN</span> cuts equal slices. Drag a tab to move a slice point, double-click the wave to add one, <kbd>Alt</kbd>-click a tab to remove it. With <span class="b">SLICE TO KEYS</span> on, <code>C-3</code> plays slice 1, <code>C#3</code> slice 2 and so on; without it, <code>Sxx</code> picks the slice.</p>
+  <h3>The BREAK page</h3>
+  <p><kbd>Cmd</kbd><kbd>6</kbd> &mdash; or right-click an instrument and choose <b>BREAK PAGE...</b> &mdash; opens one page for a break, start to finish. <kbd>Cmd</kbd><kbd>6</kbd> again, <span class="b">CLOSE</span> or <kbd>Esc</kbd> goes back.</p>
+  <ul>
+    <li><b>The waveform</b> shows the break's slices, each tinted and tagged with what it is: <b>K</b> kick (red), <b>S</b> snare (orange), <b>H</b> hat (blue), <b>O</b> anything else. Paula works it out from each hit's first 60 ms &mdash; how much low end, how noisy, how loud. Click a slice to hear it; right-click it to put it right when it guessed wrong.</li>
+    <li><span class="b">AUTO</span> finds the hits (<b>SENS</b> &minus; / + for quieter ones); <span class="b">EVEN 16</span> cuts it into 16ths. <b>BARS</b> (1, 2 or 4) is how long the break is.</li>
+    <li><span class="b">MAKE BLOCK</span> adds a new block after the current position with the break chopped onto <b>TRACK</b>, each slice where it falls, repeated to the block's end. <span class="b">CHOP HERE</span> does it on the current block. <span class="b">FIT TO TEMPO</span> (on to start with) sets BEAT SYNC so the break plays in time at any BPM. <span class="b">PLAY</span> / <span class="b">STOP</span> (or <kbd>Space</kbd>) play the block.</li>
+    <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>.</li>
+    <li><b>REBUILD</b> it from its own kicks, snares and hats, 16 steps a bar: <span class="b">CLASSIC '94</span> (the cut-up amen &mdash; kick pushed, a ghost snare before the second half, a snare on the last 16th), <span class="b">ROLLER</span>, <span class="b">TWO-STEP</span>, <span class="b">HALF-STEP</span>. Ghost snares go in quiet, as <code>C14</code>.</li>
+    <li><span class="b">4 VARIATIONS</span> makes four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll.</li>
+    <li>The grid at the bottom is the block's track, a bar (16 lines) a row, each note tinted by kind with its slice number; it lights the line that's playing. Every change is one undo step.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/break_page.png" alt="The BREAK page: a 16-hit break with its slices tagged K, H and S in red, blue and orange; the slicing, MAKE BLOCK, RE-EDIT and REBUILD buttons; and the grid of the block rebuilt as CLASSIC '94, four bars of coloured kick, snare and hat steps." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The BREAK page, after CLASSIC '94</figcaption>
+  </figure>
   <h3>Groove and break tools</h3>
   <ul>
     <li><b>CHOP TO PATTERN</b> (right-click an instrument): the break is sliced by its hits (if it has no slices yet) and laid out as notes on the cursor's track, each slice on the line where it falls, with SLICE TO KEYS on.</li>
@@ -1059,6 +1074,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>3</kbd></td><td>CHORDS: the chord table</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>5</kbd></td><td>INTERNET RADIO</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>6</kbd></td><td>The BREAK page</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>O</kbd></td><td>Load a song</td></tr>
@@ -1067,7 +1083,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.42</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.43</footer>
 </main>
 </div>
 <script>

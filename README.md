@@ -418,6 +418,18 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
   * **RATCHET** — every note gets a roll that speeds up across the highlight (`R40` at the start down to `R10` at the end), in a free effect column (an occupied one is kept).
   * **RE-SEQUENCE THE SLICES** — the slice notes shuffled: the rhythm stays, which slice plays changes (a slice 1 on the downbeat stays put). Again for another order; undo goes back.
 
+## The BREAK page
+
+**Cmd+6** (or right-click an instrument → **BREAK PAGE...**, or Cmd+K → PAGE: BREAK) opens a page for a break, start to finish. Again (or **CLOSE**, or Esc) goes back.
+
+* **The instrument** (− / +): the break. The waveform shows its slices, each tinted and tagged with what it is: **K** kick (red), **S** snare (orange), **H** hat (blue), **O** anything else - worked out from each hit's first 60 ms (how much low end, how noisy, how loud). Click a slice to hear it; **right-click it to say what it really is** when it guessed wrong.
+* **AUTO** finds the hits (**SENS** − / + for quieter ones); **EVEN 16** cuts it into 16ths (per bar). **BARS** (1, 2 or 4): how long the break is.
+* **MAKE BLOCK**: a new block after the current position, the break chopped onto **TRACK** (each slice where it falls, the break repeated to the block's end). **CHOP HERE** does it on the current block instead. **FIT TO TEMPO** (on to start with) sets BEAT SYNC so the break plays in time at any BPM. **PLAY** / **STOP** (or Space) play the block.
+* **RE-EDIT** the chopped break: **SHUFFLE** (the rhythm stays, which slice plays changes; again for another), **GHOST ROLL** (the last quarter becomes a snare roll, quiet to loud), **HALF-TIME**, **DOUBLE-TIME**.
+* **REBUILD** it from its own kicks, snares and hats, 16 steps a bar: **CLASSIC '94** (the cut-up amen: the kick pushed, a ghost snare before the second half, a snare on the last 16th), **ROLLER**, **TWO-STEP**, **HALF-STEP**. Ghost snares go in quiet (`C14`).
+* **4 VARIATIONS**: four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll - the makings of an arrangement in one click.
+* The grid at the bottom is the block's track, 16 lines a row (a bar), each note tinted by kind with its slice number. Everything is one undo step.
+
 ## Slicing
 
 **SLICE** in the sample editor opens the slicer:
@@ -463,6 +475,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Cmd+3` | CHORDS: the chord table (again to go back) |
 | `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
 | `Cmd+5` | INTERNET RADIO (again to go back) |
+| `Cmd+6` | The BREAK page (again to go back) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `Cmd+O` | Load a song |

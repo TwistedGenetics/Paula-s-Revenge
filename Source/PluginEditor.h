@@ -26,6 +26,7 @@
 #include "ui/CvPage.h"
 #include "ui/RadioPage.h"
 #include "ui/CommandPalette.h"
+#include "ui/BreakPage.h"
 #include "StemsJob.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -248,6 +249,12 @@ private:
     prv::ui::CvOutPage cvPage;
     prv::ui::CvSourcesPage cvSources;
     prv::ui::RadioPage radioPage { proc };
+    prv::ui::BreakPage breakPage { proc };
+    PaulaProcessor::EditorState::View breakReturn = PaulaProcessor::EditorState::View::Pattern;
+public:
+    void openBreak();
+    prv::ui::BreakPage& getBreakPage() { return breakPage; }
+private:
     PaulaProcessor::EditorState::View radioReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View fxReturn = PaulaProcessor::EditorState::View::Params;

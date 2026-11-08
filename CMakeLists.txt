@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.42.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.43.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,6 +46,7 @@ add_library(prv_engine STATIC
     Source/engine/CvOut.cpp
     Source/engine/Utility.cpp
     Source/engine/Groove.cpp
+    Source/engine/BreakTools.cpp
     Source/engine/Radio.cpp
     Source/engine/RadioFormats.cpp
     Source/engine/ChordDatabase.cpp)
@@ -153,6 +154,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/ChordsPage.cpp
     Source/ui/ChordPicker.cpp
     Source/ui/CommandPalette.cpp
+    Source/ui/BreakPage.cpp
     Source/ui/SamplePage.cpp
     Source/ui/CvPage.cpp
     Source/ui/EqGraph.cpp
