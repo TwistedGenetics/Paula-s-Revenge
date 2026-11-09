@@ -289,41 +289,209 @@ int BreakPage::variations()
     return 4;
 }
 
+juce::Rectangle<float> BreakPage::waveInner() const
+{
+    // (as paintWave draws it: inside the frame, the full width)
+    return waveArea.reduced (Theme::px);
+}
+
+double BreakPage::xToSample (float x) const
+{
+    const auto& in = proc.song.instruments[(size_t) instrument()];
+    const auto w = waveInner();
+    return juce::jlimit (0.0, (double) in.data.size(), (x - w.getX()) / std::max (1.0f, w.getWidth()) * (double) in.data.size());
+}
+
+float BreakPage::markerX (int i) const
+{
+    const auto& in = proc.song.instruments[(size_t) instrument()];
+    if (i < 0 || i >= in.numSlices() || in.data.empty()) return -1.0f;
+    const auto w = waveInner();
+    return w.getX() + (float) in.slices[(size_t) i] / (float) in.data.size() * w.getWidth();
+}
+
 int BreakPage::sliceAt (float x) const
 {
     const auto& in = proc.song.instruments[(size_t) instrument()];
     if (! in.hasData() || in.numSlices() < 1 || ! waveArea.contains (x, waveArea.getCentreY())) return -1;
-    const double pos = (x - waveArea.getX()) / waveArea.getWidth() * (double) in.data.size();
+    const double pos = xToSample (x);
     int found = -1;
     for (int i = 0; i < in.numSlices(); ++i) if (in.slices[(size_t) i] <= pos) found = i;
     return found;
 }
 
+int BreakPage::markerAt (float x) const
+{
+    const auto& in = proc.song.instruments[(size_t) instrument()];
+    if (! in.hasData()) return -1;
+    const float reach = std::max (4.0f, Theme::px * 1.5f);
+    int best = -1; float bestD = reach;
+    for (int i = 0; i < in.numSlices(); ++i)
+    {
+        const float d = std::abs (markerX (i) - x);
+        if (d <= bestD) { bestD = d; best = i; }
+    }
+    return best;
+}
+
+void BreakPage::markersChanged (const juce::String& what)
+{
+    // (the notes play slices; the page's kinds are worked out again for the new slices)
+    changed();
+    status (what + " - " + juce::String (proc.song.instruments[(size_t) instrument()].numSlices()) + " SLICES"
+            + " (DRAG A MARKER TO MOVE IT, DOUBLE-CLICK THE WAVE TO ADD ONE, DOUBLE-CLICK ONE TO DELETE IT)");
+}
+
+int BreakPage::addMarker (int pos)
+{
+    const int ins = instrument();
+    const auto& in = proc.song.instruments[(size_t) ins];
+    const int len = (int) in.data.size();
+    if (! in.hasData() || len < 16) return -1;
+    // to the nearest zero crossing (a few milliseconds either way) so the slice starts without a click
+    {
+        const int reach = std::max (8, (int) ((in.rate > 0 ? (double) in.rate : (double) kAmigaC3Rate) / 500.0));
+        int best = -1;
+        for (int d = 0; d <= reach && best < 0; ++d)
+            for (int p : { pos - d, pos + d })
+                if (p > 0 && p < len && ((in.data[(size_t) p - 1] <= 0) != (in.data[(size_t) p] <= 0))) { best = p; break; }
+        if (best > 0) pos = best;
+    }
+    pos = juce::jlimit (1, len - 1, pos);
+    auto sl = in.slices;
+    if (sl.empty()) sl.push_back (0);
+    const int minGap = 16;
+    for (int p : sl) if (std::abs (p - pos) < minGap) { status ("THERE'S A MARKER THERE ALREADY"); return -1; }
+    sl.push_back (pos);
+    tidySlices (sl, len);
+    proc.history.instrument (ins, "BREAK: ADD MARKER");
+    proc.withLock ([&] { auto& w = proc.song.instruments[(size_t) ins]; w.slices = sl; w.sliceKeys = true; });
+    const int idx = (int) (std::find (sl.begin(), sl.end(), pos) - sl.begin());
+    selectedMarker = idx < (int) sl.size() ? idx : -1;
+    markersChanged ("ADDED MARKER " + juce::String (idx + 1));
+    return selectedMarker;
+}
+
+bool BreakPage::deleteMarker (int i)
+{
+    const int ins = instrument();
+    auto sl = proc.song.instruments[(size_t) ins].slices;
+    if (i == 0) { status ("THE FIRST MARKER ALWAYS STAYS AT THE START"); return false; }
+    if (i < 0 || i >= (int) sl.size()) return false;
+    sl.erase (sl.begin() + i);
+    proc.history.instrument (ins, "BREAK: DELETE MARKER");
+    proc.withLock ([&] { auto& w = proc.song.instruments[(size_t) ins]; w.slices = sl; if (sl.size() <= 1) w.sliceKeys = false; });
+    selectedMarker = -1;
+    markersChanged ("DELETED MARKER " + juce::String (i + 1));
+    return true;
+}
+
+bool BreakPage::moveMarker (int i, int pos)
+{
+    // (between its neighbours; no undo point of its own - a drag makes one when it starts)
+    const int ins = instrument();
+    const auto& in = proc.song.instruments[(size_t) ins];
+    if (i <= 0 || i >= in.numSlices()) return false;
+    const int len = (int) in.data.size();
+    const int lo = in.slices[(size_t) i - 1] + 16;
+    const int hi = (i + 1 < in.numSlices() ? in.slices[(size_t) i + 1] : len) - 16;
+    if (hi < lo) return false;
+    const int p = juce::jlimit (lo, hi, pos);
+    proc.withLock ([&] { proc.song.instruments[(size_t) ins].slices[(size_t) i] = p; });
+    repaint();
+    return true;
+}
+
+void BreakPage::mouseMove (const juce::MouseEvent& e)
+{
+    const bool over = waveArea.contains (e.position) && markerAt (e.position.x) > 0;
+    setMouseCursor (over ? juce::MouseCursor::LeftRightResizeCursor : juce::MouseCursor::NormalCursor);
+}
+
 void BreakPage::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
+    dragMarker = -1; dragMoved = false;
     if (! waveArea.contains (e.position)) return;
+    const int m = markerAt (e.position.x);
     const int s = sliceAt (e.position.x);
-    if (s < 0) return;
     if (e.mods.isPopupMenu())
     {
         juce::Component::SafePointer<BreakPage> safe (this);
         std::vector<MenuItem> items;
-        for (auto k : { HitKind::Kick, HitKind::Snare, HitKind::Hat, HitKind::Other })
-            items.push_back ({ juce::String ("SLICE ") + juce::String (s + 1) + " IS A " + hitName (k), [safe, s, k] { if (safe) safe->setKind (s, k); } });
-        showMenu ("SLICE " + juce::String (s + 1), items);
+        const int pos = (int) xToSample (e.position.x);
+        if (m > 0) items.push_back ({ "DELETE MARKER " + juce::String (m + 1), [safe, m] { if (safe) safe->deleteMarker (m); } });
+        else items.push_back ({ "ADD A MARKER HERE", [safe, pos] { if (safe) safe->addMarker (pos); } });
+        if (s >= 0)
+            for (auto k : { HitKind::Kick, HitKind::Snare, HitKind::Hat, HitKind::Other })
+                items.push_back ({ juce::String ("SLICE ") + juce::String (s + 1) + " IS A " + hitName (k), [safe, s, k] { if (safe) safe->setKind (s, k); } });
+        showMenu (m > 0 ? "MARKER " + juce::String (m + 1) : "SLICE " + juce::String (s + 1), items);
         return;
     }
+    if (m > 0)
+    {
+        if (e.mods.isAltDown()) { deleteMarker (m); return; }
+        // pick it up: a drag moves it
+        selectedMarker = m;
+        dragMarker = m;
+        proc.history.instrument (instrument(), "BREAK: MOVE MARKER " + juce::String (m + 1));
+        repaint();
+        status ("MARKER " + juce::String (m + 1) + ": DRAG TO MOVE, DELETE KEY OR DOUBLE-CLICK TO TAKE IT AWAY");
+        return;
+    }
+    if (s < 0) return;
+    selectedMarker = -1;
     // a click: hear it (slices play from C-3 up)
     const int ins = instrument();
     if (! proc.song.instruments[(size_t) ins].sliceKeys) ensureSlices (ins);
     proc.withLock ([&] { proc.player.jamNoteOn (std::min ((int) kNoteMax, kSliceC3 + s), ins); });
     const auto& k = kinds();
-    status ("SLICE " + juce::String (s + 1) + ": " + (s < (int) k.size() ? hitName (k[(size_t) s]) : "?") + " (RIGHT-CLICK TO CHANGE)");
+    status ("SLICE " + juce::String (s + 1) + ": " + (s < (int) k.size() ? hitName (k[(size_t) s]) : "?") + " (RIGHT-CLICK TO CHANGE; DOUBLE-CLICK TO ADD A MARKER)");
+    repaint();
+}
+
+void BreakPage::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragMarker <= 0) return;
+    if (! dragMoved && e.getDistanceFromDragStart() < 3) return;
+    dragMoved = true;
+    moveMarker (dragMarker, (int) std::lround (xToSample (e.position.x)));
+}
+
+void BreakPage::mouseUp (const juce::MouseEvent&)
+{
+    if (dragMarker <= 0) return;
+    const int m = dragMarker;
+    dragMarker = -1;
+    if (! dragMoved) { proc.history.dropLast(); return; }   // (just picked: nothing moved)
+    markersChanged ("MOVED MARKER " + juce::String (m + 1));
+}
+
+void BreakPage::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (! waveArea.contains (e.position) || e.mods.isPopupMenu()) return;
+    const auto& in = proc.song.instruments[(size_t) instrument()];
+    if (! in.hasData()) return;
+    const int m = markerAt (e.position.x);
+    if (m > 0) { deleteMarker (m); return; }
+    if (m == 0) { status ("THE FIRST MARKER ALWAYS STAYS AT THE START"); return; }
+    addMarker ((int) std::lround (xToSample (e.position.x)));
 }
 
 bool BreakPage::keyPressed (const juce::KeyPress& k)
 {
+    if ((k.getKeyCode() == juce::KeyPress::deleteKey || k.getKeyCode() == juce::KeyPress::backspaceKey) && selectedMarker > 0)
+        return deleteMarker (selectedMarker) || true;
+    if ((k.getKeyCode() == juce::KeyPress::leftKey || k.getKeyCode() == juce::KeyPress::rightKey) && selectedMarker > 0)
+    {
+        // nudge the picked marker (Shift: further)
+        const auto& in = proc.song.instruments[(size_t) instrument()];
+        const int step = std::max (1, (int) (in.data.size() / std::max (1.0f, waveInner().getWidth()))) * (k.getModifiers().isShiftDown() ? 10 : 1);
+        proc.history.instrument (instrument(), "BREAK: NUDGE MARKER", true);
+        moveMarker (selectedMarker, in.slices[(size_t) selectedMarker] + (k.getKeyCode() == juce::KeyPress::leftKey ? -step : step));
+        markersChanged ("NUDGED MARKER " + juce::String (selectedMarker + 1));
+        return true;
+    }
     if (k.getKeyCode() == juce::KeyPress::escapeKey) { if (onClose) onClose(); return true; }
     if (k.getKeyCode() == juce::KeyPress::spaceKey) { (proc.player.isPlaying() ? stopBtn : playBtn).triggerClick(); return true; }
     return false;
@@ -417,6 +585,13 @@ void BreakPage::paintWave (juce::Graphics& g)
         auto tab = juce::Rectangle<float> (x0, w.getBottom() - tabH, std::max (px * 2, x1 - x0), tabH);
         g.setColour (c.withAlpha (0.85f));
         g.fillRect (x0, wave.getY(), std::max (1.0f, px * 0.5f), wave.getHeight() + tabH);
+        if (i == selectedMarker || i == dragMarker)
+        {
+            // the picked marker: thick, in the text colour, with a grip at the top
+            g.setColour (sk.text);
+            g.fillRect (x0 - px * 0.5f, wave.getY(), std::max (2.0f, px), wave.getHeight() + tabH);
+            g.fillRect (x0 - px * 1.5f, wave.getY(), px * 3.0f, px * 2.0f);
+        }
         const juce::String label = juce::String (i + 1) + (i < (int) k.size() ? juce::String::charToString ((juce::juce_wchar) hitLetter (k[(size_t) i])) : juce::String());
         if (PixelFont::textWidth (label, px) + px * 2 < tab.getWidth()) PixelFont::drawLeft (g, label, tab.withTrimmedLeft (px * 1.5f), px, c);
         else if (PixelFont::textWidth (label.getLastCharacters (1), px) + px < tab.getWidth()) PixelFont::drawLeft (g, label.getLastCharacters (1), tab.withTrimmedLeft (px), px, c);

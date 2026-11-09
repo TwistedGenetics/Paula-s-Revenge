@@ -22,6 +22,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
     bool keyPressed (const juce::KeyPress&) override;
 
     // (also for tests)
@@ -39,6 +43,14 @@ public:
     void setKind (int slice, HitKind);   // (right-click a slice)
     juce::Rectangle<float> waveRect() const { return waveArea; }
     int  sliceAt (float x) const;
+    // THE MARKERS (where each slice starts): drag one to move it, double-click the wave to add one,
+    // double-click / Alt-click one (or pick it and press Delete) to take it away. The first stays at 0.
+    int  markerAt (float x) const;       // the marker under x (within a few pixels; -1 = none)
+    float markerX (int i) const;         // where marker i is drawn
+    int  addMarker (int samplePos);      // its index (snapped to a zero crossing); -1 = not added
+    bool deleteMarker (int i);
+    bool moveMarker (int i, int samplePos);
+    int  selectedMarker = -1;
 
     PixButton closeBtn { "CLOSE" }, insDown { "-" }, insUp { "+" };
     PixButton autoBtn { "AUTO" }, evenBtn { "EVEN 16" }, sensDown { "-" }, sensUp { "+" }, barsDown { "-" }, barsUp { "+" };
@@ -59,6 +71,11 @@ private:
     void status (const juce::String& s) { if (onStatus) onStatus (s); }
     void changed() { repaint(); if (onChanged) onChanged(); }
     bool ensureSlices (int ins);
+    int  dragMarker = -1;                // a marker being dragged
+    bool dragMoved = false;
+    juce::Rectangle<float> waveInner() const;   // where the wave is drawn (above the tabs)
+    double xToSample (float x) const;
+    void markersChanged (const juce::String& what);
     int  partLines() const;              // the lines the re-edits work on: the current block's
     void paintWave (juce::Graphics&);
     void paintGrid (juce::Graphics&);
