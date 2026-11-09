@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.47</span>
+  <span class="ver">MANUAL &middot; V0.48</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -298,6 +298,24 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <figure>
     <div class="frame sunken"><img src="img/folded.png" alt="The main screen with the SEQUENCE and BLOCK panels folded to their titles, so the instrument list fills the side, each sample's waveform drawn at the right of its row." width="1440" height="900" loading="lazy"></div>
     <figcaption>SEQUENCE and BLOCK folded: the instruments, with their waveforms, get the room</figcaption>
+  </figure>
+
+  <h3>The lane</h3>
+  <p>The whole song as a strip over the pattern: one column per song position, and in it a <b>clip</b> for each track, in its section's colour (a track's own colour before the first section), with the notes drawn small inside &mdash; across is when, up is how high. Section names run along the top, over the position numbers. The position you're editing is ringed; while the song plays, a playhead runs through the playing position and the lane scrolls along with it. <b>Click</b> a column to go to that position; the mouse wheel scrolls the lane. Turn it on from the sidebar menu (right-click a folded title), <span class="b">View &gt; The Lane</span>, or <kbd>Cmd+K</kbd> and <b>LANE</b>. It's kept for next time.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/lane.png" alt="The lane over the pattern: a column per song position with clips per track in section colours, INTRO in cyan and DROP in pink, the position being played ringed." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The lane: the song as clips, coloured by section</figcaption>
+  </figure>
+  <h3>Pads</h3>
+  <p>Sixteen pads, one instrument each, like a drum machine's. Press a pad to choose its instrument and play it at C of the octave (<b>OCT</b>); with <b>EDIT</b> on it's written at the cursor, just as a key would be, and the cursor steps on. Pad 1 is at the bottom left. A pad lights whenever its instrument plays, on any track. <span class="b">-</span> and <span class="b">+</span> change the <b>bank</b>: A is instruments 1&ndash;16, B 17&ndash;32, C 33&ndash;48, D 49&ndash;63.</p>
+  <p>With the sidebar showing, the pads are two rows of eight under the pattern, in the spectrum's place. With the sidebar off (<span class="b">PANELS</span>) they're four by four beside the pattern. Either way the pattern keeps its size &mdash; its text never shrinks to make room. Turn them on from the sidebar menu, <span class="b">View &gt; Pads</span>, or <kbd>Cmd+K</kbd> and <b>PADS</b>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/pads.png" alt="The HARDWARE skin with the pads as two rows of eight under the pattern, the first five lit in their instruments' colours, and the lane above the pattern." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Pads under the pattern (with the sidebar), lit as their instruments play</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/pads_beside.png" alt="The pads four by four beside the pattern with the sidebar off, numbered from 1 at the bottom left to 16 at the top right, each showing its instrument's name." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Four by four beside the pattern (sidebar off)</figcaption>
   </figure>
 </section>
 
@@ -1127,7 +1145,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.47</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.48</footer>
 </main>
 </div>
 <script>
