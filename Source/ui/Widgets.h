@@ -28,11 +28,14 @@ struct Theme
 
     // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST,
     // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type),
-    // NEON (navy, rounded, glowing cyan), HARDWARE (matte black, LED buttons, amber pattern), PRISM (slate, colour, note bars)
-    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism, Count };
+    // NEON (navy, rounded, glowing cyan), HARDWARE (matte black, LED buttons, amber pattern), PRISM (slate, colour, note bars),
+    // BLUEWAVE (a wavetable synth's charcoal and blue), PAPER (light and clean), VIOLET (dark purple, glowing lilac),
+    // EMBER (warm charcoal and orange), FOREST (deep green and lime)
+    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism,
+                        BlueWave, Paper, Violet, Ember, Forest, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
-    static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern; }
+    static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern && id != (int) SkinId::Paper; }
     // how raised and sunken things are drawn: Amiga bevels, glass (a gloss on top, a soft inner shadow), or flat (thin borders)
     enum class Style { Bevel, Glass, Flat };
     // Colours for the pattern area and spectrum strip (and the accents everywhere):

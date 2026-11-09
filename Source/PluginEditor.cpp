@@ -592,7 +592,9 @@ void PaulaEditor::refreshAll()
     skinBtn.setToggleState (st.skin != 0, juce::dontSendNotification);
     if (sequence.wholeBtn.getToggleState() && seqSpread != (sequence.visibleListRows() < (int) proc.song.sequence.size() || seqSpread))
         resized();   // (SHOW ALL: the song grew past the sidebar)
-    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : st.skin == 6 ? "STUDIO" : st.skin == 7 ? "NEON" : st.skin == 8 ? "HARDWARE" : st.skin == 9 ? "PRISM" : "DARK");
+    // (WORKBENCH and DARK: the button says DARK, off or on; the long names short; the rest by name)
+    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin <= 1 ? "DARK"
+                           : prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) juce::jlimit (0, prv::ui::Theme::kSkins - 1, st.skin)));
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
     automation.refresh();

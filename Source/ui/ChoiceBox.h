@@ -53,13 +53,24 @@ public:
         const int rowH = (int) (px * 11), gap = (int) std::max (2.0f, px * 1.5f);
         int widest = (int) PixelFont::textWidth (title, px);
         for (auto& b : buttons) widest = std::max (widest, (int) PixelFont::textWidth (b->getButtonText(), px));
-        const int w = std::min (getWidth() - gap * 4, widest + (int) (px * 16));
-        const int h = rowH * (1 + (int) buttons.size()) + gap * (3 + (int) buttons.size());
+        const int n = (int) buttons.size();
+        const int itemW = widest + (int) (px * 16);
+        // too tall for the window: two columns (the text stays full size)
+        const auto heightFor = [&] (int rows) { return rowH * (1 + rows) + gap * (3 + rows); };
+        const int cols = (heightFor (n) > getHeight() - gap * 4 && n > 4) ? 2 : 1;
+        const int rows = (n + cols - 1) / cols;
+        const int w = std::min (getWidth() - gap * 4, itemW * cols + gap * (cols - 1));
+        const int h = heightFor (rows);
         box = getLocalBounds().withSizeKeepingCentre (w, h).toFloat();
         auto r = box.toNearestInt().reduced (gap * 2);
         titleArea = r.removeFromTop (rowH).toFloat();
         r.removeFromTop (gap);
-        for (auto& b : buttons) { b->setBounds (r.removeFromTop (rowH)); r.removeFromTop (gap); }
+        const int colW = (r.getWidth() - gap * (cols - 1)) / cols;
+        for (int i = 0; i < n; ++i)
+        {
+            const int c = i / rows, row = i % rows;
+            buttons[(size_t) i]->setBounds (r.getX() + c * (colW + gap), r.getY() + row * (rowH + gap), colW, rowH);
+        }
     }
     bool keyPressed (const juce::KeyPress& k) override
     {

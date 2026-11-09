@@ -26,6 +26,11 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Neon:         return "NEON";
         case SkinId::Hardware:     return "HARDWARE";
         case SkinId::Prism:        return "PRISM";
+        case SkinId::BlueWave:     return "BLUEWAVE";
+        case SkinId::Paper:        return "PAPER";
+        case SkinId::Violet:       return "VIOLET";
+        case SkinId::Ember:        return "EMBER";
+        case SkinId::Forest:       return "FOREST";
         default:                   return {};
     }
 }
@@ -37,13 +42,16 @@ void Theme::setSkinId (SkinId id)
     Skin k;
     k.id = id;
     k.dark = skinIsDark ((int) id);
-    const bool smoothSkin = id == SkinId::Studio || id == SkinId::Neon || id == SkinId::Hardware || id == SkinId::Prism;
+    const bool smoothSkin = (int) id >= (int) SkinId::Studio;   // (STUDIO and every skin after it)
     k.style = id == SkinId::Glass ? Style::Glass : (id == SkinId::Modern || smoothSkin) ? Style::Flat : Style::Bevel;
     k.smoothType = smoothSkin;
-    k.sans = id == SkinId::Neon ? PixelFont::SpaceGrotesk : id == SkinId::Hardware ? PixelFont::BarlowCondensed : id == SkinId::Prism ? PixelFont::Nunito : PixelFont::Inter;
-    k.round = id == SkinId::Neon ? 2.0f : id == SkinId::Prism ? 1.6f : id == SkinId::Hardware ? 0.8f : 0.6f;
-    k.gradient = id == SkinId::Neon;
-    k.glow = id == SkinId::Neon;
+    k.sans = (id == SkinId::Neon || id == SkinId::Ember) ? PixelFont::SpaceGrotesk
+           : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
+           : (id == SkinId::Prism || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
+    k.round = (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : id == SkinId::Prism ? 1.6f
+            : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
+    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest;
+    k.glow = id == SkinId::Neon || id == SkinId::Violet;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
@@ -66,8 +74,53 @@ void Theme::setSkinId (SkinId id)
     const Palette hardware  { C (0xff0d0d0d), C (0xff181818), C (0xff2a2a2a), C (0xff000000), C (0xfff2ede4), C (0xff5c2216), C (0xffa39d93), C (0xff343434), C (0xff050505), C (0xfff2ede4) };
     // PRISM: slate, soft and rounded; chosen is cyan with dark text
     const Palette prism     { C (0xff1e2025), C (0xff26282e), C (0xff353840), C (0xff121317), C (0xffeef0f4), C (0xff3fd6f0), C (0xffaab0bd), C (0xff41454f), C (0xff16171b), C (0xff14161a) };
+    // BLUEWAVE: a wavetable synth's charcoal and slate, bright blue for chosen, orange for modulation
+    const Palette bluewave  { C (0xff1b1f24), C (0xff262b33), C (0xff343b46), C (0xff0c0e11), C (0xffe6edf5), C (0xff3fa9f5), C (0xff8c97a6), C (0xff3e4654), C (0xff11141a), C (0xff07131e) };
+    // PAPER: light and clean - white panes on soft grey, blue for chosen (white text on it)
+    const Palette paperPal  { C (0xfff2f4f7), C (0xffffffff), C (0xffe6eaf0), C (0xffc3c8d1), C (0xff16191f), C (0xff1d4ed8), C (0xff5f6876), C (0xffd9e0ea), C (0xffcfd5de), C (0xffffffff) };
+    // VIOLET: dark purple, rounded; chosen glows lilac
+    const Palette violet    { C (0xff15121d), C (0xff201b2b), C (0xff2e2740), C (0xff08060c), C (0xfff1ecff), C (0xffa87bff), C (0xff9a90b5), C (0xff3a3152), C (0xff2a2338), C (0xff120c1f) };
+    // EMBER: warm charcoal, orange for chosen
+    const Palette ember     { C (0xff1c1a18), C (0xff282522), C (0xff37332f), C (0xff0b0a09), C (0xfff3ece4), C (0xffff8a2b), C (0xffa39a90), C (0xff443f3a), C (0xff12100f), C (0xff1a0f05) };
+    // FOREST: deep green, lime for chosen
+    const Palette forest    { C (0xff111813), C (0xff1a231d), C (0xff263229), C (0xff060907), C (0xffe6f5e9), C (0xff7ee06a), C (0xff8aa391), C (0xff304036), C (0xff0d130f), C (0xff0b1a08) };
     switch (id)
     {
+        case SkinId::BlueWave:
+            chromePal = bluewave; pagePal = bluewave;
+            k.bg = C (0xff14171b); k.text = C (0xffdbe6f2); k.dim = C (0xff4f5a68); k.stripe = C (0xff191d22);
+            k.band = C (0xff2a3340); k.cursor = C (0xff16486b); k.cursorEdge = C (0xff3fa9f5); k.rule = C (0xff2c333d);
+            k.hot = C (0xffff6b4a); k.specBar = C (0xff3fa9f5);
+            k.accentSel = C (0xff3fa9f5); k.accentMod = C (0xfff5a623); k.accentRec = C (0xffff5468);
+            break;
+        case SkinId::Paper:
+            chromePal = paperPal; pagePal = paperPal;
+            k.bg = C (0xffffffff); k.text = C (0xff16191f); k.dim = C (0xff9aa3b0); k.stripe = C (0xfff3f5f8);
+            k.band = C (0xffdbe5fb); k.cursor = C (0xffbcd0fa); k.cursorEdge = C (0xff1d4ed8); k.rule = C (0xffd5dae2);
+            k.hot = C (0xffdc2626); k.specBar = C (0xff1d4ed8);
+            k.accentSel = C (0xff1d4ed8); k.accentMod = C (0xffc2410c); k.accentRec = C (0xffdc2626);
+            break;
+        case SkinId::Violet:
+            chromePal = violet; pagePal = violet;
+            k.bg = C (0xff120f19); k.text = C (0xffece6ff); k.dim = C (0xff5b5175); k.stripe = C (0xff18141f);
+            k.band = C (0xff2c2440); k.cursor = C (0xff46307a); k.cursorEdge = C (0xffa87bff); k.rule = C (0xff2c2540);
+            k.hot = C (0xffff5fa2); k.specBar = C (0xffa87bff);
+            k.accentSel = C (0xffa87bff); k.accentMod = C (0xff4fe0c0); k.accentRec = C (0xffff5f7e);
+            break;
+        case SkinId::Ember:
+            chromePal = ember; pagePal = ember;
+            k.bg = C (0xff171513); k.text = C (0xfff0e7dc); k.dim = C (0xff6d655c); k.stripe = C (0xff1d1b18);
+            k.band = C (0xff3a332b); k.cursor = C (0xff6a3a14); k.cursorEdge = C (0xffff8a2b); k.rule = C (0xff36312c);
+            k.hot = C (0xffff5a3c); k.specBar = C (0xffff8a2b);
+            k.accentSel = C (0xffff8a2b); k.accentMod = C (0xffffd04a); k.accentRec = C (0xffff4d3d);
+            break;
+        case SkinId::Forest:
+            chromePal = forest; pagePal = forest;
+            k.bg = C (0xff0e140f); k.text = C (0xffdcf2df); k.dim = C (0xff4c6352); k.stripe = C (0xff131b15);
+            k.band = C (0xff233328); k.cursor = C (0xff2e5a26); k.cursorEdge = C (0xff7ee06a); k.rule = C (0xff223026);
+            k.hot = C (0xffff6b5a); k.specBar = C (0xff7ee06a);
+            k.accentSel = C (0xff7ee06a); k.accentMod = C (0xffffcf4a); k.accentRec = C (0xffff5a5a);
+            break;
         case SkinId::Neon:
             chromePal = neon; pagePal = neon;
             k.bg = C (0xff080d1a); k.text = C (0xffeaf6ff); k.dim = C (0xff56688f); k.stripe = C (0xff0e1527);
@@ -140,7 +193,7 @@ void Theme::setSkinId (SkinId id)
             k.accentSel = C (0xff2f5fb0); k.accentMod = C (0xffd86a00); k.accentRec = C (0xffd01818);
             break;
     }
-    if (id == SkinId::Workbench || id == SkinId::Modern)
+    if (id == SkinId::Workbench || id == SkinId::Modern || id == SkinId::Paper)
     {
         const juce::uint32 t[8] = { 0xff00869c, 0xff9c1f94, 0xffb85e00, 0xff2f8010, 0xff1f56c0, 0xffc0301f, 0xff7a6c00, 0xff0a8058 };
         for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
@@ -406,10 +459,14 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
                         g.fillRoundedRectangle (f.expanded ((float) k * std::max (0.5f, Theme::px * 0.25f)), rad + (float) k);
                     }
             }
-            if (K.gradient)
-                g.setGradientFill (juce::ColourGradient (face.brighter (on ? 0.25f : 0.18f), 0, f.getY(), face.darker (on ? 0.1f : 0.25f), 0, f.getBottom(), false));
-            else g.setColour (face);
+            g.setColour (K.gradient ? face.darker (on ? 0.06f : 0.14f) : face);
             g.fillRoundedRectangle (f, rad);
+            if (K.gradient)
+            {
+                // lit from above: a lighter top half (two flat fills - a real gradient on every button costs too much)
+                g.setColour (face.brighter (on ? 0.22f : 0.16f).withAlpha (0.55f));
+                g.fillRoundedRectangle (f.withHeight (f.getHeight() * 0.5f), rad);
+            }
             if (K.gradient && ! on)
             {
                 // a fine rim catching the light
