@@ -2,6 +2,7 @@
 #include "PixelFont.h"
 #include <PrvFonts.h>
 #include <unordered_map>
+#include <map>
 
 namespace prv::ui
 {
@@ -123,7 +124,7 @@ namespace
     {
         juce::Typeface::Ptr tf;
         float cap = 0.7f;              // capital height, per unit of font height
-        struct G { juce::Path path; float adv = 0; float left = 0, right = 0; };
+        struct G { int index = 0; float adv = 0; };
         std::unordered_map<juce::juce_wchar, G> cache;
         static constexpr auto kind = juce::TypefaceMetricsKind::portable;
 
@@ -141,15 +142,23 @@ namespace
             G g;
             if (auto gi = tf->getNominalGlyphForCodepoint (c); gi && *gi != 0)
             {
-                tf->getOutlineForGlyph (kind, (int) *gi, g.path);
+                g.index = (int) *gi;
                 juce::Array<int> glyphs; juce::Array<float> xs;
                 tf->getGlyphPositions (kind, juce::String::charToString (c), glyphs, xs);
                 g.adv = xs.size() > 1 ? xs[xs.size() - 1] : 0.0f;
-                const auto b = g.path.getBounds();
-                g.left = b.getX(); g.right = b.getRight();
             }
-            auto& slot = cache[c] = std::move (g);
+            auto& slot = cache[c] = g;
             return slot.adv > 0 ? &slot : nullptr;
+        }
+        // a font at this height and squeeze (kept: JUCE caches the glyphs it draws per font)
+        std::map<std::pair<int, int>, juce::Font> fonts;
+        const juce::Font& font (float height, float hScale)
+        {
+            const auto key = std::make_pair (juce::roundToInt (height * 64), juce::roundToInt (hScale * 256));
+            if (auto it = fonts.find (key); it != fonts.end()) return it->second;
+            if (fonts.size() > 64) fonts.clear();
+            return fonts.emplace (key, juce::Font (juce::FontOptions (tf).withMetricsKind (kind).withHeight (key.first / 64.0f)
+                                                                       .withHorizontalScale (key.second / 256.0f))).first->second;
         }
     };
     Face& monoFace() { static Face f (PrvFonts::JetBrainsMonoBold_ttf, PrvFonts::JetBrainsMonoBold_ttfSize); return f; }
@@ -228,7 +237,7 @@ void PixelFont::addText (juce::RectangleList<float>& list, const juce::String& r
 namespace
 {
     // monospaced: each character centred on its pixel cell, never wider than it
-    void addMono (juce::Path& p, const juce::String& text, float x, float y, float px)
+    void addMono (juce::GlyphArrangement& ga, juce::Path& pix, const juce::String& text, float x, float y, float px)
     {
         auto& F = monoFace();
         const float cell = PixelFont::kCellW * px;
@@ -236,26 +245,28 @@ namespace
         if (auto* zero = F.glyph ('0')) s = std::min (s, cell * 0.98f / zero->adv);
         x = snapTo (x); y = snapTo (y);
         const float base = snapTo (y + 7.0f * px);
+        const auto* fnt = F.tf != nullptr ? &F.font (s, 1.0f) : nullptr;
         int i = 0;
         for (auto ch : text)
         {
             const float cx = x + (float) i * cell;
             if (ch != ' ')
             {
-                const auto* G = pixelOnly (ch) ? nullptr : F.glyph (ch);
+                const auto* G = (pixelOnly (ch) || fnt == nullptr) ? nullptr : F.glyph (ch);
                 if (G != nullptr)
-                    p.addPath (G->path, juce::AffineTransform::scale (s).translated (cx + 2.5f * px - G->adv * s * 0.5f, base));
-                else addPixelGlyph (p, ch, cx, y, px);
+                    ga.addGlyph (juce::PositionedGlyph (*fnt, ch, G->index, snapTo (cx + 2.5f * px - G->adv * s * 0.5f), base, G->adv * s, false));
+                else addPixelGlyph (pix, ch, cx, y, px);
             }
             ++i;
         }
     }
     void drawMono (juce::Graphics& g, const juce::String& text, float x, float y, float px, juce::Colour c)
     {
-        juce::Path p;
-        addMono (p, text, x, y, px);
+        juce::GlyphArrangement ga; juce::Path pix;
+        addMono (ga, pix, text, x, y, px);
         g.setColour (c);
-        g.fillPath (p);
+        ga.draw (g);
+        if (! pix.isEmpty()) g.fillPath (pix);
     }
 
     // proportional (labels): the natural widths, squeezed only if it would be wider than the pixel text
@@ -278,13 +289,14 @@ namespace
         float x = snapTo (centred ? area.getCentreX() - w * 0.5f : area.getX());
         const float y = snapTo (area.getCentreY() - h * 0.5f);
         const float base = snapTo (y + h);
-        juce::Path p;
+        juce::GlyphArrangement ga; juce::Path p;
+        const auto* fnt = F.tf != nullptr ? &F.font (s, sx) : nullptr;
         for (auto ch : text)
         {
             if (pixelOnly (ch)) { addPixelGlyph (p, ch, x + (cell * sx - 5 * px) * 0.5f, y, px); x += cell * sx; continue; }
-            if (auto* G = F.glyph (ch))
+            if (auto* G = fnt != nullptr ? F.glyph (ch) : nullptr)
             {
-                if (ch != ' ') p.addPath (G->path, juce::AffineTransform::scale (s * sx, s).translated (x, base));
+                if (ch != ' ') ga.addGlyph (juce::PositionedGlyph (*fnt, ch, G->index, snapTo (x), base, G->adv * s * sx, false));
                 x += G->adv * s * sx;
             }
             else
@@ -294,13 +306,14 @@ namespace
             }
         }
         g.setColour (c);
-        g.fillPath (p);
+        ga.draw (g);
+        if (! p.isEmpty()) g.fillPath (p);
     }
 }
 
 void PixelFont::addText (TextList& list, const juce::String& text, float x, float y, float px)
 {
-    if (smooth) addMono (list.path, forScreen (text), x, y, px);
+    if (smooth) addMono (list.glyphs, list.path, forScreen (text), x, y, px);
     else addText (list.rects, text, x, y, px);
 }
 

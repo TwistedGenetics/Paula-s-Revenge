@@ -34,10 +34,16 @@ public:
     struct TextList
     {
         juce::RectangleList<float> rects;
-        juce::Path path;
-        bool isEmpty() const { return rects.isEmpty() && path.isEmpty(); }
-        void clear() { rects.clear(); path.clear(); }
-        void fill (juce::Graphics& g) const { if (! rects.isEmpty()) g.fillRectList (rects); if (! path.isEmpty()) g.fillPath (path); }
+        juce::GlyphArrangement glyphs;   // (smooth type)
+        juce::Path path;                 // (smooth type: the symbols only the pixel font has)
+        bool isEmpty() const { return rects.isEmpty() && glyphs.getNumGlyphs() == 0 && path.isEmpty(); }
+        void clear() { rects.clear(); glyphs.clear(); path.clear(); }
+        void fill (juce::Graphics& g) const
+        {
+            if (! rects.isEmpty()) g.fillRectList (rects);
+            if (glyphs.getNumGlyphs() > 0) glyphs.draw (g);
+            if (! path.isEmpty()) g.fillPath (path);
+        }
     };
     static void addText (TextList& list, const juce::String& text, float x, float y, float px);
 
