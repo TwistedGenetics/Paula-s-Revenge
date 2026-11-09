@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.44</span>
+  <span class="ver">MANUAL &middot; V0.45</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -376,6 +376,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><code>Qxx</code></td><td>Filter resonance (or a learned knob)</td></tr>
       <tr><td><code>Ixx</code></td><td>Transpose just this note: <code>80</code> none, <code>8C</code> +12, <code>74</code> −12</td></tr>
       <tr><td><code>Kxx</code></td><td>Chance: the step plays xx/FF of the time</td></tr>
+      <tr><td><code>?xy</code></td><td>Condition: plays only on pass x of every y (<code>?01</code> FILL only, <code>?02</code> not in a FILL, <code>?03</code> first time only, <code>?04</code> not the first) &mdash; see below</td></tr>
       <tr><td><code>Mxx</code></td><td>Micro-move: <code>01</code>–<code>7F</code> late by xx/128 of a line, <code>81</code>–<code>FF</code> early</td></tr>
       <tr><td><code>Nxx</code></td><td>Note length: release after xx ticks</td></tr>
       <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
@@ -390,6 +391,19 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><code>Yxx</code></td><td>The next knob change on this track glides over xx ticks</td></tr>
     </tbody>
   </table></div>
+  <h3>Conditions and FILL</h3>
+  <p>A short block can play differently each time round, like the conditional steps on Elektron boxes.</p>
+  <ul>
+    <li><code>?xy</code> in an effect column: the step plays only on pass <b>x</b> of every <b>y</b> &mdash; <code>?12</code> the first time of every two, <code>?22</code> the second, <code>?14</code> to <code>?44</code> one time in four, <code>?48</code> the fourth of every eight. Passes count from when play starts: each time the block starts again (looping, the song coming back to it, another position playing it) is the next pass.</li>
+    <li><code>?01</code> plays only in a <b>FILL</b>, <code>?02</code> only when not in one, <code>?03</code> only the first time the block plays, <code>?04</code> every time but the first.</li>
+    <li><b>FILL</b>: hold <kbd>F2</kbd> while it plays &mdash; the pattern's corner turns red &mdash; or <kbd>Shift</kbd><kbd>F2</kbd> to latch it on and off. The BREAK page has a <span class="b">FILL</span> button too. Put a snare roll on <code>?01</code> and the kick it replaces on <code>?02</code>, and F2 drops the fill in.</li>
+    <li><b>Highlight notes and right-click &rarr; CONDITION (WHICH PASSES PLAY)...</b> for the usual ones. It goes in a free effect column, or replaces a condition already there; NONE takes it off. Type <kbd>?</kbd> in an effect column to write one by hand.</li>
+    <li><code>Kxx</code> works with it: a step with both plays on its pass, xx/FF of the time.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/conditions.png" alt="The pattern with a FILL held: the corner is red and reads FI LL; track 2's notes carry ?24 and track 3's snare roll ?01." width="1440" height="900" loading="lazy"></div>
+    <figcaption>?24 on track 2, a ?01 roll on track 3, FILL held</figcaption>
+  </figure>
 </section>
 
 <!-- ============================================================ 004 -->
@@ -1076,6 +1090,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>5</kbd></td><td>INTERNET RADIO</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>6</kbd></td><td>The BREAK page</td></tr>
+      <tr><td><kbd>F2</kbd> (hold) / <kbd>Shift</kbd><kbd>F2</kbd></td><td>FILL while held / latched on or off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>O</kbd></td><td>Load a song</td></tr>
@@ -1084,7 +1099,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.44</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.45</footer>
 </main>
 </div>
 <script>

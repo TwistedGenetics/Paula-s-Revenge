@@ -32,13 +32,24 @@ constexpr double kPi = 3.14159265358979323846;
 // Rate (Hz) a sample plays at on C-3 in the Amiga convention
 constexpr double kAmigaC3Rate = 16574.27;
 
-// Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD).
-constexpr int kNumCommands = 37;
+// Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD), 37 ? (CONDITION).
+constexpr int kNumCommands = 38;
 constexpr uint8_t kCmdChord = 36;   // #xy: plays chord slot xy from the song's chord table
-inline char commandChar (int c) { return c == kCmdChord ? '#' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+constexpr uint8_t kCmdCond  = 37;   // ?xy: the step plays only on pass x of every y (?01 FILL, ?02 NOT FILL, ?03 FIRST, ?04 NOT FIRST)
+inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+// ?xy: does the step play on this pass of its block (1 = the first time it plays), with FILL held or not
+inline bool conditionPlays (uint8_t p, int passNo, bool fill)
+{
+    const int x = p >> 4, y = p & 15;
+    if (x == 0)
+        return y == 1 ? fill : y == 2 ? ! fill : y == 3 ? passNo <= 1 : y == 4 ? passNo > 1 : true;
+    const int every = std::max (1, y);
+    return (std::max (1, passNo) - 1) % every == (x - 1) % every;
+}
 inline int  commandFromChar (char ch)
 {
     if (ch == '#') return kCmdChord;
+    if (ch == '?') return kCmdCond;
     if (ch >= '0' && ch <= '9') return ch - '0';
     if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
     if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;

@@ -98,6 +98,13 @@ std::string describeCommand (int c, uint8_t p)
             if (p == 0 || p == 0x80) return head + "NO TRANSPOSE (I8C = +12, I74 = -12)";
             return head + fmt ("TRANSPOSE THIS NOTE %+d SEMITONES", std::clamp ((int) p - 128, -48, 48));
         case 'K': return head + fmt ("PLAY THIS STEP %d%% OF THE TIME", pct (p));
+        case '?':
+        {
+            if (x == 0)
+                return head + (y == 1 ? "ONLY IN A FILL (HOLD F2)" : y == 2 ? "NOT IN A FILL" : y == 3 ? "ONLY THE FIRST TIME THE BLOCK PLAYS" : y == 4 ? "EVERY TIME BUT THE FIRST" : "ALWAYS");
+            static const char* nth[] = { "", "1ST", "2ND", "3RD", "4TH", "5TH", "6TH", "7TH", "8TH", "9TH", "10TH", "11TH", "12TH", "13TH", "14TH", "15TH" };
+            return head + fmt ("PLAY ON THE %s PASS OF EVERY %d", nth[x], std::max (1, y));
+        }
         case 'V': return head + fmt ("SET THE TRACK'S AUTO A KNOB TO %d%%", pct (p));
         case 'J': return head + fmt ("SET THE TRACK'S AUTO B KNOB TO %d%%", pct (p));
         case 'Y': return head + (p ? fmt ("THE NEXT KNOB CHANGE GLIDES OVER %d TICKS", (int) p) : "KNOB CHANGES JUMP");
@@ -130,6 +137,7 @@ const std::vector<CommandInfo>& commandList()
 {
     static const std::vector<CommandInfo> list {
         { kCmdChord, 0x01, false, "#", "CHORD",        "PLAYS CHORD XY FROM THE SONG'S CHORD TABLE, HELD - PLUG-IN / MIDI-OUT INSTRUMENTS; ON A SAMPLE, JUST THE NOTE" },
+        { kCmdCond, 0x12, false, "?", "CONDITION",    "PLAYS ON PASS X OF EVERY Y (?12 1ST OF 2, ?44 4TH OF 4); ?01 ONLY IN A FILL, ?02 NOT IN ONE, ?03 FIRST TIME ONLY, ?04 NOT THE FIRST" },
         { 0x0, 0x37, false, "0",  "ARPEGGIO",          "NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
         { 0x1, 0x08, false, "1",  "SLIDE UP",          "BENDS THE PITCH UP, XX PER TICK" },
         { 0x2, 0x08, false, "2",  "SLIDE DOWN",        "BENDS THE PITCH DOWN, XX PER TICK" },

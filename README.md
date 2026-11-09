@@ -419,6 +419,16 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
   * **RATCHET** — every note gets a roll that speeds up across the highlight (`R40` at the start down to `R10` at the end), in a free effect column (an occupied one is kept).
   * **RE-SEQUENCE THE SLICES** — the slice notes shuffled: the rhythm stays, which slice plays changes (a slice 1 on the downbeat stays put). Again for another order; undo goes back.
 
+## Conditions and FILL
+
+A short block can play differently each time round, like the conditional steps on Elektron boxes:
+
+* **`?xy`** in an effect column: the step plays only on pass **x** of every **y** — `?12` the 1st time of every 2, `?22` the 2nd, `?14`…`?44` one time in four, `?48` the 4th of every 8. A block's passes count from when play starts: each time it starts again (looping, the song coming back to it, another position playing it) is the next pass.
+* **`?01`** plays only in a **FILL**, **`?02`** only when not in one, **`?03`** only the first time the block plays, **`?04`** every time but the first.
+* **FILL**: hold **F2** while it plays (the corner of the pattern turns red), or **Shift+F2** to latch it on and off; the BREAK page has a **FILL** button too. Put a snare roll on `?01` and the kick it replaces on `?02`, and F2 drops the fill in.
+* **Highlight notes and right-click → CONDITION (WHICH PASSES PLAY)...** for the usual ones (1st / 2nd of 2, 1st–4th of 4, 4th / 8th of 8, FILL, NOT FILL, FIRST, NOT FIRST, NONE). It goes in a free effect column, or replaces a condition already there. Type `?` (Shift+/) in an effect column to write one by hand.
+* `Kxx` (chance) works with it: a step with both plays on its pass, xx/FF of the time.
+
 ## The BREAK page
 
 **Cmd+6** (or right-click an instrument → **BREAK PAGE...**, or Cmd+K → PAGE: BREAK) opens a page for a break, start to finish. Again (or **CLOSE**, or Esc) goes back.
@@ -477,6 +487,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
 | `Cmd+5` | INTERNET RADIO (again to go back) |
 | `Cmd+6` | The BREAK page (again to go back) |
+| `F2` (hold) / `Shift+F2` | FILL while held / latched on or off |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `Cmd+O` | Load a song |
@@ -509,6 +520,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | Cmd | Effect |
 |---|---|
 | `#xy` | **Chord**: plays chord slot `xy` from the song's chord table, held, on plug-in / MIDI-out instruments (on a sample instrument, just the note). Type `#` with Shift+3; first in the right-click list. See Chords |
+| `?xy` | **Condition**: the step plays only on pass `x` of every `y` times its block plays (`?12` the 1st of every 2, `?44` the 4th of every 4). `?01` only in a FILL (hold **F2**), `?02` not in a FILL, `?03` only the first time, `?04` every time but the first. Highlight notes and right-click → **CONDITION...** for the usual ones |
 | `0xy` | Arpeggio (+x, +y semitones) |
 | `1xx` / `2xx` | Slide pitch up / down |
 | `3xx` | Slide to note |

@@ -46,7 +46,7 @@ public:
     PixButton fitBtn { "FIT TO TEMPO", true }, keepBtn { "KEEP PITCH", true };
     PixButton shuffleBtn { "SHUFFLE" }, ghostBtn { "GHOST ROLL" }, halfBtn { "HALF-TIME" }, doubleBtn { "DOUBLE-TIME" };
     PixButton rebuildBtns[kRebuilds] { PixButton { "CLASSIC '94" }, PixButton { "ROLLER" }, PixButton { "TWO-STEP" }, PixButton { "HALF-STEP" } };
-    PixButton variationsBtn { "4 VARIATIONS" };
+    PixButton variationsBtn { "4 VARIATIONS" }, fillBtn { "FILL", true };
 
 private:
     PaulaProcessor& proc;

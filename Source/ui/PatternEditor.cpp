@@ -392,6 +392,19 @@ void PatternEditor::paint (juce::Graphics& g)
         float np = px * 1.6f;
         while (np > px && PixelFont::textWidth (num, np) > cr.getWidth() - px) np -= px * 0.1f;
         PixelFont::drawCentred (g, num, cr.withTrimmedTop (top.getHeight()).withTrimmedBottom (px * 0.5f), np, Theme::ink);
+        if (proc.player.fill.load())
+        {
+            // FILL held: the corner says so
+            g.setColour (Theme::skin.hot);
+            g.fillRect (cr.reduced (line));
+            // (the corner is three characters wide: FI over LL, full size)
+            if (PixelFont::textWidth ("FILL", px) - px <= cr.getWidth() - px) PixelFont::drawCentred (g, "FILL", cr, px, Theme::skin.bg);
+            else
+            {
+                PixelFont::drawCentred (g, "FI", cr.withHeight (cr.getHeight() * 0.5f).withTrimmedTop (px), px, Theme::skin.bg);
+                PixelFont::drawCentred (g, "LL", cr.withTrimmedTop (cr.getHeight() * 0.5f).withTrimmedBottom (px), px, Theme::skin.bg);
+            }
+        }
     }
 
     // ---- rows
@@ -1818,6 +1831,36 @@ juce::String PatternEditor::breakTool (int tool)
         }
     });
     changed();
+    if (onStatus) onStatus (m);
+    return m;
+}
+
+juce::String PatternEditor::setCondition (uint8_t param)
+{
+    if (! hasSelection()) return "HIGHLIGHT SOME NOTES FIRST";
+    const int gpt = groupsPerTrack();
+    const int blk = proc.song.safeBlock (sel.block >= 0 ? sel.block : st.block);
+    const int l0 = sel.l0, l1 = sel.l1, t0 = sel.c0 / gpt, t1 = sel.c1 / gpt;
+    pushUndo (blk, param ? "CONDITION" : "NO CONDITION");
+    int n = 0, full = 0;
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        for (int l = l0; l <= l1 && l < b.lines; ++l)
+            for (int t = t0; t <= t1 && t < kMaxTracks; ++t)
+            {
+                auto& c = b.at (l, t);
+                if (c.note == 0 || c.note == kNoteOff) continue;
+                // in the column that has one already, else a free one (an occupied pair: left alone)
+                if (c.cmd == kCmdCond || (param != 0 && c.fx1Empty())) { c.cmd = param ? kCmdCond : 0; c.param = param; ++n; }
+                else if (c.cmd2 == kCmdCond || (param != 0 && c.fx2Empty())) { c.cmd2 = param ? kCmdCond : 0; c.param2 = param; ++n; }
+                else if (param != 0) ++full;
+            }
+    });
+    changed();
+    juce::String m = param == 0 ? "CONDITION TAKEN OFF " + juce::String (n) + " NOTES"
+                                : juce::String (n) + " NOTES: " + juce::String (describeCommand (kCmdCond, param)).fromFirstOccurrenceOf (": ", false, false);
+    if (full > 0) m << " (" << full << " WITH BOTH EFFECT COLUMNS IN USE LEFT ALONE)";
     if (onStatus) onStatus (m);
     return m;
 }

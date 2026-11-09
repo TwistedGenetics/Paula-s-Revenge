@@ -253,6 +253,9 @@ private:
     PaulaProcessor::EditorState::View breakReturn = PaulaProcessor::EditorState::View::Pattern;
 public:
     void openBreak();
+    void showConditionMenu();          // ?xy on the highlighted notes
+    void setFillLatch (bool on);       // FILL stays on (Shift+F2)
+    bool fillLatched = false;
     prv::ui::BreakPage& getBreakPage() { return breakPage; }
 private:
     PaulaProcessor::EditorState::View radioReturn = PaulaProcessor::EditorState::View::Pattern;

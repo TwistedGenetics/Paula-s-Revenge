@@ -377,6 +377,13 @@ private:
     int seqPos = 0, block = 0, line = 0, tick = 0;
     int rowSeq = 0, rowBlock = 0, rowLine = 0, rowTicks = 0;   // the row being heard, ticks done in it
     int pass = 0; long lastRowOrder = -1;                       // (PlayPos::pass)
+    // CONDITIONS (?xy): how many times each block has started playing since play started
+    std::vector<int> blockPass = std::vector<int> (kMaxBlocks, 0);
+    int condBlock = -1, condLine = -1, condSeq = -1;
+public:
+    std::atomic<bool> fill { false };                            // FILL held: ?01 steps play, ?02 steps don't
+    int blockPassOf (int b) const { return b >= 0 && b < kMaxBlocks ? blockPass[(size_t) b] : 0; }
+private:
     int speed = 6, tempo = 125;
     double tickRemain = 0;
     double tempoOverride = 0;

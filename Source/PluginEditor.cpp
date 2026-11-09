@@ -261,13 +261,15 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     {
         juce::Component::SafePointer<PaulaEditor> safe (this);
         choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE: NO FX", "BOUNCE: INSTRUMENT FX ONLY", "BOUNCE: MIXER FX ONLY", "BOUNCE: ALL FX", "EFFECT COMMANDS...",
-                                                        "REVERSE THE LINES", "STUTTER (THE FIRST QUARTER, OVER AND OVER)", "RATCHET (ROLLS THAT SPEED UP)", "RE-SEQUENCE THE SLICES (SHUFFLE)" },
+                                                        "REVERSE THE LINES", "STUTTER (THE FIRST QUARTER, OVER AND OVER)", "RATCHET (ROLLS THAT SPEED UP)", "RE-SEQUENCE THE SLICES (SHUFFLE)",
+                                                        "CONDITION (WHICH PASSES PLAY)..." },
                      [safe, line, track, group] (int a)
         {
             if (safe == nullptr) return;
             if (a >= 0 && a <= 3) safe->bounceSelection (a);
             else if (a == 4) safe->pattern.openCommandMenu (line, track, group);
             else if (a >= 5 && a <= 8) { safe->pattern.breakTool (a - 5); safe->refreshAll(); }
+            else if (a == 9) safe->showConditionMenu();
         });
     };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };
@@ -603,6 +605,17 @@ void PaulaEditor::setStatus (const juce::String& s)
 
 void PaulaEditor::timerCallback()
 {
+    // FILL: while F2 is held (or latched with Shift+F2, or the BREAK page's FILL)
+    {
+        const bool held = hasKeyboardFocus (true) && juce::KeyPress::isKeyCurrentlyDown (juce::KeyPress::F2Key);
+        const bool want = fillLatched || held || breakPage.fillBtn.getToggleState();
+        if (proc.player.fill.load() != want)
+        {
+            proc.player.fill.store (want);
+            pattern.repaint();
+            if (held) setStatus ("FILL - ?01 STEPS PLAY, ?02 STEPS DON'T (SHIFT+F2 LATCHES IT)");
+        }
+    }
     // LIVE FEEDBACK at 60 frames a second: the pattern (play line, meters, scopes, note flashes) and the output meter
     pattern.tick();
     outMeter.tick();
@@ -1155,6 +1168,12 @@ void PaulaEditor::toggleHelp()
 
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
 {
+    // F2: FILL (held - the timer watches it); Shift+F2 latches it
+    if (k.getKeyCode() == juce::KeyPress::F2Key)
+    {
+        if (k.getModifiers().isShiftDown()) setFillLatch (! fillLatched);
+        return true;
+    }
     // Cmd+K: the command palette
     if (k.getModifiers().isCommandDown() && ! k.getModifiers().isShiftDown() && (k.getKeyCode() == 'K' || k.getKeyCode() == 'k'))
     {
@@ -2035,6 +2054,8 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
     for (auto& [n, v] : pages) { const auto vv = v; out.push_back ({ n, {}, "PAGE", [safe, vv] { if (safe) safe->setView (vv); } }); }
     out.push_back ({ "PAGE: HELP", "F1", "PAGE", [safe] { if (safe) safe->toggleHelp(); } });
     out.push_back ({ "PAGE: BREAK", "CMD+6", "PAGE", [safe] { if (safe) safe->openBreak(); } });
+    out.push_back ({ "FILL: LATCH ON / OFF", "SHIFT+F2", "PLAY", [safe] { if (safe) safe->setFillLatch (! safe->fillLatched); } });
+    out.push_back ({ "CONDITION ON THE HIGHLIGHTED NOTES...", {}, "EDIT", [safe] { if (safe) safe->showConditionMenu(); } });
     // the look and the layout
     for (int i = 0; i < prv::ui::Theme::kSkins; ++i)
         out.push_back ({ "SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
@@ -2055,6 +2076,33 @@ void PaulaEditor::showPalette()
 {
     palette.open (*this, paletteItems());
     setStatus ("COMMANDS: TYPE A FEW LETTERS, ENTER DOES IT");
+}
+
+// ---- CONDITIONS: ?xy on the highlighted notes
+void PaulaEditor::showConditionMenu()
+{
+    static const std::pair<const char*, uint8_t> conds[] = {
+        { "1ST OF EVERY 2 (?12)", 0x12 }, { "2ND OF EVERY 2 (?22)", 0x22 },
+        { "1ST OF EVERY 4 (?14)", 0x14 }, { "2ND OF EVERY 4 (?24)", 0x24 }, { "3RD OF EVERY 4 (?34)", 0x34 }, { "4TH OF EVERY 4 (?44)", 0x44 },
+        { "4TH OF EVERY 8 (?48)", 0x48 }, { "8TH OF EVERY 8 (?88)", 0x88 },
+        { "ONLY IN A FILL - HOLD F2 (?01)", 0x01 }, { "NOT IN A FILL (?02)", 0x02 },
+        { "THE FIRST TIME ONLY (?03)", 0x03 }, { "EVERY TIME BUT THE FIRST (?04)", 0x04 },
+        { "NONE - ALWAYS PLAY", 0x00 } };
+    juce::StringArray names;
+    for (auto& c : conds) names.add (c.first);
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "PLAY THE HIGHLIGHTED NOTES...", names, [safe] (int a)
+    {
+        if (safe == nullptr || a < 0 || a >= (int) std::size (conds)) return;
+        safe->pattern.setCondition (conds[a].second);
+        safe->refreshAll();
+    });
+}
+
+void PaulaEditor::setFillLatch (bool on)
+{
+    fillLatched = on;
+    setStatus (on ? "FILL ON (LATCHED) - ?01 STEPS PLAY, ?02 STEPS DON'T - SHIFT+F2 AGAIN TO LET GO" : "FILL OFF");
 }
 
 void PaulaEditor::openBreak()

@@ -28,7 +28,7 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     setWantsKeyboardFocus (true);
     setOpaque (true);
     for (auto* b : { &closeBtn, &insDown, &insUp, &autoBtn, &evenBtn, &sensDown, &sensUp, &barsDown, &barsUp, &trackDown, &trackUp,
-                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn })
+                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn, &fillBtn })
         addAndMakeVisible (*b);
     for (auto& b : rebuildBtns) addAndMakeVisible (b);
     closeBtn.onClick = [this] { if (onClose) onClose(); };
@@ -368,7 +368,8 @@ void BreakPage::resized()
     fitBtn.setBounds (row.removeFromLeft (charsW (12))); row.removeFromLeft (gap);
     keepBtn.setBounds (row.removeFromLeft (charsW (10))); row.removeFromLeft (gap * 3);
     playBtn.setBounds (row.removeFromLeft (charsW (4))); row.removeFromLeft (gap);
-    stopBtn.setBounds (row.removeFromLeft (charsW (4)));
+    stopBtn.setBounds (row.removeFromLeft (charsW (4))); row.removeFromLeft (gap);
+    fillBtn.setBounds (row.removeFromLeft (charsW (4)));
     rows.removeFromTop (gap);
     row = rows.removeFromTop (rowH);
     reLabel = row.removeFromLeft (charsW (8)).toFloat();

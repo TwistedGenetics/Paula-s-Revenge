@@ -449,6 +449,7 @@ void Player::playSong (int pos, int startLine)
     rng = 0x9E3779B9u;
     mode = Mode::Song;
     ++pass; lastRowOrder = -1;   // (a fresh start is a new take)
+    std::fill (blockPass.begin(), blockPass.end(), 0); condBlock = condLine = condSeq = -1;
     uiSeqPos = seqPos; uiBlock = block; uiLine = line;
     ppq = positionInBeats (seqPos, line);
     clockStartPending = true;
@@ -472,6 +473,7 @@ void Player::playBlock (int b, int startLine)
     rng = 0x9E3779B9u;
     mode = Mode::Block;
     ++pass; lastRowOrder = -1;   // (a fresh start is a new take)
+    std::fill (blockPass.begin(), blockPass.end(), 0); condBlock = condLine = condSeq = -1;
     uiBlock = block; uiLine = line;
     ppq = line / 4.0;
     clockStartPending = true;
@@ -650,14 +652,26 @@ void Player::processRow()
 {
     breakLine = jumpPos = loopJumpLine = -1;
     const Block& b = song->blocks[(size_t) block];
+    // CONDITIONS: a block starts a new pass when it's entered (another block or position before it) or
+    // playback goes back into it (a looping block, the song's end); a repeated line (EEx) isn't one
+    {
+        const int order = (mode == Mode::Song ? seqPos : 0) * 4096 + line;
+        if (block != condBlock || seqPos != condSeq || order < condLine)
+            if (block >= 0 && block < kMaxBlocks) ++blockPass[(size_t) block];
+        condBlock = block; condLine = order; condSeq = seqPos;
+    }
+    const int passNo = block >= 0 && block < kMaxBlocks ? blockPass[(size_t) block] : 1;
+    const bool fillNow = fill.load (std::memory_order_relaxed);
     for (int ch = 0; ch < kMaxTracks; ++ch)
     {
         if (ch < song->numTracks)
         {
             const Cell& c = b.at (line, ch);
-            uint8_t chance = 0;
+            uint8_t chance = 0, cond = 0;
             if (c.has (C_K, chance) && (nextRandom() % 255u) >= chance)
                 continue;   // Kxx: this step doesn't play this time
+            if (c.has (kCmdCond, cond) && ! conditionPlays (cond, passNo, fillNow))
+                continue;   // ?xy: not on this pass (or not with / without FILL)
             processCell (ch, c);
         }
         else voices[ch].active = false;

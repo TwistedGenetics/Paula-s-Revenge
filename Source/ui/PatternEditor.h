@@ -88,6 +88,7 @@ public:
     bool hasSelection() const;
     // BREAK TOOLS on the highlighted part (right-click it): 0 REVERSE, 1 STUTTER, 2 RATCHET, 3 RE-SEQUENCE SLICES
     juce::String breakTool (int tool);
+    juce::String setCondition (uint8_t param);   // ?xy on the highlighted notes (0: take it off)
     // the highlighted lines and tracks (false = nothing highlighted)
     bool selectionArea (int& block, int& line0, int& line1, int& track0, int& track1) const;
     void selectRange (int line0, int line1, int track0, int group0, int track1, int group1);

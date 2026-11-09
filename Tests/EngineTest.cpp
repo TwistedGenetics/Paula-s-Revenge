@@ -4545,13 +4545,59 @@ static void testStretchSync()
     CHECK (in.data == orig && in.stretchSrc.empty() && ! stretch::active (in));
 }
 
+// ---- CONDITIONS: ?xy plays on pass x of every y; FILL; FIRST
+static void testConditions()
+{
+    std::printf ("\n== conditions\n");
+    // the rule itself
+    CHECK (conditionPlays (0x12, 1, false) && ! conditionPlays (0x12, 2, false) && conditionPlays (0x12, 3, false));
+    CHECK (! conditionPlays (0x24, 1, false) && conditionPlays (0x24, 2, false) && conditionPlays (0x24, 6, false) && ! conditionPlays (0x24, 7, false));
+    CHECK (conditionPlays (0x01, 3, true) && ! conditionPlays (0x01, 3, false));
+    CHECK (! conditionPlays (0x02, 3, true) && conditionPlays (0x02, 3, false));
+    CHECK (conditionPlays (0x03, 1, false) && ! conditionPlays (0x03, 2, false) && ! conditionPlays (0x04, 1, false) && conditionPlays (0x04, 5, false));
+    CHECK (commandChar (kCmdCond) == '?' && commandFromChar ('?') == kCmdCond);
+    // in the player: a looping block, a note on track 1 with ?24 (plays the 2nd of every 4), one on track 2 with ?01 (FILL)
+    Song s = makeSong();
+    s.blocks[0] = Block {}; s.blocks[0].lines = 4;
+    s.blocks[0].at (0, 0) = Cell { 37, 1, kCmdCond, 0x24 };
+    s.blocks[0].at (0, 1) = Cell { 37, 1, kCmdCond, 0x01 };
+    s.blocks[0].at (1, 2) = Cell { 37, 1, 0x0E, 0xE1 };   // (EE1: line 1 again - not a new pass)
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.playBlock (0);
+    const int lineLen = (int) std::lround (48000 * 2.5 / s.tempo * s.speed);
+    std::vector<float> L ((size_t) lineLen), R (L.size());
+    std::vector<int> played1, played2;
+    // (the windows start half a line in, so each holds one pass's line 0)
+    std::vector<int> firstNotes { p.uiNotes[0].load(), p.uiNotes[1].load() };
+    p.render (L.data(), R.data(), lineLen / 2);
+    if (p.uiNotes[0].load() > firstNotes[0]) played1.push_back (1);
+    if (p.uiNotes[1].load() > firstNotes[1]) played2.push_back (1);
+    for (int passNo = 2; passNo <= 8; ++passNo)
+    {
+        if (passNo == 7) p.fill.store (true);
+        const int n1 = p.uiNotes[0].load(), n2 = p.uiNotes[1].load();
+        for (int k = 0; k < 5; ++k) p.render (L.data(), R.data(), lineLen);   // 4 lines + the repeated one
+        if (p.uiNotes[0].load() > n1) played1.push_back (passNo);
+        if (p.uiNotes[1].load() > n2) played2.push_back (passNo);
+    }
+    std::string a, b;
+    for (int x : played1) a += std::to_string (x) + " ";
+    for (int x : played2) b += std::to_string (x) + " ";
+    std::printf ("?24 played on passes: %s / ?01 (FILL from pass 7): %s / block 0 passes %d\n", a.c_str(), b.c_str(), p.blockPassOf (0));
+    CHECK (played1 == std::vector<int> ({ 2, 6 }));
+    CHECK (played2 == std::vector<int> ({ 7, 8 }));
+    CHECK (p.blockPassOf (0) >= 8 && p.blockPassOf (0) <= 9);
+}
+
 int main()
 {
-    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); testStretchSync(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); testStretchSync(); testConditions(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testScopes();
     testBreakTools();
     testStretchSync();
+    testConditions();
     testLineLoop();
     testPingPong();
     testSlices();
