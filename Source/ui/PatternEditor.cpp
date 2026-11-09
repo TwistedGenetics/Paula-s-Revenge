@@ -425,8 +425,8 @@ void PatternEditor::paint (juce::Graphics& g)
     const int playBlock = proc.player.uiBlock.load();
     const int playLine  = proc.player.uiLine.load();
 
-    juce::RectangleList<float> text, dimText;
-    juce::RectangleList<float> chordText[kChordColours];   // #xy drawn in its slot's group colour
+    PixelFont::TextList text, dimText;
+    PixelFont::TextList chordText[kChordColours];   // #xy drawn in its slot's group colour
     for (int r = 0; r < visRows; ++r)
     {
         const int l = firstRow + r;
@@ -468,7 +468,7 @@ void PatternEditor::paint (juce::Graphics& g)
             PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
             PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
             // a #xy in its chord group's colour
-            auto fxList = [&] (uint8_t cm, uint8_t pa, bool empty) -> juce::RectangleList<float>&
+            auto fxList = [&] (uint8_t cm, uint8_t pa, bool empty) -> PixelFont::TextList&
             {
                 if (empty) return dimText;
                 if (cm == kCmdChord && pa > 0)
@@ -517,11 +517,11 @@ void PatternEditor::paint (juce::Graphics& g)
 
     // the rows' text, clipped to the rows area
     g.setColour (sk.dim);
-    g.fillRectList (dimText);
+    dimText.fill (g);
     g.setColour (sk.text);
-    g.fillRectList (text);
+    text.fill (g);
     for (int k = 0; k < kChordColours; ++k)
-        if (! chordText[k].isEmpty()) { g.setColour (chordColours::colour (k + 1)); g.fillRectList (chordText[k]); }
+        if (! chordText[k].isEmpty()) { g.setColour (chordColours::colour (k + 1)); chordText[k].fill (g); }
     g.restoreState();
 
     // ---- per-track VU bars: a segmented column at the right edge of each track

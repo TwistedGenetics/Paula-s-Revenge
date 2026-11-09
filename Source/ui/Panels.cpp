@@ -32,7 +32,7 @@ void PixList::paint (juce::Graphics& g)
 
     const int n = getNumRows ? getNumRows() : 0;
     scroll = juce::jlimit (0, maxScroll(), scroll);
-    juce::RectangleList<float> text, dim;
+    PixelFont::TextList text, dim;
     bool anyScroll = false;
     const float fullW = listW;
     const bool multi = columns > 1;
@@ -134,8 +134,8 @@ void PixList::paint (juce::Graphics& g)
         if (multi)
         {
             // (in columns, each row's text goes down with its column's transform)
-            g.setColour (Theme::skin.dim);  g.fillRectList (dim);  dim.clear();
-            g.setColour (Theme::skin.text); g.fillRectList (text); text.clear();
+            g.setColour (Theme::skin.dim);  dim.fill (g);  dim.clear();
+            g.setColour (Theme::skin.text); text.fill (g); text.clear();
         }
     }
     if (multi)
@@ -147,9 +147,9 @@ void PixList::paint (juce::Graphics& g)
     g.saveState();
     g.reduceClipRegion (juce::Rectangle<float> (0, 0, listW, r.getHeight()).toNearestInt());
     g.setColour (Theme::skin.dim);
-    g.fillRectList (dim);
+    dim.fill (g);
     g.setColour (Theme::skin.text);
-    g.fillRectList (text);
+    text.fill (g);
     g.restoreState();
     // a long name on the playing / selected / hovered row scrolls: keep repainting while it does
     if (anyScroll && testClockMs() < 0) { if (! ticker.isTimerRunning()) { ticker.fn = [this] { repaint(); }; ticker.startTimerHz (30); } }

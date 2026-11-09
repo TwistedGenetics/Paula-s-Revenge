@@ -207,10 +207,17 @@ juce_add_binary_data(PaulasRevengeDocs
     NAMESPACE PrvDocs
     SOURCES README.md "docs/manual/Paulas Revenge Manual.pdf")
 
+# the STUDIO skin's typefaces (both SIL Open Font License: Resources/fonts)
+juce_add_binary_data(PaulasRevengeFonts
+    HEADER_NAME PrvFonts.h
+    NAMESPACE PrvFonts
+    SOURCES Resources/fonts/JetBrainsMono-Bold.ttf Resources/fonts/Inter-SemiBold.ttf)
+
 target_link_libraries(PaulasRevenge
     PRIVATE
         prv_engine
         PaulasRevengeDocs
+        PaulasRevengeFonts
         juce::juce_audio_utils
         juce::juce_audio_formats
         juce::juce_dsp

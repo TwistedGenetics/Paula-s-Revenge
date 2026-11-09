@@ -1,5 +1,7 @@
 // Paula's Revenge - original 5x7 pixel font
 #include "PixelFont.h"
+#include <PrvFonts.h>
+#include <unordered_map>
 
 namespace prv::ui
 {
@@ -114,6 +116,58 @@ namespace
     };
 
     const Table& table() { static Table t; return t; }
+
+    // ---- SMOOTH TYPE: glyph outlines straight from the font (no shaping, so no coding ligatures
+    // joining "---" or "=="), cached per character
+    struct Face
+    {
+        juce::Typeface::Ptr tf;
+        float cap = 0.7f;              // capital height, per unit of font height
+        struct G { juce::Path path; float adv = 0; float left = 0, right = 0; };
+        std::unordered_map<juce::juce_wchar, G> cache;
+        static constexpr auto kind = juce::TypefaceMetricsKind::portable;
+
+        Face (const char* data, int size)
+        {
+            tf = juce::Typeface::createSystemTypefaceFor (data, (size_t) size);
+            if (tf != nullptr)
+                if (auto gH = tf->getNominalGlyphForCodepoint ('H'))
+                    cap = std::max (0.2f, tf->getGlyphBounds (kind, (int) *gH).getHeight());
+        }
+        const G* glyph (juce::juce_wchar c)
+        {
+            if (tf == nullptr) return nullptr;
+            if (auto it = cache.find (c); it != cache.end()) return it->second.adv > 0 ? &it->second : nullptr;
+            G g;
+            if (auto gi = tf->getNominalGlyphForCodepoint (c); gi && *gi != 0)
+            {
+                tf->getOutlineForGlyph (kind, (int) *gi, g.path);
+                juce::Array<int> glyphs; juce::Array<float> xs;
+                tf->getGlyphPositions (kind, juce::String::charToString (c), glyphs, xs);
+                g.adv = xs.size() > 1 ? xs[xs.size() - 1] : 0.0f;
+                const auto b = g.path.getBounds();
+                g.left = b.getX(); g.right = b.getRight();
+            }
+            auto& slot = cache[c] = std::move (g);
+            return slot.adv > 0 ? &slot : nullptr;
+        }
+    };
+    Face& monoFace() { static Face f (PrvFonts::JetBrainsMonoBold_ttf, PrvFonts::JetBrainsMonoBold_ttfSize); return f; }
+    Face& sansFace() { static Face f (PrvFonts::InterSemiBold_ttf, PrvFonts::InterSemiBold_ttfSize); return f; }
+
+    float snapTo (float v) { return std::round (v * PixelFont::snapScale) / PixelFont::snapScale; }
+
+    // one pixel-font glyph (the play / record / arrow symbols the typefaces don't have), into a path
+    void addPixelGlyph (juce::Path& p, juce::juce_wchar c, float x, float y, float px)
+    {
+        if (c <= 0 || c >= 128) return;
+        for (auto& r : table().glyphs[c].runs)
+            p.addRectangle (x + (float) r.getX() * px, y + (float) r.getY() * px, (float) r.getWidth() * px, px);
+    }
+    bool pixelOnly (juce::juce_wchar c) { return c < 32 || c >= 128; }
+
+    // the cap height a smooth character gets (the pixel font's capitals are 7 font pixels)
+    float capFor (float px) { return 7.0f * px * 0.94f; }
 }
 
 bool& PixelFont::ctrlKeyNames()
@@ -171,8 +225,88 @@ void PixelFont::addText (juce::RectangleList<float>& list, const juce::String& r
     }
 }
 
+namespace
+{
+    // monospaced: each character centred on its pixel cell, never wider than it
+    void addMono (juce::Path& p, const juce::String& text, float x, float y, float px)
+    {
+        auto& F = monoFace();
+        const float cell = PixelFont::kCellW * px;
+        float s = capFor (px) / F.cap;
+        if (auto* zero = F.glyph ('0')) s = std::min (s, cell * 0.98f / zero->adv);
+        x = snapTo (x); y = snapTo (y);
+        const float base = snapTo (y + 7.0f * px);
+        int i = 0;
+        for (auto ch : text)
+        {
+            const float cx = x + (float) i * cell;
+            if (ch != ' ')
+            {
+                const auto* G = pixelOnly (ch) ? nullptr : F.glyph (ch);
+                if (G != nullptr)
+                    p.addPath (G->path, juce::AffineTransform::scale (s).translated (cx + 2.5f * px - G->adv * s * 0.5f, base));
+                else addPixelGlyph (p, ch, cx, y, px);
+            }
+            ++i;
+        }
+    }
+    void drawMono (juce::Graphics& g, const juce::String& text, float x, float y, float px, juce::Colour c)
+    {
+        juce::Path p;
+        addMono (p, text, x, y, px);
+        g.setColour (c);
+        g.fillPath (p);
+    }
+
+    // proportional (labels): the natural widths, squeezed only if it would be wider than the pixel text
+    void drawSans (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float px, juce::Colour c, bool centred)
+    {
+        auto& F = sansFace();
+        const float s = capFor (px) / F.cap;
+        const float cell = PixelFont::kCellW * px;
+        float w = 0;
+        for (auto ch : text)
+        {
+            if (pixelOnly (ch)) { w += cell; continue; }
+            if (auto* G = F.glyph (ch)) w += G->adv * s;
+            else w += ch == ' ' ? cell * 0.55f : cell;
+        }
+        const float room = PixelFont::textWidth (text, px) - px;
+        const float sx = (w > room && w > 0) ? room / w : 1.0f;
+        w *= sx;
+        const float h = 7.0f * px;
+        float x = snapTo (centred ? area.getCentreX() - w * 0.5f : area.getX());
+        const float y = snapTo (area.getCentreY() - h * 0.5f);
+        const float base = snapTo (y + h);
+        juce::Path p;
+        for (auto ch : text)
+        {
+            if (pixelOnly (ch)) { addPixelGlyph (p, ch, x + (cell * sx - 5 * px) * 0.5f, y, px); x += cell * sx; continue; }
+            if (auto* G = F.glyph (ch))
+            {
+                if (ch != ' ') p.addPath (G->path, juce::AffineTransform::scale (s * sx, s).translated (x, base));
+                x += G->adv * s * sx;
+            }
+            else
+            {
+                if (ch != ' ') addPixelGlyph (p, ch, x, y, px);
+                x += (ch == ' ' ? cell * 0.55f : cell) * sx;
+            }
+        }
+        g.setColour (c);
+        g.fillPath (p);
+    }
+}
+
+void PixelFont::addText (TextList& list, const juce::String& text, float x, float y, float px)
+{
+    if (smooth) addMono (list.path, forScreen (text), x, y, px);
+    else addText (list.rects, text, x, y, px);
+}
+
 void PixelFont::draw (juce::Graphics& g, const juce::String& text, float x, float y, float px, juce::Colour c)
 {
+    if (smooth) { drawMono (g, forScreen (text), x, y, px, c); return; }
     juce::RectangleList<float> list;
     addText (list, text, x, y, px);
     g.setColour (c);
@@ -181,6 +315,7 @@ void PixelFont::draw (juce::Graphics& g, const juce::String& text, float x, floa
 
 void PixelFont::drawCentred (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float px, juce::Colour c)
 {
+    if (smooth) { drawSans (g, forScreen (text), area, px, c, true); return; }
     const float w = textWidth (text, px) - px; // drop trailing spacing column
     const float h = 7 * px;
     draw (g, text, std::round (area.getCentreX() - w * 0.5f), std::round (area.getCentreY() - h * 0.5f), px, c);
@@ -188,6 +323,7 @@ void PixelFont::drawCentred (juce::Graphics& g, const juce::String& text, juce::
 
 void PixelFont::drawLeft (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float px, juce::Colour c)
 {
+    if (smooth) { drawSans (g, forScreen (text), area, px, c, false); return; }
     const float h = 7 * px;
     draw (g, text, std::round (area.getX()), std::round (area.getCentreY() - h * 0.5f), px, c);
 }

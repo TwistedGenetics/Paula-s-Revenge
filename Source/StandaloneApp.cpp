@@ -39,8 +39,7 @@ enum CommandIDs
     cmdFollowInstr   = 0x2022,
     cmdSeparation    = 0x2023,
     cmdFollowClock   = 0x2024,
-    cmdSkin0         = 0x2030,   // .. 0x2033: the first four SKINs
-    cmdSkin4         = 0x2040,   // .. 0x2041: GLASS, MODERN
+    cmdSkin0         = 0x2100,   // .. 0x210f: the SKINs, one each (their own range: nothing else uses it)
     cmdCrt           = 0x2034,
     cmdScopes        = 0x2035,
     cmdPalette       = 0x2036,
@@ -51,12 +50,12 @@ enum CommandIDs
     cmdLogFolder     = 0x2041
 };
 
-// the SKINs' commands (the first four, then GLASS and MODERN, which came later)
-static juce::CommandID skinCmd (int i) { return i < 4 ? (juce::CommandID) cmdSkin0 + i : (juce::CommandID) cmdSkin4 + (i - 4); }
+// the SKINs' commands
+static_assert (prv::ui::Theme::kSkins <= 16, "the skin commands have 16 numbers");
+static juce::CommandID skinCmd (int i) { return (juce::CommandID) cmdSkin0 + i; }
 static int skinOf (juce::CommandID id)
 {
-    if (id >= (juce::CommandID) cmdSkin0 && id < (juce::CommandID) cmdSkin0 + 4) return (int) (id - cmdSkin0);
-    if (id >= (juce::CommandID) cmdSkin4 && id < (juce::CommandID) cmdSkin4 + prv::ui::Theme::kSkins - 4) return 4 + (int) (id - cmdSkin4);
+    if (id >= (juce::CommandID) cmdSkin0 && id < (juce::CommandID) cmdSkin0 + prv::ui::Theme::kSkins) return (int) (id - cmdSkin0);
     return -1;
 }
 
@@ -373,8 +372,8 @@ public:
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
                       cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
-        for (int i = 0; i < 7; ++i) c.add ((juce::CommandID) cmdSkin0 + i);   // the four SKINs, CRT, SCOPES, the PALETTE
-        for (int i = 4; i < prv::ui::Theme::kSkins; ++i) c.add (skinCmd (i));
+        c.addArray ({ cmdCrt, cmdScopes, cmdPalette });
+        for (int i = 0; i < prv::ui::Theme::kSkins; ++i) c.add (skinCmd (i));
     }
 
     void getCommandInfo (juce::CommandID id, juce::ApplicationCommandInfo& info) override
@@ -435,7 +434,8 @@ public:
         }
         else if (skinOf (id) >= 0)
         {
-            const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern" };
+            static const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern", "Studio" };
+            static_assert (std::size (names) == (size_t) prv::ui::Theme::kSkins, "a menu name for every skin");
             info.setInfo (names[skinOf (id)], "The window's colours", "View", 0);
             auto* ed = editor();
             info.setTicked (ed != nullptr && ed->skinId() == skinOf (id));

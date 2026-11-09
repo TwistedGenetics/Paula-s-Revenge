@@ -578,7 +578,7 @@ void PaulaEditor::refreshAll()
     skinBtn.setToggleState (st.skin != 0, juce::dontSendNotification);
     if (sequence.wholeBtn.getToggleState() && seqSpread != (sequence.visibleListRows() < (int) proc.song.sequence.size() || seqSpread))
         resized();   // (SHOW ALL: the song grew past the sidebar)
-    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : "DARK");
+    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : st.skin == 6 ? "STUDIO" : "DARK");
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
     automation.refresh();

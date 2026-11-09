@@ -22,6 +22,7 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::HighContrast: return "HIGH CONTRAST";
         case SkinId::Glass:        return "GLASS";
         case SkinId::Modern:       return "MODERN";
+        case SkinId::Studio:       return "STUDIO";
         default:                   return {};
     }
 }
@@ -33,7 +34,8 @@ void Theme::setSkinId (SkinId id)
     Skin k;
     k.id = id;
     k.dark = skinIsDark ((int) id);
-    k.style = id == SkinId::Glass ? Style::Glass : id == SkinId::Modern ? Style::Flat : Style::Bevel;
+    k.style = id == SkinId::Glass ? Style::Glass : (id == SkinId::Modern || id == SkinId::Studio) ? Style::Flat : Style::Bevel;
+    k.smoothType = id == SkinId::Studio;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -46,8 +48,17 @@ void Theme::setSkinId (SkinId id)
     const Palette glass     { C (0xff0c1626), C (0xff1a2b45), C (0xff9cc4f0), C (0xff03070e), C (0xffeaf4ff), C (0xff1f7fc8), C (0xff8aa0bf), C (0xff26406a), C (0xff4f74a8), C (0xffffffff) };
     // MODERN: white and soft grey, thin borders, blue for chosen
     const Palette modern    { C (0xffffffff), C (0xfff2f4f8), C (0xffffffff), C (0xffc9ced8), C (0xff1b2130), C (0xff2f66f0), C (0xff7e8799), C (0xffe6ebf3), C (0xffb8bfcc), C (0xffffffff) };
+    // STUDIO: flat greys like a modern DAW, orange for chosen (dark text on it), smooth type
+    const Palette studio    { C (0xff1e1e1e), C (0xff2b2b2b), C (0xff3c3c3c), C (0xff0e0e0e), C (0xffededed), C (0xffffa53d), C (0xffa3a3a3), C (0xff4a4a4a), C (0xff111111), C (0xff141414) };
     switch (id)
     {
+        case SkinId::Studio:
+            chromePal = studio; pagePal = studio;
+            k.bg = C (0xff1a1a1a); k.text = C (0xffededed); k.dim = C (0xff747474); k.stripe = C (0xff222222);
+            k.band = C (0xff3a3a3a); k.cursor = C (0xff6b4a22); k.cursorEdge = C (0xffffa53d); k.rule = C (0xff3a3a3a);
+            k.hot = C (0xffff5a4a); k.specBar = C (0xffffa53d);
+            k.accentSel = C (0xffffa53d); k.accentMod = C (0xff5ec8ff); k.accentRec = C (0xffff4d4d);
+            break;
         case SkinId::Glass:
             chromePal = glass; pagePal = glass;
             k.bg = C (0xff08111f); k.text = C (0xffdcecff); k.dim = C (0xff5c7496); k.stripe = C (0xff0e1a2d);
@@ -103,6 +114,7 @@ void Theme::setSkinId (SkinId id)
         if (id == SkinId::Kickstart) { k.track[4] = C (0xffc8e0ff); k.track[0] = C (0xff6af0ff); }   // (no blue on blue)
     }
     skin = k;
+    PixelFont::smooth = k.smoothType;
     // the chrome colours everything else draws with
     paper = chromePal.paper; panel = chromePal.panel; light = chromePal.light; shadow = chromePal.shadow; ink = chromePal.ink;
     pressed = chromePal.pressed; faint = chromePal.faint;
@@ -130,6 +142,12 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
     t = std::max (1.0f / deviceScale, snap (t));
     r = juce::Rectangle<float> (snap (r.getX()), snap (r.getY()), snap (r.getWidth()), snap (r.getHeight()));
     const float hair = 1.0f / deviceScale;
+    if (skin.smoothType)
+    {
+        // STUDIO: raised things are just their face; sunken ones get a dark hairline
+        if (! raised) { g.setColour (P.shadow); g.drawRect (r, hair); }
+        return;
+    }
     if (skin.style == Style::Flat)
     {
         // MODERN: no bevels - a thin border, a touch darker under raised things (a soft drop)
@@ -270,17 +288,38 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     auto r = getLocalBounds().toFloat().reduced (1.0f);
     const bool on = getToggleState() || down;
     const auto& P = Theme::palFor (*this);
-    g.setColour (on ? P.pressed : (over ? P.hover : P.panel));
-    g.fillRect (r);
-    Theme::bevel (g, r, ! on, std::max (1.0f, Theme::px * 0.5f), P);
-    const float px = Theme::px * textScale;
     auto label = getButtonText();
+    // colour that means something: recording is red, learning / modulating is the mod colour, the rest (pages, views) the selection
+    auto accent = onAccent;
+    if (accent.isTransparent())
+    {
+        const auto u = label.toUpperCase();
+        accent = (u.contains ("REC") || u.contains ("EDIT") || u.contains ("ARM")) ? Theme::skin.accentRec
+               : (u.contains ("LEARN") || u.contains ("MODUL") || u.startsWith ("MOD")) ? Theme::skin.accentMod
+               : Theme::skin.accentSel;
+    }
+    const bool studio = Theme::skin.smoothType;
+    if (studio)
+    {
+        // STUDIO: flat, slightly rounded faces; on = filled with what it means (dark text on it)
+        const auto face = on ? (getToggleState() && ! accent.isTransparent() ? accent : P.pressed) : (over ? P.hover : P.light);
+        g.setColour (face);
+        g.fillRoundedRectangle (r, std::max (1.0f, Theme::px * 0.6f));
+    }
+    else
+    {
+        g.setColour (on ? P.pressed : (over ? P.hover : P.panel));
+        g.fillRect (r);
+        Theme::bevel (g, r, ! on, std::max (1.0f, Theme::px * 0.5f), P);
+    }
+    const float px = Theme::px * textScale;
     if (label.containsChar ('\n'))
     {
         // lines stacked (a tall, narrow button)
         juce::StringArray lines; lines.addLines (label);
         const float lh = px * (PixelFont::kCellH + 3);
-        auto area = r.translated (on ? pressShift() : 0.0f, on ? pressShift() : 0.0f);
+        const float sh = on && ! studio ? pressShift() : 0.0f;
+        auto area = r.translated (sh, sh);
         float y = area.getCentreY() - lh * (float) lines.size() * 0.5f;
         for (const auto& l : lines)
         {
@@ -294,7 +333,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     // (the text's own width: the last character's spacing column doesn't count)
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
     const auto inkNow = isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint;
-    const float shift = on ? pressShift() : 0.0f;
+    const float shift = on && ! studio ? pressShift() : 0.0f;
     const float textW = PixelFont::textWidth (label, usePx) - usePx;
     const float iconW = usePx * 9;   // (7 dots and a gap of 2)
     iconShown = icon != Icon::None && usePx == px && textW + iconW <= r.getWidth() - px * 3;
@@ -306,15 +345,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         PixelFont::drawCentred (g, label, juce::Rectangle<float> (x0 + iconW, r.getY() + shift, textW + usePx, r.getHeight()), usePx, inkNow);
     }
     else PixelFont::drawCentred (g, label, r.translated (shift, shift), usePx, inkNow);
-    auto accent = onAccent;
-    if (accent.isTransparent())
-    {
-        // colour that means something: recording is red, learning / modulating is the mod colour, the rest (pages, views) the selection
-        const auto u = label.toUpperCase();
-        accent = (u.contains ("REC") || u.contains ("EDIT") || u.contains ("ARM")) ? Theme::skin.accentRec
-               : (u.contains ("LEARN") || u.contains ("MODUL") || u.startsWith ("MOD")) ? Theme::skin.accentMod
-               : Theme::skin.accentSel;
-    }
+    if (studio) return;   // (the face is the accent)
     if (onAccent.isTransparent() && Theme::skin.id == Theme::SkinId::Dark && &P == &Theme::lightPalette())
     {
         // DARK's chrome is the light Workbench chrome: its accents too

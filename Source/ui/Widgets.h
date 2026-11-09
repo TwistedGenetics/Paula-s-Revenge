@@ -27,8 +27,8 @@ struct Theme
     static float snap (float v) { return std::round (v * deviceScale) / deviceScale; }
 
     // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST,
-    // GLASS (deep blue, glossy), MODERN (light and flat)
-    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Count };
+    // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type)
+    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern; }
@@ -41,6 +41,7 @@ struct Theme
         SkinId id = SkinId::Workbench;
         Style style = Style::Bevel;
         bool dark = false;
+        bool smoothType = false;   // real typefaces instead of the pixel font (STUDIO)
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;
         juce::Colour track[8];
