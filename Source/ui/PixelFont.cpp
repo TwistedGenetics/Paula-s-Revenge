@@ -162,7 +162,20 @@ namespace
         }
     };
     Face& monoFace() { static Face f (PrvFonts::JetBrainsMonoBold_ttf, PrvFonts::JetBrainsMonoBold_ttfSize); return f; }
-    Face& sansFace() { static Face f (PrvFonts::InterSemiBold_ttf, PrvFonts::InterSemiBold_ttfSize); return f; }
+    Face& sansFace()
+    {
+        static Face inter (PrvFonts::InterSemiBold_ttf, PrvFonts::InterSemiBold_ttfSize);
+        static Face space (PrvFonts::SpaceGroteskBold_ttf, PrvFonts::SpaceGroteskBold_ttfSize);
+        static Face barlow (PrvFonts::BarlowCondensedSemiBold_ttf, PrvFonts::BarlowCondensedSemiBold_ttfSize);
+        static Face nunito (PrvFonts::NunitoExtraBold_ttf, PrvFonts::NunitoExtraBold_ttfSize);
+        switch (PixelFont::sans)
+        {
+            case PixelFont::SpaceGrotesk:    return space;
+            case PixelFont::BarlowCondensed: return barlow;
+            case PixelFont::Nunito:          return nunito;
+            default:                         return inter;
+        }
+    }
 
     float snapTo (float v) { return std::round (v * PixelFont::snapScale) / PixelFont::snapScale; }
 

@@ -427,6 +427,25 @@ void PatternEditor::paint (juce::Graphics& g)
 
     PixelFont::TextList text, dimText;
     PixelFont::TextList chordText[kChordColours];   // #xy drawn in its slot's group colour
+    PixelFont::TextList onBar;                      // (note bars: the note and instrument, dark on the bar's colour)
+    // NOTE BARS (PRISM): which line's note is sounding on each visible line, per track (-1 none)
+    std::vector<int> heldFrom;
+    const int barRows = std::max (0, std::min (lines, firstRow + visRows + 1));   // (one past the view: does a bar go on)
+    if (sk.noteBars)
+    {
+        heldFrom.assign ((size_t) (nVis * std::max (1, barRows)), -1);
+        for (int s = 0; s < nVis; ++s)
+        {
+            int cur = -1;
+            for (int l = 0; l < barRows; ++l)
+            {
+                const auto n = b.at (l, first + s).note;
+                if (n == kNoteOff) cur = -1;
+                else if (n != 0) cur = l;
+                heldFrom[(size_t) (s * barRows + l)] = cur;
+            }
+        }
+    }
     for (int r = 0; r < visRows; ++r)
     {
         const int l = firstRow + r;
@@ -465,8 +484,41 @@ void PatternEditor::paint (juce::Graphics& g)
             const juce::String note = noteName (c.note);
             const juce::String ins = c.instr ? hex2 (c.instr) : "--";
             auto fx = [] (uint8_t cm, uint8_t pa) { return (cm == 0 && pa == 0) ? juce::String ("---") : juce::String::charToString ((juce::juce_wchar) commandChar (cm)) + hex2 (pa); };
-            PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
-            PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
+            bool barStart = false;
+            if (sk.noteBars && l < barRows)
+            {
+                // the note as a bar in its track's colour, lasting until the next note or OFF
+                const int from = heldFrom[(size_t) (s * barRows + l)];
+                if (from >= 0)
+                {
+                    const bool last = l + 1 >= barRows || heldFrom[(size_t) (s * barRows + l + 1)] != from;
+                    barStart = from == l;
+                    const auto col = sk.track[t % 8];
+                    auto bar = juce::Rectangle<float> (x - px * 0.75f, y, 6 * cw + px * 0.5f, rh);
+                    const float rad = std::min (px * 1.4f, rh * 0.4f);
+                    if (barStart) bar = bar.withTrimmedTop (px * 0.5f);
+                    if (last)     bar = bar.withTrimmedBottom (px * 0.5f);
+                    g.setColour (barStart ? col : col.withAlpha (0.38f));
+                    if (barStart || last)
+                    {
+                        juce::Path p;
+                        p.addRoundedRectangle (bar.getX(), bar.getY(), bar.getWidth(), bar.getHeight(), rad, rad,
+                                               barStart, barStart, last, last);
+                        g.fillPath (p);
+                    }
+                    else g.fillRect (bar);
+                }
+            }
+            if (barStart)
+            {
+                PixelFont::addText (onBar, note, x, ty, px);
+                PixelFont::addText (onBar, ins, x + 4 * cw, ty, px);
+            }
+            else
+            {
+                PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
+                PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
+            }
             // a #xy in its chord group's colour
             auto fxList = [&] (uint8_t cm, uint8_t pa, bool empty) -> PixelFont::TextList&
             {
@@ -522,6 +574,7 @@ void PatternEditor::paint (juce::Graphics& g)
     text.fill (g);
     for (int k = 0; k < kChordColours; ++k)
         if (! chordText[k].isEmpty()) { g.setColour (chordColours::colour (k + 1)); chordText[k].fill (g); }
+    if (! onBar.isEmpty()) { g.setColour (juce::Colour (0xff14161a)); onBar.fill (g); }
     g.restoreState();
 
     // ---- per-track VU bars: a segmented column at the right edge of each track

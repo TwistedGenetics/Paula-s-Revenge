@@ -23,6 +23,9 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Glass:        return "GLASS";
         case SkinId::Modern:       return "MODERN";
         case SkinId::Studio:       return "STUDIO";
+        case SkinId::Neon:         return "NEON";
+        case SkinId::Hardware:     return "HARDWARE";
+        case SkinId::Prism:        return "PRISM";
         default:                   return {};
     }
 }
@@ -34,8 +37,15 @@ void Theme::setSkinId (SkinId id)
     Skin k;
     k.id = id;
     k.dark = skinIsDark ((int) id);
-    k.style = id == SkinId::Glass ? Style::Glass : (id == SkinId::Modern || id == SkinId::Studio) ? Style::Flat : Style::Bevel;
-    k.smoothType = id == SkinId::Studio;
+    const bool smoothSkin = id == SkinId::Studio || id == SkinId::Neon || id == SkinId::Hardware || id == SkinId::Prism;
+    k.style = id == SkinId::Glass ? Style::Glass : (id == SkinId::Modern || smoothSkin) ? Style::Flat : Style::Bevel;
+    k.smoothType = smoothSkin;
+    k.sans = id == SkinId::Neon ? PixelFont::SpaceGrotesk : id == SkinId::Hardware ? PixelFont::BarlowCondensed : id == SkinId::Prism ? PixelFont::Nunito : PixelFont::Inter;
+    k.round = id == SkinId::Neon ? 2.0f : id == SkinId::Prism ? 1.6f : id == SkinId::Hardware ? 0.8f : 0.6f;
+    k.gradient = id == SkinId::Neon;
+    k.glow = id == SkinId::Neon;
+    k.leds = id == SkinId::Hardware;
+    k.noteBars = id == SkinId::Prism;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -50,8 +60,36 @@ void Theme::setSkinId (SkinId id)
     const Palette modern    { C (0xffffffff), C (0xfff2f4f8), C (0xffffffff), C (0xffc9ced8), C (0xff1b2130), C (0xff2f66f0), C (0xff7e8799), C (0xffe6ebf3), C (0xffb8bfcc), C (0xffffffff) };
     // STUDIO: flat greys like a modern DAW, orange for chosen (dark text on it), smooth type
     const Palette studio    { C (0xff1e1e1e), C (0xff2b2b2b), C (0xff3c3c3c), C (0xff0e0e0e), C (0xffededed), C (0xffffa53d), C (0xffa3a3a3), C (0xff4a4a4a), C (0xff111111), C (0xff141414) };
+    // NEON: deep navy, rounded, lit from above; chosen glows cyan
+    const Palette neon      { C (0xff0a0f1e), C (0xff131b33), C (0xff1e2a4c), C (0xff04070f), C (0xffeaf6ff), C (0xff35d6ff), C (0xff93a7cc), C (0xff2a3a68), C (0xff2c3d6b), C (0xff03131d) };
+    // HARDWARE: matte black and rubber grey; chosen lights an LED (the face stays)
+    const Palette hardware  { C (0xff0d0d0d), C (0xff181818), C (0xff2a2a2a), C (0xff000000), C (0xfff2ede4), C (0xff5c2216), C (0xffa39d93), C (0xff343434), C (0xff050505), C (0xfff2ede4) };
+    // PRISM: slate, soft and rounded; chosen is cyan with dark text
+    const Palette prism     { C (0xff1e2025), C (0xff26282e), C (0xff353840), C (0xff121317), C (0xffeef0f4), C (0xff3fd6f0), C (0xffaab0bd), C (0xff41454f), C (0xff16171b), C (0xff14161a) };
     switch (id)
     {
+        case SkinId::Neon:
+            chromePal = neon; pagePal = neon;
+            k.bg = C (0xff080d1a); k.text = C (0xffeaf6ff); k.dim = C (0xff56688f); k.stripe = C (0xff0e1527);
+            k.band = C (0xff1b2748); k.cursor = C (0xff0f4660); k.cursorEdge = C (0xff35d6ff); k.rule = C (0xff26345e);
+            k.hot = C (0xffff4fa3); k.specBar = C (0xff35d6ff);
+            k.accentSel = C (0xff35d6ff); k.accentMod = C (0xffb48cff); k.accentRec = C (0xffff4f7a);
+            break;
+        case SkinId::Hardware:
+            chromePal = hardware; pagePal = hardware;
+            // the pattern is an amber display
+            k.bg = C (0xff0a0908); k.text = C (0xffffb84d); k.dim = C (0xff7a6240); k.stripe = C (0xff131110);
+            k.band = C (0xff2c2418); k.cursor = C (0xff5a2814); k.cursorEdge = C (0xffff5a36); k.rule = C (0xff2c2c2c);
+            k.hot = C (0xffff5a36); k.specBar = C (0xffff5a36);
+            k.accentSel = C (0xffff5a36); k.accentMod = C (0xffffb84d); k.accentRec = C (0xffff2d2d);
+            break;
+        case SkinId::Prism:
+            chromePal = prism; pagePal = prism;
+            k.bg = C (0xff26282e); k.text = C (0xffeef0f4); k.dim = C (0xff6a7080); k.stripe = C (0xff2b2d34);
+            k.band = C (0xff3a3d46); k.cursor = C (0xff1d5560); k.cursorEdge = C (0xff3fd6f0); k.rule = C (0xff16171b);
+            k.hot = C (0xffff5470); k.specBar = C (0xff3fd6f0);
+            k.accentSel = C (0xff3fd6f0); k.accentMod = C (0xffa98bff); k.accentRec = C (0xffff5470);
+            break;
         case SkinId::Studio:
             chromePal = studio; pagePal = studio;
             k.bg = C (0xff1a1a1a); k.text = C (0xffededed); k.dim = C (0xff747474); k.stripe = C (0xff222222);
@@ -112,9 +150,15 @@ void Theme::setSkinId (SkinId id)
         const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
         for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
         if (id == SkinId::Kickstart) { k.track[4] = C (0xffc8e0ff); k.track[0] = C (0xff6af0ff); }   // (no blue on blue)
+        if (id == SkinId::Prism)
+        {
+            const juce::uint32 v[8] = { 0xffff4fd8, 0xff3fd6f0, 0xffffd23f, 0xff7ee06a, 0xffff8a3d, 0xffa98bff, 0xffff5470, 0xff4ee0a6 };
+            for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);
+        }
     }
     skin = k;
     PixelFont::smooth = k.smoothType;
+    PixelFont::sans = k.sans;
     // the chrome colours everything else draws with
     paper = chromePal.paper; panel = chromePal.panel; light = chromePal.light; shadow = chromePal.shadow; ink = chromePal.ink;
     pressed = chromePal.pressed; faint = chromePal.faint;
@@ -144,8 +188,13 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
     const float hair = 1.0f / deviceScale;
     if (skin.smoothType)
     {
-        // STUDIO: raised things are just their face; sunken ones get a dark hairline
-        if (! raised) { g.setColour (P.shadow); g.drawRect (r, hair); }
+        // smooth skins: raised things are just their face; sunken ones get a dark hairline (rounded if the skin is)
+        if (! raised)
+        {
+            g.setColour (skin.glow ? P.edge : P.shadow);
+            if (skin.round > 1.0f) g.drawRoundedRectangle (r, std::min (skin.round * px, r.getHeight() * 0.5f), hair);
+            else g.drawRect (r, hair);
+        }
         return;
     }
     if (skin.style == Style::Flat)
@@ -208,8 +257,20 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
 
 void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
 {
-    g.setColour (P.panel);
-    g.fillRect (r);
+    if (skin.smoothType && skin.round > 1.0f)
+    {
+        // rounded panes (NEON lit from above, with a fine rim)
+        const float rad = std::min (skin.round * px * 1.5f, r.getHeight() * 0.5f);
+        if (skin.gradient) g.setGradientFill (juce::ColourGradient (P.panel.brighter (0.12f), 0, r.getY(), P.panel.darker (0.15f), 0, r.getBottom(), false));
+        else g.setColour (P.panel);
+        g.fillRoundedRectangle (r, rad);
+        if (skin.gradient) { g.setColour (P.edge); g.drawRoundedRectangle (r.reduced (0.5f), rad, 1.0f / deviceScale); }
+    }
+    else
+    {
+        g.setColour (P.panel);
+        g.fillRect (r);
+    }
     bevel (g, r, true, std::max (1.0f, px * 0.5f), P);
     if (title.isNotEmpty() && skin.style != Style::Bevel)
     {
@@ -299,12 +360,56 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
                : Theme::skin.accentSel;
     }
     const bool studio = Theme::skin.smoothType;
+    const auto& K = Theme::skin;
+    const bool lit = getToggleState() && ! accent.isTransparent();
+    const bool ledOn = studio && K.leds && on;
     if (studio)
     {
-        // STUDIO: flat, slightly rounded faces; on = filled with what it means (dark text on it)
-        const auto face = on ? (getToggleState() && ! accent.isTransparent() ? accent : P.pressed) : (over ? P.hover : P.light);
-        g.setColour (face);
-        g.fillRoundedRectangle (r, std::max (1.0f, Theme::px * 0.6f));
+        const float rad = std::max (1.0f, Theme::px * K.round);
+        if (K.leds)
+        {
+            // HARDWARE: rubber-grey keys; on lights an LED along the top (pressed darkens the key)
+            g.setColour (down ? P.pressed : (over ? P.hover : P.light));
+            g.fillRoundedRectangle (r, rad);
+            g.setColour (P.shadow.withAlpha (0.6f));
+            g.fillRect (r.getX() + rad, r.getBottom() - std::max (1.0f, Theme::px * 0.4f), r.getWidth() - rad * 2, std::max (1.0f, Theme::px * 0.4f));
+            if (on)
+            {
+                const auto led = lit ? accent : K.accentSel;
+                const float lh = std::max (2.0f, Theme::px * 0.7f);
+                juce::Rectangle<float> strip (r.getX() + Theme::px * 1.5f, r.getY() + Theme::px * 0.8f, r.getWidth() - Theme::px * 3.0f, lh);
+                g.setColour (led.withAlpha (0.28f));
+                g.fillRoundedRectangle (strip.expanded (Theme::px * 0.6f), lh);
+                g.setColour (led);
+                g.fillRoundedRectangle (strip, lh * 0.5f);
+            }
+        }
+        else
+        {
+            // STUDIO / PRISM flat, NEON lit from above and glowing: on = filled with what it means (dark text on it)
+            const auto face = on ? (lit ? accent : P.pressed) : (over ? P.hover : P.light);
+            auto f = r;
+            if (K.glow)
+            {
+                f = r.reduced (std::max (1.0f, Theme::px * 0.6f));
+                if (on)
+                    for (int k = 3; k >= 1; --k)
+                    {
+                        g.setColour (face.withAlpha (0.10f * (float) (4 - k)));
+                        g.fillRoundedRectangle (f.expanded ((float) k * std::max (0.5f, Theme::px * 0.25f)), rad + (float) k);
+                    }
+            }
+            if (K.gradient)
+                g.setGradientFill (juce::ColourGradient (face.brighter (on ? 0.25f : 0.18f), 0, f.getY(), face.darker (on ? 0.1f : 0.25f), 0, f.getBottom(), false));
+            else g.setColour (face);
+            g.fillRoundedRectangle (f, rad);
+            if (K.gradient && ! on)
+            {
+                // a fine rim catching the light
+                g.setColour (P.edge.brighter (0.4f).withAlpha (0.7f));
+                g.drawRoundedRectangle (f.reduced (0.5f), rad, 1.0f / Theme::deviceScale);
+            }
+        }
     }
     else
     {
@@ -323,7 +428,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         float y = area.getCentreY() - lh * (float) lines.size() * 0.5f;
         for (const auto& l : lines)
         {
-            PixelFont::drawCentred (g, l, juce::Rectangle<float> (area.getX(), y, area.getWidth(), lh), px, isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint);
+            PixelFont::drawCentred (g, l, juce::Rectangle<float> (area.getX(), y, area.getWidth(), lh), px, isEnabled() ? (on && ! ledOn ? P.pressedInk : P.ink) : P.faint);
             y += lh;
         }
         return;
@@ -332,7 +437,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     float usePx = px;
     // (the text's own width: the last character's spacing column doesn't count)
     while (usePx > 1.0f && PixelFont::textWidth (label, usePx) - usePx > r.getWidth() - 4) usePx -= 0.5f;
-    const auto inkNow = isEnabled() ? (on ? P.pressedInk : P.ink) : P.faint;
+    const auto inkNow = isEnabled() ? (on && ! ledOn ? P.pressedInk : P.ink) : P.faint;
     const float shift = on && ! studio ? pressShift() : 0.0f;
     const float textW = PixelFont::textWidth (label, usePx) - usePx;
     const float iconW = usePx * 9;   // (7 dots and a gap of 2)

@@ -27,8 +27,9 @@ struct Theme
     static float snap (float v) { return std::round (v * deviceScale) / deviceScale; }
 
     // SKINS: WORKBENCH (light), DARK (the default), KICKSTART 1.3 (blue, white, orange), HIGH CONTRAST,
-    // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type)
-    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Count };
+    // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type),
+    // NEON (navy, rounded, glowing cyan), HARDWARE (matte black, LED buttons, amber pattern), PRISM (slate, colour, note bars)
+    enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern; }
@@ -41,7 +42,13 @@ struct Theme
         SkinId id = SkinId::Workbench;
         Style style = Style::Bevel;
         bool dark = false;
-        bool smoothType = false;   // real typefaces instead of the pixel font (STUDIO)
+        bool smoothType = false;   // real typefaces instead of the pixel font (STUDIO, NEON, HARDWARE, PRISM)
+        int sans = 0;              // the labels' typeface (PixelFont::Sans)
+        float round = 0.6f;        // corner radius, in font pixels
+        bool gradient = false;     // faces lit from above (NEON)
+        bool glow = false;         // on = glowing (NEON)
+        bool leds = false;         // on = an LED lit along the top, the face stays (HARDWARE)
+        bool noteBars = false;     // the pattern: notes as bars in their track's colour, held until the next (PRISM)
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;
         juce::Colour track[8];

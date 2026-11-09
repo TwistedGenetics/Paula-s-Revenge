@@ -27,6 +27,8 @@ public:
     // anything placed by position in a monospaced face, labels (centred / left in an area) in a sans.
     // Every layout stays as it is: a character never takes more room than its pixel cell.
     static inline bool smooth = false;
+    enum Sans { Inter = 0, SpaceGrotesk, BarlowCondensed, Nunito };
+    static inline int sans = Inter;   // the labels' typeface
 
     // Adds the text's pixels to a rectangle list (fast for big blocks of text)
     static void addText (juce::RectangleList<float>& list, const juce::String& text, float x, float y, float px);

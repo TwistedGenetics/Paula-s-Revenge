@@ -578,7 +578,7 @@ void PaulaEditor::refreshAll()
     skinBtn.setToggleState (st.skin != 0, juce::dontSendNotification);
     if (sequence.wholeBtn.getToggleState() && seqSpread != (sequence.visibleListRows() < (int) proc.song.sequence.size() || seqSpread))
         resized();   // (SHOW ALL: the song grew past the sidebar)
-    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : st.skin == 6 ? "STUDIO" : "DARK");
+    skinBtn.setButtonText (st.skin == 2 ? "KS 1.3" : st.skin == 3 ? "HI CON" : st.skin == 4 ? "GLASS" : st.skin == 5 ? "MODERN" : st.skin == 6 ? "STUDIO" : st.skin == 7 ? "NEON" : st.skin == 8 ? "HARDWARE" : st.skin == 9 ? "PRISM" : "DARK");
     specBtn.setToggleState (st.showSpectrum, juce::dontSendNotification);
     autoBtn.setToggleState (st.showAutomation, juce::dontSendNotification);
     automation.refresh();
@@ -860,7 +860,7 @@ void PaulaEditor::resized()
 
     viewBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     panelsBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
-    skinBtn.setBounds (status.removeFromLeft (charsW (6))); status.removeFromLeft (gap);
+    skinBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     specBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
     fx2Btn.setBounds (status.removeFromLeft (charsW (3))); status.removeFromLeft (gap);
     recAutoBtn.setBounds (status.removeFromLeft (charsW (8))); status.removeFromLeft (gap);
