@@ -11,6 +11,7 @@
 #include "Autosave.h"
 #include "ui/PatternEditor.h"
 #include "ui/Panels.h"
+#include "ui/LanePads.h"
 #include "ui/Spectrum.h"
 #include "ui/SampleEditor.h"
 #include "ui/SampleBrowser.h"
@@ -198,6 +199,9 @@ private:
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
+    prv::ui::ArrangeLane lane;
+    prv::ui::PadPanel pads;
+    bool padsBeside = false;   // (the pads beside the pattern: no sidebar)
     prv::ui::SequencePanel sequence;
     prv::ui::BlockPanel blockPanel;
     prv::ui::InstrumentPanel instruments;
@@ -223,6 +227,13 @@ public:
     // SMARTER LAYOUT: fold a sidebar panel to its title (1 SEQUENCE, 2 BLOCK, 4 INSTRUMENTS); TABS: one open at a time
     void foldPanel (int bit, bool folded);
     void setSidebarTabs (bool on);
+    // THE LANE (the song as coloured clips over the pattern) and the PADS (sixteen instrument pads beside it)
+    void setLane (bool on);
+    void setPads (bool on);
+    bool laneOn() const { return proc.editorState.showLane; }
+    bool padsOn() const { return proc.editorState.showPads; }
+    prv::ui::ArrangeLane& getLane() { return lane; }
+    prv::ui::PadPanel& getPads() { return pads; }
     void setSequenceShowAll (bool on);   // SHOW ALL: the sequence takes the whole sidebar
     bool sequenceShowAll() const { return (proc.editorState.sidebarFold & 7) == 6; }
     int  sidebarFold() const { return proc.editorState.sidebarFold; }

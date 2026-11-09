@@ -16,7 +16,7 @@ namespace { const juce::String kHelpText = "SPACE=PLAY+REC  RETURN=PLAY  ESC=EDI
 
 PaulaEditor::PaulaEditor (PaulaProcessor& p)
     : AudioProcessorEditor (p), proc (p),
-      pattern (p),
+      pattern (p), lane (p), pads (p),
       sequence (p, [this] { refreshAll(); }),
       blockPanel (p, [this] { refreshAll(); }),
       instruments (p, [this] { refreshAll(); }, [this] (const juce::String& s) { setStatus (s); }),
@@ -250,6 +250,20 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         setStatus ("THE PHRASE: BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " TRACK " + juce::String (st.track + 1) + " - WRITE IT FROM C-3 (THE NOTE PLAYED MOVES IT)");
     };
     pattern.onResample = [this] { resampleChop(); };
+    addChildComponent (lane);
+    addChildComponent (pads);
+    lane.onPick = [this] (int pos) { sequence.selectPosition (pos); };
+    pads.onPadDown = [this] (int ins)
+    {
+        auto& es = proc.editorState;
+        if (es.instrument != ins) { es.instrument = ins; proc.jamInstrument = ins; refreshAll(); }
+        pattern.padDown();
+        setStatus ("PAD " + juce::String (ins % 16 + 1) + ": INSTRUMENT " + juce::String (ins + 1).paddedLeft ('0', 2)
+                   + (es.editMode ? " - WRITTEN AT THE CURSOR" : " - EDIT ON WRITES IT AT THE CURSOR"));
+    };
+    pads.onPadUp = [this] { pattern.padUp(); };
+    pads.onBank = [this] { setStatus ("PADS BANK " + juce::String::charToString ((juce::juce_wchar) ('A' + proc.editorState.padBank))
+                                      + ": INSTRUMENTS " + juce::String (proc.editorState.padBank * 16 + 1) + "-" + juce::String (std::min (prv::kMaxInstruments, proc.editorState.padBank * 16 + 16))); };
     pattern.onFollowInstrument = [this] (int ins)
     {
         if (proc.editorState.instrument == ins) return;
@@ -621,6 +635,7 @@ void PaulaEditor::timerCallback()
     outMeter.tick();
     if (mixer.isVisible()) mixer.tickMeters();
     if ((++frame & 1) != 0) return;   // everything else, 30 times a second as before
+    if (lane.isVisible()) { lane.tick(); if ((frame & 15) == 0) lane.repaint(); }   // (and now and then: notes typed in show up)
     if ((frame & 15) == 0)
     {
         // STRETCH: refit stretched instruments when the tempo or LINES changed (about 4 times a second)
@@ -909,6 +924,11 @@ void PaulaEditor::resized()
     seqFold.setVisible (panels && (fold & 1) != 0);
     blockFold.setVisible (panels && (fold & 2) != 0);
     instFold.setVisible (panels && (fold & 4) != 0);
+    // PADS (the pattern page): four by four beside the pattern when there's no sidebar, otherwise two rows
+    // of eight under it in the spectrum's place - either way the pattern keeps its width and its text size
+    const bool padsShown = st.showPads && st.view == View::Pattern;
+    pads.setVisible (padsShown);
+    padsBeside = padsShown && ! panels;
     if (panels)
     {
         auto left = main.removeFromLeft (std::min (charsW (32), main.getWidth() / 2));
@@ -938,6 +958,7 @@ void PaulaEditor::resized()
             sequence.setBounds (sequence.getBounds().withRight (main.getRight()).withBottom (std::max (main.getBottom(), sequence.getBottom())));
             blockFold.setVisible (false);
             instFold.setVisible (false);
+            pads.setVisible (false);
             sequence.layoutList();
             sequence.toFront (false);
             crtOverlay.toFront (false);
@@ -945,20 +966,39 @@ void PaulaEditor::resized()
         }
         else seqSpread = false;
     }
+    if (padsShown && ! padsBeside)
+    {
+        pads.setBounds (main.removeFromBottom (std::min (pads.preferredHeightFor (main.getWidth()), (int) (main.getHeight() * 0.3f))));
+        main.removeFromBottom (gap);
+    }
     // AUTOMATION under the pattern takes the spectrum's place (and as much room as it's dragged to)
     const bool autoShown = st.showAutomation && st.view == View::Pattern;
     automation.setVisible (autoShown);
-    spectrum.setVisible (st.showSpectrum && ! wideView && ! autoShown);
+    spectrum.setVisible (st.showSpectrum && ! wideView && ! autoShown && ! (padsShown && ! padsBeside));
     if (autoShown)
     {
         const int h = juce::jlimit ((int) (px * 60), std::max ((int) (px * 60), main.getHeight() - (int) (px * 80)), st.autoHeight > 0 ? st.autoHeight : (int) (main.getHeight() * 0.42f));
         automation.setBounds (main.removeFromBottom (h));
         main.removeFromBottom (gap);
     }
-    else if (st.showSpectrum)
+    else if (spectrum.isVisible())
     {
         spectrum.setBounds (main.removeFromBottom ((int) (px * 22)));
         main.removeFromBottom (gap);
+    }
+    // THE LANE over the pattern, the PADS beside it (the pattern page only)
+    const bool laneShown = st.showLane && st.view == View::Pattern;
+    lane.setVisible (laneShown);
+    if (padsBeside)
+    {
+        // (no sidebar: four by four beside the pattern)
+        pads.setBounds (main.removeFromRight (std::min (charsW (24), main.getWidth() / 3)));
+        main.removeFromRight (gap);
+    }
+    if (laneShown)
+    {
+        lane.setBounds (main.removeFromTop (std::min (lane.preferredHeight(), (int) (main.getHeight() * 0.35f))));
+        main.removeFromTop (gap);
     }
     pattern.setBounds (main);
     sampleEditor.setBounds (main);
@@ -2010,6 +2050,22 @@ void PaulaEditor::setSidebarTabs (bool on)
     setStatus (on ? "SIDEBAR TABS: ONE PANEL AT A TIME - CLICK A TITLE TO SWITCH" : "SIDEBAR: ALL PANELS OPEN");
 }
 
+void PaulaEditor::setLane (bool on)
+{
+    proc.editorState.showLane = on;
+    resized();
+    repaint();
+    setStatus (on ? "THE LANE: THE WHOLE SONG AS CLIPS OVER THE PATTERN - CLICK ONE TO GO THERE" : "THE LANE: OFF");
+}
+
+void PaulaEditor::setPads (bool on)
+{
+    proc.editorState.showPads = on;
+    resized();
+    repaint();
+    setStatus (on ? "PADS: CLICK ONE TO PLAY ITS INSTRUMENT (EDIT ON: WRITES IT) - + / - FOR THE NEXT 16" : "PADS: OFF");
+}
+
 void PaulaEditor::showSidebarMenu()
 {
     auto& st = proc.editorState;
@@ -2017,6 +2073,8 @@ void PaulaEditor::showSidebarMenu()
     prv::ui::showMenu ("SIDEBAR", {
         { st.sidebarTabs ? "TABS: OFF (ALL PANELS)" : "TABS: ONE PANEL AT A TIME", [safe] { if (safe) safe->setSidebarTabs (! safe->sidebarTabs()); } },
         { "OPEN ALL PANELS", [safe] { if (safe) { safe->proc.editorState.sidebarTabs = false; safe->proc.editorState.sidebarFold = 0; safe->resized(); safe->repaint(); } } },
+        { st.showLane ? "THE LANE: OFF" : "THE LANE: THE SONG OVER THE PATTERN", [safe] { if (safe) safe->setLane (! safe->laneOn()); } },
+        { st.showPads ? "PADS: OFF" : "PADS: 16 INSTRUMENT PADS", [safe] { if (safe) safe->setPads (! safe->padsOn()); } },
     });
 }
 
@@ -2061,6 +2119,8 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
         out.push_back ({ "SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });
     out.push_back ({ "CRT SCANLINES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setCrt (! safe->crtOn()); } });
     out.push_back ({ "TRACK SCOPES ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setScopes (! safe->scopesOn()); } });
+    out.push_back ({ "THE LANE (SONG CLIPS OVER THE PATTERN) ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setLane (! safe->laneOn()); } });
+    out.push_back ({ "PADS ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setPads (! safe->padsOn()); } });
     out.push_back ({ "SIDEBAR TABS ON / OFF", {}, "VIEW", [safe] { if (safe) safe->setSidebarTabs (! safe->sidebarTabs()); } });
     out.push_back ({ "SIDEBAR: OPEN ALL PANELS", {}, "VIEW", [safe] { if (safe) { safe->proc.editorState.sidebarTabs = false; safe->proc.editorState.sidebarFold = 0; safe->resized(); } } });
     for (int b = 1; b <= 4; b <<= 1)

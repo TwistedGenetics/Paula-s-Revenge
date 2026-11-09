@@ -139,6 +139,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/Widgets.cpp
     Source/ui/PatternEditor.cpp
     Source/ui/Panels.cpp
+    Source/ui/LanePads.cpp
     Source/ui/Spectrum.cpp
     Source/ui/SampleEditor.cpp
     Source/ui/SampleBrowser.cpp

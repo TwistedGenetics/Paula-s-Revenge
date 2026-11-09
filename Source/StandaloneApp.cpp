@@ -43,6 +43,8 @@ enum CommandIDs
     cmdCrt           = 0x2034,
     cmdScopes        = 0x2035,
     cmdPalette       = 0x2036,
+    cmdLane          = 0x2037,   // THE LANE
+    cmdPads          = 0x2038,   // PADS
     cmdSharedFolder  = 0x2030,
     cmdOpenShared    = 0x2031,
     cmdSaveShared    = 0x2032,
@@ -354,6 +356,8 @@ public:
             m.addSubMenu ("Skin", sk);
         }
         m.addCommandItem (&commands, cmdScopes);
+        m.addCommandItem (&commands, cmdLane);
+        m.addCommandItem (&commands, cmdPads);
         m.addCommandItem (&commands, cmdPalette);
         m.addSeparator();
         m.addCommandItem (&commands, cmdFullScreen);
@@ -372,7 +376,7 @@ public:
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
                       cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
-        c.addArray ({ cmdCrt, cmdScopes, cmdPalette });
+        c.addArray ({ cmdCrt, cmdScopes, cmdPalette, cmdLane, cmdPads });
         for (int i = 0; i < prv::ui::Theme::kSkins; ++i) c.add (skinCmd (i));
     }
 
@@ -451,6 +455,18 @@ public:
             info.setInfo ("Command Palette...", "Type a few letters of any command, button or page; Enter does it", "View", 0);
             info.addDefaultKeypress ('k', juce::ModifierKeys::commandModifier);
         }
+        else if (id == cmdLane)
+        {
+            info.setInfo ("The Lane", "The whole song as a strip of coloured clips over the pattern; click one to go there", "View", 0);
+            auto* ed = editor();
+            info.setTicked (ed != nullptr && ed->laneOn());
+        }
+        else if (id == cmdPads)
+        {
+            info.setInfo ("Pads", "Sixteen instrument pads beside the pattern", "View", 0);
+            auto* ed = editor();
+            info.setTicked (ed != nullptr && ed->padsOn());
+        }
         else if (id == cmdScopes)
         {
             info.setInfo ("Track Scopes", "Each track's sound as a moving line under its header", "View", 0);
@@ -512,6 +528,8 @@ public:
                 case cmdCrt:           ed->setCrt (! ed->crtOn()); commands.commandStatusChanged(); return true;
                 case cmdScopes:        ed->setScopes (! ed->scopesOn()); commands.commandStatusChanged(); return true;
                 case cmdPalette:       ed->showPalette(); return true;
+                case cmdLane:          ed->setLane (! ed->laneOn()); commands.commandStatusChanged(); return true;
+                case cmdPads:          ed->setPads (! ed->padsOn()); commands.commandStatusChanged(); return true;
                 case cmdSharedFolder:  ed->chooseSharedFolder(); return true;
                 case cmdOpenShared:    ed->openShared(); return true;
                 case cmdSaveShared:    ed->saveToShared(); return true;

@@ -147,6 +147,9 @@ public:
         bool scopes = true;           // the tracks' scopes in the pattern's header
         int  sidebarFold = 0;         // folded sidebar panels: 1 SEQUENCE, 2 BLOCK, 4 INSTRUMENTS
         bool sidebarTabs = false;     // one sidebar panel open at a time
+        bool showLane = false;        // THE LANE: the song as a strip of coloured clips over the pattern
+        bool showPads = false;        // PADS: sixteen instrument pads beside the pattern
+        int  padBank = 0;             // the pads' bank: 0 = instruments 1-16, 1 = 17-32, 2 = 33-48, 3 = 49-63
         enum class View { Pattern, SampleEdit, Browser, Params, Arrange, Mixer, Synth, MidiOut, Help, Chords, Sample, CvOut, CvSources, Radio, Break } view = View::Pattern;
         bool recAuto = false;         // REC AUTO: moving a learned control while EDIT + playing writes its command
         bool recNoteOffs = false;     // step entry (stopped): a released key writes OFF too (playing: always, for plug-ins)

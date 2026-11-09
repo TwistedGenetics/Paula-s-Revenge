@@ -1398,6 +1398,24 @@ void PatternEditor::enterNote (int note)
     recordNote (note, juce::Time::getMillisecondCounterHiRes());
 }
 
+void PatternEditor::padDown()
+{
+    if (padHeld >= 0) padUp();
+    padHeld = juce::jlimit (1, (int) kNoteMax, st.octave * 12 + 1);
+    enterNote (padHeld);
+}
+
+void PatternEditor::padUp()
+{
+    if (padHeld < 0) return;
+    const int n = padHeld;
+    padHeld = -1;
+    Player::PlayPos pos;
+    proc.withLock ([&] { proc.player.jamNoteOff (n); pos = proc.player.playPos(); });
+    proc.keyNoteInput (n, false);
+    recordRelease (n, pos);
+}
+
 bool PatternEditor::detectChords()        { return prv::prefs().getBoolValue ("detectChords", true); }
 void PatternEditor::setDetectChords (bool on) { prv::prefs().setValue ("detectChords", on); }
 

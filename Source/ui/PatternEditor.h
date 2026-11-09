@@ -196,6 +196,9 @@ private:
     int nextGroupId = 1;
     void applyChordGroup();
 public:
+    // a PAD: plays the current instrument at C of the octave (EDIT on: written, as a key would be)
+    void padDown();
+    void padUp();
     void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
     static bool detectChords();                                  // DETECT CHORDS (prefs, on by default)
@@ -261,6 +264,7 @@ private:
     void moveTrack (int delta);
     void advance();
     void enterNote (int note);
+    int padHeld = -1;   // (the note a held pad is playing)
     void enterHex (int value);
     void clearField();
     void changed();

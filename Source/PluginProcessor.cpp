@@ -665,6 +665,9 @@ void PaulaProcessor::getStateInformation (juce::MemoryBlock& destData)
     st.setProperty ("scopes", e.scopes, nullptr);
     st.setProperty ("sidebarFold", e.sidebarFold, nullptr);
     st.setProperty ("sidebarTabs", e.sidebarTabs, nullptr);
+    st.setProperty ("showLane", e.showLane, nullptr);
+    st.setProperty ("showPads", e.showPads, nullptr);
+    st.setProperty ("padBank", e.padBank, nullptr);
     st.setProperty ("spectrum", e.showSpectrum, nullptr);
     st.setProperty ("automation", e.showAutomation, nullptr);
     st.setProperty ("autoHeight", e.autoHeight, nullptr);
@@ -715,6 +718,9 @@ void PaulaProcessor::setStateInformation (const void* data, int sizeInBytes)
     e.scopes = st.getProperty ("scopes", true);
     e.sidebarFold = juce::jlimit (0, 7, (int) st.getProperty ("sidebarFold", 0));
     e.sidebarTabs = st.getProperty ("sidebarTabs", false);
+    e.showLane = st.getProperty ("showLane", false);
+    e.showPads = st.getProperty ("showPads", false);
+    e.padBank = juce::jlimit (0, 3, (int) st.getProperty ("padBank", 0));
     e.showSpectrum = st.getProperty ("spectrum", true);
     e.showAutomation = st.getProperty ("automation", false);
     e.autoHeight = st.getProperty ("autoHeight", 0);
