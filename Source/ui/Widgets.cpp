@@ -261,10 +261,17 @@ void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::S
     {
         // rounded panes (NEON lit from above, with a fine rim)
         const float rad = std::min (skin.round * px * 1.5f, r.getHeight() * 0.5f);
-        if (skin.gradient) g.setGradientFill (juce::ColourGradient (P.panel.brighter (0.12f), 0, r.getY(), P.panel.darker (0.15f), 0, r.getBottom(), false));
-        else g.setColour (P.panel);
+        // (a flat fill: a gradient over a big pane costs a lot to draw at 60 frames a second)
+        g.setColour (P.panel);
         g.fillRoundedRectangle (r, rad);
-        if (skin.gradient) { g.setColour (P.edge); g.drawRoundedRectangle (r.reduced (0.5f), rad, 1.0f / deviceScale); }
+        if (skin.gradient)
+        {
+            // NEON: a fine rim, lit along the top
+            g.setColour (P.edge);
+            g.drawRoundedRectangle (r.reduced (0.5f), rad, 1.0f / deviceScale);
+            g.setColour (P.ink.withAlpha (0.10f));
+            g.fillRect (r.getX() + rad, r.getY() + 1.0f / deviceScale, r.getWidth() - rad * 2, 1.0f / deviceScale);
+        }
     }
     else
     {
