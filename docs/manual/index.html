@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.46</span>
+  <span class="ver">MANUAL &middot; V0.47</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -227,9 +227,16 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p><span class="b">HELP</span> has this manual's text. Just type to search it: every match is highlighted and the chapter list shows only the chapters with matches. <kbd>Enter</kbd> (or <kbd>Cmd</kbd><kbd>G</kbd>) goes to the next match, <kbd>Shift</kbd><kbd>Enter</kbd> the one before. <kbd>Esc</kbd> clears the search, then closes HELP.</p>
   <p>In the dark skin, the plug-in pages (an effect opened from the mixer, a plug-in instrument's page) and the parameter pages are dark too.</p>
   <h3>Skins and CRT</h3>
-  <p>Seven skins: <b>WORKBENCH</b> (black on light grey), <b>DARK</b> (cream on blue-black), <b>KICKSTART 1.3</b> (white on the old blue, orange when pressed), <b>HIGH CONTRAST</b> (white on black, yellow when pressed), <b>GLASS</b>, <b>MODERN</b> and <b>STUDIO</b>. Click <span class="b">DARK</span> to swap between WORKBENCH and DARK; right-click it, or use <b>View &rarr; Skin</b>, for all seven. The button shows the skin's name (<b>KS 1.3</b>, <b>HI CON</b>, <b>GLASS</b>, <b>MODERN</b>, <b>STUDIO</b>) when one of those is on. The skin is kept for next time.</p>
+  <p>Ten skins: <b>WORKBENCH</b> (black on light grey), <b>DARK</b> (cream on blue-black), <b>KICKSTART 1.3</b> (white on the old blue, orange when pressed), <b>HIGH CONTRAST</b> (white on black, yellow when pressed), <b>GLASS</b>, <b>MODERN</b>, <b>STUDIO</b>, <b>NEON</b>, <b>HARDWARE</b> and <b>PRISM</b>. Click <span class="b">DARK</span> to swap between WORKBENCH and DARK; right-click it, or use <b>View &rarr; Skin</b>, for all ten. The button shows the skin's name (<b>KS 1.3</b>, <b>HI CON</b>, <b>GLASS</b>, <b>MODERN</b>, <b>STUDIO</b>, <b>NEON</b>, <b>HARDWARE</b>, <b>PRISM</b>) when one of those is on. The skin is kept for next time.</p>
   <p><b>GLASS</b> is deep blue glass: every button and pane has a gloss over its top half and a bright rim, every field and list a soft shadow inside its top edge, and what's chosen glows cyan. Panel titles sit on their own at the left over a thin accent line. <b>MODERN</b> is light and flat: white and soft grey, no bevels &mdash; just thin borders and a faint drop under raised things &mdash; and what's chosen is solid blue with white text.</p>
-  <p><b>STUDIO</b> is flat greys like a modern DAW, and the one skin with smooth type instead of the pixel font: numbers and the pattern in <b>JetBrains Mono</b>, labels in <b>Inter</b>. Every letter takes the same room as its pixel letter, so nothing moves or shrinks. Buttons are flat with slightly rounded corners; one that's on is filled with what it means &mdash; orange for chosen, red for recording, blue for modulating &mdash; with dark text on it. (Both typefaces are free under the SIL Open Font License.)</p>
+  <p><b>STUDIO</b> is flat greys like a modern DAW, and the one skin with smooth type instead of the pixel font: numbers and the pattern in <b>JetBrains Mono</b>, labels in <b>Inter</b>. Every letter takes the same room as its pixel letter, so nothing moves or shrinks. Buttons are flat with slightly rounded corners; one that's on is filled with what it means &mdash; orange for chosen, red for recording, blue for modulating &mdash; with dark text on it. </p>
+  <p>Three more skins use smooth type the same way, each with its own label typeface (the pattern and numbers stay in JetBrains Mono, so columns line up):</p>
+  <ul>
+    <li><b>NEON</b> &mdash; deep navy and rounded, buttons lit from above, and what's on glows cyan. Labels in <b>Space Grotesk</b>.</li>
+    <li><b>HARDWARE</b> &mdash; matte black with rubber-grey keys, like a drum machine. A key that's on keeps its face and lights an LED along its top (red-orange; red for recording). The pattern is an amber display. Labels in <b>Barlow Condensed</b>.</li>
+    <li><b>PRISM</b> &mdash; slate grey, soft and rounded, in bright track colours. In the pattern every note is a <b>bar</b> in its track's colour that lasts until the next note or OFF: the note and instrument in dark text where it starts, the bar fainter while it's held. You see at a glance how long each note rings. Labels in <b>Nunito</b>.</li>
+  </ul>
+  <p>(All the typefaces are free under the SIL Open Font License.)</p>
   <p><b>CRT</b> (in the same menu) lays scanlines and darker corners over everything, like an old monitor. It is only a look: clicks go through.</p>
   <p>Colour means the same thing everywhere: a button that's on has a stripe along its foot &mdash; red for recording (<span class="b">EDIT</span>, <span class="b">REC AUTO</span>, RECORD), orange for learning and modulating, blue (in KICKSTART, white) for the rest. Orange also marks a modulated control. Text and bevels are drawn on whole screen pixels, so they stay sharp at any size and on Retina screens.</p>
   <figure>
@@ -251,6 +258,18 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <figure>
     <div class="frame sunken"><img src="img/studio_mixer.png" alt="The mixer in the STUDIO skin: flat grey strips, smooth labels, the send effects filled orange." width="1440" height="900" loading="lazy"></div>
     <figcaption>The mixer in STUDIO</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/neon.png" alt="The main screen in the NEON skin: deep navy panels, rounded glowing cyan buttons, smooth type." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The NEON skin</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/hardware.png" alt="The main screen in the HARDWARE skin: matte black, grey keys with red-orange LEDs lit along the top of the ones that are on, the pattern in amber." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The HARDWARE skin</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/prism.png" alt="The main screen in the PRISM skin: slate grey, the pattern's notes drawn as bars in each track's colour, held until the next note." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The PRISM skin, with its note bars</figcaption>
   </figure>
   <h3>Live feedback</h3>
   <p>Under each track's name and pan bar is its <b>scope</b>: the track's sound as a moving line in the track's colour, held still on each cycle the way ProTracker's scopes were. A silent track is a flat line; a muted one shows only the zero line. Click a scope to mute its track, right-click (or Alt-click) to solo it &mdash; the same as its name. <b>View &rarr; Track Scopes</b> hides them for more rows; the choice is kept.</p>
@@ -1108,7 +1127,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.46</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.47</footer>
 </main>
 </div>
 <script>
