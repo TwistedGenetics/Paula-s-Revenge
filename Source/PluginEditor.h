@@ -17,6 +17,7 @@
 #include "ui/SampleBrowser.h"
 #include "ui/ParamsPage.h"
 #include "ui/SynthPage.h"
+#include "ui/EnginePage.h"
 #include "ui/MidiOutPage.h"
 #include "ui/ChoiceBox.h"
 #include "ui/HelpPage.h"
@@ -49,6 +50,8 @@ public:
     prv::ui::MixerPage& getMixer() { return mixer; }
     prv::ui::RadioPage& getRadio() { return radioPage; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
+    prv::ui::EnginePage& getEnginePage() { return enginePage; }
+    void makeBuiltinSynth (const std::string& key);   // the current instrument becomes SUB / GRANULAR (its page opens)
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }
     prv::ui::HelpPage& getHelp() { return help; }
@@ -58,7 +61,8 @@ public:
     prv::ui::CvSourcesPage& getCvSources() { return cvSources; }
     void makeCvOut();                                 // the current instrument plays a modular (CV OUT)
     // LOAD's tabs (and the instrument list's right-click): 0 SAMPLES (the browser), 1 VST / AU (the instrument
-    // plug-ins), 2 MIDI OUT (the outputs), 3 CV OUT (asks first: it turns the instrument into one)
+    // plug-ins), 2 MIDI OUT (the outputs), 3 CV OUT (asks first: it turns the instrument into one), 4 SYNTHS
+    // (the built-in synths: SUB, GRANULAR)
     void openLoad (int kind);
     bool loadTabsShown() const;
     int  loadTabShown() const;                        // the tab lit (-1 = none shown)
@@ -258,7 +262,8 @@ private:
     prv::ui::ParamsPage params;
     prv::ui::SynthPage synthPage;
     prv::ui::MidiOutPage midiPage;
-    prv::ui::PixButton loadTab[4] { prv::ui::PixButton ("SAMPLES", true), prv::ui::PixButton ("VST / AU", true),
+    prv::ui::EnginePage enginePage { proc };
+    prv::ui::PixButton loadTab[5] { prv::ui::PixButton ("SAMPLES", true), prv::ui::PixButton ("SYNTHS", true), prv::ui::PixButton ("VST / AU", true),
                                     prv::ui::PixButton ("MIDI OUT", true), prv::ui::PixButton ("CV OUT", true) };
     bool tabsLaidOut = false;                         // (the layout had the tabs: redone when that changes)
     prv::ui::ChoiceBox choice;

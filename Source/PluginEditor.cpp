@@ -79,6 +79,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     addChildComponent (samplePage);
     // CV out to a modular (ES-9)
     cvPage.onClose = [this] { setView (View::Pattern); };
+    enginePage.onClose = [this] { setView (View::Pattern); };
+    enginePage.onChanged = [this] { instruments.refresh(); };
+    enginePage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    enginePage.onOptions = [this] { setView (View::Synth); };
+    addChildComponent (enginePage);
+    synthPage.onOpenBuiltin = [this] { setView (View::Engine); };
     cvPage.onChanged = [this] { refreshAll(); };
     cvPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
     cvPage.onSources = [this] { setView (View::CvSources); };
@@ -371,10 +377,11 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
     instruments.openBrowser = [this] { setView (View::Browser); };
     instruments.openSource = [this] (int kind) { openLoad (kind); };
-    for (int k = 0; k < 4; ++k)
+    for (int k = 0; k < 5; ++k)
     {
+        static const int kindOfTab[5] = { 0, 4, 1, 2, 3 };   // SAMPLES, SYNTHS, VST / AU, MIDI OUT, CV OUT
         loadTab[k].setClickingTogglesState (false);
-        loadTab[k].onClick = [this, k] { openLoad (k); };
+        loadTab[k].onClick = [this, k] { openLoad (kindOfTab[k]); };
         addChildComponent (loadTab[k]);
     }
     instruments.openSampleEditor = [this]
@@ -383,6 +390,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
         if (in.isMidiOut()) setView (View::MidiOut);
         else if (in.isCvOut()) setView (View::CvOut);
+        else if (in.isBuiltin()) setView (View::Engine);
         else if (in.isPlugin()) synthPage.openWindow();
         else setView (View::SampleEdit);
     };
@@ -452,6 +460,7 @@ void PaulaEditor::keyStateFromElsewhere (bool down)
     {
         case View::SampleEdit: sampleEditor.keyStateChanged (down); break;
         case View::Browser:    browser.keyStateChanged (down); break;
+        case View::Engine:     enginePage.keyStateChanged (down); break;
         case View::Params:     params.keyStateChanged (down); break;
         case View::Synth:      synthPage.keyStateChanged (down); break;
         case View::MidiOut:    midiPage.keyStateChanged (down); break;
@@ -515,6 +524,7 @@ void PaulaEditor::setView (View v)
     chords.setVisible (v == View::Chords);
     samplePage.setVisible (v == View::Sample);
     cvPage.setVisible (v == View::CvOut);
+    enginePage.setVisible (v == View::Engine);
     cvSources.setVisible (v == View::CvSources);
     radioPage.setVisible (v == View::Radio);
     breakPage.setVisible (v == View::Break);
@@ -532,6 +542,7 @@ void PaulaEditor::setView (View v)
     else if (v == View::Chords) chords.opened();
     else if (v == View::Sample) samplePage.opened();
     else if (v == View::CvOut) cvPage.opened();
+    else if (v == View::Engine) { enginePage.refresh(); enginePage.grabKeyboardFocus(); }
     else if (v == View::CvSources) cvSources.opened();
     else if (v == View::Radio) radioPage.opened();
     else if (v == View::Break) breakPage.opened();
@@ -558,7 +569,10 @@ void PaulaEditor::applyOptions()
 void PaulaEditor::refreshAll()
 {
     auto& st = proc.editorState;
-    if (loadTabsShown() != tabsLaidOut || (tabsLaidOut && ! loadTab[loadTabShown()].getToggleState())) resized();   // (LOAD's tabs came or went)
+    {
+        static const int tabOfKind[5] = { 0, 2, 3, 4, 1 };
+        if (loadTabsShown() != tabsLaidOut || (tabsLaidOut && ! loadTab[tabOfKind[loadTabShown()]].getToggleState())) resized();   // (LOAD's tabs came or went)
+    }
     const auto& song = proc.song;
     st.block = song.safeBlock (st.block);
     st.line = juce::jlimit (0, song.blocks[(size_t) st.block].lines - 1, st.line);
@@ -718,6 +732,7 @@ void PaulaEditor::timerCallback()
     if (samplePage.isVisible() || proc.recorder.state() != prv::TakeRecorder::State::Idle) samplePage.tick();
     if (midiPage.isVisible()) midiPage.tick();
     if (cvPage.isVisible()) cvPage.tick();
+    if (enginePage.isVisible()) enginePage.tick();
     if (radioPage.isVisible()) radioPage.tick();
     if (breakPage.isVisible()) breakPage.tick();
     if (stemsPanel.isVisible()) stemsPanel.repaint();
@@ -1030,18 +1045,20 @@ void PaulaEditor::resized()
     pattern.setBounds (main);
     sampleEditor.setBounds (main);
     params.setBounds (main);
+    enginePage.setBounds (main);
     {
         // LOAD's tabs over the sample browser, the plug-in list and the MIDI outputs: SAMPLES, VST / AU, MIDI OUT, CV OUT
         const int lit = loadTabShown();
         tabsLaidOut = lit >= 0;
         auto tabbed = main;
         auto row = tabbed.removeFromTop (rowH); tabbed.removeFromTop (gap);
-        const int w = (row.getWidth() - gap * 3) / 4;
-        for (int k = 0; k < 4; ++k)
+        const int w = (row.getWidth() - gap * 4) / 5;
+        static const int tabOfKind[5] = { 0, 2, 3, 4, 1 };
+        for (int k = 0; k < 5; ++k)
         {
-            loadTab[k].setBounds (k < 3 ? row.removeFromLeft (w) : row); row.removeFromLeft (gap);
+            loadTab[k].setBounds (k < 4 ? row.removeFromLeft (w) : row); row.removeFromLeft (gap);
             loadTab[k].setVisible (tabsLaidOut);
-            loadTab[k].setToggleState (k == lit, juce::dontSendNotification);
+            loadTab[k].setToggleState (lit >= 0 && k == tabOfKind[lit], juce::dontSendNotification);
         }
         browser.setBounds (tabbed);
         synthPage.setBounds (tabsLaidOut && lit == 1 ? tabbed : main);
@@ -1072,6 +1089,19 @@ void PaulaEditor::openLoad (int kind)
 {
     const int i = proc.editorState.instrument;
     const auto hex = juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2);
+    if (kind == 4)
+    {
+        // SYNTHS: the built-in ones (it turns the instrument into one, so it asks)
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        const auto& in = proc.song.instruments[(size_t) i];
+        const bool has = in.hasData() || in.isPlugin();
+        choice.show (*this, "INSTRUMENT " + hex + (has ? ": PLAY A BUILT-IN SYNTH INSTEAD? (UNDO BRINGS IT BACK)" : ": A BUILT-IN SYNTH"),
+                     { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)", "CANCEL" }, [safe] (int a)
+        {
+            if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
+        });
+        return;
+    }
     if (kind == 0) setView (View::Browser);
     else if (kind == 1) { setView (View::Synth); synthPage.opened (true); setStatus ("INSTRUMENT " + hex + ": DOUBLE-CLICK A VST3 / AU INSTRUMENT TO LOAD IT (TYPE TO SEARCH)"); }
     else if (kind == 2) { setView (View::MidiOut); midiPage.opened (true); setStatus ("INSTRUMENT " + hex + ": DOUBLE-CLICK A MIDI OUTPUT TO PLAY YOUR HARDWARE"); }
@@ -1086,6 +1116,22 @@ void PaulaEditor::openLoad (int kind)
         return;
     }
     refreshAll();
+}
+
+void PaulaEditor::makeBuiltinSynth (const std::string& key)
+{
+    const int i = proc.editorState.instrument;
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : "GRANULAR SYNTH");
+    proc.withLock ([&] {
+        proc.player.jamAllOff();
+        prv::makeBuiltin (proc.song.instruments[(size_t) i], key);
+        for (auto& sl : proc.song.mixer.inst[i]) sl = prv::FxSlot {};
+    });
+    proc.updateMixerEffects();
+    refreshAll();
+    setView (View::Engine);
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : "GRANULAR")
+               + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 
 void PaulaEditor::makeCvOut()
@@ -1370,6 +1416,7 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
     {
         case View::SampleEdit: return sampleEditor.keyPressed (k);
         case View::Browser:    return browser.keyPressed (k);
+        case View::Engine:     return enginePage.keyPressed (k);
         case View::Params:     return params.keyPressed (k);
         case View::Synth:      return synthPage.keyPressed (k);
         case View::MidiOut:    return midiPage.keyPressed (k);

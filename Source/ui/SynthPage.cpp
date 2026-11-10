@@ -196,6 +196,7 @@ void SynthPage::learnTrackKnob (int k)
 void SynthPage::openWindow()
 {
     const int i = proc.editorState.instrument;
+    if (inst().isBuiltin()) { if (onOpenBuiltin) onOpenBuiltin(); return; }
     if (auto* s = proc.synthAt (i))
         proc.pluginHost.openEditor (s->instance(), "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": " + juce::String (inst().pluginName));
     else if (onStatus) onStatus ("THE PLUG-IN ISN'T LOADED: " + proc.pluginHost.lastError (inst().pluginKey));
@@ -227,6 +228,7 @@ void SynthPage::refresh()
         onBtn.setButtonText (on ? "ON" : "OFF");
         const bool loaded = proc.pluginLoadedInstrument (proc.editorState.instrument);
         windowBtn.setEnabled (loaded);
+        windowBtn.setButtonText (inst().isBuiltin() ? "OPEN " + juce::String (inst().pluginName) + " PAGE" : juce::String ("OPEN PLUG-IN WINDOW"));
         for (auto& b : learnK) b.setEnabled (loaded);
         learnA.setEnabled (loaded); learnB.setEnabled (loaded);
         for (int k = 0; k < kInstrumentKnobs; ++k) learnK[k].setToggleState (learner.armed && learner.what == k, juce::dontSendNotification);
@@ -361,7 +363,7 @@ void SynthPage::paint (juce::Graphics& g)
     g.fillAll (Theme::palFor (*this).panel);
     const int i = proc.editorState.instrument;
     const juce::String title = "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2)
-                             + (browsing ? juce::String (": PICK A VST3 / AU INSTRUMENT") : juce::String (": PLUG-IN INSTRUMENT"));
+                             + (browsing ? juce::String (": PICK A VST3 / AU INSTRUMENT") : inst().isBuiltin() ? juce::String (": BUILT-IN SYNTH - OUTPUT AND KNOBS") : juce::String (": PLUG-IN INSTRUMENT"));
     auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
     PixelFont::drawLeft (g, PixelFont::textWidth (title, px) > titleArea.getWidth() && browsing
                               ? "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": PICK A PLUG-IN" : title,

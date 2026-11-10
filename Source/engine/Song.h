@@ -252,6 +252,7 @@ struct Instrument
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
     bool chord = false;                     // (v0.13 songs: 0xy played chords; converted to #xy on loading)
     bool isPlugin() const { return plugin; }   // (also true for MIDI out: both play through the synth rack)
+    bool isBuiltin() const { return plugin && pluginKey.rfind ("SYN:", 0) == 0; }   // a built-in synth (SUB, GRANULAR)
 
     // MIDI out to hardware instead of a sample (plugin is true as well; pluginKey = "MIDI:" + device)
     bool midiOut = false;

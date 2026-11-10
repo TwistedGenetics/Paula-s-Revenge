@@ -50,7 +50,8 @@ add_library(prv_engine STATIC
     Source/engine/StretchSync.cpp
     Source/engine/Radio.cpp
     Source/engine/RadioFormats.cpp
-    Source/engine/ChordDatabase.cpp)
+    Source/engine/ChordDatabase.cpp
+    Source/engine/BuiltinSynths.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 # STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
 if(APPLE OR WIN32)
@@ -141,6 +142,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/Panels.cpp
     Source/ui/LanePads.cpp
     Source/ui/PhraseView.cpp
+    Source/ui/EnginePage.cpp
     Source/ui/Spectrum.cpp
     Source/ui/SampleEditor.cpp
     Source/ui/SampleBrowser.cpp

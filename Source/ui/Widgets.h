@@ -170,6 +170,7 @@ public:
     float defaultValue = 0.5f;
     std::function<void()> onDoubleClick;   // replaces the reset-to-default when set
     std::function<void()> onDragStart;     // e.g. to mark an undo step
+    std::function<void()> onRightClick;    // set: a right-click opens this instead of moving it
     // MODULATION: the range it's moved in and where it is now (-1 = not modulated)
     float modLo = -1, modHi = -1, modNow = -1;
     void setMod (float lo, float hi, float now)
@@ -181,6 +182,7 @@ private:
     juce::String label;
     float dragStartValue = 0;
     float wheelAccum = 0;
+    bool rightDown = false;
     juce::Rectangle<float> trough() const;
     void setFromX (float x);
 };

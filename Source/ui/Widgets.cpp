@@ -807,6 +807,8 @@ void PixSlider::setFromX (float x)
 
 void PixSlider::mouseDown (const juce::MouseEvent& e)
 {
+    if (onRightClick && e.mods.isPopupMenu()) { rightDown = true; onRightClick(); return; }
+    rightDown = false;
     if (onDragStart) onDragStart();
     // a click in the trough jumps there; dragging then moves relative to that, calmly
     if (trough().contains (e.position) && ! e.mods.isShiftDown()) setFromX (e.position.x);
@@ -816,6 +818,7 @@ void PixSlider::mouseDown (const juce::MouseEvent& e)
 
 void PixSlider::mouseDrag (const juce::MouseEvent& e)
 {
+    if (rightDown) return;
     auto t = trough().reduced (Theme::px);
     const float fine = e.mods.isShiftDown() ? 0.1f : 1.0f;   // Shift: fine
     setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);

@@ -23,6 +23,7 @@ public:
     std::function<void (int slot)> onOpenFx;   // an instrument FX slot clicked: edit it (the mixer's effect page)
     std::function<void()> onOpenEqFx;          // EQ: the instrument's EQ AND EFFECTS page
     std::function<void()> onOpenShape;         // FILTER AND ENVELOPES...: the PARAMS page for this plug-in
+    std::function<void()> onOpenBuiltin;       // a built-in synth (SUB...): its own page instead of a plug-in window
 
     void opened (bool browse);      // browse = show the list of instrument plug-ins
     void refresh();

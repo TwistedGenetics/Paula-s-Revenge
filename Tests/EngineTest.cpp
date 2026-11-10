@@ -2,6 +2,7 @@
 // Build: c++ -std=c++20 -O1 -g -fsanitize=address,undefined -I Source Tests/EngineTest.cpp Source/engine/*.cpp
 #include <chrono>
 #include "engine/Player.h"
+#include "engine/BuiltinSynths.h"
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
 #include "engine/Recorder.h"
@@ -4457,6 +4458,124 @@ static void testPhrases()
     CHECK (describeCommand (kCmdPhrase, 0x02).find ("PHRASE 02") != std::string::npos);
 }
 
+
+// ---- SUB: no clicks - legato, tracker-style note-off then note-on, retrigger, poly stealing; glide; the 808 drop
+static float maxJump (const std::vector<float>& v, int from = 1)
+{
+    float m = 0;
+    for (size_t i = (size_t) std::max (1, from); i < v.size(); ++i) m = std::max (m, std::abs (v[i] - v[i - 1]));
+    return m;
+}
+static void testSubSynth()
+{
+    std::printf ("\n== SUB\n");
+    const double sr = 48000;
+    auto run = [&] (SubSynth& s, int n) { std::vector<float> L ((size_t) n), R ((size_t) n); s.render (L.data(), R.data(), n); return L; };
+    auto setMode = [] (SubSynth& s, int mode, float glideMs)
+    {
+        auto v = builtinDefaults (kSubKey);
+        v[sub::Mode] = (float) mode; v[sub::Glide] = glideMs; v[sub::Attack] = 2; v[sub::Release] = 30;
+        s.setValues (v);
+    };
+    // the slope a clean sine of this level can have at most: a click jumps far more than that in one sample
+    auto limit = [&] (double hz) { return (float) (0.8 * 0.6 * 6.283 * hz / sr * 1.6 + 0.004); };
+
+    // LEGATO: an overlapping note slides there; the level doesn't dip; no click anywhere
+    {
+        SubSynth s; s.prepare (sr, 512); setMode (s, sub::Legato, 100);
+        std::vector<float> all;
+        s.noteOn (36, 100, 0);                       // C2 (65 Hz)
+        auto a = run (s, 9600); all.insert (all.end(), a.begin(), a.end());
+        const float envBefore = s.levelNow();
+        s.noteOn (43, 100, 100); s.noteOff (36, 200);   // G2, overlapping
+        auto b = run (s, 2400); all.insert (all.end(), b.begin(), b.end());
+        const float mid = s.pitchNow();
+        auto c = run (s, 9600); all.insert (all.end(), c.begin(), c.end());
+        std::printf ("legato: pitch mid-glide %.2f (36 -> 43), at the end %.2f; level %.3f then %.3f; biggest step %.4f (limit %.4f)\n",
+                     mid, s.pitchNow(), envBefore, s.levelNow(), maxJump (all), limit (98));
+        CHECK (mid > 36.5f && mid < 42.5f && std::abs (s.pitchNow() - 43.0f) < 0.01f);
+        CHECK (std::abs (s.levelNow() - envBefore) < 0.05f);
+        CHECK (maxJump (all, 200) < limit (98));
+    }
+    // the tracker's way: the old note's OFF and the new note at the same moment - still legato, still no click
+    {
+        SubSynth s; s.prepare (sr, 512); setMode (s, sub::Legato, 60);
+        std::vector<float> all;
+        s.noteOn (36, 100, 0);
+        auto a = run (s, 4800); all.insert (all.end(), a.begin(), a.end());
+        const float envBefore = s.levelNow();
+        s.noteOff (36, 10); s.noteOn (31, 100, 10);
+        auto b = run (s, 4800); all.insert (all.end(), b.begin(), b.end());
+        std::printf ("off + on together: level %.3f then %.3f, pitch %.2f, biggest step %.4f\n", envBefore, s.levelNow(), s.pitchNow(), maxJump (all, 200));
+        CHECK (s.levelNow() > envBefore * 0.9f && std::abs (s.pitchNow() - 31.0f) < 0.01f && maxJump (all, 200) < limit (65));
+    }
+    // OFF (retrigger) mode, notes cut short and restarted over and over, with a hard square SHAPE: no click
+    {
+        SubSynth s; s.prepare (sr, 512); setMode (s, sub::Retrigger, 1);
+        auto v = builtinDefaults (kSubKey); v[sub::Mode] = sub::Retrigger; v[sub::Shape] = 60; v[sub::Attack] = 1; v[sub::Release] = 20; s.setValues (v);
+        std::vector<float> all;
+        for (int k = 0; k < 12; ++k)
+        {
+            s.noteOn (36 + (k % 3) * 5, 110, 0);
+            auto a = run (s, 1500 + 37 * k); all.insert (all.end(), a.begin(), a.end());
+            if (k % 2 == 0) s.noteOff (36 + (k % 3) * 5, 0);
+        }
+        std::printf ("retriggered 12 times: biggest step %.4f\n", maxJump (all, 50));
+        CHECK (maxJump (all, 50) < 0.06f);
+    }
+    // ALWAYS: separate notes slide too
+    {
+        SubSynth s; s.prepare (sr, 512); setMode (s, sub::Always, 200);
+        s.noteOn (36, 100, 0); run (s, 4800); s.noteOff (36, 0); run (s, 48);
+        s.noteOn (48, 100, 0); run (s, 2400);
+        std::printf ("ALWAYS: after 50 ms of a 200 ms glide, pitch %.2f\n", s.pitchNow());
+        CHECK (s.pitchNow() > 37.0f && s.pitchNow() < 47.0f);
+    }
+    // the 808 drop: starts up, falls to the note
+    {
+        SubSynth s; s.prepare (sr, 512); auto v = builtinDefaults (kSubKey); v[sub::DropAmount] = 24; v[sub::DropTime] = 80; s.setValues (v);
+        s.noteOn (36, 127, 0); run (s, 1);
+        const float startP = s.pitchNow();
+        auto a = run (s, 48000);
+        std::printf ("808 drop: the voice's note %.1f; biggest step %.4f\n", startP, maxJump (a, 100));
+        CHECK (maxJump (a, 100) < 0.08f);
+    }
+    // POLY: a chord sounds; the eighth note steals the oldest, fading it (no click)
+    {
+        SubSynth s; s.prepare (sr, 512); setMode (s, sub::Poly, 1);
+        std::vector<float> all;
+        for (int k = 0; k < 9; ++k) { s.noteOn (36 + k * 3, 90, 0); auto a = run (s, 2000); all.insert (all.end(), a.begin(), a.end()); }
+        std::printf ("POLY: 9 notes, biggest step %.4f, rms %.3f\n", maxJump (all, 50), rmsOf (all, 0, (int) all.size()));
+        CHECK (rmsOf (all, 0, (int) all.size()) > 0.05f && maxJump (all, 50) < 0.12f);
+    }
+    // its settings: saved in the instrument, read back; knobs set controls as 0..1
+    {
+        Instrument in; makeBuiltin (in, kSubKey);
+        CHECK (in.isPlugin() && in.pluginKey == kSubKey && in.name == "SUB");
+        auto v = readBuiltinState (in); v[sub::Glide] = 333; v[sub::Mode] = sub::Poly; writeBuiltinState (in, v);
+        const auto back = readBuiltinState (in);
+        CHECK (std::abs (back[sub::Glide] - 333) < 0.01f && back[sub::Mode] == sub::Poly && back.size() == (size_t) sub::Count);
+        const auto& ps = builtinParams (kSubKey);
+        CHECK (ps[sub::Glide].text (333) == "333MS" && ps[sub::Mode].text (3) == "POLY" && std::abs (ps[sub::Glide].toValue (ps[sub::Glide].to01 (333)) - 333) < 0.5f);
+        auto synth = createBuiltinSynth (in);
+        CHECK (synth != nullptr);
+    }
+    // in the song: a SUB instrument plays through the player (as a plug-in instrument does)
+    {
+        Song s = makeSong();
+        makeBuiltin (s.instruments[4], kSubKey);
+        s.blocks[0] = Block {}; s.blocks[0].lines = 16; s.blocks[0].at (0, 0) = Cell { 13, 5, 0, 0 }; s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.synths().factory = [] (int, const Instrument& in, double) { return createBuiltinSynth (in); };
+        p.synths().syncNow (s, 48000);
+        p.playSong (0);
+        std::vector<float> L (24000), R (L.size());
+        p.render (L.data(), R.data(), (int) L.size());
+        std::printf ("SUB in the song: rms %.3f\n", rmsOf (L, 0, (int) L.size()));
+        CHECK (rmsOf (L, 0, (int) L.size()) > 0.02f);
+    }
+}
+
 // ---- an instrument's MACRO knobs
 static void testInstMacros()
 {
@@ -4733,6 +4852,7 @@ int main()
     testEnvelopes();
     testClockSync();
     testPhrases();
+    testSubSynth();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();
