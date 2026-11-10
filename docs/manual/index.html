@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.51</span>
+  <span class="ver">MANUAL &middot; V0.52</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -466,6 +466,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><code>Ixx</code></td><td>Transpose just this note: <code>80</code> none, <code>8C</code> +12, <code>74</code> −12</td></tr>
       <tr><td><code>Kxx</code></td><td>Chance: the step plays xx/FF of the time</td></tr>
       <tr><td><code>?xy</code></td><td>Condition: plays only on pass x of every y (<code>?01</code> FILL only, <code>?02</code> not in a FILL, <code>?03</code> first time only, <code>?04</code> not the first) &mdash; see below</td></tr>
+      <tr><td><code>@xx</code></td><td>Phrase: the note plays the instrument's phrase xx (<code>@01</code>&ndash;<code>@10</code>); <code>@00</code> plays the sample &mdash; see Phrases</td></tr>
       <tr><td><code>Mxx</code></td><td>Micro-move: <code>01</code>–<code>7F</code> late by xx/128 of a line, <code>81</code>–<code>FF</code> early</td></tr>
       <tr><td><code>Nxx</code></td><td>Note length: release after xx ticks</td></tr>
       <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
@@ -668,7 +669,21 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>MACRO 1 turning DRIVE up</figcaption>
   </figure>
   <h3>Phrases</h3>
-  <p><span class="b">PHRASE...</span> at the end of the EQ / FX row makes a note play a little pattern instead: a track of a block, moved by how far the note is from C-3. The first click makes a new 16-line block for it; click again for <b>EDIT IT</b> (the pattern jumps there), <b>LOOP</b>, <b>RATE</b> (half, the song's, double), <b>TRACK</b>, <b>ANOTHER BLOCK...</b> and <b>PHRASE OFF</b>. It stops at its end (unless it loops), on the next note, or on OFF.</p>
+  <p>A phrase is a little pattern stored with an instrument: its note plays the phrase instead of the sample, as in Renoise. An instrument can have up to <b>16</b>. <span class="b">PHRASES...</span> at the end of the EQ / FX row turns the PARAMS page over to them; <span class="b">SOUND</span> turns it back.</p>
+  <ul>
+    <li><b>The list</b>: each phrase's number, keys, length and LOOP. <span class="b">ADD</span> makes an empty 16-line one, <span class="b">CLONE</span> copies the one picked, <span class="b">DEL</span> deletes it. Right-click one for EDIT IT IN THE PATTERN, MOVE UP / DOWN, ALL KEYS, its TRACK, ANOTHER BLOCK... and DELETE.</li>
+    <li><b>The phrase</b>, on the right, is written like the pattern: note keys, <kbd>1</kbd> for OFF, hex digits, a command's letter in an FX column, <kbd>Tab</kbd> to the next column, <kbd>Delete</kbd> to clear. Write it from C-3; the note played moves it. A note with no instrument plays this one's sample.</li>
+    <li><span class="b">LOW KEY</span> / <span class="b">HIGH KEY</span>: the notes that play it. A note plays the <b>first</b> phrase that holds it; a note none holds plays the sample.</li>
+    <li><span class="b">LINES</span>: its length. <span class="b">LPB</span>: lines a beat &mdash; 4 is the song's speed, 2 half, 8 double.</li>
+    <li><span class="b">LOOP</span> with <span class="b">START</span> and <span class="b">END</span>: round from START after END until the next note or OFF.</li>
+    <li><span class="b">TRANSPOSE</span>: on, its notes follow the note played; off, they play as written.</li>
+    <li><span class="b">PLAY</span> hears it from C-3; the line playing lights up, in the song too.</li>
+  </ul>
+  <p><code>@xx</code> in an effect column picks the phrase: <code>@01</code> the first&hellip; <code>@10</code> the sixteenth; <code>@00</code> plays the sample. Without it, the keys decide. A phrase stops at its end (unless it loops), on the next note, or on OFF.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/phrases.png" alt="An instrument's PARAMS page showing PHRASES: a list of two phrases with their keys, ADD, CLONE and DEL, the second phrase's LOW KEY, HIGH KEY, LINES, LPB, LOOP, START, TRANSPOSE, END, PLAY and SOUND, and the phrase's lines written on the right." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Two phrases: a riff on the low keys, an arpeggio on the high ones</figcaption>
+  </figure>
   <h3>Resampling in one step</h3>
   <p><kbd>Shift</kbd><kbd>Cmd</kbd><kbd>B</kbd> (or RESAMPLE in the bounce menu) records the highlighted notes &mdash; or the whole block &mdash; with all their effects into a new instrument: cut to its length, a slice a beat, notes playing the slices, BEAT SYNC'd to stay in time at any tempo.</p>
   <h3>Following a MIDI clock</h3>
@@ -1193,7 +1208,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.51</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.52</footer>
 </main>
 </div>
 <script>
