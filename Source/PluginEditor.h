@@ -57,6 +57,11 @@ public:
     prv::ui::CvOutPage& getCvPage() { return cvPage; }
     prv::ui::CvSourcesPage& getCvSources() { return cvSources; }
     void makeCvOut();                                 // the current instrument plays a modular (CV OUT)
+    // LOAD's tabs (and the instrument list's right-click): 0 SAMPLES (the browser), 1 VST / AU (the instrument
+    // plug-ins), 2 MIDI OUT (the outputs), 3 CV OUT (asks first: it turns the instrument into one)
+    void openLoad (int kind);
+    bool loadTabsShown() const;
+    int  loadTabShown() const;                        // the tab lit (-1 = none shown)
     void openChords (int slot = -1);                  // CHORDS (Cmd+3; EDIT CHORDS... in the chord list)
     void renderTo (const juce::File&, bool stems);   // RENDER WAV after the questions (tests call it directly)
     void recordAutomation();                          // REC AUTO: called by the timer
@@ -253,6 +258,9 @@ private:
     prv::ui::ParamsPage params;
     prv::ui::SynthPage synthPage;
     prv::ui::MidiOutPage midiPage;
+    prv::ui::PixButton loadTab[4] { prv::ui::PixButton ("SAMPLES", true), prv::ui::PixButton ("VST / AU", true),
+                                    prv::ui::PixButton ("MIDI OUT", true), prv::ui::PixButton ("CV OUT", true) };
+    bool tabsLaidOut = false;                         // (the layout had the tabs: redone when that changes)
     prv::ui::ChoiceBox choice;
     prv::ui::HelpPage help;
     prv::ui::ChordsPage chords;

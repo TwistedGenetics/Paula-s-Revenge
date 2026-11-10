@@ -367,6 +367,13 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     blockPanel.onHalve = [this] { pattern.halveBlock(); };
     pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
     instruments.openBrowser = [this] { setView (View::Browser); };
+    instruments.openSource = [this] (int kind) { openLoad (kind); };
+    for (int k = 0; k < 4; ++k)
+    {
+        loadTab[k].setClickingTogglesState (false);
+        loadTab[k].onClick = [this, k] { openLoad (k); };
+        addChildComponent (loadTab[k]);
+    }
     instruments.openSampleEditor = [this]
     {
         // EDIT on a plug-in instrument opens the plug-in's own window
@@ -548,6 +555,7 @@ void PaulaEditor::applyOptions()
 void PaulaEditor::refreshAll()
 {
     auto& st = proc.editorState;
+    if (loadTabsShown() != tabsLaidOut || (tabsLaidOut && ! loadTab[loadTabShown()].getToggleState())) resized();   // (LOAD's tabs came or went)
     const auto& song = proc.song;
     st.block = song.safeBlock (st.block);
     st.line = juce::jlimit (0, song.blocks[(size_t) st.block].lines - 1, st.line);
@@ -1007,10 +1015,24 @@ void PaulaEditor::resized()
     }
     pattern.setBounds (main);
     sampleEditor.setBounds (main);
-    browser.setBounds (main);
     params.setBounds (main);
-    synthPage.setBounds (main);
-    midiPage.setBounds (main);
+    {
+        // LOAD's tabs over the sample browser, the plug-in list and the MIDI outputs: SAMPLES, VST / AU, MIDI OUT, CV OUT
+        const int lit = loadTabShown();
+        tabsLaidOut = lit >= 0;
+        auto tabbed = main;
+        auto row = tabbed.removeFromTop (rowH); tabbed.removeFromTop (gap);
+        const int w = (row.getWidth() - gap * 3) / 4;
+        for (int k = 0; k < 4; ++k)
+        {
+            loadTab[k].setBounds (k < 3 ? row.removeFromLeft (w) : row); row.removeFromLeft (gap);
+            loadTab[k].setVisible (tabsLaidOut);
+            loadTab[k].setToggleState (k == lit, juce::dontSendNotification);
+        }
+        browser.setBounds (tabbed);
+        synthPage.setBounds (tabsLaidOut && lit == 1 ? tabbed : main);
+        midiPage.setBounds (tabsLaidOut && lit == 2 ? tabbed : main);
+    }
     arrange.setBounds (main);
     samplePage.setBounds (main);
     cvPage.setBounds (main);
@@ -1019,6 +1041,37 @@ void PaulaEditor::resized()
         const int h = (int) (px * 12 * 4 + px * 30);
         stemsPanel.setBounds (main.withSizeKeepingCentre (std::min (main.getWidth(), charsW (52)), std::min (main.getHeight(), h)));
     }
+}
+
+bool PaulaEditor::loadTabsShown() const { return loadTabShown() >= 0; }
+
+int PaulaEditor::loadTabShown() const
+{
+    const auto v = proc.editorState.view;
+    if (v == View::Browser) return 0;
+    if (v == View::Synth && synthPage.isBrowsing()) return 1;
+    if (v == View::MidiOut && midiPage.isBrowsing()) return 2;
+    return -1;
+}
+
+void PaulaEditor::openLoad (int kind)
+{
+    const int i = proc.editorState.instrument;
+    const auto hex = juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2);
+    if (kind == 0) setView (View::Browser);
+    else if (kind == 1) { setView (View::Synth); synthPage.opened (true); setStatus ("INSTRUMENT " + hex + ": DOUBLE-CLICK A VST3 / AU INSTRUMENT TO LOAD IT (TYPE TO SEARCH)"); }
+    else if (kind == 2) { setView (View::MidiOut); midiPage.opened (true); setStatus ("INSTRUMENT " + hex + ": DOUBLE-CLICK A MIDI OUTPUT TO PLAY YOUR HARDWARE"); }
+    else
+    {
+        // CV OUT has no list: it turns the instrument into one straight away, so it asks
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        choice.show (*this, "INSTRUMENT " + hex + ": CV OUT TO A MODULAR (ES-9)?", { "YES, PLAY A MODULAR", "NO" }, [safe] (int a)
+        {
+            if (safe != nullptr && a == 0) safe->makeCvOut();
+        });
+        return;
+    }
+    refreshAll();
 }
 
 void PaulaEditor::makeCvOut()
