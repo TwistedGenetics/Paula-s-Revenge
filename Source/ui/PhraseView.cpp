@@ -530,7 +530,7 @@ void PhraseView::resized()
         auto pair = [&] (juce::Component& l, NumberBox& rb)
         {
             auto x = row();
-            rb.setBounds (x.removeFromRight (std::min (x.getWidth() / 2 + gap * 4, std::max (x.getWidth() / 2, rb.preferredWidth (px)))));
+            rb.setBounds (x.removeFromRight (std::min (x.getWidth() - (int) (px * (6 * 9 + 4)) - gap, std::max (x.getWidth() / 2, rb.preferredWidth (px)))));   // (TRANSPOSE keeps its room)
             x.removeFromRight (gap); l.setBounds (x);
         };
         pair (linesBox, lpbBox);
