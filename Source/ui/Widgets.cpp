@@ -31,6 +31,7 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Violet:       return "VIOLET";
         case SkinId::Ember:        return "EMBER";
         case SkinId::Forest:       return "FOREST";
+        case SkinId::Prism2:       return "PRISM II";
         default:                   return {};
     }
 }
@@ -47,13 +48,14 @@ void Theme::setSkinId (SkinId id)
     k.smoothType = smoothSkin;
     k.sans = (id == SkinId::Neon || id == SkinId::Ember) ? PixelFont::SpaceGrotesk
            : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
-           : (id == SkinId::Prism || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
-    k.round = (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : id == SkinId::Prism ? 1.6f
+           : (id == SkinId::Prism || id == SkinId::Prism2 || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
+    k.round = (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
             : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
     k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest;
     k.glow = id == SkinId::Neon || id == SkinId::Violet;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
+    k.colourNotes = id == SkinId::Prism2;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -137,6 +139,7 @@ void Theme::setSkinId (SkinId id)
             k.accentSel = C (0xffff5a36); k.accentMod = C (0xffffb84d); k.accentRec = C (0xffff2d2d);
             break;
         case SkinId::Prism:
+        case SkinId::Prism2:
             chromePal = prism; pagePal = prism;
             k.bg = C (0xff26282e); k.text = C (0xffeef0f4); k.dim = C (0xff6a7080); k.stripe = C (0xff2b2d34);
             k.band = C (0xff3a3d46); k.cursor = C (0xff1d5560); k.cursorEdge = C (0xff3fd6f0); k.rule = C (0xff16171b);
@@ -203,7 +206,7 @@ void Theme::setSkinId (SkinId id)
         const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
         for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
         if (id == SkinId::Kickstart) { k.track[4] = C (0xffc8e0ff); k.track[0] = C (0xff6af0ff); }   // (no blue on blue)
-        if (id == SkinId::Prism)
+        if (id == SkinId::Prism || id == SkinId::Prism2)
         {
             const juce::uint32 v[8] = { 0xffff4fd8, 0xff3fd6f0, 0xffffd23f, 0xff7ee06a, 0xffff8a3d, 0xffa98bff, 0xffff5470, 0xff4ee0a6 };
             for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);

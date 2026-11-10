@@ -30,9 +30,9 @@ struct Theme
     // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type),
     // NEON (navy, rounded, glowing cyan), HARDWARE (matte black, LED buttons, amber pattern), PRISM (slate, colour, note bars),
     // BLUEWAVE (a wavetable synth's charcoal and blue), PAPER (light and clean), VIOLET (dark purple, glowing lilac),
-    // EMBER (warm charcoal and orange), FOREST (deep green and lime)
+    // EMBER (warm charcoal and orange), FOREST (deep green and lime), PRISM II (PRISM without the bars: coloured notes and effects)
     enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism,
-                        BlueWave, Paper, Violet, Ember, Forest, Count };
+                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern && id != (int) SkinId::Paper; }
@@ -52,6 +52,7 @@ struct Theme
         bool glow = false;         // on = glowing (NEON)
         bool leds = false;         // on = an LED lit along the top, the face stays (HARDWARE)
         bool noteBars = false;     // the pattern: notes as bars in their track's colour, held until the next (PRISM)
+        bool colourNotes = false;  // the pattern: notes in their track's colour, effects a lighter shade of it (PRISM II)
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;
         juce::Colour track[8];

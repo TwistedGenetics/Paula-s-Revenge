@@ -428,6 +428,7 @@ void PatternEditor::paint (juce::Graphics& g)
     PixelFont::TextList text, dimText;
     PixelFont::TextList chordText[kChordColours];   // #xy drawn in its slot's group colour
     PixelFont::TextList onBar;                      // (note bars: the note and instrument, dark on the bar's colour)
+    PixelFont::TextList trackText[8], trackFx[8];   // (coloured notes: each track's notes, and its effects a lighter shade)
     // NOTE BARS (PRISM): which line's note is sounding on each visible line, per track (-1 none)
     std::vector<int> heldFrom;
     const int barRows = std::max (0, std::min (lines, firstRow + visRows + 1));   // (one past the view: does a bar go on)
@@ -516,8 +517,10 @@ void PatternEditor::paint (juce::Graphics& g)
             }
             else
             {
-                PixelFont::addText (c.note ? text : dimText, note, x, ty, px);
-                PixelFont::addText (c.instr ? text : dimText, ins, x + 4 * cw, ty, px);
+                // (coloured notes: the note and instrument in the track's colour)
+                auto& on = sk.colourNotes ? trackText[t % 8] : text;
+                PixelFont::addText (c.note ? on : dimText, note, x, ty, px);
+                PixelFont::addText (c.instr ? on : dimText, ins, x + 4 * cw, ty, px);
             }
             // a #xy in its chord group's colour
             auto fxList = [&] (uint8_t cm, uint8_t pa, bool empty) -> PixelFont::TextList&
@@ -525,7 +528,7 @@ void PatternEditor::paint (juce::Graphics& g)
                 if (empty) return dimText;
                 if (cm == kCmdChord && pa > 0)
                     if (const int col = proc.song.chords[(size_t) pa].colour; col >= 1 && col <= kChordColours) return chordText[col - 1];
-                return text;
+                return sk.colourNotes ? trackFx[t % 8] : text;
             };
             PixelFont::addText (fxList (c.cmd, c.param, c.fx1Empty()), fx (c.cmd, c.param), x + 7 * cw, ty, px);
             if (st.showFx2) PixelFont::addText (fxList (c.cmd2, c.param2, c.fx2Empty()), fx (c.cmd2, c.param2), x + 11 * cw, ty, px);
@@ -575,6 +578,11 @@ void PatternEditor::paint (juce::Graphics& g)
     for (int k = 0; k < kChordColours; ++k)
         if (! chordText[k].isEmpty()) { g.setColour (chordColours::colour (k + 1)); chordText[k].fill (g); }
     if (! onBar.isEmpty()) { g.setColour (juce::Colour (0xff14161a)); onBar.fill (g); }
+    for (int k = 0; k < 8; ++k)
+    {
+        if (! trackText[k].isEmpty()) { g.setColour (sk.track[k]); trackText[k].fill (g); }
+        if (! trackFx[k].isEmpty())   { g.setColour (sk.track[k].interpolatedWith (sk.text, 0.45f)); trackFx[k].fill (g); }
+    }
     g.restoreState();
 
     // ---- per-track VU bars: a segmented column at the right edge of each track
