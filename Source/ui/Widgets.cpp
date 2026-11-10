@@ -33,6 +33,7 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Forest:       return "FOREST";
         case SkinId::Prism2:       return "PRISM II";
         case SkinId::Aurora:       return "AURORA";
+        case SkinId::Boombox:      return "BOOMBOX";
         default:                   return {};
     }
 }
@@ -47,18 +48,18 @@ void Theme::setSkinId (SkinId id)
     const bool smoothSkin = (int) id >= (int) SkinId::Studio;   // (STUDIO and every skin after it)
     k.style = id == SkinId::Glass ? Style::Glass : (id == SkinId::Modern || smoothSkin) ? Style::Flat : Style::Bevel;
     k.smoothType = smoothSkin;
-    k.sans = (id == SkinId::Neon || id == SkinId::Ember) ? PixelFont::SpaceGrotesk
+    k.sans = (id == SkinId::Neon || id == SkinId::Ember || id == SkinId::Boombox) ? PixelFont::SpaceGrotesk
            : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
            : (id == SkinId::Prism || id == SkinId::Prism2 || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
     k.round = id == SkinId::Aurora ? 6.0f   // (pills: corners as round as the button is tall)
-            : (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
+            : (id == SkinId::Neon || id == SkinId::Violet || id == SkinId::Boombox) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
             : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
-    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora;
+    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora || id == SkinId::Boombox;
     k.glow = id == SkinId::Neon || id == SkinId::Violet;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
-    k.colourNotes = id == SkinId::Prism2;
-    k.wash = id == SkinId::Aurora;
+    k.colourNotes = id == SkinId::Prism2 || id == SkinId::Boombox;
+    k.wash = id == SkinId::Aurora || id == SkinId::Boombox;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -91,8 +92,18 @@ void Theme::setSkinId (SkinId id)
     const Palette forest    { C (0xff111813), C (0xff1a231d), C (0xff263229), C (0xff060907), C (0xffe6f5e9), C (0xff7ee06a), C (0xff8aa391), C (0xff304036), C (0xff0d130f), C (0xff0b1a08) };
     // AURORA: near black, smoky grey panes, pastel mint for chosen (dark text on it)
     const Palette aurora    { C (0xff0f0e14), C (0xff25242c), C (0xff34333d), C (0xff050508), C (0xfff4f2f8), C (0xff7dfc9b), C (0xffa19fb0), C (0xff42414d), C (0xff3a3944), C (0xff0d1a10) };
+    // BOOMBOX: an 80s boombox - slate violet panels with a silver rim, hot pink for chosen (dark text on it)
+    const Palette boombox   { C (0xff2e2d3d), C (0xff434257), C (0xff6c6a86), C (0xff16151f), C (0xfff4f2fa), C (0xffff4f93), C (0xffaaa7c0), C (0xff52506a), C (0xff1e1d29), C (0xff1a0a14) };
     switch (id)
     {
+        case SkinId::Boombox:
+            chromePal = boombox; pagePal = boombox;
+            k.bg = C (0xff242331); k.text = C (0xfff4f2fa); k.dim = C (0xff625f7a); k.stripe = C (0xff2a2939);
+            k.band = C (0xff3c3a52); k.cursor = C (0xff5c2a52); k.cursorEdge = C (0xffff4f93); k.rule = C (0xff3a3950);
+            k.hot = C (0xffff8a4c); k.specBar = C (0xffff4f93);
+            k.accentSel = C (0xffff4f93); k.accentMod = C (0xffff9a4a); k.accentRec = C (0xffff3b3b);
+            k.washA = C (0xff4a2d5e); k.washB = C (0xff2a3550);
+            break;
         case SkinId::Aurora:
             chromePal = aurora; pagePal = aurora;
             k.bg = C (0xff16151c); k.text = C (0xfff2f0f7); k.dim = C (0xff57556a); k.stripe = C (0xff1b1a22);
@@ -223,6 +234,12 @@ void Theme::setSkinId (SkinId id)
         {
             // pastels, as in the panes' highlights
             const juce::uint32 v[8] = { 0xff7dfc9b, 0xfffff27a, 0xffc9b3f5, 0xffffb38a, 0xff8fd3ff, 0xffff9fc8, 0xffb8f28a, 0xfff5d0a9 };
+            for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);
+        }
+        if (id == SkinId::Boombox)
+        {
+            // the equaliser's bars: orange, pink, magenta, purple, lavender...
+            const juce::uint32 v[8] = { 0xffff8a4c, 0xffff4f93, 0xffd65ae0, 0xffa07bff, 0xffc9c4ea, 0xffff6f6f, 0xff8fa0ff, 0xffffc06a };
             for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);
         }
         if (id == SkinId::Prism || id == SkinId::Prism2)

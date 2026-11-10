@@ -33,7 +33,7 @@ struct Theme
     // EMBER (warm charcoal and orange), FOREST (deep green and lime), PRISM II (PRISM without the bars: coloured notes and effects),
     // AURORA (near black washed purple to navy, smoky rounded panes, pill buttons, pastel mint / yellow / coral)
     enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism,
-                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Aurora, Count };
+                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Aurora, Boombox, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern && id != (int) SkinId::Paper; }
