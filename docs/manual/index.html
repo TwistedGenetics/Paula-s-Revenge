@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.55</span>
+  <span class="ver">MANUAL &middot; V0.56</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -661,7 +661,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL. The spectrum strip under the page shows the instrument's sound with the <b>filter's curve</b> over it and a line at the cutoff.</li>
     <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
     <li><b>UTILITY</b> (the row under PAN, and on a plug-in instrument's page): <span class="b">WIDTH</span> 0% (mono) to 200%; <span class="b">MONO</span> makes everything below a frequency mono (OFF, or <code>&lt;20HZ</code> to <code>&lt;500HZ</code>, a smooth 24&nbsp;dB/octave crossover, or 48 with <span class="b">STEEP</span>) &mdash; mono the bass; <span class="b">VOL</span> is the instrument's VOL itself, so moving either one moves the other. Before the instrument's own effects; not on MIDI out or CV out. At 100% and OFF it does nothing.</li>
-    <li><b>Spectrum:</b> while PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
+    <li><b>Spectrum:</b> every spectrum (the strip, the filter, the EQ pages) is drawn as an analyser &mdash; a smooth line at 1/12 octave, the fill fading under it, a faint peak hold above and a light grid. While PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
     <li><b>Tuning:</b> <span class="b">PITCH</span> (±48 semitones) and <span class="b">FINE</span> (±100 cents). <span class="b">TUNE TO C</span> listens to the sample and sets them so <code>C-3</code> plays a C.</li>
     <li><b>BEAT SYNC</b> (like Renoise): the sample lasts <span class="b">LINES</span> lines at <code>C-3</code> at any tempo, repitched live to fit. <span class="b">STRETCH...</span> opens the time stretch set to those lines, to fit it at its own pitch instead.</li>
     <li><b>KEEP PITCH</b>: BEAT SYNC stretches the sample instead of repitching it, with the old-sampler stretch &mdash; the break stays at its own pitch and keeps the grainy 90s sound. The stretch is made again whenever BPM, SPD or LINES change, and the original is kept: switch KEEP PITCH off and it's back exactly as it was (songs save the original, and make the stretch again when they load). Right-click KEEP PITCH for <b>CLASSIC</b> (the Akai S-series sound) or <b>AKAIZER</b> (smoother grains). <b>SEMI</b> (&minus;24 to +24) moves the pitch without changing the length &mdash; a break pitched up and still in time, no chipmunk. Tempo changes while playing (<code>Fxx</code>) are followed by repitching a little until the next stretch. Editing the stretched sample keeps the stretch as the sample (KEEP PITCH goes off).</li>
@@ -692,7 +692,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>A phrase is a little pattern stored with an instrument: its note plays the phrase instead of the sample, as in Renoise. An instrument can have up to <b>16</b>. <span class="b">PHRASES...</span> at the bottom left of the PARAMS page turns it over to them; <span class="b">SOUND</span> turns it back.</p>
   <ul>
     <li><b>The list</b>: each phrase's number, keys, length and LOOP. <span class="b">ADD</span> makes an empty 16-line one, <span class="b">CLONE</span> copies the one picked, <span class="b">DEL</span> deletes it. Right-click one for EDIT IT IN THE PATTERN, MOVE UP / DOWN, ALL KEYS, its TRACK, ANOTHER BLOCK... and DELETE.</li>
-    <li><b>The phrase</b>, on the right, is written like the pattern: note keys, <kbd>1</kbd> for OFF, hex digits, a command's letter in an FX column, <kbd>Tab</kbd> to the next column, <kbd>Delete</kbd> to clear. Write it from C-3; the note played moves it. A note with no instrument plays this one's sample.</li>
+    <li><b>The phrase</b>, on the right, is written in the pattern editor itself, showing just its track: everything the pattern does works &mdash; note keys, <kbd>1</kbd> for OFF, the command list, STEP, <kbd>Shift</kbd>-click or drag to highlight, <kbd>Delete</kbd>, copy / cut / paste, transpose, undo. EDIT is always on; the octave and STEP are the pattern's. Write it from C-3; the note played moves it. A note with no instrument plays this one's sample.</li>
     <li><span class="b">LOW KEY</span> / <span class="b">HIGH KEY</span>: the notes that play it. A note plays the <b>first</b> phrase that holds it; a note none holds plays the sample.</li>
     <li><span class="b">LINES</span>: its length. <span class="b">LPB</span>: lines a beat &mdash; 4 is the song's speed, 2 half, 8 double.</li>
     <li><span class="b">LOOP</span> with <span class="b">START</span> and <span class="b">END</span>: round from START after END until the next note or OFF.</li>
@@ -1228,7 +1228,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.55</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.56</footer>
 </main>
 </div>
 <script>
