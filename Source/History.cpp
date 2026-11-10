@@ -1,3 +1,4 @@
+#include <algorithm>
 // Paula's Revenge - one undo/redo history for every page
 #include "History.h"
 #include "PluginProcessor.h"
@@ -114,7 +115,8 @@ void History::apply (Entry& e)
         case Kind::Block:
             if (e.index >= (int) song.blocks.size()) return;
             proc.withLock ([&] { std::swap (song.blocks[(size_t) e.index], *e.block); });
-            st.block = e.index;
+            // (the pattern goes to the block undone - not to a phrase's block, which isn't in the song)
+            if (std::find (song.sequence.begin(), song.sequence.end(), e.index) != song.sequence.end()) st.block = e.index;
             break;
         case Kind::Structure:
             proc.withLock ([&] {
