@@ -221,7 +221,7 @@ void EnginePage::readWave()
         const auto& from = proc.song.instruments[(size_t) slot - 1];
         waveName = "SAMPLE " + hex2 (slot) + ": " + (from.data.empty() || from.isPlugin() ? juce::String ("(NO SAMPLE IN IT)") : juce::String (from.name).toUpperCase());
     }
-    else waveName = std::lround (v[grain::Freeze]) == 1 ? "THE INPUT - FROZEN" : "THE INPUT - THE LAST 8 SECONDS";
+    else waveName = std::lround (v[grain::Freeze]) == 1 ? "INPUT - FROZEN" : "INPUT - LAST 8 SECONDS";
     repaint (waveArea.toNearestInt());
 }
 
@@ -411,13 +411,17 @@ void EnginePage::paint (juce::Graphics& g)
     if (! waveArea.isEmpty())
     {
         // GRANULAR: the sound, POSITION (and where SCAN has taken it), the grains playing
+        // (too long for the box: up to its first " - " or ":", e.g. "INPUT", "SAMPLE 01")
         juce::String head = waveName;
-        while (head.length() > 4 && PixelFont::textWidth (head, px) > waveArea.getWidth() - px * 24) head = head.dropLastCharacters (1);
+        if (PixelFont::textWidth (head, px) * 1.15f > waveArea.getWidth() - px * 24)
+            head = head.upToFirstOccurrenceOf (" - ", false, false).upToFirstOccurrenceOf (":", false, false);
         Theme::panelBox (g, waveArea, head, pal);
         const float title = px * 11;
         auto in = waveArea.reduced (px * 4).withTrimmedTop (title);
         g.setColour (pal.paper);
         g.fillRect (in);
+        const auto foot = in.removeFromBottom (px * 10).reduced (px * 2, 0);   // (the words under the sound, never over it)
+        in.removeFromBottom (px);
         if (waveOk && ! wavePeaks.empty())
         {
             const float mid = in.getCentreY(), half = in.getHeight() * 0.46f;
@@ -438,7 +442,6 @@ void EnginePage::paint (juce::Graphics& g)
             g.setColour (pal.pressedInk);
             g.fillRect (in.getX() + wavePos * in.getWidth() - px * 0.5f, in.getY(), px, in.getHeight());
         }
-        const auto foot = in.removeFromBottom (px * 9).reduced (px * 2, 0);
         juce::String note = juce::String (waveGrains) + " GRAINS - CLICK TO SET POSITION";
         if (PixelFont::textWidth (note, px) > foot.getWidth()) note = juce::String (waveGrains) + " GRAINS";
         PixelFont::drawLeft (g, note, foot, px, pal.ink);
