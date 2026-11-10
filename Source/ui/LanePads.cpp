@@ -199,16 +199,64 @@ PadPanel::PadPanel (PaulaProcessor& p) : proc (p)
     bankUp.setClickingTogglesState (false);
     bankDown.onClick = [this] { setBank (bank() - 1); };
     bankUp.onClick = [this] { setBank (bank() + 1); };
+    addAndMakeVisible (slicesBtn);
+    slicesBtn.setClickingTogglesState (false);
+    slicesBtn.onClick = [this] { setSlicesMode (! slicesMode()); };
+    slicesBtn.setToggleState (slicesMode(), juce::dontSendNotification);
     for (int t = 0; t < kMaxTracks; ++t) lastNotes[t] = proc.player.uiNotes[t].load();
     startTimerHz (30);
 }
 
 PadPanel::~PadPanel() { stopTimer(); }
 
-int PadPanel::bank() const { return juce::jlimit (0, 3, proc.editorState.padBank); }
+int PadPanel::bank() const { return slicesMode() ? sliceBank : juce::jlimit (0, 3, proc.editorState.padBank); }
+
+bool PadPanel::slicesMode() const { return proc.editorState.padSlices; }
+
+void PadPanel::setSlicesMode (bool on)
+{
+    proc.editorState.padSlices = on;
+    sliceBank = 0;
+    slicesBtn.setToggleState (on, juce::dontSendNotification);
+    for (auto& f : flash) f = 0;
+    if (onBank) onBank();
+    repaint();
+}
+
+int PadPanel::sliceOfPad (int i) const
+{
+    if (! slicesMode() || i < 0 || i >= 16) return -1;
+    const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+    const int s = sliceBank * 16 + i;
+    return in.numSlices() >= 2 && s < in.numSlices() ? s : -1;
+}
+
+const std::vector<HitKind>& PadPanel::sliceKinds()
+{
+    const int i = juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument);
+    const auto& in = proc.song.instruments[(size_t) i];
+    if (kindsFor != i || kindsSlices != in.slices.size() || kindsLen != in.data.size() || (in.numSlices() >= 2 && kinds.size() != (size_t) in.numSlices()))
+    {
+        kindsFor = i; kindsSlices = in.slices.size(); kindsLen = in.data.size();
+        kinds = in.numSlices() >= 2 ? classifySlices (in) : std::vector<HitKind> {};
+    }
+    return kinds;
+}
 
 void PadPanel::setBank (int b)
 {
+    if (slicesMode())
+    {
+        const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+        const int banks = std::max (1, (in.numSlices() + 15) / 16);
+        b = juce::jlimit (0, banks - 1, b);
+        if (b == sliceBank) return;
+        sliceBank = b;
+        for (auto& f : flash) f = 0;
+        if (onBank) onBank();
+        repaint();
+        return;
+    }
     b = juce::jlimit (0, 3, b);
     if (b == proc.editorState.padBank) return;
     proc.editorState.padBank = b;
@@ -233,15 +281,18 @@ void PadPanel::resized()
     const float th = titleH();
     const int bw = (int) (PixelFont::textWidth ("+", px) + px * 4);
     const int bh = (int) (th - px);
+    const int sw = (int) (PixelFont::textWidth ("SLICES", px) + px * 4);
     if (isStrip())
     {
         const int x0 = (int) px * 2;
         bankDown.setBounds (x0, (int) (th + px), bw, bh);
         bankUp.setBounds (bankDown.getRight() + (int) px, (int) (th + px), bw, bh);
+        slicesBtn.setBounds (x0, bankDown.getBottom() + (int) px, std::max (sw, bankUp.getRight() - x0), bh);
         return;
     }
     bankUp.setBounds (getWidth() - bw - (int) px, (int) (px * 0.5f), bw, bh);
     bankDown.setBounds (bankUp.getX() - bw - (int) px, (int) (px * 0.5f), bw, bh);
+    slicesBtn.setBounds (bankDown.getX() - sw - (int) px, (int) (px * 0.5f), sw, bh);
 }
 
 int PadPanel::columns() const
@@ -293,9 +344,53 @@ void PadPanel::paint (juce::Graphics& g)
     const float px = Theme::px;
     Theme::panelBox (g, getLocalBounds().toFloat(), {}, P);
     // the title and the bank
-    const auto title = juce::String ("PADS ") + juce::String::charToString ((juce::juce_wchar) ('A' + bank()));
+    const auto bankLetter = juce::String::charToString ((juce::juce_wchar) ('A' + bank()));
+    const auto insHex = juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2);
+    const auto title = slicesMode() ? (isStrip() ? insHex + " " + bankLetter : "SLICES OF " + insHex + " " + bankLetter)
+                                    : juce::String ("PADS ") + bankLetter;
+    if (slicesMode())
+    {
+        // SLICES: the current instrument's slices, each named for what it is
+        const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+        const auto& kinds = sliceKinds();
+        if (isStrip()) PixelFont::drawLeft (g, title, juce::Rectangle<float> (px * 2, px * 0.5f, sideW() - px * 2, titleH()), px, P.ink);
+        else PixelFont::drawLeft (g, title, juce::Rectangle<float> (px * 2, 0, (float) slicesBtn.getX() - px * 3, titleH()), px, P.ink);
+        if (in.numSlices() < 2)
+        {
+            PixelFont::drawCentred (g, in.hasData() ? "NOT SLICED - BREAK PAGE OR SLICE" : "NO SAMPLE", padArea(), px, P.faint);
+            return;
+        }
+        for (int i = 0; i < 16; ++i)
+        {
+            const auto r = padRect (i);
+            const int s = sliceOfPad (i);
+            const float lit = std::max (flash[i], held == i ? 1.0f : 0.0f);
+            const auto kind = s >= 0 && s < (int) kinds.size() ? kinds[(size_t) s] : HitKind::Other;
+            const auto col = kind == HitKind::Kick ? juce::Colour (0xffff5a4a) : kind == HitKind::Snare ? juce::Colour (0xffffa53d)
+                           : kind == HitKind::Hat ? juce::Colour (0xff5ec8ff) : sk.track[i % 8];
+            const float rad = std::max (1.0f, px * std::max (0.6f, sk.round));
+            auto face = (s >= 0 ? P.light : P.panel).interpolatedWith (col, lit * 0.85f);
+            g.setColour (face);
+            g.fillRoundedRectangle (r, rad);
+            if (! sk.smoothType) Theme::bevel (g, r, held != i, std::max (1.0f, px * 0.5f), P);
+            if (s < 0) continue;
+            const float fh = std::max (2.0f, px * 0.7f);
+            g.setColour (col.withAlpha (0.9f));
+            g.fillRoundedRectangle (r.getX() + px * 1.5f, r.getBottom() - fh - px * 1.2f, r.getWidth() - px * 3, fh, fh * 0.5f);
+            const auto ink = lit > 0.5f ? juce::Colour (0xff14161a) : P.ink;
+            PixelFont::draw (g, juce::String (s + 1).paddedLeft ('0', 2) + " " + juce::String::charToString ((juce::juce_wchar) hitLetter (kind)),
+                             r.getX() + px * 1.5f, r.getY() + px * 1.5f, px, ink);
+            if (r.getHeight() >= PixelFont::textHeight (px) * 2 + px * 4)
+            {
+                juce::String nm (hitName (kind));
+                while (nm.isNotEmpty() && PixelFont::textWidth (nm, px) - px > r.getWidth() - px * 3) nm = nm.dropLastCharacters (1);
+                PixelFont::draw (g, nm, r.getX() + px * 1.5f, r.getY() + px * 3.0f + PixelFont::textHeight (px), px, ink);
+            }
+        }
+        return;
+    }
     if (isStrip()) PixelFont::drawLeft (g, title, juce::Rectangle<float> (px * 2, px * 0.5f, sideW() - px * 2, titleH()), px, P.ink);
-    else PixelFont::drawLeft (g, title, juce::Rectangle<float> (px * 2, 0, (float) bankDown.getX() - px * 3, titleH()), px, P.ink);
+    else PixelFont::drawLeft (g, title, juce::Rectangle<float> (px * 2, 0, (float) slicesBtn.getX() - px * 3, titleH()), px, P.ink);
     for (int i = 0; i < 16; ++i)
     {
         const auto r = padRect (i);
@@ -336,6 +431,16 @@ void PadPanel::mouseDown (const juce::MouseEvent& e)
 {
     const int i = padAt (e.position);
     if (i < 0) return;
+    if (slicesMode())
+    {
+        const int s = sliceOfPad (i);
+        if (s < 0) return;
+        held = i;
+        flash[i] = 1.0f;
+        repaint();
+        if (onSliceDown) onSliceDown (s);
+        return;
+    }
     const int ins = bank() * 16 + i;
     if (ins >= kMaxInstruments) return;
     held = i;
@@ -355,6 +460,13 @@ void PadPanel::mouseUp (const juce::MouseEvent&)
 void PadPanel::timerCallback()
 {
     bool changed = false;
+    if (slicesBtn.getToggleState() != slicesMode()) { slicesBtn.setToggleState (slicesMode(), juce::dontSendNotification); changed = true; }
+    if (lastInstrument != proc.editorState.instrument)
+    {
+        // (SLICES follow the current instrument)
+        lastInstrument = proc.editorState.instrument;
+        if (slicesMode()) { sliceBank = 0; for (auto& f : flash) f = 0; changed = true; }
+    }
     // a pad lights when its instrument plays on any track
     for (int t = 0; t < kMaxTracks; ++t)
     {
@@ -362,6 +474,16 @@ void PadPanel::timerCallback()
         if (n != lastNotes[t])
         {
             lastNotes[t] = n;
+            if (slicesMode())
+            {
+                // SLICES: a pad lights when the song plays its slice (the current instrument, SLICE TO KEYS)
+                if (proc.player.uiTrackInstr[t].load() == proc.editorState.instrument)
+                {
+                    const int p = proc.player.uiTrackKey[t].load() - 37 - sliceBank * 16;
+                    if (p >= 0 && p < 16) { flash[p] = 1.0f; changed = true; }
+                }
+                continue;
+            }
             const int ins = proc.player.uiTrackInstr[t].load() - bank() * 16;
             if (ins >= 0 && ins < 16) { flash[ins] = 1.0f; changed = true; }
         }

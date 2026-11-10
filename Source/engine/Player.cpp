@@ -739,7 +739,7 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     v.fadeOut = 0;
     if (ch < kMaxTracks && ! mute[ch].load (std::memory_order_relaxed)) synthTrack[v.instr] = ch;   // (its inserts' output goes to this track; not a muted one)
     if (ch >= 0 && ch < kMaxTracks) cvTrig[ch] = true;   // (CV SOURCES: an ENV starts)
-    if (ch >= 0 && ch < kMaxTracks) { mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f); uiNotes[ch].fetch_add (1, std::memory_order_relaxed); }   // (MODULATION; the UI's note flash)
+    if (ch >= 0 && ch < kMaxTracks) { mixerEngine.mods.noteOn (ch, (int) cell.note, (float) v.volume / 64.0f); uiTrackKey[ch].store ((int) cell.note, std::memory_order_relaxed); uiNotes[ch].fetch_add (1, std::memory_order_relaxed); }   // (MODULATION; the UI's note flash)
     const double len = (double) in.data.size();
 
     int note = (int) cell.note + in.transpose;

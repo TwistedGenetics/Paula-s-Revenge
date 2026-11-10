@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "../engine/BreakTools.h"
 
 namespace prv::ui
 {
@@ -39,7 +40,8 @@ private:
 
 // THE PADS: sixteen pads, one instrument each (four banks: 1-16, 17-32, 33-48, 49-63). A pad plays
 // its instrument at C of the octave (EDIT on: writes it at the cursor, as a key would) and lights
-// whenever its instrument plays.
+// whenever its instrument plays. SLICES: the pads play the current instrument's slices instead -
+// a break's hits, each named KICK / SNARE / HAT - written as their notes (C-3 = slice 1).
 class PadPanel : public juce::Component, private juce::Timer
 {
 public:
@@ -48,6 +50,10 @@ public:
     std::function<void (int instrument)> onPadDown;
     std::function<void()> onPadUp;
     std::function<void()> onBank;                 // the bank changed
+    std::function<void (int slice)> onSliceDown;  // SLICES: a pad pressed (0 = slice 1)
+    bool slicesMode() const;
+    void setSlicesMode (bool on);
+    int  sliceOfPad (int i) const;                // SLICES: the slice pad i plays (-1 = none)
     juce::Rectangle<float> padRect (int i) const; // pad 0..15 of the bank shown
     int  padAt (juce::Point<float>) const;        // -1 = none
     int  bank() const;
@@ -57,7 +63,7 @@ public:
     int  columns() const;                         // 4 (four by four) or 8 (two rows of eight, somewhere wide)
     int  preferredHeightFor (int width) const;    // (two rows of eight)
 
-    PixButton bankDown { "-" }, bankUp { "+" };
+    PixButton bankDown { "-" }, bankUp { "+" }, slicesBtn { "SLICES", true };
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -69,6 +75,11 @@ private:
     float flash[16] {};
     int lastNotes[kMaxTracks] {};
     int held = -1;
+    int sliceBank = 0;                            // (SLICES: 1-16, 17-32...)
+    int lastInstrument = -1;
+    int kindsFor = -1; size_t kindsSlices = 0, kindsLen = 0;
+    std::vector<HitKind> kinds;                   // (what each slice is, worked out once)
+    const std::vector<HitKind>& sliceKinds();
     juce::Rectangle<float> padArea() const;
     float sideW() const;
     bool isStrip() const;

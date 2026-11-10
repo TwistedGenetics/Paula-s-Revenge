@@ -1296,6 +1296,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "CV OUT TO A MODULAR...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (3); } } },
         { "SAMPLE (RECORD AUDIO)...", [safe] { if (safe != nullptr && safe->openSample) safe->openSample(); } },
         { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
+        { "PLAY ITS SLICES ON THE PADS", [safe, r] { if (safe != nullptr && safe->openSlicePads) { safe->proc.editorState.instrument = r; safe->openSlicePads(); } } },
         { "CHOP TO PATTERN (TRACK " + juce::String (proc.editorState.track + 1) + ")", [safe, r] { if (safe != nullptr) safe->chopToPattern (r); } },
         { "BREAK PAGE...", [safe, r] { if (safe != nullptr && safe->openBreak) { safe->proc.editorState.instrument = r; safe->openBreak(); } } },
     });

@@ -214,6 +214,7 @@ public:
     std::atomic<int>   uiJamPos[kJamVoices] {};             // jam voice positions (-1 = silent), for playheads
     std::atomic<int>   uiJamInstr[kJamVoices] {};
     std::atomic<int>   uiTrackInstr[kMaxTracks] {};         // the instrument each track last played (-1 none)
+    std::atomic<int>   uiTrackKey[kMaxTracks] {};           // the note it last started (as written: a SLICE TO KEYS note = its slice)
 
 private:
     struct Voice

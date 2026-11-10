@@ -205,6 +205,7 @@ public:
     int  chopToPattern (int instrument);   // CHOP TO PATTERN (right-click an instrument); also tests
     std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
     std::function<void (int kind)> openSource;   // the right-click's VST / AU (1), MIDI OUT (2), CV OUT (3)
+    std::function<void()> openSlicePads;        // PLAY ITS SLICES ON THE PADS
     std::function<void()> openBreak;   // the BREAK page
 
 private:

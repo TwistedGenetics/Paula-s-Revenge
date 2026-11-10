@@ -1406,10 +1406,10 @@ void PatternEditor::enterNote (int note)
     recordNote (note, juce::Time::getMillisecondCounterHiRes());
 }
 
-void PatternEditor::padDown()
+void PatternEditor::padDown (int note)
 {
     if (padHeld >= 0) padUp();
-    padHeld = juce::jlimit (1, (int) kNoteMax, st.octave * 12 + 1);
+    padHeld = juce::jlimit (1, (int) kNoteMax, note > 0 ? note : st.octave * 12 + 1);
     enterNote (padHeld);
 }
 

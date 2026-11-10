@@ -1725,19 +1725,21 @@ void SampleEditor::autoSlice (float sensitivity)
     const auto& in = inst();
     if (! in.hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
     auto found = detectSlices (in.data, in.dataR, in.rate, sensitivity);
-    editInPlace ("AUTO SLICE", false, [&] (Instrument& i2) { std::swap (i2.slices, found); });
+    editInPlace ("AUTO SLICE", false, [&] (Instrument& i2) { std::swap (i2.slices, found); i2.sliceKeys = i2.numSlices() >= 2; });   // (keys play the slices straight away)
     selectedSlice = -1;
+    syncLoopControls();   // (SLICE TO KEYS lit)
     if (onStatus) onStatus ("FOUND " + juce::String (inst().numSlices()) + " SLICES (SENS " + juce::String (juce::roundToInt (sensitivity * 100))
-                            + " - HIGHER FINDS QUIETER HITS)");
+                            + ") - C-3 PLAYS SLICE 1, C#3 SLICE 2... OR RIGHT-CLICK THE INSTRUMENT: PLAY ITS SLICES ON THE PADS");
 }
 
 void SampleEditor::evenSlice (int count)
 {
     if (! inst().hasData()) { if (onStatus) onStatus ("THIS INSTRUMENT HAS NO SAMPLE"); return; }
     auto sl = evenSlices (length(), count);
-    editInPlace ("EVEN SLICES", false, [&] (Instrument& in) { std::swap (in.slices, sl); });
+    editInPlace ("EVEN SLICES", false, [&] (Instrument& in) { std::swap (in.slices, sl); in.sliceKeys = in.numSlices() >= 2; });
     selectedSlice = -1;
-    if (onStatus) onStatus (juce::String (inst().numSlices()) + " EQUAL SLICES");
+    syncLoopControls();   // (SLICE TO KEYS lit)
+    if (onStatus) onStatus (juce::String (inst().numSlices()) + " EQUAL SLICES - C-3 PLAYS SLICE 1, C#3 SLICE 2... (OR THE PADS: SLICES)");
 }
 
 void SampleEditor::addSliceAt (int pos)

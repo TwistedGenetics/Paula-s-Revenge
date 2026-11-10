@@ -197,7 +197,7 @@ private:
     void applyChordGroup();
 public:
     // a PAD: plays the current instrument at C of the octave (EDIT on: written, as a key would be)
-    void padDown();
+    void padDown (int note = -1);   // (-1: C of the octave; SLICES: the slice's note)
     void padUp();
     void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)

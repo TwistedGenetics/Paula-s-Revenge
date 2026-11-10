@@ -452,7 +452,9 @@ A short block can play differently each time round, like the conditional steps o
 
 * **AUTO** finds the hits (drum hits, notes) by jumps in loudness; **SENS** (1–100) sets how quiet a hit it will catch. **EVEN** cuts **COUNT** (2–64) equal slices.
 * The slices show as numbered tabs along the bottom of the waveform. Drag a tab to move that slice point, double-click the waveform to add one, Alt-click a tab to remove it (or ADD AT CURSOR / REMOVE / CLEAR ALL). Click a tab to select and hear that slice.
+* **AUTO** and **EVEN** switch **SLICE TO KEYS** on, so the keys play the hits straight away.
 * **SLICE TO KEYS**: notes play slices instead of the whole sample: `C-3` = slice 1, `C#3` = slice 2, `D-3` = slice 3 and so on, each at its own pitch and stopping at the end of its slice. This works in patterns, from the computer keys and from MIDI. To pitch one hit up or down, add `Ixx` to that note (`I8C` = an octave up, `I7B` = 5 semitones down).
+* **The slices on the PADS**: right-click the instrument → **PLAY ITS SLICES ON THE PADS** (or press **SLICES** on the pads). Each pad is one slice — numbered, and named **KICK**, **SNARE**, **HAT** or **OTHER** in its colour — like an MPC's pads. Click one to hear that hit; with **EDIT** on it's written at the cursor (as its note, `C-3` = slice 1) and the cursor moves on, so you can tap a new beat in hit by hit. While the song plays, each pad lights when its slice plays. `-` / `+` page through slices 17-32 and on; **SLICES** again goes back to the instrument pads. The pads follow the current instrument.
 * Without SLICE TO KEYS, `Sxx` plays slice xx+1 of the instrument's slices (`S00` = slice 1). Instruments with no slice points still split into 16 equal parts, as before.
 
 ## Stereo samples

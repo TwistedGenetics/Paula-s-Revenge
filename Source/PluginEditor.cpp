@@ -262,7 +262,25 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                    + (es.editMode ? " - WRITTEN AT THE CURSOR" : " - EDIT ON WRITES IT AT THE CURSOR"));
     };
     pads.onPadUp = [this] { pattern.padUp(); };
-    pads.onBank = [this] { setStatus ("PADS BANK " + juce::String::charToString ((juce::juce_wchar) ('A' + proc.editorState.padBank))
+    pads.onSliceDown = [this] (int s)
+    {
+        // SLICES: the current instrument's slice s, played (and with EDIT on, written) as its note - C-3 = slice 1
+        auto& es = proc.editorState;
+        const int i = es.instrument;
+        if (! proc.song.instruments[(size_t) i].sliceKeys)
+        {
+            proc.history.instrument (i, "SLICE TO KEYS ON");
+            proc.withLock ([&] { proc.song.instruments[(size_t) i].sliceKeys = true; });
+            refreshAll();
+        }
+        const int note = juce::jlimit (1, (int) prv::kNoteMax, 37 + s);
+        pattern.padDown (note);
+        setStatus ("SLICE " + juce::String (s + 1).paddedLeft ('0', 2) + " = " + juce::String (prv::noteName ((uint8_t) note))
+                   + (es.editMode ? " - WRITTEN AT THE CURSOR" : " - EDIT ON WRITES IT AT THE CURSOR"));
+    };
+    pads.onBank = [this] { if (pads.slicesMode()) { setStatus ("PADS: THE SLICES OF INSTRUMENT " + juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2)
+                                                                + " - A PAD PLAYS ONE; EDIT ON WRITES IT (SLICES AGAIN: THE INSTRUMENTS)"); return; }
+                           setStatus ("PADS BANK " + juce::String::charToString ((juce::juce_wchar) ('A' + proc.editorState.padBank))
                                       + ": INSTRUMENTS " + juce::String (proc.editorState.padBank * 16 + 1) + "-" + juce::String (std::min (prv::kMaxInstruments, proc.editorState.padBank * 16 + 16))); };
     pattern.onFollowInstrument = [this] (int ins)
     {
@@ -368,6 +386,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     pattern.onMoveSequence = [this] (int d) { sequence.moveSelected (d); };
     instruments.openBrowser = [this] { setView (View::Browser); };
     instruments.openSource = [this] (int kind) { openLoad (kind); };
+    instruments.openSlicePads = [this] { if (! padsOn()) setPads (true); pads.setSlicesMode (true); setView (View::Pattern); };
     for (int k = 0; k < 4; ++k)
     {
         loadTab[k].setClickingTogglesState (false);
