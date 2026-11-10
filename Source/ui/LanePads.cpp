@@ -270,7 +270,7 @@ float PadPanel::titleH() const { return PixelFont::textHeight (Theme::px) + Them
 float PadPanel::sideW() const
 {
     // the strip (two rows of eight): the title and the bank down the left, not over the top
-    return isStrip() ? PixelFont::textWidth ("PADS A", Theme::px) + Theme::px * 4 : 0.0f;
+    return isStrip() ? std::max (PixelFont::textWidth ("PADS A", Theme::px), PixelFont::textWidth ("SLICES", Theme::px)) + Theme::px * 7 : 0.0f;
 }
 
 bool PadPanel::isStrip() const { return getWidth() >= getHeight() * 3; }
@@ -288,6 +288,7 @@ void PadPanel::resized()
         bankDown.setBounds (x0, (int) (th + px), bw, bh);
         bankUp.setBounds (bankDown.getRight() + (int) px, (int) (th + px), bw, bh);
         slicesBtn.setBounds (x0, bankDown.getBottom() + (int) px, std::max (sw, bankUp.getRight() - x0), bh);
+        juce::ignoreUnused (sw);
         return;
     }
     bankUp.setBounds (getWidth() - bw - (int) px, (int) (px * 0.5f), bw, bh);
@@ -378,14 +379,12 @@ void PadPanel::paint (juce::Graphics& g)
             g.setColour (col.withAlpha (0.9f));
             g.fillRoundedRectangle (r.getX() + px * 1.5f, r.getBottom() - fh - px * 1.2f, r.getWidth() - px * 3, fh, fh * 0.5f);
             const auto ink = lit > 0.5f ? juce::Colour (0xff14161a) : P.ink;
-            PixelFont::draw (g, juce::String (s + 1).paddedLeft ('0', 2) + " " + juce::String::charToString ((juce::juce_wchar) hitLetter (kind)),
+            // the number, and what it is: the whole word underneath when it fits, else its letter beside the number
+            const juce::String nm (hitName (kind));
+            const bool word = r.getHeight() >= PixelFont::textHeight (px) * 2 + px * 4 && PixelFont::textWidth (nm, px) - px <= r.getWidth() - px * 3;
+            PixelFont::draw (g, juce::String (s + 1).paddedLeft ('0', 2) + (word ? juce::String() : " " + juce::String::charToString ((juce::juce_wchar) hitLetter (kind))),
                              r.getX() + px * 1.5f, r.getY() + px * 1.5f, px, ink);
-            if (r.getHeight() >= PixelFont::textHeight (px) * 2 + px * 4)
-            {
-                juce::String nm (hitName (kind));
-                while (nm.isNotEmpty() && PixelFont::textWidth (nm, px) - px > r.getWidth() - px * 3) nm = nm.dropLastCharacters (1);
-                PixelFont::draw (g, nm, r.getX() + px * 1.5f, r.getY() + px * 3.0f + PixelFont::textHeight (px), px, ink);
-            }
+            if (word) PixelFont::draw (g, nm, r.getX() + px * 1.5f, r.getY() + px * 3.0f + PixelFont::textHeight (px), px, ink);
         }
         return;
     }
