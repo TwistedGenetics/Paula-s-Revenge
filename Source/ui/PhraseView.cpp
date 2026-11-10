@@ -533,7 +533,12 @@ void PhraseView::resized()
             rb.setBounds (x.removeFromRight (std::min (x.getWidth() - (int) (px * (6 * 9 + 4)) - gap, std::max (x.getWidth() / 2, rb.preferredWidth (px)))));   // (TRANSPOSE keeps its room)
             x.removeFromRight (gap); l.setBounds (x);
         };
-        pair (linesBox, lpbBox);
+        {
+            // (two numbers: LPB just what it needs, LINES the rest)
+            auto x = row();
+            lpbBox.setBounds (x.removeFromRight (lpbBox.preferredWidth (px))); x.removeFromRight (gap);
+            linesBox.setBounds (x);
+        }
         pair (loopBtn, startBox);
         pair (transposeBtn, endBox);
         auto x = row(); const int half = (x.getWidth() - gap) / 2;
