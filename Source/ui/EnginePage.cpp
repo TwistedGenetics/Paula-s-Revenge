@@ -217,34 +217,67 @@ void EnginePage::resized()
     playBtn.setBounds (top.removeFromRight (charsW (14))); top.removeFromRight (gap * 2);
     titleArea = top.toFloat();
     r.removeFromTop (gap * 2);
-    // the boxes in columns: as few columns as fit, each filled top to bottom
-    auto boxHeight = [&] (const Box& b) { return gap * 4 + title + (int) b.rowIndex.size() * (rowH + gap); };
+    // the boxes in columns: as few columns as fit, each filled top to bottom. A row of choice buttons too narrow for
+    // its words takes two lines (half the buttons on each), so no word is ever cut.
+    auto choiceLines = [&] (const Row& rw, int width)
+    {
+        if (rw.choices.empty()) return 1;
+        const int n = (int) rw.choices.size();
+        int widest = 0;
+        for (const auto& c : rw.choices) widest = std::max (widest, charsW (c->getButtonText().length()));
+        for (int lines = 1; lines < n; ++lines)
+        {
+            const int per = (n + lines - 1) / lines;
+            if (widest * per + gap * (per - 1) <= width) return lines;
+        }
+        return n;
+    };
+    auto boxHeight = [&] (const Box& b, int width)
+    {
+        int lines = 0;
+        for (int ri : b.rowIndex) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
+        return gap * 4 + title + lines * (rowH + gap);
+    };
+    int cols = 1, colW = r.getWidth();
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        int total = 0;
+        for (const auto& b : boxes) total += boxHeight (b, colW) + gap * 2;
+        cols = juce::jlimit (1, 3, (int) std::ceil ((double) total / std::max (1, r.getHeight())));
+        colW = (r.getWidth() - gap * 3 * (cols - 1)) / std::max (1, cols);
+    }
     int total = 0;
-    for (const auto& b : boxes) total += boxHeight (b) + gap * 2;
-    const int cols = juce::jlimit (1, 3, (int) std::ceil ((double) total / std::max (1, r.getHeight())) + 0);
-    const int colW = (r.getWidth() - gap * 3 * (cols - 1)) / std::max (1, cols);
+    for (const auto& b : boxes) total += boxHeight (b, colW) + gap * 2;
     int col = 0, y = r.getY();
     const int perCol = (int) std::ceil ((double) total / cols);
     int used = 0;
     for (auto& b : boxes)
     {
-        const int h = boxHeight (b);
+        const int h = boxHeight (b, colW);
         if (used > 0 && used + h > perCol + rowH && col < cols - 1) { ++col; y = r.getY(); used = 0; }
         juce::Rectangle<int> area (r.getX() + col * (colW + gap * 3), y, colW, h);
         b.area = area.toFloat();
         auto in = area.reduced (gap * 2).withTrimmedTop (title);
         for (int ri : b.rowIndex)
         {
-            auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
             auto& rw = rows[(size_t) ri];
+            const int lines = choiceLines (rw, in.getWidth());
+            auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
             if (rw.slider) rw.slider->setBounds (row);
             if (rw.number) rw.number->setBounds (row.removeFromLeft (std::min (row.getWidth(), rw.number->preferredWidth (px))));
             if (rw.cycle) rw.cycle->setBounds (row);
             if (! rw.choices.empty())
             {
                 const int n = (int) rw.choices.size();
-                const int w = (row.getWidth() - gap * (n - 1)) / n;
-                for (int k = 0; k < n; ++k) { rw.choices[(size_t) k]->setBounds (k < n - 1 ? row.removeFromLeft (w) : row); row.removeFromLeft (gap); }
+                const int perLine = (n + lines - 1) / lines;
+                int k = 0;
+                for (int line = 0; line < lines; ++line)
+                {
+                    if (line > 0) { row = in.removeFromTop (rowH); in.removeFromTop (gap); }
+                    const int m = std::min (perLine, n - k);
+                    const int w = (row.getWidth() - gap * (perLine - 1)) / perLine;
+                    for (int j = 0; j < m; ++j, ++k) { rw.choices[(size_t) k]->setBounds (row.removeFromLeft (j < perLine - 1 ? w : row.getWidth())); row.removeFromLeft (gap); }
+                }
             }
         }
         y += h + gap * 2; used += h + gap * 2;
@@ -256,9 +289,12 @@ void EnginePage::paint (juce::Graphics& g)
     const auto& pal = Theme::palFor (*this);
     const float px = Theme::px;
     g.fillAll (pal.panel);
-    const juce::String t = "INSTRUMENT " + hex2 (proc.editorState.instrument + 1) + ": " + juce::String (inst().pluginName)
-                         + (inst().pluginKey == kSubKey ? juce::String (" - CLICK-FREE SUB BASS") : juce::String());
-    PixelFont::drawLeft (g, t, titleArea, px, pal.ink);
+    // the title: as much of it as fits (never cut)
+    const juce::String name = juce::String (inst().pluginName);
+    const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH" : "";
+    const juce::String num = hex2 (proc.editorState.instrument + 1);
+    for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
+        if (PixelFont::textWidth (t, px) <= titleArea.getWidth() || t == name) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
     for (const auto& b : boxes) Theme::panelBox (g, b.area, b.title, pal);
     if (hasKeyboardFocus (true)) { g.setColour (pal.ink); g.drawRect (getLocalBounds().toFloat(), std::max (2.0f, px * 0.5f)); }
 }

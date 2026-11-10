@@ -1625,6 +1625,7 @@ void Player::updateSynths (int numSamples)
         if (s == nullptr) continue;
         const auto& in = song->instruments[(size_t) i];
         s->update (in);
+        s->updateSong (*song);
         if (in.isMidiOut())
         {
             lead = std::max (lead, -in.midiDelayMs);

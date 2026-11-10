@@ -4576,6 +4576,167 @@ static void testSubSynth()
     }
 }
 
+// ---- GRANULAR
+static void testGrainSynth()
+{
+    std::printf ("\n== GRANULAR\n");
+    const double sr = 48000;
+    auto run = [&] (GrainSynth& g, int n, std::vector<float>* right = nullptr)
+    {
+        std::vector<float> L ((size_t) n), R ((size_t) n);
+        g.render (L.data(), R.data(), n);
+        if (right) *right = R;
+        return L;
+    };
+    auto freqOf = [&] (const std::vector<float>& x, int from)
+    {
+        int crossings = 0, first = -1, last = -1;
+        for (size_t i = (size_t) from + 1; i < x.size(); ++i)
+            if (x[i - 1] < 0 && x[i] >= 0) { ++crossings; if (first < 0) first = (int) i; last = (int) i; }
+        return crossings > 1 ? (double) (crossings - 1) * sr / (double) (last - first) : 0.0;
+    };
+    auto peakOf = [] (const std::vector<float>& x) { float m = 0; for (float v : x) m = std::max (m, std::abs (v)); return m; };
+    auto finite = [] (const std::vector<float>& x) { for (float v : x) if (! std::isfinite (v)) return false; return true; };
+    auto base = []
+    {
+        auto v = builtinDefaults (kGrainKey);
+        v[grain::Spray] = 0; v[grain::Attack] = 5; v[grain::Release] = 50;
+        return v;
+    };
+
+    // the built-in tables: all eight there, sounding, not clipping
+    for (int t = 0; t < 8; ++t)
+    {
+        const auto& tb = GrainSynth::table (t);
+        float m = 0; double e = 0;
+        for (float x : tb) { m = std::max (m, std::abs (x)); e += x * x; }
+        CHECK (tb.size() > 48000 && m > 0.5f && m < 0.95f && e / (double) tb.size() > 0.001);
+    }
+    // a note on the SINE table plays its pitch (C-4 here: 523 Hz) as overlapping grains
+    {
+        GrainSynth g; g.prepare (sr, 512);
+        auto v = base(); v[grain::Size] = 200; v[grain::Density] = 30; v[grain::Stereo] = 0;
+        g.setValues (v);
+        g.noteOn (72, 127, 0);
+        auto x = run (g, 48000);
+        const double f = freqOf (x, 12000);
+        std::printf ("SINE at C-4: %.1f Hz (523.3), grains %d, peak %.3f, rms %.3f\n", f, g.activeGrains(), peakOf (x), rmsOf (x, 12000, 48000));
+        CHECK (std::abs (f - 523.25) < 523.25 * 0.03);
+        CHECK (g.activeGrains() > 2 && rmsOf (x, 12000, 48000) > 0.05f && peakOf (x) < 1.2f && finite (x));
+        // PITCH +12: an octave up
+        v[grain::Pitch] = 12; g.setValues (v);
+        auto y = run (g, 24000);
+        const double f2 = freqOf (y, 12000);
+        std::printf ("PITCH +12: %.1f Hz\n", f2);
+        CHECK (std::abs (f2 - 1046.5) < 1046.5 * 0.03);
+        // let go: it dies away, then nothing plays
+        g.noteOff (72, 0);
+        run (g, 48000);
+        auto z = run (g, 4800);
+        std::printf ("after the release: grains %d, peak %.5f\n", g.activeGrains(), peakOf (z));
+        CHECK (g.activeGrains() == 0 && peakOf (z) < 1e-4f);
+    }
+    // every table, every control at its far end and the modulation on everything: sound, never NaN or wild
+    for (int t = 0; t < 8; ++t)
+    {
+        GrainSynth g; g.prepare (sr, 512);
+        auto v = builtinDefaults (kGrainKey);
+        v[grain::Table] = (float) t; v[grain::Density] = 120; v[grain::Size] = 30; v[grain::Spray] = 100; v[grain::PitchSpread] = 24;
+        v[grain::Reverse] = 50; v[grain::Stereo] = 100; v[grain::Scan] = -100;
+        v[grain::Lfo1Depth] = 100; v[grain::Lfo1Target] = (float) (t % 8); v[grain::Lfo1Rate] = 7;
+        v[grain::Lfo2Depth] = 100; v[grain::Lfo2Target] = 6; v[grain::EnvDepth] = 100; v[grain::EnvTarget] = (float) ((t + 3) % 8);
+        v[grain::Cutoff] = 800; v[grain::Resonance] = 90; v[grain::Diffuse] = 100;
+        g.setValues (v);
+        g.noteOn (48, 100, 0); g.noteOn (55, 100, 10); g.noteOn (60, 100, 20); g.noteOn (64, 100, 30);
+        std::vector<float> R;
+        auto x = run (g, 24000, &R);
+        float diff = 0; for (size_t i = 0; i < x.size(); ++i) diff = std::max (diff, std::abs (x[i] - R[i]));
+        CHECK (finite (x) && finite (R) && peakOf (x) < 2.5f && rmsOf (x, 4800, 24000) > 0.005f && diff > 0.001f);
+        if (t == 3) std::printf ("everything on (VOCAL): peak %.3f, rms %.3f, left / right differ by up to %.3f\n", peakOf (x), rmsOf (x, 4800, 24000), diff);
+    }
+    // SCAN moves the reading position; FREEZE holds it
+    {
+        GrainSynth g; g.prepare (sr, 512);
+        auto v = base(); v[grain::Scan] = 100; v[grain::Position] = 10;
+        g.setValues (v);
+        g.noteOn (60, 100, 0);
+        run (g, 4800); const float a = g.positionNow();
+        run (g, 24000); const float b = g.positionNow();
+        v[grain::Freeze] = 1; g.setValues (v);
+        run (g, 4800); const float c = g.positionNow();
+        run (g, 24000); const float d = g.positionNow();
+        std::printf ("SCAN: position %.3f -> %.3f; FREEZE: %.3f -> %.3f\n", a, b, c, d);
+        CHECK (b - a > 0.2f && std::abs (d - c) < 0.01f);
+    }
+    // SAMPLE (here without a song): grains of a 300 Hz tone at C-3 play 300 Hz
+    {
+        GrainSynth g; g.prepare (sr, 512);
+        std::vector<float> tone (44100);
+        for (size_t i = 0; i < tone.size(); ++i) tone[i] = 0.7f * (float) std::sin (6.283185307 * 300.0 * i / 44100.0);
+        g.setTestSource (tone, 44100);
+        auto v = base(); v[grain::Source] = 1; v[grain::Size] = 150; v[grain::Stereo] = 0;
+        g.setValues (v);
+        g.noteOn (60, 127, 0);
+        auto x = run (g, 36000);
+        const double f = freqOf (x, 9600);
+        std::vector<float> peaks;
+        const bool shown = g.sourceOverview (peaks, 50);
+        std::printf ("SAMPLE: %.1f Hz (300); overview %d, peak %.2f\n", f, (int) shown, peaks.empty() ? 0.0f : peaks[10]);
+        CHECK (std::abs (f - 300) < 9 && shown && peaks[10] > 0.6f);
+    }
+    // RECORDING: what comes in is what the grains are made of; FREEZE keeps it when the input stops
+    {
+        GrainSynth g; g.prepare (sr, 512);
+        auto v = base(); v[grain::Source] = 2; v[grain::Size] = 120; v[grain::Position] = 50; v[grain::Stereo] = 0;
+        g.setValues (v);
+        std::vector<float> in (512), out;
+        uint64_t t = 0;
+        for (int b = 0; b < 94; ++b)   // a second of 440 Hz
+        {
+            for (auto& x : in) x = 0.5f * (float) std::sin (6.283185307 * 440.0 * (double) t++ / sr);
+            g.liveInput (in.data(), in.data(), 512);
+            if (b == 40) g.noteOn (60, 127, 0);
+            auto x = run (g, 512); if (b > 60) out.insert (out.end(), x.begin(), x.end());
+        }
+        const double f = freqOf (out, 0);
+        v[grain::Freeze] = 1; g.setValues (v);
+        std::vector<float> quiet (512, 0.0f), held;
+        for (int b = 0; b < 200; ++b) { g.liveInput (quiet.data(), quiet.data(), 512); auto x = run (g, 512); if (b > 180) held.insert (held.end(), x.begin(), x.end()); }
+        std::printf ("RECORDING: %.1f Hz (440), rms %.3f; frozen after 2 s of silence in: rms %.3f\n", f, rmsOf (out, 0, (int) out.size()), rmsOf (held, 0, (int) held.size()));
+        CHECK (std::abs (f - 440) < 13 && rmsOf (out, 0, (int) out.size()) > 0.05f && rmsOf (held, 0, (int) held.size()) > 0.05f);
+        v[grain::Freeze] = 0; g.setValues (v);
+        for (int b = 0; b < 200; ++b) { g.liveInput (quiet.data(), quiet.data(), 512); run (g, 512); }
+        auto after = run (g, 4800);
+        std::printf ("not frozen, 2 s more of silence in: rms %.4f\n", rmsOf (after, 0, 4800));
+        CHECK (rmsOf (after, 0, 4800) < 0.01f);
+    }
+    // its settings round the instrument's state; in a song it takes its grains from another instrument's sample
+    {
+        Song s = makeSong();
+        makeBuiltin (s.instruments[4], kGrainKey);
+        CHECK (s.instruments[4].name == "GRANULAR" && s.instruments[4].isBuiltin());
+        auto v = readBuiltinState (s.instruments[4]);
+        CHECK ((int) v.size() == grain::Count);
+        v[grain::Source] = 1; v[grain::SampleSlot] = 1; v[grain::Stereo] = 0;
+        writeBuiltinState (s.instruments[4], v);
+        CHECK (readBuiltinState (s.instruments[4])[grain::SampleSlot] == 1);
+        s.blocks[0] = Block {}; s.blocks[0].lines = 16; s.blocks[0].at (0, 0) = Cell { 25, 5, 0, 0 }; s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.synths().factory = [] (int, const Instrument& in, double) { return createBuiltinSynth (in); };
+        p.synths().syncNow (s, 48000);
+        p.playSong (0);
+        std::vector<float> L (24000), R (L.size());
+        p.render (L.data(), R.data(), (int) L.size());
+        std::printf ("GRANULAR in the song, from instrument 01's sample (%d samples): rms %.3f\n", (int) s.instruments[0].data.size(), rmsOf (L, 0, (int) L.size()));
+        CHECK (! s.instruments[0].data.empty() && rmsOf (L, 0, (int) L.size()) > 0.01f);
+        // an empty slot: silence, no crash
+        v[grain::SampleSlot] = 40; writeBuiltinState (s.instruments[4], v);
+        p.playSong (0);
+        p.render (L.data(), R.data(), (int) L.size());
+        CHECK (finite (L));
+    }
+}
+
 // ---- an instrument's MACRO knobs
 static void testInstMacros()
 {
@@ -4853,6 +5014,7 @@ int main()
     testClockSync();
     testPhrases();
     testSubSynth();
+    testGrainSynth();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

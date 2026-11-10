@@ -126,40 +126,51 @@ public:
     void setParameter (int index, float value01) override;
     void render (float* left, float* right, int numSamples) override;
     void update (const Instrument&) override;
-    void setValues (const std::vector<float>& v);                    // (tests)
-    void setSource (std::shared_ptr<const std::vector<float>> mono, double rate);   // (tests; the song's sample / the recording)
-    int  activeGrains() const;                                       // (tests)
-    // the sound it takes its grains from, for its page: the samples it reads, and where it's reading
-    std::shared_ptr<const std::vector<float>> sourceNow() const { return src; }
-    float positionNow() const { return posNow; }
-
-    // the song's samples and the recording: set by whoever owns them (the processor), read when the source changes
-    std::function<std::shared_ptr<const std::vector<float>> (int instrument, double& rate)> sampleOf;
-    std::function<std::shared_ptr<const std::vector<float>> (double& rate)> recording;
+    void updateSong (const Song& s) override { song = &s; }
+    void liveInput (const float* left, const float* right, int numSamples) override;
+    void setValues (const std::vector<float>& v);                 // (tests)
+    void setTestSource (std::vector<float> mono, double rate);    // (tests: a sample without a song)
+    int  activeGrains() const;                                    // (tests, the page)
+    float positionNow() const { return posNow; }                  // 0..1: where it's reading (the newest note's)
+    float valueNow (int param) const { return p[(size_t) param]; }
+    // the sound it takes its grains from, for its page: `count` peaks (0..1) across it (the message thread, under
+    // the app's lock); false when there's nothing to take grains from (no sample in that slot, say)
+    bool sourceOverview (std::vector<float>& peaks, int count) const;
+    static const std::vector<float>& table (int which);           // the built-in wavetables (C-3, 48 kHz)
+    static constexpr double kTableRate = 48000.0;
 
 private:
     std::array<float, grain::Count> p {};
     std::vector<uint8_t> lastState;
     double sr = 48000.0;
-    std::shared_ptr<const std::vector<float>> src;   // mono, at srcRate
-    double srcRate = 48000.0;
-    int srcKind = -1, srcTable = -1, srcSlot = -1;
-    struct Note { int note = -1; bool gate = false; float env = 0; int stage = 0; float vel = 1; double spawn = 0; float envMod = 0; float pos = 0; };
+    const Song* song = nullptr;
+    // where the grains read: a table, a song's sample (16 bit) or the live recording (a ring, oldest first)
+    struct Src { const float* f = nullptr; const int16_t* s = nullptr; size_t len = 0, ringStart = 0; double rate = 48000; };
+    Src source() const;
+    std::vector<float> testSrc; double testRate = 48000;
+    std::vector<float> ring;      // the live recording: the last few seconds of the input
+    size_t ringPos = 0, ringFill = 0;
+    struct Note { int note = -1; bool gate = false; float env = 0; int stage = 0; float vel = 1; double spawn = 0; double scan = 0, age = 0; int order = 0; };
     static constexpr int kNotes = 6;
     Note notes[kNotes];
-    struct Grain { bool on = false; double readPos = 0, step = 1; int age = 0, len = 1; float amp = 0, panL = 1, panR = 1; };
-    static constexpr int kGrains = 96;
+    int orderCount = 0;
+    struct Grain { bool on = false; int note = 0; double readPos = 0, step = 1; int age = 0, len = 1; float amp = 0, panL = 1, panR = 1; };
+    static constexpr int kGrains = 128;
     Grain grains[kGrains];
+    struct Event { int offset; int type; int note; int vel; };
+    std::vector<Event> events;
     float bend = 0;
+    int bendRange = 12;
     double lfo1 = 0, lfo2 = 0;
     float posNow = 0;
     uint32_t seed = 22222;
-    // after the grains: the filter (12 dB low-pass) and the diffusion (four all-passes)
-    float s1L = 0, s2L = 0, s1R = 0, s2R = 0;
-    std::vector<float> apBuf[4];
-    int apPos[4] {};
-    float rnd();
-    void chooseSource();
-    void spawn (Note&, float mod[grain::Count]);
+    // after the grains: the filter (a resonant 12 dB low-pass) and the diffusion (four all-passes a side)
+    float ic1L = 0, ic2L = 0, ic1R = 0, ic2R = 0, cutNow = 18000;
+    std::vector<float> ap[8];
+    int apPos[8] {};
+    float rnd();                  // -1..1
+    void handle (const Event&);
+    void spawn (Note&, const Src&, const float mod[8]);
+    float envNow() const;         // the newest sounding note's envelope (for ENV -> CUTOFF / LEVEL)
 };
 } // namespace prv

@@ -27,6 +27,9 @@ public:
     virtual void render (float* left, float* right, int numSamples) = 0;   // replaces the buffers
     virtual int  latency() const { return 0; }                     // samples its output is late by
     virtual void update (const Instrument&) {}                     // the instrument's settings (each block)
+    virtual void updateSong (const Song&) {}                       // the song it plays in (each block, after update)
+    // the audio input (GRANULAR's live recording; each block, before render)
+    virtual void liveInput (const float* /*left*/, const float* /*right*/, int /*numSamples*/) {}
     // MIDI clock (MIDI-out instruments): kind 0 = one clock (24 a beat), 1 = start at `ppq` beats, 2 = stop
     virtual void clock (int /*kind*/, double /*ppq*/, int /*offset*/) {}
     // CV OUT instruments: their voltages into the interface's outputs (after render, the same block)
@@ -45,6 +48,7 @@ public:
     void syncNow (const Song& s, double sr) { std::vector<std::unique_ptr<PluginSynth>> old; auto p = plan (s, sr); apply (p, old); }
     void invalidate (int i) { if (i >= 0 && i < kMaxInstruments) keys[i] = "\x01"; }
 
+    void feedInput (const float* l, const float* r, int n) { for (auto& s : synths) if (s) s->liveInput (l, r, n); }
     PluginSynth* at (int i) const { return i >= 0 && i < kMaxInstruments ? synths[i].get() : nullptr; }
     bool any() const { return count > 0; }
     void prepare (double sampleRate, int maxBlock) { for (auto& s : synths) if (s) s->prepare (sampleRate, maxBlock); }

@@ -35,7 +35,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Transport | Play song, play block, stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **SYNTHS** (the built-in SUB synth), **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -66,7 +66,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, CHOP TO PHRASE..., LOAD SAMPLE, LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -713,6 +713,22 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 ## Following a MIDI clock
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
+
+## Built-in synths: SUB
+
+**SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → the **SYNTHS** tab (or right-click the instrument → **LOAD A BUILT-IN SYNTH (SUB)...**). The instrument becomes SUB and its page opens; **EDIT** opens the page again later.
+
+It never clicks when notes overlap or follow each other: its oscillator is never restarted (a new note only moves its pitch), its envelope carries on from where it is instead of starting from silence, and anything that has to start afresh starts where the wave crosses zero or fades in.
+
+* **MODE**: **LEGATO** — one note at a time; a note played while another is still held slides to it without a new attack (glide only then). **ALWAYS** — one note at a time, always gliding. **OFF** — one note at a time, every note gets a new attack (still without a click). **POLY** — up to 8 notes at once.
+* **GLIDE**: how long a slide takes.
+* **OSCILLATOR**: **SHAPE** goes from a pure sine to a rounder, brighter wave; **OCTAVE** and **FINE** tune it. **OSC 2** adds a second sine (its level, and **INTERVAL**: an octave up, a fifth up, both, or an octave down). **NOISE** adds a short burst of noise at the start of a note (**NOISE DEC**), for a click-like attack you choose.
+* **808 DROP**: each note starts higher (**DROP**, in semitones) and drops to its pitch over **DROP TIME**, like an 808 kick-bass.
+* **DRIVE**: saturation, **TAPE** (soft) or **TUBE** (warmer, uneven). **TONE** is a low-pass after it, to keep the drive dark.
+* **ENVELOPE**: **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**. **VELOCITY** — how much the velocity (`Cxx`) changes the level.
+* **LEVEL**: the synth's output level.
+
+Click a control and drag, or use the buttons. **Right-click** a control to make it one of the instrument's knobs (`L`, `Q`, `H`, `W`) or the track's AUTO A / B, so the pattern can move it. Hold **▶ HOLD TO PLAY**, or play the computer or MIDI keyboard, to hear it. **OUTPUT & KNOBS...** opens the same page a plug-in instrument has (OUTPUT, BEND, ON, the filter and envelopes, EQ / FX, chords) — everything in Plug-in instruments below works for SUB too. Its settings are saved in the song and every change is an undo step.
 
 ## Plug-in instruments (VST3 / AU)
 

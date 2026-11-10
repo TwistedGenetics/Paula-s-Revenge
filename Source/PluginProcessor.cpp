@@ -448,6 +448,7 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     timing.lockAsked = juce::Time::getHighResolutionTicks();
     const juce::SpinLock::ScopedLockType sl (lock);
     timing.lockGot = juce::Time::getHighResolutionTicks();
+    player.synths().feedInput (inL.get(), inR.get(), n);   // (GRANULAR's live recording)
 
     // tell hosted plug-ins where the song is
     {
