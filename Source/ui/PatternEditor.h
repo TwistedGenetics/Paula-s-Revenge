@@ -13,6 +13,15 @@ class PatternEditor : public juce::Component
 {
 public:
     explicit PatternEditor (PaulaProcessor&);
+    // a second editor with its own cursor, on one track of a block only (PHRASES: the phrase, written with
+    // everything the pattern has - step, highlighting, copy / paste, transpose, the command list, undo)
+    PatternEditor (PaulaProcessor&, PaulaProcessor::EditorState& ownState, int onlyTrack);
+    void setOnlyTrack (int track);
+private:
+    PatternEditor (PaulaProcessor&, PaulaProcessor::EditorState&);   // (both public ones start here)
+public:
+    int  onlyTrackShown() const { return onlyTrack; }
+    std::function<int()> playLineOverride;   // (one track: the line its owner says is playing, -1 = none)
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -118,6 +127,8 @@ public:
 private:
     PaulaProcessor& proc;
     PaulaProcessor::EditorState& st;
+    int onlyTrack = -1;              // (>= 0: just this track - a phrase)
+    int lastOverrideLine = -1;
 
     int panDragTrack = -1;
     int loopDragFrom = -1;              // dragging over the line numbers
@@ -244,7 +255,7 @@ private:
     void placeArrows();
     float arrowsW() const { return Theme::px * 10.0f; }   // the ▲ ● ▼ column at the right
     // BIG VIEW: the tab after the 4 tracks shown, to the other 4 ("TRACKS 5-8 >" / "< TRACKS 1-4")
-    bool  halfTabShown() const { return visibleTracks() < proc.song.numTracks; }
+    bool  halfTabShown() const { return onlyTrack < 0 && visibleTracks() < proc.song.numTracks; }
     float halfTabMinW() const { return halfTabShown() ? Theme::px * (PixelFont::kCellW + 4) : 0.0f; }   // one character wide
     float halfTabW() const;           // what's left beside the tracks (at least one character wide)
     PixButton halfBtn { "TRACKS\n5-8\n\x01" };

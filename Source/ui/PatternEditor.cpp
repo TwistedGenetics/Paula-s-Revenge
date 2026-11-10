@@ -19,7 +19,22 @@ namespace
     juce::String hex2 (int v) { return juce::String::toHexString (v).toUpperCase().paddedLeft ('0', 2); }
 }
 
-PatternEditor::PatternEditor (PaulaProcessor& p) : proc (p), st (p.editorState)
+PatternEditor::PatternEditor (PaulaProcessor& p, PaulaProcessor::EditorState& own, int track) : PatternEditor (p, own)
+{
+    setOnlyTrack (track);
+}
+
+void PatternEditor::setOnlyTrack (int track)
+{
+    onlyTrack = juce::jlimit (0, kMaxTracks - 1, track);
+    st.track = onlyTrack;
+    resized();
+    repaint();
+}
+
+PatternEditor::PatternEditor (PaulaProcessor& p) : PatternEditor (p, p.editorState) {}
+
+PatternEditor::PatternEditor (PaulaProcessor& p, PaulaProcessor::EditorState& state) : proc (p), st (state)
 {
     setWantsKeyboardFocus (true);
     setOpaque (true);
@@ -189,12 +204,14 @@ int PatternEditor::numColumns() const { return st.showFx2 ? 9 : 6; }
 
 int PatternEditor::visibleTracks() const
 {
+    if (onlyTrack >= 0) return 1;
     const int nt = proc.song.numTracks;
     return st.fourTrackView ? std::min (4, nt) : nt;
 }
 
 int PatternEditor::firstTrack() const
 {
+    if (onlyTrack >= 0) return onlyTrack;
     if (visibleTracks() >= proc.song.numTracks) return 0;
     return st.track >= 4 ? 4 : 0;
 }
@@ -202,7 +219,7 @@ int PatternEditor::firstTrack() const
 float PatternEditor::fontPx() const
 {
     const int chars = kLineNumChars + visibleTracks() * trackChars();
-    const float maxPx = Theme::px * 1.5f;
+    const float maxPx = onlyTrack >= 0 ? Theme::px : Theme::px * 1.5f;   // (one track: the page's own text size)
     return PixelFont::fitPx (chars, (float) getWidth() - 8.0f - arrowsW() - halfTabMinW(), maxPx);
 }
 
@@ -421,9 +438,16 @@ void PatternEditor::paint (juce::Graphics& g)
     g.saveState();
     g.reduceClipRegion (juce::Rectangle<float> (0, hh, bounds.getWidth(), area).toNearestInt());
 
-    const bool playing = proc.player.isPlaying();
-    const int playBlock = proc.player.uiBlock.load();
-    const int playLine  = proc.player.uiLine.load();
+    bool playing = proc.player.isPlaying();
+    int playBlock = proc.player.uiBlock.load();
+    int playLine  = proc.player.uiLine.load();
+    if (playLineOverride)
+    {
+        // (a phrase: the line its owner says is playing)
+        playLine = playLineOverride();
+        playing = playLine >= 0;
+        playBlock = proc.song.safeBlock (st.block);
+    }
 
     PixelFont::TextList text, dimText;
     PixelFont::TextList chordText[kChordColours];   // #xy drawn in its slot's group colour
@@ -684,6 +708,11 @@ void PatternEditor::tick()
     const int playBlockNow = playingNow ? proc.player.uiBlock.load() : -1;
     const int playLineNow  = playingNow ? proc.player.uiLine.load() : -1;
     if (playBlockNow != lastPlayBlock || playLineNow != lastPlayLine) dirty = true;
+    if (playLineOverride)
+    {
+        const int o = playLineOverride();
+        if (o != lastOverrideLine) { lastOverrideLine = o; dirty = true; }
+    }
     lastPlayBlock = playBlockNow; lastPlayLine = playLineNow;
 
     // note flashes, and the scopes moving: just the header
@@ -1002,6 +1031,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     const int first = firstTrack();
 
     loopDragFrom = -1;
+    if (onlyTrack >= 0 && (e.position.y < hh || e.position.x < lineNumW() - px * PixelFont::kCellW * 0.75f)) { grabKeyboardFocus(); return; }   // (one track: no mute / pan / block number / loop marking)
     if (cornerRect().contains (e.position)) { askBlockNumber(); return; }
     const int slot = (int) std::floor ((e.position.x - lineNumW() + px * PixelFont::kCellW * 0.5f) / trackW());
     if (e.position.y < hh)
@@ -1372,6 +1402,7 @@ void PatternEditor::moveColumn (int delta)
 
 void PatternEditor::moveTrack (int delta)
 {
+    if (onlyTrack >= 0) { st.track = onlyTrack; return; }   // (one track)
     const int nt = proc.song.numTracks;
     st.track = ((st.track + delta) % nt + nt) % nt;
     changed();

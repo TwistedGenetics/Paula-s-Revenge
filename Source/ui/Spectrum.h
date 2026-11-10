@@ -23,7 +23,7 @@ public:
     std::function<void (juce::Graphics&, juce::Rectangle<float>)> overlay;
 
 private:
-    static constexpr int kOrder = 11, kSize = 1 << kOrder, kBands = 48;
+    static constexpr int kOrder = 12, kSize = 1 << kOrder, kBands = 104;   // (1/12 of an octave each, 40 Hz to 16 kHz)
     PaulaProcessor& proc;
     juce::dsp::FFT fft { kOrder };
     juce::dsp::WindowingFunction<float> window { (size_t) kSize, juce::dsp::WindowingFunction<float>::hann };

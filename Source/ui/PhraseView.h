@@ -5,43 +5,10 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "Widgets.h"
+#include "PatternEditor.h"
 
 namespace prv::ui
 {
-// the phrase itself: one track of lines - NOTE INSTRUMENT FX1 FX2 - written like the pattern
-class PhraseGrid : public juce::Component
-{
-public:
-    explicit PhraseGrid (PaulaProcessor&);
-    std::function<int()> phraseIndex;                       // which of the instrument's phrases (-1 = none)
-    std::function<void (const juce::String&)> onStatus;
-    std::function<void()> onEdited;
-
-    int line = 0, column = 0;                               // the cursor (columns: 0 note, 1-2 instrument, 3-5 FX1, 6-8 FX2)
-    int playLine = -1;                                      // the line playing (-1 = none)
-    void setCursor (int l, int c);
-    bool typeKey (const juce::KeyPress&);                   // (keyPressed; tests call it too)
-    juce::String rowText (int l) const;                     // "000 C-3 -- C20 ---"
-    int  linesShown() const;
-
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
-    bool keyPressed (const juce::KeyPress& k) override { return typeKey (k); }
-    void focusGained (FocusChangeType) override { repaint(); }
-    void focusLost (FocusChangeType) override { repaint(); }
-
-private:
-    PaulaProcessor& proc;
-    int top = 0;
-    const Phrase* phrase() const;
-    Block* block() const;
-    float rowH() const;
-    float charW() const;
-    void keepVisible();
-    void write (const juce::String& what, std::function<void (Cell&)> fn, bool advance = true);
-};
-
 class PhraseView : public juce::Component
 {
 public:
@@ -68,7 +35,9 @@ public:
     void setTranspose (bool on);
     void play (bool on);
     bool isPlaying() const;
-    PhraseGrid& grid() { return phraseGrid; }
+    PatternEditor& pattern() { return phrasePattern; }   // (the phrase, written as the pattern is)
+    PaulaProcessor::EditorState& patternState() { return phraseState; }
+    int playLine() const;                                // the phrase's line playing (-1 = none)
     juce::Rectangle<float> listRow (int i) const;           // (tests) where phrase i is listed
 
     void paint (juce::Graphics&) override;
@@ -79,7 +48,11 @@ public:
 private:
     PaulaProcessor& proc;
     int sel = 0, listTop = 0, shownInstrument = -1;
-    PhraseGrid phraseGrid { proc };
+    PaulaProcessor::EditorState phraseState;             // (its own cursor; EDIT always on)
+    PatternEditor phrasePattern { proc, phraseState, 0 };
+    void syncPattern();                                  // the phrase picked into the editor
+    void syncBack();                                     // its octave / step back to the pattern's
+    int lastOctave = -1, lastStep = -1;
     PixButton addBtn { "ADD" }, cloneBtn { "CLONE" }, delBtn { "DEL" };
     NumberBox loBox { "LOW KEY", 1, 96, 1 }, hiBox { "HIGH KEY", 1, 96, 96 };
     NumberBox linesBox { "LINES", 1, kMaxLines, 16 }, lpbBox { "LPB", 1, 32, 4 };
@@ -87,6 +60,7 @@ private:
     NumberBox startBox { "START", 0, kMaxLines - 1, 0 }, endBox { "END", 0, kMaxLines - 1, 15 };
     PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " PLAY", true }, backBtn { "SOUND" };
     juce::Rectangle<float> listBox, listArea, setBox, gridBox;
+    juce::Rectangle<int> phraseBounds;
 
     Instrument& inst();
     const Phrase* current() const;

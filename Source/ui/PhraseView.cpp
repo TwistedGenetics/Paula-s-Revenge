@@ -8,220 +8,16 @@ namespace
 {
     juce::String hex2 (int v) { return juce::String::toHexString (v).toUpperCase().paddedLeft ('0', 2); }
     juce::String noteText (int n) { return juce::String (prv::noteName ((uint8_t) juce::jlimit (1, (int) kNoteMax, n))); }
-    // where each column's characters sit in a row ("000 C-3 01 C20 ---")
-    constexpr int kColStart[9] = { 4, 8, 9, 11, 12, 13, 15, 16, 17 };
-    constexpr int kColChars[9] = { 3, 1, 1, 1, 1, 1, 1, 1, 1 };
-    constexpr int kRowChars = 18;
-}
-
-// =====================================================================================  the grid
-PhraseGrid::PhraseGrid (PaulaProcessor& p) : proc (p)
-{
-    setWantsKeyboardFocus (true);
-}
-
-const Phrase* PhraseGrid::phrase() const
-{
-    const int i = phraseIndex ? phraseIndex() : -1;
-    const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
-    if (i < 0 || i >= (int) in.phrases.size()) return nullptr;
-    const auto& ph = in.phrases[(size_t) i];
-    return ph.block >= 0 && ph.block < (int) proc.song.blocks.size() ? &ph : nullptr;
-}
-
-Block* PhraseGrid::block() const
-{
-    const auto* ph = phrase();
-    return ph != nullptr ? &proc.song.blocks[(size_t) ph->block] : nullptr;
-}
-
-float PhraseGrid::rowH() const  { return Theme::px * 10.0f; }
-float PhraseGrid::charW() const { return Theme::px * PixelFont::kCellW; }
-int   PhraseGrid::linesShown() const { return std::max (1, (int) (getHeight() / rowH())); }
-
-juce::String PhraseGrid::rowText (int l) const
-{
-    const auto* b = block();
-    const auto* ph = phrase();
-    if (b == nullptr || l < 0 || l >= b->lines) return {};
-    const Cell c = b->at (l, ph->track);
-    auto fx = [] (uint8_t cmd, uint8_t p) { return cmd == 0 && p == 0 ? juce::String ("---") : juce::String::charToString ((juce::juce_wchar) commandChar (cmd)) + hex2 (p); };
-    return juce::String (l).paddedLeft ('0', 3) + " " + juce::String (noteName (c.note)) + " "
-         + (c.instr > 0 ? hex2 (c.instr) : juce::String ("--")) + " " + fx (c.cmd, c.param) + " " + fx (c.cmd2, c.param2);
-}
-
-void PhraseGrid::setCursor (int l, int c)
-{
-    const auto* b = block();
-    line = juce::jlimit (0, b != nullptr ? b->lines - 1 : 0, l);
-    column = juce::jlimit (0, 8, c);
-    keepVisible();
-    repaint();
-}
-
-void PhraseGrid::keepVisible()
-{
-    const int n = linesShown();
-    if (line < top) top = line;
-    if (line >= top + n) top = line - n + 1;
-    const auto* b = block();
-    top = juce::jlimit (0, std::max (0, (b != nullptr ? b->lines : 1) - n), top);
-}
-
-void PhraseGrid::write (const juce::String& what, std::function<void (Cell&)> fn, bool advance)
-{
-    const auto* ph = phrase();
-    if (ph == nullptr) return;
-    const int b = ph->block, t = ph->track, l = line;
-    proc.history.block (b, what);
-    proc.withLock ([&] { fn (proc.song.blocks[(size_t) b].at (l, t)); });
-    if (advance) setCursor (line + 1, column);
-    if (onEdited) onEdited();
-    repaint();
-}
-
-bool PhraseGrid::typeKey (const juce::KeyPress& k)
-{
-    const auto* b = block();
-    if (b == nullptr) return false;
-    const auto mods = k.getModifiers();
-    if (mods.isCommandDown() || mods.isCtrlDown()) return false;   // (undo etc.: the main window)
-    const int code = k.getKeyCode();
-    const int step = mods.isShiftDown() ? 4 : 1;
-    if (code == juce::KeyPress::upKey)       { setCursor (line - step, column); return true; }
-    if (code == juce::KeyPress::downKey)     { setCursor (line + step, column); return true; }
-    if (code == juce::KeyPress::pageUpKey)   { setCursor (line - 16, column); return true; }
-    if (code == juce::KeyPress::pageDownKey) { setCursor (line + 16, column); return true; }
-    if (code == juce::KeyPress::homeKey)     { setCursor (0, column); return true; }
-    if (code == juce::KeyPress::endKey)      { setCursor (b->lines - 1, column); return true; }
-    if (code == juce::KeyPress::leftKey)     { setCursor (line, column - 1); return true; }
-    if (code == juce::KeyPress::rightKey)    { setCursor (line, column + 1); return true; }
-    if (code == juce::KeyPress::tabKey)      { setCursor (line, column < 3 ? 3 : column < 6 ? 6 : 0); return true; }
-    if (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey)
-    {
-        const int col = column;
-        write ("CLEAR PHRASE STEP", [col] (Cell& c)
-        {
-            if (col == 0) { c.note = 0; c.instr = 0; }
-            else if (col <= 2) c.instr = 0;
-            else if (col <= 5) { c.cmd = 0; c.param = 0; }
-            else { c.cmd2 = 0; c.param2 = 0; }
-        });
-        return true;
-    }
-    const auto ch = juce::CharacterFunctions::toLowerCase (k.getTextCharacter());
-    auto& st = proc.editorState;
-    if (ch == '[') { st.octave = std::max (0, st.octave - 1); if (onStatus) onStatus ("OCTAVE " + juce::String (st.octave)); return true; }
-    if (ch == ']') { st.octave = std::min (6, st.octave + 1); if (onStatus) onStatus ("OCTAVE " + juce::String (st.octave)); return true; }
-
-    if (column == 0)
-    {
-        if (ch == '1' || ch == '`') { write ("PHRASE NOTE OFF", [] (Cell& c) { c.note = kNoteOff; c.instr = 0; }); return true; }
-        static const char* lower = "zsxdcvgbhnjm,l.;/";
-        static const char* upper = "q2w3er5t6y7ui9o0p";
-        int note = -1;
-        for (int i = 0; lower[i]; ++i) if (ch == (juce::juce_wchar) lower[i]) note = st.octave * 12 + i + 1;
-        for (int i = 0; upper[i]; ++i) if (ch == (juce::juce_wchar) upper[i]) note = (st.octave + 1) * 12 + i + 1;
-        if (note <= 0) return false;
-        note = juce::jlimit (1, (int) kNoteMax, note);
-        write ("PHRASE NOTE", [note] (Cell& c) { c.note = (uint8_t) note; });
-        if (onStatus) onStatus ("PHRASE NOTE " + noteText (note) + " (C-3 PLAYS AS THE NOTE PLAYED; NO INSTRUMENT = THIS ONE)");
-        return true;
-    }
-    if (column == 3 || column == 6)
-    {
-        const int cmd = commandFromChar ((char) k.getTextCharacter());
-        if (cmd < 0) return false;
-        const bool two = column == 6;
-        write ("PHRASE COMMAND", [cmd, two] (Cell& c) { if (two) c.cmd2 = (uint8_t) cmd; else c.cmd = (uint8_t) cmd; }, false);
-        setCursor (line, column + 1);
-        return true;
-    }
-    int hv = -1;
-    if (ch >= '0' && ch <= '9') hv = (int) (ch - '0');
-    else if (ch >= 'a' && ch <= 'f') hv = (int) (ch - 'a' + 10);
-    if (hv < 0) return false;
-    const int col = column;
-    const bool lastDigit = col == 2 || col == 5 || col == 8;   // (the first digit moves to the second; the second, down a line)
-    write ("PHRASE STEP", [col, hv] (Cell& c)
-    {
-        auto setNib = [hv] (uint8_t& v, bool high) { v = (uint8_t) (high ? (hv << 4) | (v & 15) : (v & 0xF0) | hv); };
-        if (col == 1 || col == 2) { setNib (c.instr, col == 1); c.instr = (uint8_t) std::min ((int) c.instr, kMaxInstruments); }
-        else if (col == 4 || col == 5) setNib (c.param, col == 4);
-        else if (col == 7 || col == 8) setNib (c.param2, col == 7);
-    }, lastDigit);
-    if (lastDigit) setCursor (line, col - 1);
-    else setCursor (line, col + 1);
-    return true;
-}
-
-void PhraseGrid::mouseDown (const juce::MouseEvent& e)
-{
-    grabKeyboardFocus();
-    const int l = top + (int) (e.position.y / rowH());
-    const int ch = (int) (e.position.x / charW());
-    int col = 0;
-    for (int c = 0; c < 9; ++c) if (ch >= kColStart[c]) col = c;
-    setCursor (l, col);
-}
-
-void PhraseGrid::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
-{
-    const auto* b = block();
-    if (b == nullptr) return;
-    top = juce::jlimit (0, std::max (0, b->lines - linesShown()), top - (int) std::round (w.deltaY * 12.0f));
-    repaint();
-}
-
-void PhraseGrid::paint (juce::Graphics& g)
-{
-    const auto& sk = Theme::skin;
-    const float px = Theme::px, rh = rowH(), cw = charW();
-    g.fillAll (sk.bg);
-    const auto* b = block();
-    if (b == nullptr)
-    {
-        PixelFont::drawCentred (g, "NO PHRASE - ADD ONE", getLocalBounds().toFloat(), px, sk.dim);
-        return;
-    }
-    keepVisible();
-    const float x0 = std::max (0.0f, ((float) getWidth() - cw * kRowChars) * 0.5f);
-    const int n = linesShown();
-    const int lpb = std::max (1, phrase()->lpb);
-    for (int i = 0; i <= n && top + i < b->lines; ++i)
-    {
-        const int l = top + i;
-        const float y = (float) i * rh;
-        if (l % lpb == 0) { g.setColour (sk.stripe); g.fillRect (0.0f, y, (float) getWidth(), rh); }
-        if (l == playLine) { g.setColour (sk.hot.withAlpha (0.35f)); g.fillRect (0.0f, y, (float) getWidth(), rh); }
-        if (l == line)
-        {
-            g.setColour (sk.band); g.fillRect (0.0f, y, (float) getWidth(), rh);
-            const juce::Rectangle<float> cr (x0 + cw * kColStart[column] - px * 0.5f, y, cw * kColChars[column] + px, rh);
-            g.setColour (sk.cursor); g.fillRect (cr);
-            if (hasKeyboardFocus (false)) { g.setColour (sk.cursorEdge); g.drawRect (cr, std::max (1.0f, px * 0.5f)); }
-        }
-        const juce::String t = rowText (l);
-        const float ty = y + (rh - PixelFont::textHeight (px)) * 0.5f;
-        PixelFont::draw (g, t.substring (0, 3), x0, ty, px, l % lpb == 0 ? sk.text : sk.dim);
-        // each field: dim when empty
-        auto field = [&] (int start, int len)
-        {
-            const auto s = t.substring (start, start + len);
-            PixelFont::draw (g, s, x0 + cw * start, ty, px, s.containsOnly ("-") ? sk.dim : sk.text);
-        };
-        field (4, 3); field (8, 2); field (11, 3); field (15, 3);
-    }
 }
 
 // =====================================================================================  the page
 PhraseView::PhraseView (PaulaProcessor& p) : proc (p)
 {
     setOpaque (false);
-    phraseGrid.phraseIndex = [this] { return sel; };
-    phraseGrid.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
-    phraseGrid.onEdited = [this] { if (onChanged) onChanged(); };
-    addAndMakeVisible (phraseGrid);
+    phrasePattern.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    phrasePattern.onStateChanged = [this] { syncBack(); if (onChanged) onChanged(); repaint(); };
+    phrasePattern.playLineOverride = [this] { return playLine(); };
+    addAndMakeVisible (phrasePattern);
 
     addBtn.onClick = [this] { addPhrase(); };
     cloneBtn.onClick = [this] { clonePhrase(); };
@@ -277,7 +73,8 @@ void PhraseView::select (int index)
     const int n = (int) inst().phrases.size();
     sel = n == 0 ? 0 : juce::jlimit (0, n - 1, index);
     if (isPlaying()) play (false);
-    phraseGrid.setCursor (0, 0);
+    phraseState.line = 0; phraseState.column = 0;
+    phrasePattern.clearSelection();
     refresh();
 }
 
@@ -345,7 +142,6 @@ void PhraseView::setLines (int lines)
     const int b = c->block;
     proc.history.block (b, "PHRASE LINES");
     proc.withLock ([&] { proc.song.blocks[(size_t) b].lines = lines; });
-    phraseGrid.setCursor (phraseGrid.line, phraseGrid.column);
     refresh();
     if (onChanged) onChanged();
     if (onStatus) onStatus ("PHRASE " + hex2 (sel + 1) + ": " + juce::String (lines) + " LINES");
@@ -427,21 +223,52 @@ void PhraseView::refresh()
     const int rows = listRows();
     listTop = juce::jlimit (0, std::max (0, n - rows), std::min (listTop, sel));
     if (sel >= listTop + rows) listTop = sel - rows + 1;
-    phraseGrid.repaint();
+    syncPattern();
+    phrasePattern.repaint();
     repaint();
+}
+
+void PhraseView::syncPattern()
+{
+    // the phrase's block and track in the editor, with the pattern's octave, step and instrument; EDIT always on
+    auto& m = proc.editorState;
+    auto& s = phraseState;
+    s.editMode = true; s.follow = false; s.scopes = false; s.fourTrackView = true; s.loopOn = false;
+    s.showFx2 = m.showFx2; s.octave = m.octave; s.step = m.step; s.instrument = m.instrument;
+    lastOctave = s.octave; lastStep = s.step;
+    const auto* c = current();
+    phrasePattern.setVisible (c != nullptr && ! phraseBounds.isEmpty());
+    if (c == nullptr) return;
+    s.block = c->block;
+    if (phrasePattern.onlyTrackShown() != c->track) phrasePattern.setOnlyTrack (c->track);
+    s.track = c->track;
+    s.line = juce::jlimit (0, std::max (0, proc.song.blocks[(size_t) c->block].lines - 1), s.line);
+}
+
+void PhraseView::syncBack()
+{
+    // (an octave or step changed in the phrase: the pattern's too)
+    auto& m = proc.editorState;
+    if (phraseState.octave != lastOctave) m.octave = lastOctave = phraseState.octave;
+    if (phraseState.step != lastStep) m.step = lastStep = phraseState.step;
+}
+
+int PhraseView::playLine() const
+{
+    // the line playing: heard from here, else a track playing this phrase in the song
+    const int i = proc.editorState.instrument;
+    if (proc.player.previewPhraseIndex() == sel) return proc.player.previewPhraseLine();
+    for (int t = 0; t < kMaxTracks; ++t)
+        if (proc.player.phraseInstrument (t) == i && proc.player.phraseIndex (t) == sel) return proc.player.phraseLine (t) - 1;
+    return -1;
 }
 
 void PhraseView::tick()
 {
     if (shownInstrument != proc.editorState.instrument) { play (false); refresh(); }
-    // the line playing: heard from here, else a track playing this phrase in the song
-    int pl = -1;
-    const int i = proc.editorState.instrument;
-    if (proc.player.previewPhraseIndex() == sel) pl = proc.player.previewPhraseLine();
-    else
-        for (int t = 0; t < kMaxTracks && pl < 0; ++t)
-            if (proc.player.phraseInstrument (t) == i && proc.player.phraseIndex (t) == sel) pl = proc.player.phraseLine (t) - 1;
-    if (pl != phraseGrid.playLine) { phraseGrid.playLine = pl; phraseGrid.repaint(); }
+    // (the pattern's octave / step changed elsewhere: here too; then the editor's own tick - the play line, MIDI notes)
+    if (proc.editorState.octave != phraseState.octave || proc.editorState.step != phraseState.step) syncPattern();
+    if (phrasePattern.isVisible()) phrasePattern.tick();
     if (playBtn.getToggleState() != isPlaying()) playBtn.setToggleState (isPlaying(), juce::dontSendNotification);
 }
 
@@ -557,7 +384,8 @@ void PhraseView::resized()
     }
     // the phrase, written here
     gridBox = r.toFloat();
-    phraseGrid.setBounds (r.reduced (gap * 2).withTrimmedTop (title));
+    phraseBounds = r.reduced (gap * 2).withTrimmedTop (title);
+    phrasePattern.setBounds (phraseBounds);
     refresh();
 }
 
@@ -572,6 +400,12 @@ void PhraseView::paint (juce::Graphics& g)
     Theme::panelBox (g, setBox, c != nullptr ? "PHRASE " + hex2 (sel + 1) + " (@" + hex2 (sel + 1) + ")" : juce::String ("PHRASE"), pal);
     Theme::panelBox (g, gridBox, c != nullptr ? "BLOCK " + juce::String (c->block).paddedLeft ('0', 3) + " TRACK " + juce::String (c->track + 1)
                                               : juce::String ("PHRASE"), pal);
+    if (c == nullptr && ! phraseBounds.isEmpty())
+    {
+        g.setColour (sk.bg);
+        g.fillRect (phraseBounds);
+        PixelFont::drawCentred (g, "NO PHRASE - ADD ONE", phraseBounds.toFloat(), px, sk.dim);
+    }
     g.setColour (sk.bg);
     g.fillRect (listArea);
     const int n = (int) in.phrases.size();

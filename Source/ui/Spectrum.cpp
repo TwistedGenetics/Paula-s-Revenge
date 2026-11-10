@@ -1,6 +1,7 @@
 // Paula's Revenge - spectrum strip under the pattern
 #include "Spectrum.h"
 #include "MeterColours.h"
+#include "Analyser.h"
 
 namespace prv::ui
 {
@@ -31,12 +32,21 @@ void Spectrum::analyse()
         const int i1 = juce::jlimit (1, kSize / 2 - 1, (int) (f1 * kSize / rate));
         const int i2 = juce::jlimit (i1 + 1, kSize / 2, (int) (f2 * kSize / rate) + 1);
         float m = 0;
-        for (int i = i1; i < i2; ++i) m = std::max (m, work[(size_t) i]);
+        if (i2 - i1 <= 1)
+        {
+            // narrower than a bin (the lows): read between the bins at the band's middle, so the line stays smooth
+            const double fb = std::sqrt (f1 * f2) * kSize / rate;
+            const int b0 = juce::jlimit (1, kSize / 2 - 2, (int) fb);
+            const float t = (float) (fb - b0);
+            m = work[(size_t) b0] * (1.0f - t) + work[(size_t) b0 + 1] * t;
+        }
+        else
+            for (int i = i1; i < i2; ++i) m = std::max (m, work[(size_t) i]);
         const float db = juce::Decibels::gainToDecibels (m / (kSize * 0.25f), -72.0f);
         // gentle upward tilt so the highs show, then -60..-6 dB fills the strip
         const float tilt = 3.0f * (float) std::log2 (std::max (1.0, f1 / 200.0));
         const float v = juce::jlimit (0.0f, 1.0f, (db + tilt + 60.0f) / 54.0f);
-        bands[b] = std::max (v, bands[b] * 0.8f);
+        bands[b] = std::max (v, bands[b] * 0.86f);   // (up at once, down smoothly)
         if (bands[b] >= peaks[b]) { peaks[b] = bands[b]; peakHold[b] = 18; }
         else if (--peakHold[b] < 0) peaks[b] = std::max (0.0f, peaks[b] - 0.03f);
     }
@@ -82,26 +92,25 @@ void Spectrum::paint (juce::Graphics& g)
     g.fillAll (sk.bg);
 
     auto inner = r.reduced (px * 2, px * 2);
-    const float bw = inner.getWidth() / kBands;
-    const float segH = std::max (2.0f, px * 2);
-    const int segs = std::max (3, (int) (inner.getHeight() / segH));
-    for (int b = 0; b < kBands; ++b)
+    // a faint grid: 100 Hz, 1 kHz, 10 kHz stronger, the steps between them lighter; levels across
     {
-        const float x = inner.getX() + b * bw;
-        const int lit = juce::roundToInt (bands[b] * segs);
-        // one colour, or (RAINBOW) the track colours left to right - right-click to choose
-        const auto c = meters::spectrum (b, kBands);
-        for (int k = 0; k < lit; ++k)
-        {
-            g.setColour (c);
-            g.fillRect (x + 1.0f, inner.getBottom() - (k + 1) * segH + 1.0f, bw - 2.0f, segH - 1.0f);
-        }
-        const int pk = juce::roundToInt (peaks[b] * segs);
-        if (pk > 0)
-        {
-            g.setColour (sk.hot);
-            g.fillRect (x + 1.0f, inner.getBottom() - pk * segH + 1.0f, bw - 2.0f, segH - 1.0f);
-        }
+        const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+        const double lo = 40.0, hi = std::min (16000.0, rate * 0.45);
+        auto xOf = [&] (double hz) { return inner.getX() + inner.getWidth() * (float) (std::log (hz / lo) / std::log (hi / lo)); };
+        for (double hz : { 50.0, 200.0, 500.0, 2000.0, 5000.0 })
+        { g.setColour (sk.rule.withAlpha (0.35f)); g.fillRect (xOf (hz), inner.getY(), 1.0f, inner.getHeight()); }
+        for (double hz : { 100.0, 1000.0, 10000.0 })
+        { g.setColour (sk.rule.withAlpha (0.7f)); g.fillRect (xOf (hz), inner.getY(), 1.0f, inner.getHeight()); }
+        for (int k = 1; k < 4; ++k)
+        { g.setColour (sk.rule.withAlpha (0.25f)); g.fillRect (inner.getX(), inner.getY() + inner.getHeight() * (float) k / 4.0f, inner.getWidth(), 1.0f); }
+        if (inner.getHeight() >= PixelFont::textHeight (px) * 4)
+            for (auto [hz, t] : { std::pair<double, const char*> { 100.0, "100" }, { 1000.0, "1K" }, { 10000.0, "10K" } })
+                PixelFont::draw (g, t, xOf (hz) + px * 2, inner.getBottom() - PixelFont::textHeight (px) - px, px, sk.dim);
+    }
+    // the analyser: a smooth line, the fill fading under it, the peak hold above (in the spectrum's colour, or RAINBOW)
+    {
+        const std::vector<float> lv (std::begin (bands), std::end (bands)), pk (std::begin (peaks), std::end (peaks));
+        drawAnalyser (g, inner, lv, pk, [] (float x01) { return meters::spectrum (juce::roundToInt (x01 * (kBands - 1)), kBands); });
     }
     g.setColour (sk.dim);
     g.fillRect (inner.getX(), inner.getBottom(), inner.getWidth(), 1.0f);

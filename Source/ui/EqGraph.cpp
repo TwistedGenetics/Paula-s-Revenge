@@ -1,5 +1,6 @@
 // Paula's Revenge - the channel EQ's graph
 #include "EqGraph.h"
+#include "Analyser.h"
 #include "ChoiceBox.h"
 #include "../engine/Effects.h"
 #include "../engine/Utility.h"
@@ -397,34 +398,17 @@ void EqGraph::paint (juce::Graphics& g)
         }
     }
 
-    // the spectrum, behind the curve: a soft gradient fill, a crisp edge, and a faint peak-hold line
+    // the spectrum, behind the curve: the analyser look (a smooth line, the fill fading under it, the peak hold above)
     if (showSpectrum && ! cols.empty())
     {
         const auto sc = spectrumColourFor (spectrumColour(), sk.dark);
-        auto yOf = [&] (float dbv) { return in.getBottom() - (float) juce::jlimit (0.0, 1.0, (dbv - kSpecLow) / (kSpecHigh - kSpecLow)) * in.getHeight(); };
-        juce::Path edge, area, peak;
-        const int step = std::max (1, (int) (px * 0.75f));
-        for (size_t x = 0; x < cols.size(); x += (size_t) step)
-        {
-            const float xx = in.getX() + (float) x, y = yOf (cols[x]), yp = yOf (peaks[x]);
-            if (x == 0) { edge.startNewSubPath (xx, y); peak.startNewSubPath (xx, yp); }
-            else { edge.lineTo (xx, y); peak.lineTo (xx, yp); }
-        }
-        edge.lineTo (in.getRight(), yOf (cols.back()));
-        peak.lineTo (in.getRight(), yOf (peaks.back()));
-        area = edge;
-        area.lineTo (in.getRight(), in.getBottom());
-        area.lineTo (in.getX(), in.getBottom());
-        area.closeSubPath();
-        g.saveState();
-        g.reduceClipRegion (in.toNearestInt());
-        g.setGradientFill (juce::ColourGradient (sc.withAlpha (sk.dark ? 0.42f : 0.30f), 0.0f, in.getY(), sc.withAlpha (0.04f), 0.0f, in.getBottom(), false));
-        g.fillPath (area);
-        g.setColour (sc.withAlpha (sk.dark ? 0.32f : 0.40f));
-        g.strokePath (peak, juce::PathStrokeType (1.0f));
-        g.setColour (sc.withAlpha (0.85f));
-        g.strokePath (edge, juce::PathStrokeType (std::max (1.0f, px * 0.5f), juce::PathStrokeType::curved));
-        g.restoreState();
+        auto norm = [] (float dbv) { return (float) juce::jlimit (0.0, 1.0, (dbv - kSpecLow) / (kSpecHigh - kSpecLow)); };
+        const size_t step = (size_t) std::max (2, (int) (px * 1.5f));   // (a point every few pixels: the curve does the rest)
+        std::vector<float> lv, pk;
+        for (size_t x = 0; x < cols.size(); x += step) { lv.push_back (norm (cols[x])); pk.push_back (norm (peaks[x])); }
+        lv.push_back (norm (cols.back())); pk.push_back (norm (peaks.back()));
+        // (the points spread evenly across the plot: the last one is a little closer, close enough)
+        drawAnalyser (g, in, lv, pk, [sc] (float) { return sc; });
     }
 
     // labels over the grid: Hz along the bottom, dB at the right
