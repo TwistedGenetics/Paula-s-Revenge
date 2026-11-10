@@ -19,6 +19,8 @@ public:
     int  instrument() const { return onlyInstrument; }
     void mouseDown (const juce::MouseEvent&) override;
     std::function<void()> onColourMenu;        // right-click: the spectrum's colour
+    // drawn over the bars (PARAMS: the filter's curve), in the area the bars fill
+    std::function<void (juce::Graphics&, juce::Rectangle<float>)> overlay;
 
 private:
     static constexpr int kOrder = 11, kSize = 1 << kOrder, kBands = 48;

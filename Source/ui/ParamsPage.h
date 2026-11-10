@@ -22,6 +22,8 @@ public:
     void release() { spec.setInstrument (-1); }
     void paintOverChildren (juce::Graphics&) override;
     static float response (FilterType, float cutoffHz, float resonance, float hz);   // the filter's gain at hz (tests too)
+    // the instrument's filter curve (and a line at the cutoff) over a spectrum's bars, with what it is in words
+    static void drawCurve (juce::Graphics&, juce::Rectangle<float> bars, const Instrument&, double sampleRate);
     Spectrum& spectrum() { return spec; }
 private:
     PaulaProcessor& proc;

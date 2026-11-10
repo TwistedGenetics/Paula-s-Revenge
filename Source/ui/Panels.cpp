@@ -1372,11 +1372,11 @@ int InstrumentPanel::chopToPhrase (int r, int division)
     if (k < 0) { status ("NOTHING TO CHOP"); return -1; }
     const auto& w = proc.song.instruments[(size_t) r];
     const auto n = juce::String::toHexString (k + 1).toUpperCase().paddedLeft ('0', 2);
+    changed();
+    if (openPhrase) openPhrase (k);   // (first: its own message, then what was made)
     status ("PHRASE " + n + ": " + hex + " CHOPPED INTO " + juce::String (w.numSlices()) + " HITS, EACH A NOTE (C-3 = HIT 1) - "
             + (k == 0 ? juce::String ("ANY NOTE PLAYS THE CHOPPED BREAK") : "@" + n + " ON A NOTE PLAYS IT")
             + (w.numSlices() > 60 ? juce::String (" (HITS 61 ON ARE PAST B-7)") : juce::String()));
-    changed();
-    if (openPhrase) openPhrase (k);
     return k;
 }
 

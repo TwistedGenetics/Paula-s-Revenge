@@ -203,10 +203,10 @@ int BreakPage::toPhrase()
     });
     if (k < 0) { status ("NOTHING TO CHOP"); return -1; }
     const auto n = juce::String::toHexString (k + 1).toUpperCase().paddedLeft ('0', 2);
-    status ("PHRASE " + n + " OF INSTRUMENT " + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2)
-            + ": THE BREAK, CHOPPED - " + (k == 0 ? juce::String ("ANY NOTE PLAYS IT") : "@" + n + " ON A NOTE PLAYS IT"));
     changed();
     if (onOpenPhrase) onOpenPhrase (k);
+    status ("PHRASE " + n + " OF INSTRUMENT " + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2)
+            + ": THE BREAK, CHOPPED - " + (k == 0 ? juce::String ("ANY NOTE PLAYS IT") : "@" + n + " ON A NOTE PLAYS IT"));
     return k;
 }
 

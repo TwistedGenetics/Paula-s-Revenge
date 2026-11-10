@@ -49,11 +49,15 @@ float FilterScope::response (FilterType t, float fc, float res, float hz)
 void FilterScope::paintOverChildren (juce::Graphics& g)
 {
     const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+    drawCurve (g, getLocalBounds().toFloat().reduced (Theme::px * 2), in, proc.getSampleRate());
+}
+
+void FilterScope::drawCurve (juce::Graphics& g, juce::Rectangle<float> r, const Instrument& in, double sampleRate)
+{
     const auto& sk = Theme::skin;
     const float px = Theme::px;
-    auto r = getLocalBounds().toFloat().reduced (px * 2);
     // the spectrum's own frequency scale: 40 Hz to 16 kHz, logarithmic; 0 dB two thirds of the way up, +12 at the top, -36 at the foot
-    const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+    const double rate = sampleRate > 0 ? sampleRate : 48000.0;
     const double lo = 40.0, hi = std::min (16000.0, rate * 0.45);
     auto yOf = [&] (float gain) { const float db = juce::jlimit (-36.0f, 12.0f, juce::Decibels::gainToDecibels (gain, -60.0f)); return r.getBottom() - (db + 36.0f) / 48.0f * r.getHeight(); };
     juce::Path p;
@@ -76,6 +80,17 @@ void FilterScope::paintOverChildren (juce::Graphics& g)
         const float x = r.getX() + r.getWidth() * (float) (std::log (juce::jlimit (lo, hi, (double) in.cutoff) / lo) / std::log (hi / lo));
         g.setColour (sk.accentSel.withAlpha (0.5f));
         g.fillRect (x, r.getY(), std::max (1.0f, px * 0.4f), r.getHeight());
+    }
+    // what it is, at the top right
+    const juce::String t = ! on ? juce::String ("FILTER OFF")
+                         : juce::String (in.filter == FilterType::LowPass ? "LOW " : in.filter == FilterType::HighPass ? "HIGH " : "BAND ")
+                           + (in.cutoff < 1000.0f ? juce::String (juce::roundToInt (in.cutoff)) + "HZ" : juce::String (in.cutoff / 1000.0f, 1) + "K");
+    if (r.getHeight() >= PixelFont::textHeight (px) * 2)
+    {
+        auto box = juce::Rectangle<float> (PixelFont::textWidth (t, px) + px * 4, PixelFont::textHeight (px) + px * 3).withPosition (r.getRight() - PixelFont::textWidth (t, px) - px * 4, r.getY());
+        g.setColour (sk.bg);
+        g.fillRect (box);
+        PixelFont::draw (g, t, box.getX() + px * 2, box.getY() + px * 1.5f, px, on ? sk.accentSel : sk.dim);
     }
 }
 
@@ -522,8 +537,9 @@ void ParamsPage::resized()
     // the filter's picture (the instrument's spectrum, the curve over it) with the room the right side has spare
     const int fenvH = std::min (right.getHeight(), boxPad + rowH * 4 + gap * 4);
     {
+        // (only when there's room for a proper picture: otherwise the spectrum strip under the page shows the curve)
         const int spare = right.getHeight() - fenvH - gap * 2;
-        if (spare >= rowH)
+        if (spare >= rowH * 2)
         {
             auto graph = right.removeFromTop (std::min (spare, rowH * 4));
             right.removeFromTop (gap * 2);

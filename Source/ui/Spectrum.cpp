@@ -105,6 +105,7 @@ void Spectrum::paint (juce::Graphics& g)
     }
     g.setColour (sk.dim);
     g.fillRect (inner.getX(), inner.getBottom(), inner.getWidth(), 1.0f);
+    if (overlay) overlay (g, inner);
     if (onlyInstrument >= 0)
     {
         const juce::String t = "INSTRUMENT " + juce::String::toHexString (onlyInstrument + 1).toUpperCase().paddedLeft ('0', 2) + " ONLY";

@@ -696,6 +696,17 @@ void PaulaEditor::timerCallback()
         // at instrument level (its PARAMS or plug-in page) the strip shows just that instrument
         const auto v = proc.editorState.view;
         spectrum.setInstrument (v == View::Params || v == View::Synth ? proc.editorState.instrument : -1);
+        // PARAMS: the strip shows the filter's curve over the instrument's sound too
+        if (v == View::Params && ! params.phrasesShown())
+        {
+            if (! spectrum.overlay)
+                spectrum.overlay = [this] (juce::Graphics& g, juce::Rectangle<float> r)
+                {
+                    if (proc.editorState.view != View::Params || params.phrasesShown()) return;
+                    prv::ui::FilterScope::drawCurve (g, r, proc.song.instruments[(size_t) juce::jlimit (0, prv::kMaxInstruments - 1, proc.editorState.instrument)], proc.getSampleRate());
+                };
+        }
+        else spectrum.overlay = nullptr;
         spectrum.tick();
     }
     else spectrum.setInstrument (-1);
