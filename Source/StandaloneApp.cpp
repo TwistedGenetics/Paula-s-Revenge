@@ -438,7 +438,7 @@ public:
         }
         else if (skinOf (id) >= 0)
         {
-            static const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern", "Studio", "Neon", "Hardware", "Prism", "BlueWave", "Paper", "Violet", "Ember", "Forest", "Prism II", "Aurora", "Boombox", "Dark II", "Glass II" };
+            static const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern", "Studio", "Neon", "Hardware", "Prism", "BlueWave", "Paper", "Violet", "Ember", "Forest", "Prism II", "Aurora", "Boombox", "Dark II", "Glass II", "Dark III" };
             static_assert (std::size (names) == (size_t) prv::ui::Theme::kSkins, "a menu name for every skin");
             info.setInfo (names[skinOf (id)], "The window's colours", "View", 0);
             auto* ed = editor();

@@ -36,6 +36,7 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Boombox:      return "BOOMBOX";
         case SkinId::DarkII:       return "DARK II";
         case SkinId::GlassII:      return "GLASS II";
+        case SkinId::DarkIII:      return "DARK III";
         default:                   return {};
     }
 }
@@ -54,17 +55,17 @@ void Theme::setSkinId (SkinId id)
            : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
            : (id == SkinId::Prism || id == SkinId::Prism2 || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
     k.round = id == SkinId::Aurora ? 6.0f   // (pills: corners as round as the button is tall)
-            : id == SkinId::GlassII ? 1.8f : id == SkinId::DarkII ? 1.2f
+            : id == SkinId::GlassII ? 1.8f : (id == SkinId::DarkII || id == SkinId::DarkIII) ? 1.2f
             : (id == SkinId::Neon || id == SkinId::Violet || id == SkinId::Boombox) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
             : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
     k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora || id == SkinId::Boombox
-              || id == SkinId::DarkII || id == SkinId::GlassII;
+              || id == SkinId::DarkII || id == SkinId::GlassII || id == SkinId::DarkIII;
     k.glow = id == SkinId::Neon || id == SkinId::Violet || id == SkinId::GlassII;
     k.gloss = id == SkinId::GlassII;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
     k.colourNotes = id == SkinId::Prism2 || id == SkinId::Boombox;
-    k.wash = id == SkinId::Aurora || id == SkinId::Boombox || id == SkinId::GlassII;
+    k.wash = id == SkinId::Aurora || id == SkinId::Boombox || id == SkinId::DarkII || id == SkinId::GlassII;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -99,16 +100,26 @@ void Theme::setSkinId (SkinId id)
     const Palette aurora    { C (0xff0f0e14), C (0xff25242c), C (0xff34333d), C (0xff050508), C (0xfff4f2f8), C (0xff7dfc9b), C (0xffa19fb0), C (0xff42414d), C (0xff3a3944), C (0xff0d1a10) };
     // BOOMBOX: an 80s boombox - slate violet panels with a silver rim, hot pink for chosen (dark text on it)
     const Palette boombox   { C (0xff121119), C (0xff1d1c28), C (0xff2e2c3e), C (0xff07070b), C (0xfff4f2fa), C (0xffff4f93), C (0xffaaa7c0), C (0xff3a384e), C (0xff4a4862), C (0xff1a0a14) };
-    // DARK II: DARK exactly - Workbench's light grey panels and keys round the cream-on-blue-black pattern and
+    // DARK II: DARK's cream on blue-black, made modern - smooth type, rounded, lit from above, a soft blue glow behind
+    const Palette darkII    { C (0xff0a0e16), C (0xff131a26), C (0xff222c3e), C (0xff020304), C (0xfff4ecd6), C (0xff3b6fd0), C (0xff8a93a6), C (0xff2b3750), C (0xff2a3448), C (0xfff4ecd6) };
+    // DARK III: DARK exactly - Workbench's light grey panels and keys round the cream-on-blue-black pattern and
     // pages - made modern: smooth type, rounded keys lit from above, soft grey edges instead of Amiga bevels
-    const Palette darkII    { C (0xffffffff), C (0xffe6e6e6), C (0xfffafafa), C (0xff9a9a9a), C (0xff000000), C (0xffa9bcd9), C (0xff6c6c6c), C (0xfff4f4f4), C (0xffb4b4b4), C (0xff000000) };
+    const Palette darkIII   { C (0xffffffff), C (0xffe6e6e6), C (0xfffafafa), C (0xff9a9a9a), C (0xff000000), C (0xffa9bcd9), C (0xff6c6c6c), C (0xfff4f4f4), C (0xffb4b4b4), C (0xff000000) };
     // GLASS II: GLASS made modern - deep blue glass, smooth type, glossy rounded keys that glow when on
     const Palette glassII   { C (0xff060d1a), C (0xff0f1d33), C (0xff1c3352), C (0xff02060c), C (0xffeaf4ff), C (0xff1f8fe0), C (0xff8aa6c8), C (0xff24426a), C (0xff3d6aa0), C (0xff03131f) };
     switch (id)
     {
         case SkinId::DarkII:
+            chromePal = darkII; pagePal = darkII;
+            k.bg = C (0xff0d121b); k.text = C (0xfff4ecd6); k.dim = C (0xff566074); k.stripe = C (0xff121824);
+            k.band = C (0xff26324a); k.cursor = C (0xff334a72); k.cursorEdge = C (0xfff4ecd6); k.rule = C (0xff26304a);
+            k.hot = C (0xffff5a4a); k.specBar = C (0xfff4ecd6);
+            k.accentSel = C (0xff6aa4ff); k.accentMod = C (0xffffa030); k.accentRec = C (0xffff4a3a);
+            k.washA = C (0xff16223c); k.washB = C (0xff0f1a30);
+            break;
+        case SkinId::DarkIII:
             // (DARK's own colours: the light chrome, the dark pages and pattern)
-            chromePal = darkII; pagePal = darkPage;
+            chromePal = darkIII; pagePal = darkPage;
             k.bg = C (0xff141a24); k.text = C (0xfff4ecd6); k.dim = C (0xff566074); k.stripe = C (0xff1c2432);
             k.band = C (0xff334058); k.cursor = C (0xff5a6a88); k.cursorEdge = C (0xfff4ecd6); k.rule = C (0xff3a4458);
             k.hot = C (0xffff5a4a); k.specBar = C (0xfff4ecd6);
@@ -280,8 +291,8 @@ void Theme::setSkinId (SkinId id)
     // the chrome colours everything else draws with
     paper = chromePal.paper; panel = chromePal.panel; light = chromePal.light; shadow = chromePal.shadow; ink = chromePal.ink;
     pressed = chromePal.pressed; faint = chromePal.faint;
-    stripe = id == SkinId::Workbench || id == SkinId::Dark || id == SkinId::DarkII ? C (0xffefefef) : k.stripe;
-    band = id == SkinId::Workbench || id == SkinId::Dark || id == SkinId::DarkII ? C (0xffc4c4c4) : k.band;
+    stripe = id == SkinId::Workbench || id == SkinId::Dark || id == SkinId::DarkIII ? C (0xffefefef) : k.stripe;
+    band = id == SkinId::Workbench || id == SkinId::Dark || id == SkinId::DarkIII ? C (0xffc4c4c4) : k.band;
 }
 
 void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t) { bevel (g, r, raised, t, lightPalette()); }
@@ -621,7 +632,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
     }
     else PixelFont::drawCentred (g, label, r.translated (shift, shift), usePx, inkNow);
     if (studio) return;   // (the face is the accent)
-    if (onAccent.isTransparent() && (Theme::skin.id == Theme::SkinId::Dark || Theme::skin.id == Theme::SkinId::DarkII) && &P == &Theme::lightPalette())
+    if (onAccent.isTransparent() && (Theme::skin.id == Theme::SkinId::Dark || Theme::skin.id == Theme::SkinId::DarkIII) && &P == &Theme::lightPalette())
     {
         // DARK's chrome is the light Workbench chrome: its accents too
         const auto u = label.toUpperCase();
