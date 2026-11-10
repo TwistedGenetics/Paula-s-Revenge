@@ -160,11 +160,13 @@ void makeBuiltin (Instrument& in, const std::string& key)
     writeBuiltinState (in, builtinDefaults (key));
 }
 
-std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in)
+std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sampleRate)
 {
-    if (in.pluginKey == kSubKey) return std::make_unique<SubSynth>();
-    if (in.pluginKey == kGrainKey) return std::make_unique<GrainSynth>();
-    return nullptr;
+    std::unique_ptr<PluginSynth> s;
+    if (in.pluginKey == kSubKey) s = std::make_unique<SubSynth>();
+    if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
+    if (s) s->prepare (sampleRate, 4096);
+    return s;
 }
 
 // ============================================================================ SUB

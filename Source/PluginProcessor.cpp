@@ -53,7 +53,7 @@ PaulaProcessor::PaulaProcessor()
     player.synths().factory = [this] (int i, const prv::Instrument& in, double sr)
     {
         if (in.isCvOut()) return std::unique_ptr<prv::PluginSynth> (std::make_unique<prv::CvOutSynth>());
-        if (in.isBuiltin()) return prv::createBuiltinSynth (in);
+        if (in.isBuiltin()) return prv::createBuiltinSynth (in, sr);
         return in.isMidiOut() ? midiHost.createSynth (in, sr) : pluginHost.createSynth (i, in, sr);
     };
 }
@@ -63,7 +63,7 @@ std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, do
     // (renders leave MIDI-out instruments out)
     return [this] (int i, const prv::Instrument& in, double sr) -> std::unique_ptr<prv::PluginSynth>
     {
-        if (in.isBuiltin()) return prv::createBuiltinSynth (in);
+        if (in.isBuiltin()) return prv::createBuiltinSynth (in, sr);
         return in.isMidiOut() || in.isCvOut() ? nullptr : pluginHost.createSynth (i, in, sr);
     };
 }

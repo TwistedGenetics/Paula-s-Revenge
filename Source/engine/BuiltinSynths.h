@@ -37,7 +37,7 @@ std::vector<float> readBuiltinState (const Instrument&);
 void writeBuiltinState (Instrument&, const std::vector<float>& values);
 // make an instrument a built-in synth (its sample, plug-in and MIDI / CV settings go; its name becomes the synth's)
 void makeBuiltin (Instrument&, const std::string& key);
-std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument&);
+std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument&, double sampleRate = 48000.0);   // (prepared at that rate)
 
 // ---- SUB: one oscillator that never restarts (a new note moves its pitch - instantly or gliding - so the wave
 // never jumps), the envelope restarting from where it is (never from 0), overlapping notes in LEGATO sliding without

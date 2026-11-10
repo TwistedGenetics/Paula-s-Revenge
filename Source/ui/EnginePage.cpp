@@ -31,6 +31,12 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     optionsBtn.onClick = [this] { if (onOptions) onOptions(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     for (auto* c : { &playBtn, &optionsBtn, &closeBtn }) addAndMakeVisible (c);
+    for (int k = 0; k < 2; ++k)
+    {
+        pageBtn[k].setClickingTogglesState (false);
+        pageBtn[k].onClick = [this, k] { showPage (k); };
+        addChildComponent (pageBtn[k]);
+    }
 }
 
 EnginePage::~EnginePage()
@@ -140,8 +146,16 @@ void EnginePage::build()
             addAndMakeVisible (*r.slider);
         }
         const juce::String sec (q.section);
-        if (boxes.empty() || boxes.back().title != sec) boxes.push_back ({ sec, {}, {} });
-        boxes.back().rowIndex.push_back ((int) rows.size());
+        auto box = std::find_if (boxes.begin(), boxes.end(), [&] (const Box& b) { return b.title == sec; });
+        if (box == boxes.end())
+        {
+            // (GRANULAR: SOURCE sits beside the sound; LFOS, ENV MOD and FILTER are on the second page)
+            const bool grainPage = shownKey == kGrainKey;
+            const bool second = grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER");
+            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
+            box = boxes.end() - 1;
+        }
+        box->rowIndex.push_back ((int) rows.size());
         rows.push_back (std::move (r));
     }
 }
@@ -172,6 +186,61 @@ void EnginePage::refresh()
 void EnginePage::tick()
 {
     if (shownInstrument != proc.editorState.instrument || inst().pluginKey != shownKey) refresh();
+    if (shownKey == kGrainKey && (++waveTick % 3) == 0) readWave();
+}
+
+void EnginePage::showPage (int k)
+{
+    pageShown = juce::jlimit (0, 1, k);
+    resized();
+    repaint();
+}
+
+void EnginePage::readWave()
+{
+    const int i = proc.editorState.instrument;
+    const auto v = readBuiltinState (inst());
+    const int count = std::max (16, (int) (waveArea.getWidth() / std::max (1.0f, Theme::px)));
+    bool ok = false;
+    proc.withLock ([&]
+    {
+        if (auto* g = dynamic_cast<GrainSynth*> (proc.player.synths().at (i)))
+        {
+            ok = g->sourceOverview (wavePeaks, count);
+            wavePos = g->positionNow();
+            waveGrains = g->activeGrains();
+        }
+    });
+    waveOk = ok;
+    const int kind = (int) std::lround (v[grain::Source]);
+    const auto& ps = builtinParams (kGrainKey);
+    if (kind == 0) waveName = "TABLE: " + juce::String (ps[grain::Table].text (v[grain::Table]));
+    else if (kind == 1)
+    {
+        const int slot = juce::jlimit (1, kMaxInstruments, (int) std::lround (v[grain::SampleSlot]));
+        const auto& from = proc.song.instruments[(size_t) slot - 1];
+        waveName = "SAMPLE " + hex2 (slot) + ": " + (from.data.empty() || from.isPlugin() ? juce::String ("(NO SAMPLE IN IT)") : juce::String (from.name).toUpperCase());
+    }
+    else waveName = std::lround (v[grain::Freeze]) == 1 ? "THE INPUT - FROZEN" : "THE INPUT - THE LAST 8 SECONDS";
+    repaint (waveArea.toNearestInt());
+}
+
+void EnginePage::positionFrom (juce::Point<float> at)
+{
+    const auto in = waveArea.reduced (Theme::px * 4);
+    if (in.getWidth() <= 1) return;
+    edit (grain::Position, juce::jlimit (0.0f, 100.0f, 100.0f * (at.x - in.getX()) / in.getWidth()), true);
+}
+
+void EnginePage::mouseDown (const juce::MouseEvent& e)
+{
+    grabKeyboardFocus();
+    if (waveArea.contains (e.position)) positionFrom (e.position);   // click the sound: read from there
+}
+
+void EnginePage::mouseDrag (const juce::MouseEvent& e)
+{
+    if (waveArea.contains (e.mouseDownPosition)) positionFrom (e.position);
 }
 
 void EnginePage::knobMenu (int param)
@@ -217,8 +286,8 @@ void EnginePage::resized()
     playBtn.setBounds (top.removeFromRight (charsW (14))); top.removeFromRight (gap * 2);
     titleArea = top.toFloat();
     r.removeFromTop (gap * 2);
-    // the boxes in columns: as few columns as fit, each filled top to bottom. A row of choice buttons too narrow for
-    // its words takes two lines (half the buttons on each), so no word is ever cut.
+
+    // a row of choice buttons too narrow for its words takes more lines (fewer buttons on each): no word is ever cut
     auto choiceLines = [&] (const Row& rw, int width)
     {
         if (rw.choices.empty()) return 1;
@@ -238,24 +307,8 @@ void EnginePage::resized()
         for (int ri : b.rowIndex) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
         return gap * 4 + title + lines * (rowH + gap);
     };
-    int cols = 1, colW = r.getWidth();
-    for (int pass = 0; pass < 2; ++pass)
+    auto place = [&] (Box& b, juce::Rectangle<int> area)
     {
-        int total = 0;
-        for (const auto& b : boxes) total += boxHeight (b, colW) + gap * 2;
-        cols = juce::jlimit (1, 3, (int) std::ceil ((double) total / std::max (1, r.getHeight())));
-        colW = (r.getWidth() - gap * 3 * (cols - 1)) / std::max (1, cols);
-    }
-    int total = 0;
-    for (const auto& b : boxes) total += boxHeight (b, colW) + gap * 2;
-    int col = 0, y = r.getY();
-    const int perCol = (int) std::ceil ((double) total / cols);
-    int used = 0;
-    for (auto& b : boxes)
-    {
-        const int h = boxHeight (b, colW);
-        if (used > 0 && used + h > perCol + rowH && col < cols - 1) { ++col; y = r.getY(); used = 0; }
-        juce::Rectangle<int> area (r.getX() + col * (colW + gap * 3), y, colW, h);
         b.area = area.toFloat();
         auto in = area.reduced (gap * 2).withTrimmedTop (title);
         for (int ri : b.rowIndex)
@@ -280,7 +333,66 @@ void EnginePage::resized()
                 }
             }
         }
-        y += h + gap * 2; used += h + gap * 2;
+    };
+
+    // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
+    waveArea = {};
+    const bool paged = shownKey == kGrainKey;
+    for (auto& b : pageBtn) b.setVisible (paged);
+    if (paged)
+    {
+        Box* src = nullptr;
+        for (auto& b : boxes) if (b.page == 2) src = &b;
+        const int srcW = juce::jlimit (charsW (14), std::max (charsW (14), r.getWidth() / 2), charsW (22));
+        auto band = r.removeFromTop (std::max (title + rowH * 4 + gap * 4, src != nullptr ? boxHeight (*src, srcW) : 0));
+        r.removeFromTop (gap * 2);
+        if (src != nullptr) { place (*src, band.removeFromRight (srcW)); band.removeFromRight (gap * 3); }
+        waveArea = band.toFloat();
+        auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
+        pageBtn[0].setBounds (tabs.removeFromLeft (charsW (10))); tabs.removeFromLeft (gap);
+        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (22)));
+        for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+    }
+    // the boxes not on the page shown: hidden
+    std::vector<Box*> shownBoxes;
+    for (auto& b : boxes)
+    {
+        const bool on = ! paged || b.page == pageShown || b.page == 2;
+        if (on && b.page != 2) shownBoxes.push_back (&b);
+        if (! on) b.area = {};
+        for (int ri : b.rowIndex)
+        {
+            auto& rw = rows[(size_t) ri];
+            for (juce::Component* c : { (juce::Component*) rw.slider.get(), (juce::Component*) rw.number.get(), (juce::Component*) rw.cycle.get() }) if (c) c->setVisible (on);
+            for (auto& c : rw.choices) c->setVisible (on);
+        }
+    }
+    // the boxes in columns: as few as fit (but never so narrow that a slider has no room), each filled top to bottom
+    const int minColW = charsW (16) + (int) (px * 24);
+    const int maxCols = juce::jlimit (1, 3, (r.getWidth() + gap * 3) / (minColW + gap * 3));
+    int cols = 1, colW = r.getWidth();
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        int total = 0;
+        for (const auto* b : shownBoxes) total += boxHeight (*b, colW) + gap * 2;
+        cols = juce::jlimit (1, maxCols, (int) std::ceil ((double) total / std::max (1, r.getHeight())));
+        colW = (r.getWidth() - gap * 3 * (cols - 1)) / std::max (1, cols);
+    }
+    int total = 0;
+    for (const auto* b : shownBoxes) total += boxHeight (*b, colW) + gap * 2;
+    std::vector<int> colY ((size_t) cols, r.getY());
+    int col = 0;
+    const int perCol = (int) std::ceil ((double) total / cols);
+    for (auto* bp : shownBoxes)
+    {
+        const int h = boxHeight (*bp, colW);
+        const int used = colY[(size_t) col] - r.getY();
+        if (used > 0 && (used + h > perCol + rowH || colY[(size_t) col] + h > r.getBottom()) && col < cols - 1) ++col;
+        // (no room left at the foot of the last column: the column with the most room)
+        if (colY[(size_t) col] + h > r.getBottom())
+            for (int c = 0; c < cols; ++c) if (colY[(size_t) c] + h <= r.getBottom() && colY[(size_t) c] < colY[(size_t) col]) col = c;
+        place (*bp, { r.getX() + col * (colW + gap * 3), colY[(size_t) col], colW, h });
+        colY[(size_t) col] += h + gap * 2;
     }
 }
 
@@ -295,7 +407,42 @@ void EnginePage::paint (juce::Graphics& g)
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth() || t == name) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
-    for (const auto& b : boxes) Theme::panelBox (g, b.area, b.title, pal);
+    for (const auto& b : boxes) if (! b.area.isEmpty()) Theme::panelBox (g, b.area, b.title, pal);
+    if (! waveArea.isEmpty())
+    {
+        // GRANULAR: the sound, POSITION (and where SCAN has taken it), the grains playing
+        juce::String head = waveName;
+        while (head.length() > 4 && PixelFont::textWidth (head, px) > waveArea.getWidth() - px * 24) head = head.dropLastCharacters (1);
+        Theme::panelBox (g, waveArea, head, pal);
+        const float title = px * 11;
+        auto in = waveArea.reduced (px * 4).withTrimmedTop (title);
+        g.setColour (pal.paper);
+        g.fillRect (in);
+        if (waveOk && ! wavePeaks.empty())
+        {
+            const float mid = in.getCentreY(), half = in.getHeight() * 0.46f;
+            const float w = in.getWidth() / (float) wavePeaks.size();
+            g.setColour (pal.ink.withAlpha (0.75f));
+            for (size_t k = 0; k < wavePeaks.size(); ++k)
+            {
+                const float h = std::max (px * 0.5f, wavePeaks[k] * half);
+                g.fillRect (in.getX() + (float) k * w, mid - h, std::max (1.0f, w), h * 2);
+            }
+        }
+        else PixelFont::drawCentred (g, "NOTHING TO READ YET", in, px, pal.faint);
+        const float pos = valueOf (grain::Position) * 0.01f;
+        g.setColour (pal.pressed);
+        g.fillRect (in.getX() + pos * in.getWidth() - px, in.getY(), px * 2, in.getHeight());
+        if (waveGrains > 0)
+        {
+            g.setColour (pal.pressedInk);
+            g.fillRect (in.getX() + wavePos * in.getWidth() - px * 0.5f, in.getY(), px, in.getHeight());
+        }
+        const auto foot = in.removeFromBottom (px * 9).reduced (px * 2, 0);
+        juce::String note = juce::String (waveGrains) + " GRAINS - CLICK TO SET POSITION";
+        if (PixelFont::textWidth (note, px) > foot.getWidth()) note = juce::String (waveGrains) + " GRAINS";
+        PixelFont::drawLeft (g, note, foot, px, pal.ink);
+    }
     if (hasKeyboardFocus (true)) { g.setColour (pal.ink); g.drawRect (getLocalBounds().toFloat(), std::max (2.0f, px * 0.5f)); }
 }
 

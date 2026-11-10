@@ -4559,6 +4559,16 @@ static void testSubSynth()
         CHECK (ps[sub::Glide].text (333) == "333MS" && ps[sub::Mode].text (3) == "POLY" && std::abs (ps[sub::Glide].toValue (ps[sub::Glide].to01 (333)) - 333) < 0.5f);
         auto synth = createBuiltinSynth (in);
         CHECK (synth != nullptr);
+        // made at the song's rate: at 44.1 kHz C-3 is still 261.6 Hz
+        auto at44 = createBuiltinSynth (in, 44100);
+        std::vector<float> L (44100), R (L.size());
+        at44->noteOn (60, 127, 0);
+        at44->render (L.data(), R.data(), (int) L.size());
+        int cross = 0, first = -1, last = -1;
+        for (size_t i = 4410; i < L.size(); ++i) if (L[i - 1] < 0 && L[i] >= 0) { ++cross; if (first < 0) first = (int) i; last = (int) i; }
+        const double hz = cross > 1 ? (cross - 1) * 44100.0 / (last - first) : 0;
+        std::printf ("SUB made at 44.1 kHz: C-3 = %.2f Hz\n", hz);
+        CHECK (std::abs (hz - 261.63) < 1.0);
     }
     // in the song: a SUB instrument plays through the player (as a plug-in instrument does)
     {
@@ -4566,7 +4576,7 @@ static void testSubSynth()
         makeBuiltin (s.instruments[4], kSubKey);
         s.blocks[0] = Block {}; s.blocks[0].lines = 16; s.blocks[0].at (0, 0) = Cell { 13, 5, 0, 0 }; s.sequence = { 0 };
         Player p; p.setSampleRate (48000); p.setSong (&s);
-        p.synths().factory = [] (int, const Instrument& in, double) { return createBuiltinSynth (in); };
+        p.synths().factory = [] (int, const Instrument& in, double sr) { return createBuiltinSynth (in, sr); };
         p.synths().syncNow (s, 48000);
         p.playSong (0);
         std::vector<float> L (24000), R (L.size());
@@ -4722,7 +4732,7 @@ static void testGrainSynth()
         CHECK (readBuiltinState (s.instruments[4])[grain::SampleSlot] == 1);
         s.blocks[0] = Block {}; s.blocks[0].lines = 16; s.blocks[0].at (0, 0) = Cell { 25, 5, 0, 0 }; s.sequence = { 0 };
         Player p; p.setSampleRate (48000); p.setSong (&s);
-        p.synths().factory = [] (int, const Instrument& in, double) { return createBuiltinSynth (in); };
+        p.synths().factory = [] (int, const Instrument& in, double sr) { return createBuiltinSynth (in, sr); };
         p.synths().syncNow (s, 48000);
         p.playSong (0);
         std::vector<float> L (24000), R (L.size());

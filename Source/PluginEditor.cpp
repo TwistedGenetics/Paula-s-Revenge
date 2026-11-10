@@ -1096,9 +1096,11 @@ void PaulaEditor::openLoad (int kind)
         const auto& in = proc.song.instruments[(size_t) i];
         const bool has = in.hasData() || in.isPlugin();
         choice.show (*this, "INSTRUMENT " + hex + (has ? ": PLAY A BUILT-IN SYNTH INSTEAD? (UNDO BRINGS IT BACK)" : ": A BUILT-IN SYNTH"),
-                     { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)", "CANCEL" }, [safe] (int a)
+                     { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)",
+                       "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)", "CANCEL" }, [safe] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
+            if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kGrainKey);
         });
         return;
     }
