@@ -75,6 +75,10 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
     void ensureVisible (int row);
+    // the list keeping a row in view by itself (the song playing, the current instrument): not while you're
+    // scrolling it or the mouse is over it - it waits a few seconds after you scroll, so it doesn't spring back
+    void follow (int row);
+    juce::uint32 userScrollAt = 0;
     void scrollBy (int rows);
     float rowHeight() const { return Theme::px * 11; }
 
@@ -203,16 +207,26 @@ public:
     void resized() override;
     void loadSample();
     int  chopToPattern (int instrument);   // CHOP TO PATTERN (right-click an instrument); also tests
+    // CHOP TO PHRASE (right-click): division 4 / 8 / 16 / 32 / 64 equal slices, 0 = by its hits, -1 = its own slices;
+    // the new phrase's index (-1 = none)
+    int  chopToPhrase (int instrument, int division);
+    std::function<void (int phrase)> openPhrase;   // (the PHRASES page, on the new one)
     std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
     std::function<void (int kind)> openSource;   // the right-click's VST / AU (1), MIDI OUT (2), CV OUT (3)
     std::function<void()> openBreak;   // the BREAK page
+
+    std::function<void()> openEqFx;    // EQ/FX: the instrument's own EQ and effects
+    bool keyPressed (const juce::KeyPress&) override;   // Delete / Backspace: clear the instrument; up / down: the next one
+    void clearInstrument();            // (the right-click's CLEAR, the Delete key; tests)
 
 private:
     PaulaProcessor& proc;
     std::function<void()> changed;
     std::function<void (const juce::String&)> status;
     PixList list;
-    PixButton loadBtn { "LOAD" }, editBtn { "EDIT" }, paramsBtn { "PARAMS" }, clearBtn { "CLEAR" }, nameBtn { "NAME" };
+    PixButton loadBtn { "LOAD" }, editBtn { "EDIT" }, fxBtn { "EQ/FX" }, paramsBtn { "PARAMS" };
+    PixButton clearBtn { "CLEAR" }, nameBtn { "NAME" };   // (not on the panel: the right-click's CLEAR and RENAME, a double-click renames)
+    int shownInstrument = -1;
     PixButton loopBtn { "LOOP", true };
     NumberBox vol { "VOL", 0, 64, 64 }, fine { "FINE", -8, 7, 0 }, trans { "TRNS", -24, 24, 0 };
     NumberBox loopStart { "LSTRT", 0, 1, 0 }, loopLen { "LLEN", 0, 1, 0 };
@@ -220,6 +234,7 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
 
     template <typename Fn> void editInstrument (const juce::String& what, Fn&& fn);
+    void setupRest();   // (the constructor's second half: RENAME, the numbers, LOOP, the waveform)
 public:
     void showInstrumentMenu (int row);   // right-click: COPY, PASTE, DUPLICATE, CLEAR, RENAME, LOAD, PLAY
 private:

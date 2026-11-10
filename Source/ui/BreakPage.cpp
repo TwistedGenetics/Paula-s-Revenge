@@ -46,6 +46,8 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     trackUp.onClick   = [this, &st] { st.track = std::min (proc.song.numTracks - 1, st.track + 1); changed(); };
     makeBtn.onClick = [this] { makeBlock(); };
     chopBtn.onClick = [this] { chopHere(); };
+    phraseBtn.onClick = [this] { toPhrase(); };
+    addAndMakeVisible (phraseBtn);
     playBtn.onClick = [this, &st] { proc.withLock ([&] { proc.player.playBlock (proc.song.safeBlock (st.block)); }); status ("PLAYING BLOCK " + juce::String (st.block).paddedLeft ('0', 3)); };
     stopBtn.onClick = [this] { proc.withLock ([&] { proc.player.stop(); }); };
     fitBtn.setToggleState (true, juce::dontSendNotification);
@@ -184,6 +186,28 @@ int BreakPage::chopHere()
             + (fitBtn.getToggleState() ? " - FITTED TO THE TEMPO (BEAT SYNC " + juce::String (std::min (partLines(), 16 * bars)) + " LINES)" : juce::String()));
     changed();
     return placed;
+}
+
+int BreakPage::toPhrase()
+{
+    const int ins = instrument();
+    if (! ensureSlices (ins)) return -1;
+    if ((int) proc.song.instruments[(size_t) ins].phrases.size() >= kMaxPhrases) { status ("16 PHRASES IS THE MOST AN INSTRUMENT CAN HAVE"); return -1; }
+    proc.history.instrument (ins, "BREAK: TO PHRASE");
+    int k = -1;
+    proc.withLock ([&]
+    {
+        const auto& w = proc.song.instruments[(size_t) ins];
+        const double secs = (double) w.data.size() / std::max (1.0, w.rate);
+        k = prv::chopToPhrase (proc.song, ins, -1, secs / (16.0 * std::max (1, bars)));   // (its own slices, over BARS)
+    });
+    if (k < 0) { status ("NOTHING TO CHOP"); return -1; }
+    const auto n = juce::String::toHexString (k + 1).toUpperCase().paddedLeft ('0', 2);
+    status ("PHRASE " + n + " OF INSTRUMENT " + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2)
+            + ": THE BREAK, CHOPPED - " + (k == 0 ? juce::String ("ANY NOTE PLAYS IT") : "@" + n + " ON A NOTE PLAYS IT"));
+    changed();
+    if (onOpenPhrase) onOpenPhrase (k);
+    return k;
 }
 
 int BreakPage::makeBlock()
@@ -542,6 +566,8 @@ void BreakPage::resized()
     row = rows.removeFromTop (rowH);
     reLabel = row.removeFromLeft (charsW (8)).toFloat();
     for (auto* b : { &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn }) { b->setBounds (row.removeFromLeft (charsW (b->getButtonText().length()))); row.removeFromLeft (gap); }
+    row.removeFromLeft (gap * 2);
+    phraseBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (9))));
     rows.removeFromTop (gap);
     row = rows.removeFromTop (rowH);
     rbLabel = row.removeFromLeft (charsW (8)).toFloat();

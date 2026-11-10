@@ -37,4 +37,10 @@ int rebuild (Block&, int track, int ins, const std::vector<HitKind>&, int lines,
 constexpr int kRebuilds = 4;
 const char* rebuildName (int i);        // "CLASSIC '94", "ROLLER", "TWO-STEP", "HALF-STEP"
 const char* rebuildTemplate (int i);
+// CHOP TO PHRASE: the instrument's sample cut up (division: N equal slices, 0 = by its hits, -1 = its own
+// slices as they are) and written into a new phrase of its own - each hit a note (C-3 = slice 1, SLICE TO KEYS
+// on), each where it falls, at enough lines a beat that every hit has a line. TRANSPOSE is off, so any note
+// plays the chopped break as it is. lineSec: a line at the song's tempo (to find how many bars it is).
+// Returns the new phrase's index (-1: no sample, or 16 phrases already).
+int chopToPhrase (Song&, int instrument, int division, double lineSec);
 } // namespace prv

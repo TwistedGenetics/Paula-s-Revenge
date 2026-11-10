@@ -103,6 +103,9 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         mixer.openInstrument (proc.editorState.instrument);
     };
     params.onOpenEqFx = openEqFx;
+    instruments.openEqFx = openEqFx;   // (EQ/FX on the instruments panel)
+    instruments.openPhrase = [this] (int k) { setView (View::Params); params.showPhrases (true); params.phraseView().select (k); };
+    breakPage.onOpenPhrase = [this] (int k) { setView (View::Params); params.showPhrases (true); params.phraseView().select (k); };
     synthPage.onOpenEqFx = openEqFx;
     // a VST3 / AU instrument's filter and envelopes: the PARAMS page, BACK TO THE PLUG-IN returns
     synthPage.onOpenShape = [this] { paramsForPlugin = proc.editorState.instrument; setView (View::Params); };

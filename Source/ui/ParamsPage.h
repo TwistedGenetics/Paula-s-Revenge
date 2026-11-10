@@ -7,9 +7,27 @@
 #include "InstrumentFx.h"
 #include "UtilityStrip.h"
 #include "PhraseView.h"
+#include "Spectrum.h"
 
 namespace prv::ui
 {
+// the FILTER's picture: the instrument's own sound as a live spectrum, with the filter's curve over it
+// (LOW / HIGH / BAND at its cutoff and resonance; flat when OFF)
+class FilterScope : public juce::Component
+{
+public:
+    explicit FilterScope (PaulaProcessor& p) : proc (p), spec (p) { addAndMakeVisible (spec); spec.setInterceptsMouseClicks (false, false); setInterceptsMouseClicks (false, false); }
+    void resized() override { spec.setBounds (getLocalBounds()); }
+    void tick (int instrument) { spec.setInstrument (instrument); spec.tick(); repaint(); }
+    void release() { spec.setInstrument (-1); }
+    void paintOverChildren (juce::Graphics&) override;
+    static float response (FilterType, float cutoffHz, float resonance, float hz);   // the filter's gain at hz (tests too)
+    Spectrum& spectrum() { return spec; }
+private:
+    PaulaProcessor& proc;
+    Spectrum spec;
+};
+
 class ParamsPage : public juce::Component
 {
 public:
@@ -105,6 +123,9 @@ public:
 private:
 
     juce::Rectangle<float> titleArea, envBox, filterBox, fenvBox, panBox, envGraph, fenvGraph;
+public:
+    FilterScope filterScope { proc };
+private:
     std::map<int, int> heldKeys;
     bool playingHeld = false;
 

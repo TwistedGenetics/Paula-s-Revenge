@@ -37,6 +37,8 @@ public:
     void sliceEven();
     int  makeBlock();                    // a new block after the current position, the break chopped into it; its number
     int  chopHere();
+    int  toPhrase();                     // TO PHRASE: the break's slices into a new phrase of the instrument (its index, -1 = none)
+    std::function<void (int phrase)> onOpenPhrase;   // (the PHRASES page, on it)
     void reEdit (int which);             // 0 SHUFFLE, 1 GHOST ROLL, 2 HALF-TIME, 3 DOUBLE-TIME
     void rebuildAs (int i);              // CLASSIC '94, ROLLER, TWO-STEP, HALF-STEP
     int  variations();                   // 4 new blocks after the current one; how many
@@ -56,6 +58,7 @@ public:
     PixButton autoBtn { "AUTO" }, evenBtn { "EVEN 16" }, sensDown { "-" }, sensUp { "+" }, barsDown { "-" }, barsUp { "+" };
     PixButton trackDown { "-" }, trackUp { "+" }, makeBtn { "MAKE BLOCK" }, chopBtn { "CHOP HERE" }, playBtn { "PLAY" }, stopBtn { "STOP" };
     PixButton fitBtn { "FIT TO TEMPO", true }, keepBtn { "KEEP PITCH", true };
+    PixButton phraseBtn { "TO PHRASE" };
     PixButton shuffleBtn { "SHUFFLE" }, ghostBtn { "GHOST ROLL" }, halfBtn { "HALF-TIME" }, doubleBtn { "DOUBLE-TIME" };
     PixButton rebuildBtns[kRebuilds] { PixButton { "CLASSIC '94" }, PixButton { "ROLLER" }, PixButton { "TWO-STEP" }, PixButton { "HALF-STEP" } };
     PixButton variationsBtn { "4 VARIATIONS" }, fillBtn { "FILL", true };

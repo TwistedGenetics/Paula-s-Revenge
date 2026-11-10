@@ -1,5 +1,6 @@
 #include "BreakTools.h"
 #include "Groove.h"
+#include "Slicer.h"
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -179,5 +180,51 @@ const char* rebuildTemplate (int i)
                                         "K..KS.H..KK.S.GS",    // two-step: the kick skips, snares stay on 2 and 4
                                         "K.H.H.H.S.H.H.HK" };  // half-step: one snare a bar, hats running
     return t[std::clamp (i, 0, kRebuilds - 1)];
+}
+int chopToPhrase (Song& s, int ins, int division, double lineSec)
+{
+    if (ins < 0 || ins >= kMaxInstruments) return -1;
+    auto& in = s.instruments[(size_t) ins];
+    if (! in.hasData() || (int) in.phrases.size() >= kMaxPhrases) return -1;
+    const int len = (int) in.data.size();
+    if (division > 0) in.slices = evenSlices (len, division);
+    else if (division == 0 || in.numSlices() < 2)
+    {
+        auto sl = detectSlices (in.data, in.dataR, in.rate > 0 ? in.rate : kAmigaC3Rate, 0.5f, 64);
+        if (sl.size() < 2) sl = evenSlices (len, 16);
+        in.slices = sl;
+    }
+    in.sliceKeys = true;
+    const int n = in.numSlices();
+    // how many bars: BEAT SYNC's lines, else its length at the song's tempo
+    const double secs = len / std::max (1.0, in.rate);
+    int bars = in.syncLines > 0 ? (int) std::lround (in.syncLines / 16.0) : (int) std::lround (secs / std::max (1e-6, lineSec * 16.0));
+    bars = std::clamp (bars, 1, 8);
+    // lines a beat: 4 (the song's own), or more until every hit has a line of its own
+    int lpb = 4;
+    while (lpb < 32 && lpb * bars * 4 < n) lpb *= 2;
+    const int lines = std::min (kMaxLines, lpb * bars * 4);
+    Block b;
+    b.lines = lines;
+    int last = -1;
+    for (int i = 0; i < n; ++i)
+    {
+        const int note = 37 + i;
+        if (note > (int) kNoteMax) break;   // (SLICE TO KEYS reaches B-7: slice 60)
+        // N equal slices: evenly; by its hits: where each one falls in the break
+        int l = division > 0 ? (int) std::lround ((double) i * lines / n)
+                             : (int) std::lround ((double) in.slices[(size_t) i] / std::max (1, len) * lines);
+        l = std::max (l, last + 1);
+        if (l >= lines) break;
+        b.at (l, 0) = Cell { (uint8_t) note, 0, 0, 0 };
+        last = l;
+    }
+    s.blocks.push_back (b);
+    Phrase p;
+    p.block = (int) s.blocks.size() - 1;
+    p.lpb = lpb;
+    p.transpose = false;
+    in.phrases.push_back (p);
+    return (int) in.phrases.size() - 1;
 }
 } // namespace prv

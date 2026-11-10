@@ -36,15 +36,59 @@ namespace
     }
 }
 
+float FilterScope::response (FilterType t, float fc, float res, float hz)
+{
+    // the state-variable filter's own curve (damping k as the player sets it from RES)
+    if (t == FilterType::Off) return 1.0f;
+    const double w = hz / std::max (1.0, (double) fc), k = 2.0 - 1.94 * juce::jlimit (0.0, 1.0, (double) res);
+    const double d = std::sqrt ((1.0 - w * w) * (1.0 - w * w) + (k * w) * (k * w));
+    const double h = t == FilterType::LowPass ? 1.0 / d : t == FilterType::HighPass ? (w * w) / d : (k * w) / d;
+    return (float) h;
+}
+
+void FilterScope::paintOverChildren (juce::Graphics& g)
+{
+    const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+    const auto& sk = Theme::skin;
+    const float px = Theme::px;
+    auto r = getLocalBounds().toFloat().reduced (px * 2);
+    // the spectrum's own frequency scale: 40 Hz to 16 kHz, logarithmic; 0 dB two thirds of the way up, +12 at the top, -36 at the foot
+    const double rate = proc.getSampleRate() > 0 ? proc.getSampleRate() : 48000.0;
+    const double lo = 40.0, hi = std::min (16000.0, rate * 0.45);
+    auto yOf = [&] (float gain) { const float db = juce::jlimit (-36.0f, 12.0f, juce::Decibels::gainToDecibels (gain, -60.0f)); return r.getBottom() - (db + 36.0f) / 48.0f * r.getHeight(); };
+    juce::Path p;
+    const int steps = std::max (32, (int) r.getWidth() / 3);
+    for (int i = 0; i <= steps; ++i)
+    {
+        const double hz = lo * std::pow (hi / lo, i / (double) steps);
+        const float x = r.getX() + r.getWidth() * (float) i / (float) steps;
+        const float y = yOf (response (in.filter, in.cutoff, in.resonance, (float) hz));
+        if (i == 0) p.startNewSubPath (x, y); else p.lineTo (x, y);
+    }
+    const bool on = in.filter != FilterType::Off;
+    g.setColour (sk.bg.withAlpha (0.6f));
+    g.strokePath (p, juce::PathStrokeType (std::max (3.0f, px * 1.6f)));
+    g.setColour (on ? sk.accentSel : sk.dim);
+    g.strokePath (p, juce::PathStrokeType (std::max (1.5f, px * 0.7f)));
+    if (on)
+    {
+        // where the cutoff is
+        const float x = r.getX() + r.getWidth() * (float) (std::log (juce::jlimit (lo, hi, (double) in.cutoff) / lo) / std::log (hi / lo));
+        g.setColour (sk.accentSel.withAlpha (0.5f));
+        g.fillRect (x, r.getY(), std::max (1.0f, px * 0.4f), r.getHeight());
+    }
+}
+
 ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 {
+    addChildComponent (filterScope);
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
     fxRow.onOpenPage = [this] { if (onOpenEqFx) onOpenEqFx(); };
     fxRow.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
     utility.onChanged = [this] { if (onChanged) onChanged(); };
     utility.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
     addAndMakeVisible (utility);
-    addAndMakeVisible (fxRow);
+    addChildComponent (fxRow);   // (not shown: the instrument's EQ and effects have their own EQ/FX button on the instruments panel)
     Theme::markDarkPage (*this);   // (dark with light text in the dark skin)
     setWantsKeyboardFocus (true);
     setOpaque (true);
@@ -159,6 +203,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
 
 ParamsPage::~ParamsPage()
 {
+    filterScope.release();
     proc.withLock ([&] { proc.player.jamAllOff(); });
 }
 
@@ -294,7 +339,7 @@ bool ParamsPage::pluginMode() const
 std::vector<juce::Component*> ParamsPage::soundControls()
 {
     return { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel,
-             &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan, &utility, &fxRow, &phraseBtn };
+             &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan, &utility, &phraseBtn };
 }
 
 void ParamsPage::showPhrases (bool on)
@@ -321,6 +366,7 @@ void ParamsPage::refresh()
             for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan })
                 c->setVisible (! pm);
         phrases.setVisible (showingPhrases);
+        filterScope.setVisible (! showingPhrases && ! filterScope.getBounds().isEmpty());
         pluginBtn.setButtonText (pm ? "BACK TO THE PLUG-IN" : "PLUG-IN / MIDI OUT...");
     }
     utility.refresh();
@@ -372,6 +418,7 @@ void ParamsPage::refresh()
 void ParamsPage::tick()
 {
     if (showingPhrases) phrases.tick();
+    else if (filterScope.isVisible()) filterScope.tick (proc.editorState.instrument);
     if (shownInstrument != proc.editorState.instrument) refresh();
     // the ON button follows V / J switching while the song plays
     else if (onBtn.getToggleState() != proc.player.instrumentIsOn (proc.editorState.instrument)) refresh();
@@ -418,14 +465,7 @@ void ParamsPage::resized()
         utility.setBounds (inner.removeFromTop (rowH));
     }
     r.removeFromBottom (gap * 2);
-    // the instrument's own EQ and effects: a row across the page (room for the effects' names)
-    {
-        // (and PHRASE at its end)
-        auto row = r.removeFromBottom (rowH);
-        phraseBtn.setBounds (row.removeFromRight (charsW (10))); row.removeFromRight (gap * 2);
-        fxRow.setBounds (row);
-    }
-    r.removeFromBottom (gap * 2);
+    fxRow.setBounds ({});   // (the instrument's EQ and effects: the EQ/FX button on the instruments panel)
 
     const int colGap = gap * 3;
     auto left = r.removeFromLeft ((r.getWidth() - colGap) / 2);
@@ -441,6 +481,7 @@ void ParamsPage::resized()
 
     // the instrument's own effects, tuning and BEAT SYNC: under the volume envelope (its graph has the room)
     {
+        phraseBtn.setBounds (left.removeFromBottom (rowH)); left.removeFromBottom (gap);   // (PHRASES: the bottom of the left side)
         auto row = left.removeFromBottom (rowH); left.removeFromBottom (gap);
         // KEEP PITCH  SEMI -0+   (CLASSIC / AKAIZER: right-click KEEP PITCH)
         semiBox.setBounds (row.removeFromRight (std::min (row.getWidth() / 2, semiBox.preferredWidth (px)))); row.removeFromRight (gap);
@@ -478,7 +519,20 @@ void ParamsPage::resized()
         for (auto* b : { &fOff, &fLp, &fHp, &fBp }) { b->setBounds (types.removeFromLeft (w)); types.removeFromLeft (gap); }
         stack (in, { &cutoff, &reso, &envAmt, &keyTrk });
     }
-    auto fBottom = right.removeFromTop (std::min (right.getHeight(), boxPad + rowH * 4 + gap * 4));
+    // the filter's picture (the instrument's spectrum, the curve over it) with the room the right side has spare
+    const int fenvH = std::min (right.getHeight(), boxPad + rowH * 4 + gap * 4);
+    {
+        const int spare = right.getHeight() - fenvH - gap * 2;
+        if (spare >= rowH)
+        {
+            auto graph = right.removeFromTop (std::min (spare, rowH * 4));
+            right.removeFromTop (gap * 2);
+            filterScope.setBounds (graph);
+        }
+        else filterScope.setBounds ({});
+    }
+    filterScope.setVisible (! showingPhrases && ! filterScope.getBounds().isEmpty());
+    auto fBottom = right.removeFromTop (fenvH);
     fenvBox = fBottom.toFloat();
     {
         auto in = fBottom.reduced (gap * 2).withTrimmedTop (title);

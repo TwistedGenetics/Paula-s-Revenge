@@ -4,6 +4,7 @@
 #include "../engine/SongOps.h"
 #include "../engine/Groove.h"
 #include "../engine/Slicer.h"
+#include "../engine/BreakTools.h"
 #include "ChoiceBox.h"
 
 namespace prv::ui
@@ -199,6 +200,7 @@ int PixList::rowAtPoint (juce::Point<float> p) const
 
 void PixList::scrollBy (int rows)
 {
+    userScrollAt = juce::Time::getMillisecondCounter();   // (the list's own following waits a moment)
     scroll = juce::jlimit (0, maxScroll(), scroll + rows);
     repaint();
 }
@@ -273,6 +275,7 @@ void PixList::mouseDrag (const juce::MouseEvent& e)
         const float h = thumb().getHeight();
         const float frac = (e.position.y - thumbGrab - t.getY()) / std::max (1.0f, t.getHeight() - h);
         scroll = juce::jlimit (0, maxScroll(), juce::roundToInt (frac * maxScroll()));
+        userScrollAt = juce::Time::getMillisecondCounter();
         repaint();
         return;
     }
@@ -338,6 +341,12 @@ void PixList::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDet
 {
     const int n = wheel (w);
     if (n != 0) scrollBy (n);
+}
+
+void PixList::follow (int row)
+{
+    if (isMouseOver (true) || (userScrollAt != 0 && juce::Time::getMillisecondCounter() - userScrollAt < 4000)) return;
+    ensureVisible (row);
 }
 
 void PixList::ensureVisible (int row)
@@ -572,7 +581,7 @@ void SequencePanel::refresh()
     list.selected = st.seqPos;
     if (wholeBtn.getToggleState()) layoutList();   // (more positions: perhaps another column)
     list.playing = proc.player.getMode() == Player::Mode::Song ? proc.player.uiSeqPos.load() : -1;
-    list.ensureVisible (list.playing >= 0 ? list.playing : st.seqPos);   // (the list follows the song as it plays)
+    list.follow (list.playing >= 0 ? list.playing : st.seqPos);   // (the list follows the song as it plays - not while you scroll it)
     syncSectionLoop (proc);
     loopSectBtn.setToggleState (st.sectionLoop, juce::dontSendNotification);
     loopSelBtn.setToggleState (st.selectionLoop, juce::dontSendNotification);
@@ -1071,6 +1080,7 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     {
         st.instrument = r;
         proc.jamInstrument = r;
+        grabKeyboardFocus();   // (Delete clears it, up / down move)
         if (e.mods.isPopupMenu()) { changed(); showInstrumentMenu (r); return; }
         if (e.mods.isAltDown()) proc.withLock ([&] { proc.player.jamNoteOn (37, r); });
         changed();
@@ -1081,7 +1091,14 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     loadBtn.onClick = [this] { if (openBrowser) openBrowser(); else loadSample(); };
     editBtn.onClick = [this] { if (openSampleEditor) openSampleEditor(); };
     paramsBtn.onClick = [this] { if (openParams) openParams(); };
-    clearBtn.onClick = [this]
+    fxBtn.onClick = [this] { if (openEqFx) openEqFx(); };
+    clearBtn.onClick = [this] { clearInstrument(); };
+    setWantsKeyboardFocus (true);
+    setupRest();
+}
+
+void InstrumentPanel::clearInstrument()
+{
     {
         Instrument empty;
         const int idx = proc.editorState.instrument;
@@ -1094,7 +1111,34 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
         });
         proc.updateMixerEffects();
         changed();
-    };
+        status ("INSTRUMENT " + juce::String::toHexString (idx + 1).toUpperCase().paddedLeft ('0', 2) + " CLEARED (UNDO BRINGS IT BACK)");
+    }
+}
+
+bool InstrumentPanel::keyPressed (const juce::KeyPress& k)
+{
+    const int code = k.getKeyCode();
+    if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown() || k.getModifiers().isAltDown()) return false;
+    auto& st = proc.editorState;
+    if (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey)
+    {
+        const auto& in = proc.song.instruments[(size_t) st.instrument];
+        if (! in.hasData() && ! in.isPlugin() && in.name.empty()) { status ("INSTRUMENT IS EMPTY ALREADY"); return true; }
+        clearInstrument();
+        return true;
+    }
+    if (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey)
+    {
+        st.instrument = juce::jlimit (0, kMaxInstruments - 1, st.instrument + (code == juce::KeyPress::upKey ? -1 : 1));
+        proc.jamInstrument = st.instrument;
+        changed();
+        return true;
+    }
+    return false;   // (everything else: the window's keys)
+}
+
+void InstrumentPanel::setupRest()
+{
     nameBtn.onClick = [this]
     {
         const int idx = proc.editorState.instrument;
@@ -1138,7 +1182,7 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
     wave.changed = [this] { changed(); };
     wave.openEditor = [this] { if (openSampleEditor) openSampleEditor(); };
 
-    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &editBtn, &paramsBtn, &clearBtn, &nameBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
+    for (auto* comp : std::initializer_list<juce::Component*> { &loadBtn, &editBtn, &fxBtn, &paramsBtn, &loopBtn, &vol, &fine, &trans, &loopStart, &loopLen, &wave })
         addAndMakeVisible (comp);
 }
 
@@ -1178,8 +1222,10 @@ void InstrumentPanel::refresh()
 {
     auto& st = proc.editorState;
     st.instrument = juce::jlimit (0, kMaxInstruments - 1, st.instrument);
+    // (only when the instrument changes: refreshing while the song plays mustn't pull the list back)
+    if (list.selected != st.instrument || shownInstrument != st.instrument) list.ensureVisible (st.instrument);
+    shownInstrument = st.instrument;
     list.selected = st.instrument;
-    list.ensureVisible (st.instrument);
     const auto& in = proc.song.instruments[(size_t) st.instrument];
     vol.setValue (in.volume);
     fine.setValue (in.finetune);
@@ -1226,8 +1272,8 @@ void InstrumentPanel::resized()
     auto bRow = r.removeFromBottom (rowH);
     {
         // widths follow the label lengths so every label stays full size
-        const std::pair<PixButton*, int> btns[] = { { &loadBtn, 4 }, { &editBtn, 4 }, { &paramsBtn, 6 }, { &clearBtn, 5 }, { &nameBtn, 4 } };
-        const int total = 4 + 4 + 6 + 5 + 4 + 5 * 2;
+        const std::pair<PixButton*, int> btns[] = { { &loadBtn, 4 }, { &editBtn, 4 }, { &fxBtn, 5 }, { &paramsBtn, 6 } };
+        const int total = 4 + 4 + 5 + 6 + 4 * 2;
         const int avail = bRow.getWidth() - (int) px * 4;
         for (auto& [b, chars] : btns)
         {
@@ -1296,9 +1342,42 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "CV OUT TO A MODULAR...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (3); } } },
         { "SAMPLE (RECORD AUDIO)...", [safe] { if (safe != nullptr && safe->openSample) safe->openSample(); } },
         { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
+        { "CHOP TO PHRASE...", [safe, r]
+            {
+                if (safe == nullptr) return;
+                const auto& w = safe->proc.song.instruments[(size_t) r];
+                std::vector<MenuItem> opts;
+                opts.push_back ({ "BY ITS HITS (AUTO)", [safe, r] { if (safe != nullptr) safe->chopToPhrase (r, 0); } });
+                if (w.numSlices() >= 2)
+                    opts.push_back ({ "ITS OWN SLICES (" + juce::String (w.numSlices()) + ")", [safe, r] { if (safe != nullptr) safe->chopToPhrase (r, -1); } });
+                for (int d : { 4, 8, 16, 32, 64 })
+                    opts.push_back ({ juce::String (d) + " EQUAL SLICES", [safe, r, d] { if (safe != nullptr) safe->chopToPhrase (r, d); } });
+                showMenu ("CHOP " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2) + " TO A PHRASE", std::move (opts));
+            } },
         { "CHOP TO PATTERN (TRACK " + juce::String (proc.editorState.track + 1) + ")", [safe, r] { if (safe != nullptr) safe->chopToPattern (r); } },
         { "BREAK PAGE...", [safe, r] { if (safe != nullptr && safe->openBreak) { safe->proc.editorState.instrument = r; safe->openBreak(); } } },
     });
+}
+
+int InstrumentPanel::chopToPhrase (int r, int division)
+{
+    const auto hex = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+    const auto& in = proc.song.instruments[(size_t) r];
+    if (! in.hasData()) { status ("INSTRUMENT " + hex + " HAS NO SAMPLE TO CHOP"); return -1; }
+    if ((int) in.phrases.size() >= kMaxPhrases) { status ("16 PHRASES IS THE MOST AN INSTRUMENT CAN HAVE"); return -1; }
+    proc.history.instrument (r, "CHOP TO PHRASE");
+    int k = -1;
+    const double lineSec = 2.5 / std::max (1, proc.song.tempo) * std::max (1, proc.song.speed);
+    proc.withLock ([&] { proc.player.jamAllOff(); k = prv::chopToPhrase (proc.song, r, division, lineSec); });
+    if (k < 0) { status ("NOTHING TO CHOP"); return -1; }
+    const auto& w = proc.song.instruments[(size_t) r];
+    const auto n = juce::String::toHexString (k + 1).toUpperCase().paddedLeft ('0', 2);
+    status ("PHRASE " + n + ": " + hex + " CHOPPED INTO " + juce::String (w.numSlices()) + " HITS, EACH A NOTE (C-3 = HIT 1) - "
+            + (k == 0 ? juce::String ("ANY NOTE PLAYS THE CHOPPED BREAK") : "@" + n + " ON A NOTE PLAYS IT")
+            + (w.numSlices() > 60 ? juce::String (" (HITS 61 ON ARE PAST B-7)") : juce::String()));
+    changed();
+    if (openPhrase) openPhrase (k);
+    return k;
 }
 
 int InstrumentPanel::chopToPattern (int r)

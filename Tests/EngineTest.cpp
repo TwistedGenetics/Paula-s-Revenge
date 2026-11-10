@@ -4427,6 +4427,31 @@ static void testPhrases()
     CHECK (p.previewPhraseIndex() == 0 && p.previewPhraseLine() >= 2 && rmsOf (pv, 0, (int) pv.size()) > 0.005);
     p.stopPhrasePreview();
     CHECK (p.previewPhraseIndex() == -1);
+    // ---- CHOP TO PHRASE: 16 equal slices into a new phrase, one hit a line, TRANSPOSE off
+    {
+        Song c = makeSong();
+        auto& in = c.instruments[3];
+        in = Instrument {}; in.rate = 16574; in.data.assign (16574 * 2, 1000);   // two seconds
+        const double lineSec = 2.5 / 125 * 6;                                    // (a bar = 16 lines = 1.92 s: one bar)
+        const int k = chopToPhrase (c, 3, 16, lineSec);
+        CHECK (k == 0 && in.phrases.size() == 1 && in.numSlices() == 16 && in.sliceKeys && ! in.phrases[0].transpose);
+        const auto& pb = c.blocks[(size_t) in.phrases[0].block];
+        int notes = 0; bool inOrder = true; int prev = 0;
+        for (int l = 0; l < pb.lines; ++l) if (pb.at (l, 0).note > 0) { ++notes; inOrder = inOrder && pb.at (l, 0).note > prev; prev = pb.at (l, 0).note; }
+        std::printf ("chop to phrase: %d lines, lpb %d, %d notes\n", pb.lines, in.phrases[0].lpb, notes);
+        CHECK (pb.lines == 16 && in.phrases[0].lpb == 4 && notes == 16 && inOrder && pb.at (0, 0).note == 37 && pb.at (15, 0).note == 52);
+        // 32 slices: twice the lines a beat, so each has a line
+        const int k2 = chopToPhrase (c, 3, 32, lineSec);
+        CHECK (k2 == 1 && in.phrases[1].lpb == 8 && c.blocks[(size_t) in.phrases[1].block].lines == 32);
+        // it plays: a note on the instrument runs the chopped phrase
+        c.blocks[0] = Block {}; c.blocks[0].lines = 16; c.blocks[0].at (0, 0) = Cell { 37, 4, kCmdPhrase, 0x01 }; c.sequence = { 0 };
+        Player cp; cp.setSampleRate (48000); cp.setSong (&c); cp.playSong (0);
+        std::vector<float> cl ((size_t) lineLen * 4), cr (cl.size());
+        cp.render (cl.data(), cr.data(), (int) cl.size());
+        CHECK (cp.phraseIndex (0) == 0 && cp.phraseLine (0) >= 3);
+        // no sample: nothing
+        CHECK (chopToPhrase (c, 9, 16, lineSec) == -1);
+    }
     // @ is named and described
     CHECK (commandChar (kCmdPhrase) == '@' && commandFromChar ('@') == kCmdPhrase && commandName (kCmdPhrase) == "PHRASE");
     CHECK (describeCommand (kCmdPhrase, 0x02).find ("PHRASE 02") != std::string::npos);
