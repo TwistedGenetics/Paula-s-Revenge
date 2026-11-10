@@ -218,11 +218,14 @@ jobs:
         run: |
           VERSION=$(sed -n 's/^project(PaulasRevenge VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
           TAG="v${VERSION}-build.${{ github.run_number }}"
-          gh release create "$TAG" dist/PaulasRevenge-macOS.zip dist/PaulasRevenge-Windows.zip \
+          # the manual too, as its own download (a PDF; it's also in the app as HELP)
+          cp "docs/manual/Paulas Revenge Manual.pdf" dist/Paulas-Revenge-Manual.pdf
+          gh release create "$TAG" dist/PaulasRevenge-macOS.zip dist/PaulasRevenge-Windows.zip dist/Paulas-Revenge-Manual.pdf \
             --target "${{ github.sha }}" \
             --title "Paula's Revenge ${VERSION} (build ${{ github.run_number }})" \
             --latest \
             --notes "$(git log -1 --pretty=%B)
 
           Mac: unzip, then follow INSTALL.txt (app into Applications, clear quarantine).
-          Windows: unzip, run Paula's Revenge.exe (first time: More info -> Run anyway). See INSTALL.txt inside."
+          Windows: unzip, run Paula's Revenge.exe (first time: More info -> Run anyway). See INSTALL.txt inside.
+          Manual: Paulas-Revenge-Manual.pdf (below)."
