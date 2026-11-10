@@ -39,7 +39,7 @@ enum CommandIDs
     cmdFollowInstr   = 0x2022,
     cmdSeparation    = 0x2023,
     cmdFollowClock   = 0x2024,
-    cmdSkin0         = 0x2100,   // .. 0x210f: the SKINs, one each (their own range: nothing else uses it)
+    cmdSkin0         = 0x2100,   // .. 0x211f: the SKINs, one each (their own range: nothing else uses it)
     cmdCrt           = 0x2034,
     cmdScopes        = 0x2035,
     cmdPalette       = 0x2036,
@@ -53,7 +53,7 @@ enum CommandIDs
 };
 
 // the SKINs' commands
-static_assert (prv::ui::Theme::kSkins <= 16, "the skin commands have 16 numbers");
+static_assert (prv::ui::Theme::kSkins <= 32, "the skin commands have 32 numbers");
 static juce::CommandID skinCmd (int i) { return (juce::CommandID) cmdSkin0 + i; }
 static int skinOf (juce::CommandID id)
 {
@@ -438,7 +438,7 @@ public:
         }
         else if (skinOf (id) >= 0)
         {
-            static const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern", "Studio", "Neon", "Hardware", "Prism", "BlueWave", "Paper", "Violet", "Ember", "Forest", "Prism II" };
+            static const char* names[] = { "Workbench", "Dark", "Kickstart 1.3", "High Contrast", "Glass", "Modern", "Studio", "Neon", "Hardware", "Prism", "BlueWave", "Paper", "Violet", "Ember", "Forest", "Prism II", "Aurora" };
             static_assert (std::size (names) == (size_t) prv::ui::Theme::kSkins, "a menu name for every skin");
             info.setInfo (names[skinOf (id)], "The window's colours", "View", 0);
             auto* ed = editor();

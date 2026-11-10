@@ -760,15 +760,18 @@ void PaulaEditor::paint (juce::Graphics& g)
 {
     using prv::ui::Theme;
     using prv::ui::PixelFont;
-    g.fillAll (Theme::paper);
+    Theme::paintBackground (g, getLocalBounds());
     const float px = Theme::px;
     auto r = getLocalBounds().toFloat();
 
-    // title bar: horizontal rules with the name knocked out (drawn in black on white)
+    // title bar: horizontal rules with the name knocked out (drawn in black on white; on a wash, straight on it)
     auto title = r.removeFromTop (px * 14);
-    g.setColour (Theme::panel);
-    g.fillRect (title);
-    Theme::bevel (g, title.reduced (1.0f), true, std::max (1.0f, px * 0.5f));
+    if (! Theme::skin.wash)
+    {
+        g.setColour (Theme::panel);
+        g.fillRect (title);
+        Theme::bevel (g, title.reduced (1.0f), true, std::max (1.0f, px * 0.5f));
+    }
     const float tpx = px * 1.5f;
     const juce::String name = "PAULA'S REVENGE";
     const float nameW = PixelFont::textWidth (name, tpx);

@@ -30,9 +30,10 @@ struct Theme
     // GLASS (deep blue, glossy), MODERN (light and flat), STUDIO (flat greys and orange, smooth type),
     // NEON (navy, rounded, glowing cyan), HARDWARE (matte black, LED buttons, amber pattern), PRISM (slate, colour, note bars),
     // BLUEWAVE (a wavetable synth's charcoal and blue), PAPER (light and clean), VIOLET (dark purple, glowing lilac),
-    // EMBER (warm charcoal and orange), FOREST (deep green and lime), PRISM II (PRISM without the bars: coloured notes and effects)
+    // EMBER (warm charcoal and orange), FOREST (deep green and lime), PRISM II (PRISM without the bars: coloured notes and effects),
+    // AURORA (near black washed purple to navy, smoky rounded panes, pill buttons, pastel mint / yellow / coral)
     enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism,
-                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Count };
+                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Aurora, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern && id != (int) SkinId::Paper; }
@@ -53,6 +54,8 @@ struct Theme
         bool leds = false;         // on = an LED lit along the top, the face stays (HARDWARE)
         bool noteBars = false;     // the pattern: notes as bars in their track's colour, held until the next (PRISM)
         bool colourNotes = false;  // the pattern: notes in their track's colour, effects a lighter shade of it (PRISM II)
+        bool wash = false;         // the window behind everything: a soft wash from washA (top left) to washB (AURORA)
+        juce::Colour washA, washB;
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;
         juce::Colour track[8];
@@ -63,6 +66,8 @@ struct Theme
     static inline bool crt = false;          // CRT: scanlines over the window
 
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t);
+    // the window's background: the paper colour, or (a skin with a wash) the wash - drawn once per size and kept
+    static void paintBackground (juce::Graphics&, juce::Rectangle<int> area);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title);
 
     // The page colours. The chrome palette is the window's; a page marked dark (the instrument,

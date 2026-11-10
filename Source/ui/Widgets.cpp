@@ -32,6 +32,7 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Ember:        return "EMBER";
         case SkinId::Forest:       return "FOREST";
         case SkinId::Prism2:       return "PRISM II";
+        case SkinId::Aurora:       return "AURORA";
         default:                   return {};
     }
 }
@@ -49,13 +50,15 @@ void Theme::setSkinId (SkinId id)
     k.sans = (id == SkinId::Neon || id == SkinId::Ember) ? PixelFont::SpaceGrotesk
            : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
            : (id == SkinId::Prism || id == SkinId::Prism2 || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
-    k.round = (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
+    k.round = id == SkinId::Aurora ? 6.0f   // (pills: corners as round as the button is tall)
+            : (id == SkinId::Neon || id == SkinId::Violet) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
             : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
-    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest;
+    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora;
     k.glow = id == SkinId::Neon || id == SkinId::Violet;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
     k.colourNotes = id == SkinId::Prism2;
+    k.wash = id == SkinId::Aurora;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -86,8 +89,18 @@ void Theme::setSkinId (SkinId id)
     const Palette ember     { C (0xff1c1a18), C (0xff282522), C (0xff37332f), C (0xff0b0a09), C (0xfff3ece4), C (0xffff8a2b), C (0xffa39a90), C (0xff443f3a), C (0xff12100f), C (0xff1a0f05) };
     // FOREST: deep green, lime for chosen
     const Palette forest    { C (0xff111813), C (0xff1a231d), C (0xff263229), C (0xff060907), C (0xffe6f5e9), C (0xff7ee06a), C (0xff8aa391), C (0xff304036), C (0xff0d130f), C (0xff0b1a08) };
+    // AURORA: near black, smoky grey panes, pastel mint for chosen (dark text on it)
+    const Palette aurora    { C (0xff0f0e14), C (0xff25242c), C (0xff34333d), C (0xff050508), C (0xfff4f2f8), C (0xff7dfc9b), C (0xffa19fb0), C (0xff42414d), C (0xff3a3944), C (0xff0d1a10) };
     switch (id)
     {
+        case SkinId::Aurora:
+            chromePal = aurora; pagePal = aurora;
+            k.bg = C (0xff16151c); k.text = C (0xfff2f0f7); k.dim = C (0xff57556a); k.stripe = C (0xff1b1a22);
+            k.band = C (0xff2e2c3a); k.cursor = C (0xff2f5a3a); k.cursorEdge = C (0xff7dfc9b); k.rule = C (0xff2c2b35);
+            k.hot = C (0xffff8a80); k.specBar = C (0xff7dfc9b);
+            k.accentSel = C (0xff7dfc9b); k.accentMod = C (0xfffff27a); k.accentRec = C (0xffff8a80);
+            k.washA = C (0xff24102c); k.washB = C (0xff0c1428);
+            break;
         case SkinId::BlueWave:
             chromePal = bluewave; pagePal = bluewave;
             k.bg = C (0xff14171b); k.text = C (0xffdbe6f2); k.dim = C (0xff4f5a68); k.stripe = C (0xff191d22);
@@ -206,6 +219,12 @@ void Theme::setSkinId (SkinId id)
         const juce::uint32 t[8] = { 0xff3fd0e6, 0xffe864c8, 0xfff2b23a, 0xff8ad84a, 0xff6aa4ff, 0xffff8466, 0xffe6d84c, 0xff4ee0a6 };
         for (int i = 0; i < 8; ++i) k.track[i] = C (t[i]);
         if (id == SkinId::Kickstart) { k.track[4] = C (0xffc8e0ff); k.track[0] = C (0xff6af0ff); }   // (no blue on blue)
+        if (id == SkinId::Aurora)
+        {
+            // pastels, as in the panes' highlights
+            const juce::uint32 v[8] = { 0xff7dfc9b, 0xfffff27a, 0xffc9b3f5, 0xffffb38a, 0xff8fd3ff, 0xffff9fc8, 0xffb8f28a, 0xfff5d0a9 };
+            for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);
+        }
         if (id == SkinId::Prism || id == SkinId::Prism2)
         {
             const juce::uint32 v[8] = { 0xffff4fd8, 0xff3fd6f0, 0xffffd23f, 0xff7ee06a, 0xffff8a3d, 0xffa98bff, 0xffff5470, 0xff4ee0a6 };
@@ -311,12 +330,39 @@ void Theme::bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, flo
     g.drawRect (r.expanded (1.0f / deviceScale), 1.0f / deviceScale);
 }
 
+void Theme::paintBackground (juce::Graphics& g, juce::Rectangle<int> area)
+{
+    if (! skin.wash) { g.setColour (paper); g.fillRect (area); return; }
+    // a soft wash: deep purple top left, navy to the right, near black below - made once for the size, then just drawn
+    static juce::Image img;
+    static juce::Rectangle<int> made;
+    static juce::uint32 madeFor = 0;
+    const float sc = std::max (1.0f, deviceScale);
+    const auto key = skin.washA.getARGB() ^ (skin.washB.getARGB() << 1) ^ skin.bg.getARGB();
+    if (img.isNull() || made != area || madeFor != key)
+    {
+        const int w = std::max (1, (int) std::ceil (area.getWidth() * sc)), h = std::max (1, (int) std::ceil (area.getHeight() * sc));
+        img = juce::Image (juce::Image::RGB, w, h, false);
+        juce::Graphics ig (img);
+        ig.setColour (paper);
+        ig.fillAll();
+        juce::ColourGradient a (skin.washA, 0.0f, 0.0f, skin.washA.withAlpha (0.0f), (float) w * 0.7f, (float) h * 0.9f, true);
+        ig.setGradientFill (a); ig.fillAll();
+        juce::ColourGradient b (skin.washB, (float) w, 0.0f, skin.washB.withAlpha (0.0f), (float) w * 0.25f, (float) h * 0.8f, true);
+        ig.setGradientFill (b); ig.fillAll();
+        made = area; madeFor = key;
+    }
+    // (made at the screen's own size, so it's a straight copy - only the part being repainted)
+    if (sc == 1.0f) g.drawImageAt (img, area.getX(), area.getY());
+    else g.drawImageTransformed (img, juce::AffineTransform::scale (1.0f / sc).translated ((float) area.getX(), (float) area.getY()));
+}
+
 void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
 {
     if (skin.smoothType && skin.round > 1.0f)
     {
         // rounded panes (NEON lit from above, with a fine rim)
-        const float rad = std::min (skin.round * px * 1.5f, r.getHeight() * 0.5f);
+        const float rad = std::min ({ skin.round * px * 1.5f, px * 4.5f, r.getHeight() * 0.5f });   // (panes: never so round the title meets the curve)
         // (a flat fill: a gradient over a big pane costs a lot to draw at 60 frames a second)
         g.setColour (P.panel);
         g.fillRoundedRectangle (r, rad);
