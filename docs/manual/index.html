@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.52</span>
+  <span class="ver">MANUAL &middot; V0.54</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -193,7 +193,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td>Transport</td><td>Play the song or the block, stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>) and <span class="b">MIXER</span> (<kbd>Cmd</kbd><kbd>2</kbd>).</td></tr>
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
-      <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">PARAMS</span>, the instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
+      <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">EQ/FX</span>, <span class="b">PARAMS</span>; <kbd>Delete</kbd> clears the instrument picked (CLEAR and RENAME are on its right-click). The instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
       <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track. Under that, each track's scope (click it to mute, right-click to solo).</td></tr>
       <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, the master <span class="b">VOL</span> and an L/R meter. Stereo separation (SEP): right-click a machine button.</td></tr>
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, and the status line.</td></tr>
@@ -561,7 +561,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>The markers</b> &mdash; where each slice starts &mdash; are yours to fix. <b>Drag</b> one left or right to move it; it can't pass its neighbours, and the arrow keys nudge the one you picked (Shift for bigger steps). <b>Double-click</b> the wave to <b>add</b> a marker there: it lands on the nearest zero crossing, so the slice starts without a click. <b>Double-click</b> a marker, <b>Alt-click</b> it, or pick it and press <kbd>Delete</kbd> to take it away. Right-click has <b>ADD A MARKER HERE</b> and <b>DELETE MARKER</b> too. The first marker always stays at the start. The kinds are worked out again for the new slices, and every change can be undone. Slices are numbered left to right, so adding or deleting one changes which slice the notes after it play.</li>
     <li><span class="b">AUTO</span> finds the hits (<b>SENS</b> &minus; / + for quieter ones); <span class="b">EVEN 16</span> cuts it into 16ths. <b>BARS</b> (1, 2 or 4) is how long the break is.</li>
     <li><span class="b">MAKE BLOCK</span> adds a new block after the current position with the break chopped onto <b>TRACK</b>, each slice where it falls, repeated to the block's end. <span class="b">CHOP HERE</span> does it on the current block. <span class="b">FIT TO TEMPO</span> (on to start with) sets BEAT SYNC so the break plays in time at any BPM; with <span class="b">KEEP PITCH</span> as well, it's stretched to fit rather than repitched. <span class="b">PLAY</span> / <span class="b">STOP</span> (or <kbd>Space</kbd>) play the block.</li>
-    <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>.</li>
+    <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>. <span class="b">TO PHRASE</span>: the slices into a new phrase (see CHOP TO PHRASE).</li>
     <li><b>REBUILD</b> it from its own kicks, snares and hats, 16 steps a bar: <span class="b">CLASSIC '94</span> (the cut-up amen &mdash; kick pushed, a ghost snare before the second half, a snare on the last 16th), <span class="b">ROLLER</span>, <span class="b">TWO-STEP</span>, <span class="b">HALF-STEP</span>. Ghost snares go in quiet, as <code>C14</code>.</li>
     <li><span class="b">4 VARIATIONS</span> makes four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll.</li>
     <li>The grid at the bottom is the block's track, a bar (16 lines) a row, each note tinted by kind with its slice number; it lights the line that's playing. Every change is one undo step.</li>
@@ -576,6 +576,11 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </figure>
   <h3>Groove and break tools</h3>
   <ul>
+    <li><b>CHOP TO PHRASE...</b> (right-click an instrument): the break cut up &mdash; BY ITS HITS, ITS OWN SLICES, or 4, 8, 16, 32 or 64 EQUAL SLICES &mdash; into a new phrase, every hit a note (<code>C-3</code> = hit 1), each where it falls, at enough lines a beat that every hit has a line. TRANSPOSE is off, so any note plays the chopped break. The PHRASES page opens on it. The BREAK page's <span class="b">TO PHRASE</span> does the same with its slices.</li>
+  <figure>
+    <div class="frame sunken"><img src="img/chop_phrase.png" alt="A break chopped into a phrase: the PHRASES page with phrase 01, sixteen hits written C-3 upwards one a line." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A break chopped into a phrase</figcaption>
+  </figure>
     <li><b>CHOP TO PATTERN</b> (right-click an instrument): the break is sliced by its hits (if it has no slices yet) and laid out as notes on the cursor's track, each slice on the line where it falls, with SLICE TO KEYS on.</li>
     <li><b>Right-click a highlight</b>: <span class="b">REVERSE THE LINES</span>, <span class="b">STUTTER</span> (the first quarter over and over), <span class="b">RATCHET</span> (rolls that speed up across it, <code>R40</code> to <code>R10</code>) and <span class="b">RE-SEQUENCE THE SLICES</span> (the rhythm stays, the slices shuffle; again for another order).</li>
     <li><span class="b">GROOVE</span> (bottom row): SWING 16THS, SWING 8THS, LAZY BREAK, PUSHED HATS or HUMANISE, at 25&ndash;100%. Some lines' notes play a little late as the song plays; the pattern isn't changed. Notes with their own <code>Mxx</code>, <code>EDx</code> or a slide keep their timing.</li>
@@ -648,7 +653,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </figure>
   <ul>
     <li><b>Volume envelope:</b> <span class="b">VOL ENVELOPE</span> on, then ATK, DEC, SUS, REL (1 ms – 10 s). With it on, a note-off starts the release instead of cutting the note.</li>
-    <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL.</li>
+    <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL. The spectrum strip under the page shows the instrument's sound with the <b>filter's curve</b> over it and a line at the cutoff.</li>
     <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
     <li><b>UTILITY</b> (the row under PAN, and on a plug-in instrument's page): <span class="b">WIDTH</span> 0% (mono) to 200%; <span class="b">MONO</span> makes everything below a frequency mono (OFF, or <code>&lt;20HZ</code> to <code>&lt;500HZ</code>, a smooth 24&nbsp;dB/octave crossover, or 48 with <span class="b">STEEP</span>) &mdash; mono the bass; <span class="b">VOL</span> is the instrument's VOL itself, so moving either one moves the other. Before the instrument's own effects; not on MIDI out or CV out. At 100% and OFF it does nothing.</li>
     <li><b>Spectrum:</b> while PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
@@ -660,13 +665,13 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">PLUG-IN / MIDI OUT...</span> plays the instrument with a VST3 / AU instrument or with your hardware instead (see <a href="#plugins">Plug-ins</a> and <a href="#midi">MIDI out</a>).</li>
   </ul>
   <h3>Instrument EQ and effects</h3>
-  <p>Every instrument &mdash; a sample or a VST3 / AU instrument &mdash; has <span class="b">its own EQ</span> and <span class="b">three insert slots of its own</span>, like a mixer strip's: the built-in filter, drive, compressor, delay, reverb and chorus, or a VST3 / AU plug-in. They're on the <span class="b">EQ</span> / <span class="b">FX</span> row across the PARAMS page in the picture above (and on a plug-in instrument's page).</p>
+  <p>Every instrument &mdash; a sample or a VST3 / AU instrument &mdash; has <span class="b">its own EQ</span> and <span class="b">three insert slots of its own</span>, like a mixer strip's: the built-in filter, drive, compressor, delay, reverb and chorus, or a VST3 / AU plug-in. <span class="b">EQ/FX</span> on the instruments panel, next to LOAD and EDIT, opens them (a plug-in instrument's page has them too).</p>
   <figure>
     <div class="frame sunken"><img src="img/instrument_eq.png" alt="An instrument's EQ AND EFFECTS page: the EQ graph with a bell boost at 120 Hz and a dip at 3 kHz over the instrument's spectrum, the selected point's controls under it, and on the right its three BUILT-IN EFFECTS slots and the IN THIS ORDER list." width="1440" height="900" loading="lazy"></div>
     <figcaption>EQ opens the instrument's own EQ AND EFFECTS page</figcaption>
   </figure>
   <ul>
-    <li><span class="b">EQ</span> (lit when the instrument has EQ points on) opens the <b>EQ AND EFFECTS</b> page: the mixer's EQ graph for this instrument alone &mdash; up to 8 points, double-click to add one, drag, the wheel for Q, right-click for its type, <span class="b">EQ FLAT</span> for none &mdash; with the instrument's own spectrum behind it. Its 3 effects are on the right, and <b>IN THIS ORDER</b> shows the way the sound goes: the sample or plug-in, filter and envelopes, UTILITY, this EQ, these effects, then its mixer track. <span class="b">BACK</span> returns to the instrument.</li>
+    <li><span class="b">EQ/FX</span> opens the <b>EQ AND EFFECTS</b> page: the mixer's EQ graph for this instrument alone &mdash; up to 8 points, double-click to add one, drag, the wheel for Q, right-click for its type, <span class="b">EQ FLAT</span> for none &mdash; with the instrument's own spectrum behind it. Its 3 effects are on the right, and <b>IN THIS ORDER</b> shows the way the sound goes: the sample or plug-in, filter and envelopes, UTILITY, this EQ, these effects, then its mixer track. <span class="b">BACK</span> returns to the instrument.</li>
     <li>The EQ is saved in the song, its changes are undo steps of the instrument, and renders and bounces include it. Not on MIDI out or CV out.</li>
     <li>Click a slot to open it on the mixer's effect page; <span class="b">BACK</span> returns to the instrument. Right-click for OPEN, BYPASS, COPY, PASTE and CLEAR. A lit slot is on.</li>
     <li>The sound goes through the instrument's effects first, then into the strip of the track it plays on. Every note goes through the one chain, so a delay or reverb carries on across notes; its output goes to the track of the instrument's <b>latest</b> note.</li>
@@ -679,7 +684,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>MACRO 1 turning DRIVE up</figcaption>
   </figure>
   <h3>Phrases</h3>
-  <p>A phrase is a little pattern stored with an instrument: its note plays the phrase instead of the sample, as in Renoise. An instrument can have up to <b>16</b>. <span class="b">PHRASES...</span> at the end of the EQ / FX row turns the PARAMS page over to them; <span class="b">SOUND</span> turns it back.</p>
+  <p>A phrase is a little pattern stored with an instrument: its note plays the phrase instead of the sample, as in Renoise. An instrument can have up to <b>16</b>. <span class="b">PHRASES...</span> at the bottom left of the PARAMS page turns it over to them; <span class="b">SOUND</span> turns it back.</p>
   <ul>
     <li><b>The list</b>: each phrase's number, keys, length and LOOP. <span class="b">ADD</span> makes an empty 16-line one, <span class="b">CLONE</span> copies the one picked, <span class="b">DEL</span> deletes it. Right-click one for EDIT IT IN THE PATTERN, MOVE UP / DOWN, ALL KEYS, its TRACK, ANOTHER BLOCK... and DELETE.</li>
     <li><b>The phrase</b>, on the right, is written like the pattern: note keys, <kbd>1</kbd> for OFF, hex digits, a command's letter in an FX column, <kbd>Tab</kbd> to the next column, <kbd>Delete</kbd> to clear. Write it from C-3; the note played moves it. A note with no instrument plays this one's sample.</li>
@@ -1218,7 +1223,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.53</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.54</footer>
 </main>
 </div>
 <script>
