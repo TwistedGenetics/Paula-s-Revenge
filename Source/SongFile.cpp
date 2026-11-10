@@ -12,7 +12,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 29;   // (v28: STRETCH; v29: the ?xy CONDITION command)
+    constexpr int kVersion = 30;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -441,8 +441,9 @@ juce::MemoryBlock writeSong (const Song& songIn)
         {
             const auto& in = song.instruments[(size_t) i];
             if (! in.hasPhrase()) continue;
-            raw.writeByte ((char) i); raw.writeShortBigEndian ((short) in.phraseBlock); raw.writeByte ((char) in.phraseTrack);
-            raw.writeByte ((char) (in.phraseLoop ? 1 : 0)); raw.writeByte ((char) in.phraseRate);
+            const Phrase& p = in.phrases.front();   // (the first; v30 below has them all)
+            raw.writeByte ((char) i); raw.writeShortBigEndian ((short) p.block); raw.writeByte ((char) p.track);
+            raw.writeByte ((char) (p.loop ? 1 : 0)); raw.writeByte ((char) (p.lpb <= 2 ? 0 : p.lpb >= 8 ? 2 : 1));
         }
     }
     // v27: the instruments' MACRO knobs (those set or used)
@@ -476,6 +477,25 @@ juce::MemoryBlock writeSong (const Song& songIn)
             const auto& in = song.instruments[(size_t) i];
             if (in.stretchMode == 0 && in.stretchSemis == 0) continue;
             raw.writeByte ((char) i); raw.writeByte ((char) in.stretchMode); raw.writeByte ((char) (int8_t) in.stretchSemis);
+        }
+    }
+    // v30: PHRASES (all of each instrument's, with their keys, speed, loop and TRANSPOSE)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.hasPhrase()) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = song.instruments[(size_t) i];
+            if (! in.hasPhrase()) continue;
+            raw.writeByte ((char) i); raw.writeByte ((char) in.phrases.size());
+            for (const auto& p : in.phrases)
+            {
+                raw.writeShortBigEndian ((short) p.block); raw.writeByte ((char) p.track);
+                raw.writeByte ((char) p.keyLo); raw.writeByte ((char) p.keyHi); raw.writeByte ((char) p.lpb);
+                raw.writeByte ((char) ((p.loop ? 1 : 0) | (p.transpose ? 2 : 0)));
+                raw.writeShortBigEndian ((short) p.loopStart); raw.writeShortBigEndian ((short) p.loopEnd);
+            }
         }
     }
 
@@ -942,9 +962,14 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 const int rate = std::clamp ((int) (uint8_t) in.readByte(), 0, 2);
                 if (i >= kMaxInstruments) continue;
                 auto& ins = s.instruments[(size_t) i];
-                ins.phraseBlock = b < (int) s.blocks.size() ? b : -1;
-                ins.phraseTrack = std::clamp (t, 0, kMaxTracks - 1);
-                ins.phraseLoop = loop; ins.phraseRate = rate;
+                ins.phrases.clear();
+                if (b < (int) s.blocks.size())
+                {
+                    Phrase p;
+                    p.block = b; p.track = std::clamp (t, 0, kMaxTracks - 1);
+                    p.loop = loop; p.lpb = rate == 0 ? 2 : rate == 2 ? 8 : 4;
+                    ins.phrases.push_back (p);
+                }
             }
             const int macros = in.isExhausted() ? 0 : (int) (uint16_t) in.readShortBigEndian();
             for (int n = 0; n < macros && ! in.isExhausted(); ++n)
@@ -978,6 +1003,32 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 const int mode = std::clamp ((int) (uint8_t) in.readByte(), 0, 2);
                 const int semis = std::clamp ((int) (int8_t) in.readByte(), -24, 24);
                 if (i < kMaxInstruments) { s.instruments[(size_t) i].stretchMode = mode; s.instruments[(size_t) i].stretchSemis = semis; }
+            }
+        }
+        if (version >= 30 && ! in.isExhausted())
+        {
+            // v30: PHRASES (these replace the first-phrase-only list of v27)
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int count = (int) (uint8_t) in.readByte();
+                std::vector<Phrase> list;
+                for (int k = 0; k < count && ! in.isExhausted(); ++k)
+                {
+                    Phrase p;
+                    p.block = (int) (uint16_t) in.readShortBigEndian();
+                    p.track = std::clamp ((int) (uint8_t) in.readByte(), 0, kMaxTracks - 1);
+                    p.keyLo = std::clamp ((int) (uint8_t) in.readByte(), 1, (int) kNoteMax);
+                    p.keyHi = std::clamp ((int) (uint8_t) in.readByte(), p.keyLo, (int) kNoteMax);
+                    p.lpb = std::clamp ((int) (uint8_t) in.readByte(), 1, 32);
+                    const int flags = (int) (uint8_t) in.readByte();
+                    p.loop = (flags & 1) != 0; p.transpose = (flags & 2) != 0;
+                    p.loopStart = std::clamp ((int) in.readShortBigEndian(), 0, kMaxLines - 1);
+                    p.loopEnd = std::clamp ((int) in.readShortBigEndian(), -1, kMaxLines - 1);
+                    if (p.block < (int) s.blocks.size() && (int) list.size() < kMaxPhrases) list.push_back (p);
+                }
+                if (i < kMaxInstruments) s.instruments[(size_t) i].phrases = std::move (list);
             }
         }
     }

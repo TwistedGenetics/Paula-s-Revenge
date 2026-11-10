@@ -139,6 +139,11 @@ public:
     void jamNoteFrom (int note, int instrIndex, int pos);
     void jamNoteOff (int note);
     void jamAllOff();
+    // a phrase heard from its editor (the song playing or not), from `note` (C-3 = as written)
+    void previewPhrase (int instrIndex, int phraseIndex, int note = 37);
+    void stopPhrasePreview();
+    int  previewPhraseLine() const { return phrase[kMaxTracks].instr >= 0 ? phrase[kMaxTracks].line - 1 : -1; }   // the line it last played (-1 = none)
+    int  previewPhraseIndex() const { return phrase[kMaxTracks].instr >= 0 ? phrase[kMaxTracks].index : -1; }
 
     // Render stereo audio. Caller must make sure the song is not modified meanwhile.
     void render (float* left, float* right, int numSamples);
@@ -260,12 +265,17 @@ private:
     };
 
     // PHRASE: a track playing an instrument's phrase (a block's track, from its note)
-    struct PhraseRun { int instr = -1, root = 37, line = 0; double until = 0; };
-    PhraseRun phrase[kMaxTracks];
+    struct PhraseRun { int instr = -1, root = 37, line = 0; double until = 0; int index = 0; };   // (index: which of its phrases)
+    static constexpr int kPreviewRun = kMaxTracks;   // (phrase[kPreviewRun]: a phrase played from its editor, on the last jam voice)
+    PhraseRun phrase[kMaxTracks + 1];
+    Voice& phraseVoice (int run) { return run < kMaxTracks ? voices[run] : voices[kMaxTracks + kJamVoices - 1]; }
     bool phraseTriggering = false;              // (a phrase's own notes don't start phrases)
     void stepPhrases();
     void stepPhrase (int track);
 public:
+    int trackNote (int track) const { return track >= 0 && track < kMaxTracks ? voices[track].note : 0; }   // (tests) the note a track last started
+    int phraseInstrument (int track) const { return track >= 0 && track < kMaxTracks ? phrase[track].instr : -1; }   // (UI) whose phrase a track is playing
+    int phraseIndex (int track) const { return track >= 0 && track < kMaxTracks && phrase[track].instr >= 0 ? phrase[track].index : -1; }   // (tests, UI)
     int phraseLine (int track) const { return track >= 0 && track < kMaxTracks && phrase[track].instr >= 0 ? phrase[track].line : -1; }   // (tests, UI)
 private:
 

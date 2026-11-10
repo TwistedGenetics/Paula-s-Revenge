@@ -526,6 +526,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 |---|---|
 | `#xy` | **Chord**: plays chord slot `xy` from the song's chord table, held, on plug-in / MIDI-out instruments (on a sample instrument, just the note). Type `#` with Shift+3; first in the right-click list. See Chords |
 | `?xy` | **Condition**: the step plays only on pass `x` of every `y` times its block plays (`?12` the 1st of every 2, `?44` the 4th of every 4). `?01` only in a FILL (hold **F2**), `?02` not in a FILL, `?03` only the first time, `?04` every time but the first. Highlight notes and right-click → **CONDITION...** for the usual ones |
+| `@xx` | **Phrase**: the note plays the instrument's phrase `xx` (`@01`–`@10`); `@00` plays its sample, not a phrase. See Phrases |
 | `0xy` | Arpeggio (+x, +y semitones) |
 | `1xx` / `2xx` | Slide pitch up / down |
 | `3xx` | Slide to note |
@@ -684,11 +685,21 @@ Envelopes belong to their block: a block played twice plays its envelopes twice,
 
 ## Phrases
 
-**PHRASE...** (at the end of the EQ / FX row on an instrument's PARAMS page) makes a note on that instrument play a little pattern instead of the sample: a track of a block, moved up or down by how far the note is from C-3. Clicking it the first time makes a new, empty 16-line block for the phrase (it isn't in the song) and the button then reads **PHRASE 003** (its block). Click it again for:
-* **EDIT IT** — the pattern jumps to that block and track: write the phrase from C-3 (notes, `Cxx` volume, and the commands a note takes when it starts: `9xx`, `Ixx`, `Pxx`, `Sxx`…). A note with no instrument plays this instrument's sample; one with another instrument plays that instrument.
-* **LOOP** (round again at its end, until the next note or OFF), **RATE** (the song's line rate, half or double), **TRACK** (which of the block's tracks), **ANOTHER BLOCK...**, **PHRASE OFF**.
+A phrase is a little pattern stored with an instrument: when the instrument's note plays, the phrase plays instead of the sample — like Renoise's phrases. An instrument can have up to **16**.
 
-A phrase stops at its end (unless it loops), on the track's next note, or on OFF. Phrases are saved in the song (v0.38 or later).
+**PHRASES...** (at the end of the EQ / FX row on an instrument's PARAMS page) turns the page over to its phrases; **SOUND** turns it back. The button reads **PHRASES 2** when it has two.
+
+* **The list** (left): each phrase's number, the keys that play it, its length, and LOOP if it loops. Click one to pick it. **ADD** makes a new, empty 16-line phrase, **CLONE** a copy of the one picked, **DEL** deletes it (the ones after it move up). Right-click a phrase for **EDIT IT IN THE PATTERN**, **MOVE UP / DOWN**, **ALL KEYS**, the **TRACK** of its block, **ANOTHER BLOCK...** (a track of any block can be a phrase) and **DELETE**.
+* **The phrase** (right): written here, like the pattern — a note key writes a note (`[` `]` change the octave), `1` an OFF, hex digits the instrument and the values, a command's letter in an FX column (`Tab` jumps to the next column), `Delete` clears. Write it from **C-3**: the note played moves it up or down. A note with no instrument plays this instrument's sample; one with another instrument plays that one. Notes, `Cxx` volume and the commands a note takes when it starts (`9xx`, `Ixx`, `Pxx`, `Sxx`…) all work.
+* **LOW KEY / HIGH KEY**: the notes that play this phrase. A note plays the **first** phrase in the list that holds it; a note no phrase holds plays the sample. So C-0 to B-3 can play a bass riff and C-4 up an arpeggio.
+* **LINES**: its length. **LPB**: its speed in lines a beat — **4** is the song's own, **2** half as fast, **8** twice as fast (1 to 32).
+* **LOOP** with **START** and **END**: it plays to END, then goes round from START until the next note or OFF. Off, it plays once.
+* **TRANSPOSE**: on, its notes move with the note played (C-3 = as written); off, they play as written whatever note starts it.
+* **PLAY** hears the phrase (from C-3), with the song stopped or playing; the line playing lights up — in the song too.
+
+**`@xx`** in an effect column picks the phrase a note plays: `@01` the first, `@02` the second… up to `@10` (16); **`@00`** plays the sample, no phrase. Without `@`, the keys decide.
+
+A phrase stops at its end (unless it loops), on the track's next note, or on OFF. Phrases are saved in the song (v0.38 or later; more than one, keys, LPB, the loop's START / END and TRANSPOSE need v0.52 or later).
 
 ## Instrument macros
 

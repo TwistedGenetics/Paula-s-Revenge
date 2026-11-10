@@ -33,10 +33,11 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kAmigaC3Rate = 16574.27;
 
 // Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD), 37 ? (CONDITION).
-constexpr int kNumCommands = 38;
+constexpr int kNumCommands = 39;
 constexpr uint8_t kCmdChord = 36;   // #xy: plays chord slot xy from the song's chord table
 constexpr uint8_t kCmdCond  = 37;   // ?xy: the step plays only on pass x of every y (?01 FILL, ?02 NOT FILL, ?03 FIRST, ?04 NOT FIRST)
-inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+constexpr uint8_t kCmdPhrase = 38;  // @xx: the note plays the instrument's phrase xx (@00: its sample, no phrase)
+inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c == kCmdPhrase ? '@' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
 // ?xy: does the step play on this pass of its block (1 = the first time it plays), with FILL held or not
 inline bool conditionPlays (uint8_t p, int passNo, bool fill)
 {
@@ -50,6 +51,7 @@ inline int  commandFromChar (char ch)
 {
     if (ch == '#') return kCmdChord;
     if (ch == '?') return kCmdCond;
+    if (ch == '@') return kCmdPhrase;
     if (ch >= '0' && ch <= '9') return ch - '0';
     if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
     if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;
@@ -151,6 +153,25 @@ inline int midiNoteFor (int note) { return std::clamp (note + 23, 0, 127); }
 
 static_assert (kMaxInstruments == kMixInstruments, "each instrument has its own mixer inserts");
 
+// a PHRASE: a little pattern an instrument's note plays instead of its sample - one track of a
+// block (made for it, not in the song's sequence). Its notes are moved by how far the note played
+// is from C-3 (TRANSPOSE off: played as written).
+constexpr int kMaxPhrases = 16;
+struct Phrase
+{
+    int  block = -1, track = 0;
+    int  keyLo = 1, keyHi = 96;             // the notes that play it (C-0..B-7: all of them)
+    int  lpb = 4;                           // its lines a beat (4 = the song's own, 2 = half, 8 = double)
+    bool loop = false;
+    int  loopStart = 0, loopEnd = -1;       // lines (loopEnd -1 = its last line)
+    bool transpose = true;
+    bool operator== (const Phrase& o) const
+    {
+        return block == o.block && track == o.track && keyLo == o.keyLo && keyHi == o.keyHi && lpb == o.lpb
+            && loop == o.loop && loopStart == o.loopStart && loopEnd == o.loopEnd && transpose == o.transpose;
+    }
+};
+
 struct Instrument
 {
     std::string name;
@@ -192,12 +213,18 @@ struct Instrument
     Envelope   filterEnv { true, 0.005f, 0.3f, 0.0f, 0.2f };
     float      filterEnvAmount = 0.0f;      // octaves, -8..+8
     float      keyTrack    = 0.0f;          // 0..1 (1 = cutoff follows the note fully)
-    // PHRASE: a note plays a track of a block instead (its notes moved by how far the note is
-    // from C-3), at the song's line rate x RATE; -1 = none
-    int  phraseBlock = -1, phraseTrack = 0;
-    bool phraseLoop  = false;
-    int  phraseRate  = 1;                   // 0 = half, 1 = the song's, 2 = double
-    bool hasPhrase() const { return phraseBlock >= 0; }
+    // PHRASES: a note plays a little pattern instead of the sample (see Phrase). Which one: @xx on
+    // the note picks it (@00 = the sample), otherwise the first whose keys hold the note; none = the sample
+    std::vector<Phrase> phrases;
+    bool hasPhrase() const { return ! phrases.empty(); }
+    int  phraseFor (int note, int pick) const   // pick: the note's @xx (-1 = none); the phrase's index, -1 = the sample
+    {
+        if (pick == 0) return -1;
+        if (pick > 0) return pick <= (int) phrases.size() ? pick - 1 : -1;
+        for (int i = 0; i < (int) phrases.size(); ++i)
+            if (note >= phrases[(size_t) i].keyLo && note <= phrases[(size_t) i].keyHi) return i;
+        return -1;
+    }
     bool       amigaPan    = true;          // follow the Amiga L/R track layout
     int        pan         = 128;           // 0..255 when amigaPan is off
 

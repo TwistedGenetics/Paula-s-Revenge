@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.51.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.52.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -140,6 +140,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/PatternEditor.cpp
     Source/ui/Panels.cpp
     Source/ui/LanePads.cpp
+    Source/ui/PhraseView.cpp
     Source/ui/Spectrum.cpp
     Source/ui/SampleEditor.cpp
     Source/ui/SampleBrowser.cpp

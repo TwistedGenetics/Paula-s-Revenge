@@ -717,10 +717,12 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     {
         phrase[ch].instr = -1;   // (a new note ends the phrase that was playing)
         const auto& pin = song->instruments[(size_t) v.instr];
-        if (pin.hasPhrase() && pin.phraseBlock < (int) song->blocks.size() && instrumentIsOn (v.instr))
+        uint8_t pick = 0;
+        const int pi = pin.hasPhrase() && instrumentIsOn (v.instr) ? pin.phraseFor (cell.note, cell.has (kCmdPhrase, pick) ? (int) pick : -1) : -1;
+        if (pi >= 0 && pin.phrases[(size_t) pi].block >= 0 && pin.phrases[(size_t) pi].block < (int) song->blocks.size())
         {
-            // this note plays the instrument's phrase, starting now
-            phrase[ch] = { v.instr, (int) cell.note, 0, 1.0 };
+            // this note plays one of the instrument's phrases, starting now
+            phrase[ch] = { v.instr, (int) cell.note, 0, 1.0, pi };
             stepPhrase (ch);
             return;
         }
@@ -846,6 +848,22 @@ void Player::startShaping (Voice& v)
     v.svf = {};
 }
 
+void Player::previewPhrase (int instrIndex, int phraseIndex, int note)
+{
+    if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
+    const auto& in = song->instruments[(size_t) instrIndex];
+    if (phraseIndex < 0 || phraseIndex >= (int) in.phrases.size()) return;
+    phrase[kPreviewRun] = { instrIndex, std::clamp (note, 1, (int) kNoteMax), 0, 1.0, phraseIndex };
+    stepPhrase (kPreviewRun);
+}
+
+void Player::stopPhrasePreview()
+{
+    phrase[kPreviewRun] = PhraseRun {};
+    Voice& v = phraseVoice (kPreviewRun);
+    if (v.active) releaseVoice (v);
+}
+
 void Player::stepPhrases()
 {
     if (song == nullptr) return;
@@ -860,21 +878,26 @@ void Player::stepPhrase (int ch)
         ph.until -= 1.0;
         if (ph.until > 0) return;
         const auto& in = song->instruments[(size_t) ph.instr];
-        if (! in.hasPhrase() || in.phraseBlock >= (int) song->blocks.size()) { ph.instr = -1; return; }
-        const Block& b = song->blocks[(size_t) in.phraseBlock];
-        if (ph.line >= b.lines)
+        if (ph.index < 0 || ph.index >= (int) in.phrases.size()) { ph.instr = -1; return; }
+        const Phrase& pr = in.phrases[(size_t) ph.index];
+        if (pr.block < 0 || pr.block >= (int) song->blocks.size()) { ph.instr = -1; return; }
+        const Block& b = song->blocks[(size_t) pr.block];
+        if (b.lines <= 0) { ph.instr = -1; return; }
+        // the loop: round from its END back to its START (END -1 = the last line)
+        const int last = pr.loopEnd < 0 ? b.lines - 1 : std::min (pr.loopEnd, b.lines - 1);
+        if (pr.loop ? ph.line > last : ph.line >= b.lines)
         {
-            if (! in.phraseLoop) { ph.instr = -1; return; }
-            ph.line = 0;
+            if (! pr.loop) { ph.instr = -1; return; }
+            ph.line = std::clamp (pr.loopStart, 0, last);
         }
-        const Cell c = b.at (ph.line, std::clamp (in.phraseTrack, 0, kMaxTracks - 1));
-        Voice& v = voices[ch];
+        const Cell c = b.at (ph.line, std::clamp (pr.track, 0, kMaxTracks - 1));
+        Voice& v = phraseVoice (ch);
         phraseTriggering = true;
         if (c.note == kNoteOff) releaseVoice (v);
         else if (c.note > 0)
         {
             Cell t = c;
-            t.note = (uint8_t) std::clamp ((int) c.note + ph.root - 37, 1, (int) kNoteMax);
+            if (pr.transpose) t.note = (uint8_t) std::clamp ((int) c.note + ph.root - 37, 1, (int) kNoteMax);
             setInstrument (v, c.instr > 0 ? c.instr : (uint8_t) (ph.instr + 1));
             if (c.cmd == 0xC) v.volume = std::min (64, (int) c.param);
             else if (c.cmd2 == 0xC) v.volume = std::min (64, (int) c.param2);
@@ -882,7 +905,7 @@ void Player::stepPhrase (int ch)
         }
         phraseTriggering = false;
         ++ph.line;
-        const double mul = in.phraseRate == 0 ? 2.0 : in.phraseRate == 2 ? 0.5 : 1.0;
+        const double mul = 4.0 / std::clamp (pr.lpb, 1, 32);   // (the song plays 4 lines a beat)
         ph.until += samplesPerTick() * std::max (1, speed) * mul;
     }
 }
@@ -1702,6 +1725,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     for (int i = 0; i < numSamples; ++i)
     {
         chunkPos = i;
+        if (phrase[kPreviewRun].instr >= 0 && song != nullptr) stepPhrase (kPreviewRun);   // (a phrase played from its editor)
         if (mode != Mode::Stopped && song != nullptr)
         {
             tickRemain -= 1.0;

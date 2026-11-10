@@ -4330,7 +4330,8 @@ static void testPhrases()
     s.blocks[2].at (2, 1) = Cell { 41, 0, 0, 0 };
     s.blocks[2].at (4, 1) = Cell { 44, 0, 0xC, 0x20 };
     s.sequence = { 0 };
-    s.instruments[0].phraseBlock = 2; s.instruments[0].phraseTrack = 1; s.instruments[0].phraseLoop = true;
+    { Phrase ph; ph.block = 2; ph.track = 1; ph.loop = true; s.instruments[0].phrases = { ph }; s.instruments[0].phrases.reserve (kMaxPhrases); }   // (reserved: P0 stays put)
+    auto& P0 = s.instruments[0].phrases[0];
     Player p; p.setSampleRate (48000); p.setSong (&s);
     p.playSong (0);
     const int lineLen = (int) std::lround (48000 * 2.5 / s.tempo * s.speed);
@@ -4343,7 +4344,7 @@ static void testPhrases()
     CHECK (lines[0] >= 1 && lines[0] <= 2 && lines[5] >= 6 && lines[7] >= 0 && lines[7] <= 2);   // loops after 8
     CHECK (lines[10] == -1);   // OFF at line 9 ends it
     // RATE x2: twice as fast; not looped: it ends
-    s.instruments[0].phraseRate = 2; s.instruments[0].phraseLoop = false;
+    P0.lpb = 8; P0.loop = false;
     p.playSong (0);
     std::vector<int> fast;
     for (int k = 0; k < 6; ++k) { p.render (L.data(), R.data(), lineLen); fast.push_back (p.phraseLine (0)); }
@@ -4352,11 +4353,83 @@ static void testPhrases()
     std::printf ("\n");
     CHECK (fast[1] >= 3 && fast[5] == -1);
     // it makes sound (the sample plays through the phrase)
-    s.instruments[0].phraseRate = 1; s.instruments[0].phraseLoop = true;
+    P0.lpb = 4; P0.loop = true;
     p.playSong (0);
     std::vector<float> big ((size_t) lineLen * 8), bigR (big.size());
     p.render (big.data(), bigR.data(), (int) big.size());
     CHECK (rmsOf (big, 0, (int) big.size()) > 0.01);
+
+    // ---- v0.52: many phrases, their keys, @xx, speed, the loop's START / END, TRANSPOSE
+    std::printf ("\n== phrases: many, keys, @xx, speed, loop range, transpose\n");
+    s.blocks.resize (4);
+    s.blocks[3] = Block {}; s.blocks[3].lines = 8;
+    s.blocks[3].at (0, 0) = Cell { 49, 0, 0, 0 };           // C-4 as written
+    Phrase two; two.block = 3; two.track = 0; two.keyLo = 49; two.keyHi = 96; two.transpose = false;
+    P0.keyLo = 1; P0.keyHi = 48; P0.loop = false;
+    s.instruments[0].phrases.push_back (two);
+    CHECK (s.instruments[0].phraseFor (39, -1) == 0 && s.instruments[0].phraseFor (49, -1) == 1);
+    CHECK (s.instruments[0].phraseFor (39, 2) == 1 && s.instruments[0].phraseFor (39, 0) == -1 && s.instruments[0].phraseFor (39, 9) == -1);
+    auto playFirstLines = [&] (Cell c, int n)
+    {
+        s.blocks[0].at (0, 0) = c;
+        p.playSong (0);
+        std::vector<int> idx;
+        for (int k = 0; k < n; ++k) { p.render (L.data(), R.data(), lineLen); idx.push_back (p.phraseIndex (0)); }
+        return idx;
+    };
+    // keys: D-3 plays phrase 1, D-4 phrase 2
+    CHECK (playFirstLines (Cell { 39, 1, 0, 0 }, 1)[0] == 0);
+    CHECK (playFirstLines (Cell { 51, 1, 0, 0 }, 1)[0] == 1);
+    // TRANSPOSE off: phrase 2's C-4 plays as C-4, whatever was played
+    std::printf ("phrase 2 from D-4 plays note %d (C-4 = 49)\n", p.trackNote (0));
+    CHECK (p.trackNote (0) == 49);
+    // TRANSPOSE on: phrase 1's C-3 from D-3 plays D-3
+    playFirstLines (Cell { 39, 1, 0, 0 }, 1);
+    CHECK (p.trackNote (0) == 39);
+    // @02 picks phrase 2 for a low note; @00 plays the sample
+    CHECK (playFirstLines (Cell { 39, 1, kCmdPhrase, 0x02 }, 1)[0] == 1);
+    CHECK (playFirstLines (Cell { 39, 1, kCmdPhrase, 0x00 }, 1)[0] == -1);
+    // no phrase holds the note (keys narrowed): the sample plays
+    s.instruments[0].phrases[1].keyLo = 60;
+    CHECK (playFirstLines (Cell { 51, 1, 0, 0 }, 1)[0] == -1);
+    s.instruments[0].phrases[1].keyLo = 49;
+    // the loop's START / END: lines 2-4 over and over
+    P0.loop = true; P0.loopStart = 2; P0.loopEnd = 4;
+    s.blocks[0].at (9, 0) = Cell {};
+    s.blocks[0].at (0, 0) = Cell { 39, 1, 0, 0 };
+    p.playSong (0);
+    std::vector<int> lr;
+    for (int k = 0; k < 10; ++k) { p.render (L.data(), R.data(), lineLen); lr.push_back (p.phraseLine (0)); }
+    std::printf ("loop 2-4:");
+    for (int v : lr) std::printf (" %d", v);
+    std::printf ("\n");
+    bool inRange = true;
+    for (int k = 4; k < 10; ++k) inRange = inRange && lr[(size_t) k] >= 2 && lr[(size_t) k] <= 5;
+    CHECK (inRange);
+    // speed: 2 lines a beat - half as fast; 16 - four times as fast
+    P0.loop = false; P0.loopStart = 0; P0.loopEnd = -1; P0.lpb = 2;
+    p.playSong (0);
+    std::vector<int> slow;
+    for (int k = 0; k < 6; ++k) { p.render (L.data(), R.data(), lineLen); slow.push_back (p.phraseLine (0)); }
+    P0.lpb = 16;
+    p.playSong (0);
+    p.render (L.data(), R.data(), lineLen);
+    const int quick = p.phraseLine (0);
+    std::printf ("2 a beat after 6 lines: %d; 16 a beat after 1 line: %d\n", slow[5], quick);
+    CHECK (slow[5] >= 3 && slow[5] <= 4 && quick >= 4 && quick <= 5);
+    // a phrase heard from its editor: runs with the song stopped, and makes sound
+    p.stop();
+    P0.lpb = 4;
+    p.previewPhrase (0, 0, 37);
+    std::vector<float> pv ((size_t) lineLen * 3), pvR (pv.size());
+    p.render (pv.data(), pvR.data(), (int) pv.size());
+    std::printf ("preview: phrase %d at line %d, rms %.4f\n", p.previewPhraseIndex(), p.previewPhraseLine(), rmsOf (pv, 0, (int) pv.size()));
+    CHECK (p.previewPhraseIndex() == 0 && p.previewPhraseLine() >= 2 && rmsOf (pv, 0, (int) pv.size()) > 0.005);
+    p.stopPhrasePreview();
+    CHECK (p.previewPhraseIndex() == -1);
+    // @ is named and described
+    CHECK (commandChar (kCmdPhrase) == '@' && commandFromChar ('@') == kCmdPhrase && commandName (kCmdPhrase) == "PHRASE");
+    CHECK (describeCommand (kCmdPhrase, 0x02).find ("PHRASE 02") != std::string::npos);
 }
 
 // ---- an instrument's MACRO knobs

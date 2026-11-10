@@ -135,10 +135,15 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
         if (pluginMode()) { if (onBackToPlugin) onBackToPlugin(); }
         else if (onUsePlugin) onUsePlugin();
     };
-    // PHRASE: on (a new block to write it in), then its menu
+    // PHRASES: the page shows them instead of the sound
     phraseBtn.setClickingTogglesState (false);
-    phraseBtn.onClick = [this] { phraseClicked(); };
+    phraseBtn.onClick = [this] { showPhrases (true); };
     addAndMakeVisible (phraseBtn);
+    phrases.onBack = [this] { showPhrases (false); };
+    phrases.onStatus = [this] (const juce::String& m) { if (onStatus) onStatus (m); };
+    phrases.onChanged = [this] { if (onChanged) onChanged(); };
+    phrases.onEditInPattern = [this] (int b, int t) { if (onEditPhrase) onEditPhrase (b, t); };
+    addChildComponent (phrases);
     onBtn.onClick = [this] { toggleOn(); };
     learnA.onClick = [this] { armLearn (0); };
     learnB.onClick = [this] { armLearn (1); };
@@ -286,41 +291,23 @@ bool ParamsPage::pluginMode() const
     return in.isPlugin() && ! in.isMidiOut() && ! in.isCvOut();
 }
 
-void ParamsPage::phraseClicked()
+std::vector<juce::Component*> ParamsPage::soundControls()
 {
-    const auto& in = inst();
-    if (! in.hasPhrase())
+    return { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel,
+             &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan, &utility, &fxRow, &phraseBtn };
+}
+
+void ParamsPage::showPhrases (bool on)
+{
+    if (! on) phrases.play (false);
+    showingPhrases = on;
+    refresh();
+    if (on)
     {
-        // a new, empty block to write the phrase in (16 lines; it isn't in the song)
-        proc.history.structure ("NEW PHRASE BLOCK");
-        int b = 0;
-        proc.withLock ([&] { prv::Block nb; nb.lines = 16; proc.song.blocks.push_back (nb); b = (int) proc.song.blocks.size() - 1; });
-        edit ([b] (Instrument& i) { i.phraseBlock = b; i.phraseTrack = 0; });
-        refresh();
-        if (onStatus) onStatus ("PHRASE: A NOTE NOW PLAYS BLOCK " + juce::String (b).paddedLeft ('0', 3) + " TRACK 1 (MOVED BY HOW FAR IT IS FROM C-3) - CLICK PHRASE AGAIN TO EDIT IT");
-        return;
+        phrases.refresh();
+        if (onStatus) onStatus (inst().hasPhrase() ? "PHRASES: CLICK ONE TO WRITE IT ON THE RIGHT; RIGHT-CLICK FOR MORE - SOUND GOES BACK"
+                                                   : "PHRASES: ADD ONE - ITS NOTES THEN PLAY INSTEAD OF THE SAMPLE (@XX ON A NOTE PICKS ONE)");
     }
-    juce::Component::SafePointer<ParamsPage> safe (this);
-    const int b = in.phraseBlock, t = in.phraseTrack;
-    std::vector<MenuItem> items;
-    items.push_back ({ "EDIT IT (BLOCK " + juce::String (b).paddedLeft ('0', 3) + " TRACK " + juce::String (t + 1) + ")", [safe, b, t] { if (safe && safe->onEditPhrase) safe->onEditPhrase (b, t); } });
-    items.push_back ({ juce::String ("LOOP: ") + (in.phraseLoop ? "ON (TURN OFF)" : "OFF (TURN ON)"), [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseLoop = ! i.phraseLoop; }); safe->refresh(); } } });
-    items.push_back ({ juce::String ("RATE: ") + (in.phraseRate == 0 ? "HALF" : in.phraseRate == 2 ? "DOUBLE" : "THE SONG'S") + " (CHANGE)",
-                       [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseRate = (i.phraseRate + 1) % 3; }); safe->refresh(); } } });
-    items.push_back ({ "TRACK " + juce::String (t % kMaxTracks + 2 > kMaxTracks ? 1 : t + 2) + " OF THE BLOCK INSTEAD",
-                       [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseTrack = (i.phraseTrack + 1) % kMaxTracks; }); safe->refresh(); } } });
-    items.push_back ({ "ANOTHER BLOCK...", [safe]
-    {
-        if (! safe) return;
-        std::vector<MenuItem> bl;
-        const int n = (int) safe->proc.song.blocks.size();
-        for (int k = std::max (0, n - 14); k < n; ++k)
-            bl.push_back ({ "BLOCK " + juce::String (k).paddedLeft ('0', 3) + (safe->proc.song.blocks[(size_t) k].name.empty() ? juce::String() : " " + juce::String (safe->proc.song.blocks[(size_t) k].name).toUpperCase()),
-                            [safe, k] { if (safe) { safe->edit ([k] (Instrument& i) { i.phraseBlock = k; }); safe->refresh(); } } });
-        showMenu ("THE PHRASE'S BLOCK", std::move (bl));
-    } });
-    items.push_back ({ "PHRASE OFF", [safe] { if (safe) { safe->edit ([] (Instrument& i) { i.phraseBlock = -1; }); safe->refresh(); } } });
-    showMenu ("PHRASE", std::move (items));
 }
 
 void ParamsPage::refresh()
@@ -329,15 +316,18 @@ void ParamsPage::refresh()
     {
         // a VST3 / AU instrument: no sample tuning, BEAT SYNC or pan here; back to its page instead
         const bool pm = pluginMode();
-        for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan })
-            c->setVisible (! pm);
+        for (auto* c : soundControls()) c->setVisible (! showingPhrases);
+        if (! showingPhrases)
+            for (auto* c : std::initializer_list<juce::Component*> { &fineBox, &tuneBtn, &syncBtn, &linesBox, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan })
+                c->setVisible (! pm);
+        phrases.setVisible (showingPhrases);
         pluginBtn.setButtonText (pm ? "BACK TO THE PLUG-IN" : "PLUG-IN / MIDI OUT...");
     }
     utility.refresh();
     {
         const auto& in = inst();
         phraseBtn.setToggleState (in.hasPhrase(), juce::dontSendNotification);
-        phraseBtn.setButtonText (in.hasPhrase() ? "PHRASE " + juce::String (in.phraseBlock).paddedLeft ('0', 3) : juce::String ("PHRASE..."));
+        phraseBtn.setButtonText (in.hasPhrase() ? "PHRASES " + juce::String ((int) in.phrases.size()) : juce::String ("PHRASES..."));
     }
     if (shownInstrument != proc.editorState.instrument) { learning = -1; trackBox.setValue (proc.editorState.track + 1); }
     shownInstrument = proc.editorState.instrument;
@@ -381,6 +371,7 @@ void ParamsPage::refresh()
 
 void ParamsPage::tick()
 {
+    if (showingPhrases) phrases.tick();
     if (shownInstrument != proc.editorState.instrument) refresh();
     // the ON button follows V / J switching while the song plays
     else if (onBtn.getToggleState() != proc.player.instrumentIsOn (proc.editorState.instrument)) refresh();
@@ -414,6 +405,7 @@ void ParamsPage::resized()
         pluginBtn.setBounds (row2);
     }
     r.removeFromBottom (gap * 2);
+    phrases.setBounds (r);   // (PHRASES: all of the middle)
 
     // pan and the UTILITY: two rows in a box without a title (the filter envelope above keeps its room)
     auto panRow = r.removeFromBottom (rowH * 2 + gap * 6);
@@ -430,7 +422,7 @@ void ParamsPage::resized()
     {
         // (and PHRASE at its end)
         auto row = r.removeFromBottom (rowH);
-        phraseBtn.setBounds (row.removeFromRight (charsW (11))); row.removeFromRight (gap * 2);
+        phraseBtn.setBounds (row.removeFromRight (charsW (10))); row.removeFromRight (gap * 2);
         fxRow.setBounds (row);
     }
     r.removeFromBottom (gap * 2);
@@ -527,6 +519,11 @@ void ParamsPage::paint (juce::Graphics& g)
     while (tp > 1.5f && PixelFont::textWidth (t, tp) > titleArea.getWidth()) tp -= 0.5f;
     PixelFont::drawLeft (g, t, titleArea, tp, Theme::palFor (*this).ink);
 
+    if (showingPhrases)
+    {
+        if (hasKeyboardFocus (true)) { g.setColour (Theme::palFor (*this).ink); g.drawRect (getLocalBounds().toFloat(), std::max (2.0f, px * 0.5f)); }
+        return;
+    }
     Theme::panelBox (g, envBox, "VOLUME", Theme::palFor (*this));
     Theme::panelBox (g, filterBox, "FILTER", Theme::palFor (*this));
     Theme::panelBox (g, fenvBox, "FILTER ENVELOPE", Theme::palFor (*this));

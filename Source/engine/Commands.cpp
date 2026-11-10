@@ -43,6 +43,8 @@ std::string commandName (int c)
         case 'U': return "REVERSE";        case 'W': return "BAND-PASS";      case 'X': return "RANDOMISE";
         case 'Z': return "BIT CRUSH";
         case '#': return "CHORD";
+        case '?': return "CONDITION";
+        case '@': return "PHRASE";
         default: return "UNUSED";
     }
 }
@@ -91,6 +93,7 @@ std::string describeCommand (int c, uint8_t p)
     }
     switch (commandChar (c))
     {
+        case '@': return head + (p ? fmt ("PLAY THE INSTRUMENT'S PHRASE %02X", (int) p) : std::string ("PLAY THE SAMPLE, NOT A PHRASE"));
         case '#': return head + (p ? fmt ("CHORD SLOT %02X, HELD (PLUG-IN / MIDI-OUT INSTRUMENTS)", p) : std::string ("CHORD SLOT 00: JUST THE NOTE"));
         case 'G': return head + fmt ("GLIDE TO THE NOTE OVER %d TICKS", std::max (1, (int) p));
         case 'H': return head + fmt ("HIGH-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
@@ -137,6 +140,7 @@ const std::vector<CommandInfo>& commandList()
 {
     static const std::vector<CommandInfo> list {
         { kCmdChord, 0x01, false, "#", "CHORD",        "PLAYS CHORD XY FROM THE SONG'S CHORD TABLE, HELD - PLUG-IN / MIDI-OUT INSTRUMENTS; ON A SAMPLE, JUST THE NOTE" },
+        { kCmdPhrase, 0x01, false, "@", "PHRASE",      "THIS NOTE PLAYS THE INSTRUMENT'S PHRASE XX (@01-@10); @00 PLAYS ITS SAMPLE, NOT A PHRASE" },
         { kCmdCond, 0x12, false, "?", "CONDITION",    "PLAYS ON PASS X OF EVERY Y (?12 1ST OF 2, ?44 4TH OF 4); ?01 ONLY IN A FILL, ?02 NOT IN ONE, ?03 FIRST TIME ONLY, ?04 NOT THE FIRST" },
         { 0x0, 0x37, false, "0",  "ARPEGGIO",          "NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
         { 0x1, 0x08, false, "1",  "SLIDE UP",          "BENDS THE PITCH UP, XX PER TICK" },
