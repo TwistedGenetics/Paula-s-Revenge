@@ -33,7 +33,7 @@ struct Theme
     // EMBER (warm charcoal and orange), FOREST (deep green and lime), PRISM II (PRISM without the bars: coloured notes and effects),
     // AURORA (near black washed purple to navy, smoky rounded panes, pill buttons, pastel mint / yellow / coral)
     enum class SkinId { Workbench = 0, Dark, Kickstart, HighContrast, Glass, Modern, Studio, Neon, Hardware, Prism,
-                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Aurora, Boombox, Count };
+                        BlueWave, Paper, Violet, Ember, Forest, Prism2, Aurora, Boombox, DarkII, GlassII, Count };
     static constexpr int kSkins = (int) SkinId::Count;
     static juce::String skinName (SkinId);
     static bool skinIsDark (int id) { return id != (int) SkinId::Workbench && id != (int) SkinId::Modern && id != (int) SkinId::Paper; }
@@ -54,6 +54,7 @@ struct Theme
         bool leds = false;         // on = an LED lit along the top, the face stays (HARDWARE)
         bool noteBars = false;     // the pattern: notes as bars in their track's colour, held until the next (PRISM)
         bool colourNotes = false;  // the pattern: notes in their track's colour, effects a lighter shade of it (PRISM II)
+        bool gloss = false;   // (GLASS II: a glassy shine over buttons and panes)
         bool wash = false;         // the window behind everything: a soft wash from washA (top left) to washB (AURORA)
         juce::Colour washA, washB;
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;

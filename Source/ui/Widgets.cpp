@@ -34,6 +34,8 @@ juce::String Theme::skinName (SkinId id)
         case SkinId::Prism2:       return "PRISM II";
         case SkinId::Aurora:       return "AURORA";
         case SkinId::Boombox:      return "BOOMBOX";
+        case SkinId::DarkII:       return "DARK II";
+        case SkinId::GlassII:      return "GLASS II";
         default:                   return {};
     }
 }
@@ -52,14 +54,17 @@ void Theme::setSkinId (SkinId id)
            : (id == SkinId::Hardware || id == SkinId::Forest) ? PixelFont::BarlowCondensed
            : (id == SkinId::Prism || id == SkinId::Prism2 || id == SkinId::Violet) ? PixelFont::Nunito : PixelFont::Inter;
     k.round = id == SkinId::Aurora ? 6.0f   // (pills: corners as round as the button is tall)
+            : id == SkinId::GlassII ? 1.8f : id == SkinId::DarkII ? 1.2f
             : (id == SkinId::Neon || id == SkinId::Violet || id == SkinId::Boombox) ? 2.0f : (id == SkinId::Prism || id == SkinId::Prism2) ? 1.6f
             : (id == SkinId::BlueWave || id == SkinId::Paper) ? 1.2f : (id == SkinId::Hardware || id == SkinId::Forest) ? 0.8f : 0.6f;
-    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora || id == SkinId::Boombox;
-    k.glow = id == SkinId::Neon || id == SkinId::Violet;
+    k.gradient = id == SkinId::Neon || id == SkinId::BlueWave || id == SkinId::Forest || id == SkinId::Aurora || id == SkinId::Boombox
+              || id == SkinId::DarkII || id == SkinId::GlassII;
+    k.glow = id == SkinId::Neon || id == SkinId::Violet || id == SkinId::GlassII;
+    k.gloss = id == SkinId::GlassII;
     k.leds = id == SkinId::Hardware;
     k.noteBars = id == SkinId::Prism;
     k.colourNotes = id == SkinId::Prism2 || id == SkinId::Boombox;
-    k.wash = id == SkinId::Aurora || id == SkinId::Boombox;
+    k.wash = id == SkinId::Aurora || id == SkinId::Boombox || id == SkinId::DarkII || id == SkinId::GlassII;
     //                  paper         panel         light         shadow        ink           pressed       faint         hover         edge          pressedInk
     const Palette workbench { C (0xffffffff), C (0xffe6e6e6), C (0xffffffff), C (0xff7a7a7a), C (0xff000000), C (0xffa9bcd9), C (0xff7c7c7c), C (0xffffffff), C (0xff000000), C (0xff000000) };
     // dark blue-black like the dark skin's pattern, cream text: high contrast, nothing white
@@ -73,13 +78,13 @@ void Theme::setSkinId (SkinId id)
     // MODERN: white and soft grey, thin borders, blue for chosen
     const Palette modern    { C (0xffffffff), C (0xfff2f4f8), C (0xffffffff), C (0xffc9ced8), C (0xff1b2130), C (0xff2f66f0), C (0xff7e8799), C (0xffe6ebf3), C (0xffb8bfcc), C (0xffffffff) };
     // STUDIO: flat greys like a modern DAW, orange for chosen (dark text on it), smooth type
-    const Palette studio    { C (0xff1e1e1e), C (0xff2b2b2b), C (0xff3c3c3c), C (0xff0e0e0e), C (0xffededed), C (0xffffa53d), C (0xffa3a3a3), C (0xff4a4a4a), C (0xff111111), C (0xff141414) };
+    const Palette studio    { C (0xff0f0f10), C (0xff19191b), C (0xff28282b), C (0xff050505), C (0xffededed), C (0xffffa53d), C (0xffa3a3a3), C (0xff333337), C (0xff070707), C (0xff141414) };
     // NEON: deep navy, rounded, lit from above; chosen glows cyan
     const Palette neon      { C (0xff0a0f1e), C (0xff131b33), C (0xff1e2a4c), C (0xff04070f), C (0xffeaf6ff), C (0xff35d6ff), C (0xff93a7cc), C (0xff2a3a68), C (0xff2c3d6b), C (0xff03131d) };
     // HARDWARE: matte black and rubber grey; chosen lights an LED (the face stays)
     const Palette hardware  { C (0xff0d0d0d), C (0xff181818), C (0xff2a2a2a), C (0xff000000), C (0xfff2ede4), C (0xff5c2216), C (0xffa39d93), C (0xff343434), C (0xff050505), C (0xfff2ede4) };
     // PRISM: slate, soft and rounded; chosen is cyan with dark text
-    const Palette prism     { C (0xff1e2025), C (0xff26282e), C (0xff353840), C (0xff121317), C (0xffeef0f4), C (0xff3fd6f0), C (0xffaab0bd), C (0xff41454f), C (0xff16171b), C (0xff14161a) };
+    const Palette prism     { C (0xff0e0f12), C (0xff17181c), C (0xff24262c), C (0xff060708), C (0xffeef0f4), C (0xff3fd6f0), C (0xffaab0bd), C (0xff2f323a), C (0xff0a0b0d), C (0xff14161a) };
     // BLUEWAVE: a wavetable synth's charcoal and slate, bright blue for chosen, orange for modulation
     const Palette bluewave  { C (0xff1b1f24), C (0xff262b33), C (0xff343b46), C (0xff0c0e11), C (0xffe6edf5), C (0xff3fa9f5), C (0xff8c97a6), C (0xff3e4654), C (0xff11141a), C (0xff07131e) };
     // PAPER: light and clean - white panes on soft grey, blue for chosen (white text on it)
@@ -93,16 +98,36 @@ void Theme::setSkinId (SkinId id)
     // AURORA: near black, smoky grey panes, pastel mint for chosen (dark text on it)
     const Palette aurora    { C (0xff0f0e14), C (0xff25242c), C (0xff34333d), C (0xff050508), C (0xfff4f2f8), C (0xff7dfc9b), C (0xffa19fb0), C (0xff42414d), C (0xff3a3944), C (0xff0d1a10) };
     // BOOMBOX: an 80s boombox - slate violet panels with a silver rim, hot pink for chosen (dark text on it)
-    const Palette boombox   { C (0xff2e2d3d), C (0xff434257), C (0xff6c6a86), C (0xff16151f), C (0xfff4f2fa), C (0xffff4f93), C (0xffaaa7c0), C (0xff52506a), C (0xff1e1d29), C (0xff1a0a14) };
+    const Palette boombox   { C (0xff121119), C (0xff1d1c28), C (0xff2e2c3e), C (0xff07070b), C (0xfff4f2fa), C (0xffff4f93), C (0xffaaa7c0), C (0xff3a384e), C (0xff4a4862), C (0xff1a0a14) };
+    // DARK II: DARK's cream on blue-black, made modern - smooth type, rounded, lit from above, a soft blue glow behind
+    const Palette darkII    { C (0xff0a0e16), C (0xff131a26), C (0xff222c3e), C (0xff020304), C (0xfff4ecd6), C (0xff3b6fd0), C (0xff8a93a6), C (0xff2b3750), C (0xff2a3448), C (0xfff4ecd6) };
+    // GLASS II: GLASS made modern - deep blue glass, smooth type, glossy rounded keys that glow when on
+    const Palette glassII   { C (0xff060d1a), C (0xff0f1d33), C (0xff1c3352), C (0xff02060c), C (0xffeaf4ff), C (0xff1f8fe0), C (0xff8aa6c8), C (0xff24426a), C (0xff3d6aa0), C (0xff03131f) };
     switch (id)
     {
+        case SkinId::DarkII:
+            chromePal = darkII; pagePal = darkII;
+            k.bg = C (0xff0d121b); k.text = C (0xfff4ecd6); k.dim = C (0xff566074); k.stripe = C (0xff121824);
+            k.band = C (0xff26324a); k.cursor = C (0xff334a72); k.cursorEdge = C (0xfff4ecd6); k.rule = C (0xff26304a);
+            k.hot = C (0xffff5a4a); k.specBar = C (0xfff4ecd6);
+            k.accentSel = C (0xff6aa4ff); k.accentMod = C (0xffffa030); k.accentRec = C (0xffff4a3a);
+            k.washA = C (0xff16223c); k.washB = C (0xff0f1a30);
+            break;
+        case SkinId::GlassII:
+            chromePal = glassII; pagePal = glassII;
+            k.bg = C (0xff050b16); k.text = C (0xffdcecff); k.dim = C (0xff4f6788); k.stripe = C (0xff0a1424);
+            k.band = C (0xff17304f); k.cursor = C (0xff175a92); k.cursorEdge = C (0xff7fd4ff); k.rule = C (0xff1d3556);
+            k.hot = C (0xffff5c74); k.specBar = C (0xff7fd4ff);
+            k.accentSel = C (0xff4fd2ff); k.accentMod = C (0xffffb347); k.accentRec = C (0xffff5c74);
+            k.washA = C (0xff0f2e5c); k.washB = C (0xff0a2446);
+            break;
         case SkinId::Boombox:
             chromePal = boombox; pagePal = boombox;
-            k.bg = C (0xff242331); k.text = C (0xfff4f2fa); k.dim = C (0xff625f7a); k.stripe = C (0xff2a2939);
-            k.band = C (0xff3c3a52); k.cursor = C (0xff5c2a52); k.cursorEdge = C (0xffff4f93); k.rule = C (0xff3a3950);
+            k.bg = C (0xff14131c); k.text = C (0xfff4f2fa); k.dim = C (0xff5a5772); k.stripe = C (0xff1a1924);
+            k.band = C (0xff2e2c40); k.cursor = C (0xff5c2a52); k.cursorEdge = C (0xffff4f93); k.rule = C (0xff3a3950);
             k.hot = C (0xffff8a4c); k.specBar = C (0xffff4f93);
             k.accentSel = C (0xffff4f93); k.accentMod = C (0xffff9a4a); k.accentRec = C (0xffff3b3b);
-            k.washA = C (0xff4a2d5e); k.washB = C (0xff2a3550);
+            k.washA = C (0xff2e1a3e); k.washB = C (0xff18203a);
             break;
         case SkinId::Aurora:
             chromePal = aurora; pagePal = aurora;
@@ -165,15 +190,15 @@ void Theme::setSkinId (SkinId id)
         case SkinId::Prism:
         case SkinId::Prism2:
             chromePal = prism; pagePal = prism;
-            k.bg = C (0xff26282e); k.text = C (0xffeef0f4); k.dim = C (0xff6a7080); k.stripe = C (0xff2b2d34);
-            k.band = C (0xff3a3d46); k.cursor = C (0xff1d5560); k.cursorEdge = C (0xff3fd6f0); k.rule = C (0xff16171b);
+            k.bg = C (0xff131418); k.text = C (0xffeef0f4); k.dim = C (0xff5c6270); k.stripe = C (0xff18191e);
+            k.band = C (0xff2a2c34); k.cursor = C (0xff1d5560); k.cursorEdge = C (0xff3fd6f0); k.rule = C (0xff16171b);
             k.hot = C (0xffff5470); k.specBar = C (0xff3fd6f0);
             k.accentSel = C (0xff3fd6f0); k.accentMod = C (0xffa98bff); k.accentRec = C (0xffff5470);
             break;
         case SkinId::Studio:
             chromePal = studio; pagePal = studio;
-            k.bg = C (0xff1a1a1a); k.text = C (0xffededed); k.dim = C (0xff747474); k.stripe = C (0xff222222);
-            k.band = C (0xff3a3a3a); k.cursor = C (0xff6b4a22); k.cursorEdge = C (0xffffa53d); k.rule = C (0xff3a3a3a);
+            k.bg = C (0xff111112); k.text = C (0xffededed); k.dim = C (0xff666666); k.stripe = C (0xff17171a);
+            k.band = C (0xff2c2c30); k.cursor = C (0xff6b4a22); k.cursorEdge = C (0xffffa53d); k.rule = C (0xff2a2a2d);
             k.hot = C (0xffff5a4a); k.specBar = C (0xffffa53d);
             k.accentSel = C (0xffffa53d); k.accentMod = C (0xff5ec8ff); k.accentRec = C (0xffff4d4d);
             break;
@@ -388,8 +413,14 @@ void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::S
             // NEON: a fine rim, lit along the top
             g.setColour (P.edge);
             g.drawRoundedRectangle (r.reduced (0.5f), rad, 1.0f / deviceScale);
-            g.setColour (P.ink.withAlpha (0.10f));
+            g.setColour (P.ink.withAlpha (skin.gloss ? 0.22f : 0.10f));
             g.fillRect (r.getX() + rad, r.getY() + 1.0f / deviceScale, r.getWidth() - rad * 2, 1.0f / deviceScale);
+            if (skin.gloss)
+            {
+                // GLASS II: a faint sheen across the top of the pane (one flat fill: cheap)
+                g.setColour (juce::Colours::white.withAlpha (0.035f));
+                g.fillRoundedRectangle (r.withHeight (std::min (r.getHeight() * 0.35f, px * 30.0f)).reduced (1.0f), rad);
+            }
         }
     }
     else
@@ -532,6 +563,14 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
                 // lit from above: a lighter top half (two flat fills - a real gradient on every button costs too much)
                 g.setColour (face.brighter (on ? 0.22f : 0.16f).withAlpha (0.55f));
                 g.fillRoundedRectangle (f.withHeight (f.getHeight() * 0.5f), rad);
+            }
+            if (K.gloss)
+            {
+                // GLASS II: a glassy shine over the top half and a bright line along the top edge
+                g.setColour (juce::Colours::white.withAlpha (on ? 0.26f : 0.13f));
+                g.fillRoundedRectangle (f.withHeight (f.getHeight() * 0.46f).reduced (std::max (1.0f, Theme::px * 0.4f), 0.0f).translated (0.0f, std::max (1.0f, Theme::px * 0.3f)), rad * 0.8f);
+                g.setColour (juce::Colours::white.withAlpha (on ? 0.6f : 0.3f));
+                g.fillRect (f.getX() + rad, f.getY() + 1.0f / Theme::deviceScale, f.getWidth() - rad * 2, 1.0f / Theme::deviceScale);
             }
             if (K.gradient && ! on)
             {
