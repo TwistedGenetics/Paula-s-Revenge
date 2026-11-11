@@ -92,6 +92,9 @@ MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
     controlsBtn.setClickingTogglesState (false);
     controlsBtn.onClick = [this] { openControls (! controlsOpen); };
     addChildComponent (gearBtn);
+    akaiPanel = std::make_unique<AkaiPanel> (proc);
+    akaiPanel->onStatus = [this] (const juce::String& t) { akaiStatus = t; repaint(); };
+    addChildComponent (*akaiPanel);
     addChildComponent (controlsBtn);
     for (auto* c : std::initializer_list<juce::Component*> { &list, &rescanBtn, &cancelBtn, &changeBtn, &sampleBtn, &panicBtn, &closeBtn,
                                                              &chanBox, &bendBox, &delayBox, &trackBox, &onBtn, &clockBtn, &learnA, &learnB })
@@ -251,9 +254,11 @@ void MidiOutPage::refresh()
     gearBtn.setVisible (midi);
     gearBtn.setButtonText ("GEAR: " + juce::String (gearName (gr)));
     controlsBtn.setVisible (midi && gr != 0);
+    controlsBtn.setButtonText (gearHasEditor (gr) ? "S1000 EDITOR..." : "ALL CONTROLS...");
+    akaiPanel->setVisible (midi && controlsOpen && gearHasEditor (gr));
     controlsBtn.setToggleState (controlsOpen, juce::dontSendNotification);
-    for (auto& b : groupBtns) b->setVisible (midi && controlsOpen);
-    for (auto& b : ctlBars) b->setVisible (midi && controlsOpen);
+    for (auto& b : groupBtns) b->setVisible (midi && controlsOpen && ! gearHasEditor (gr));
+    for (auto& b : ctlBars) b->setVisible (midi && controlsOpen && ! gearHasEditor (gr));
     closeBtn.setVisible (true);
     if (midi)
     {
@@ -310,6 +315,7 @@ void MidiOutPage::tick()
         if (onStatus) onStatus (juce::String ("KNOB ") + kKnobLetters[k] + " NOW SENDS CC " + juce::String (cc) + " - USE " + kKnobLetters[k] + "XX ON THIS INSTRUMENT'S NOTES");
         refresh();
     }
+    if (controlsOpen && akaiPanel->isVisible()) akaiPanel->tick();
     const int moved = learner.poll();
     if (moved >= 0) learned (moved);
 }
@@ -456,7 +462,8 @@ void MidiOutPage::openControls (bool open)
 {
     controlsOpen = open && inst().midiGear != 0;
     learner.cancel(); ccLearn = -1;
-    if (controlsOpen) buildControls();
+    if (controlsOpen && gearHasEditor (inst().midiGear)) { akaiPanel->setInstrument (proc.editorState.instrument); akaiPanel->opened(); }
+    else if (controlsOpen) buildControls();
     refresh();
 }
 
@@ -541,6 +548,7 @@ void MidiOutPage::paint (juce::Graphics& g)
         if (const auto* map = gearMap (in.midiGear))
             lines.add (controlsOpen ? juce::String ("MOVE ONE: IT'S SENT STRAIGHT AWAY") : juce::String (map->note));
     if (controlsOpen) while (lines.size() > 1) lines.remove (1);
+    if (controlsOpen && gearHasEditor (in.midiGear)) lines.set (0, akaiStatus);
     auto r = infoArea;
     for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::palFor (*this).ink); }
 
@@ -621,6 +629,7 @@ void MidiOutPage::resized()
     }
     }
     r.removeFromTop (gap * 3);
+    if (controlsOpen && gearHasEditor (inst().midiGear)) { akaiPanel->setBounds (r); return; }
     if (controlsOpen)
     {
         // the groups as tabs (as many rows as they need), then the group's controls

@@ -220,6 +220,9 @@ public:
 
     // mono copy of the output for the spectrum display (message thread reads)
     int readScope (float* dest, int maxSamples);
+    // System Exclusive that came in (an Akai S1000's answers): the message thread takes them one at a time
+    bool readSysex (std::vector<uint8_t>& msg);
+    void pushSysex (const uint8_t* data, int length);   // (the audio thread; tests)
 
     prv::ClockFollower clockIn;
     double clockSamples = 0;                     // samples since the start (the clock's time line)
@@ -238,6 +241,8 @@ private:
     bool prevLoop = false, prevPlaying = false;
     void renderPreview (float* l, float* r, int n);
     juce::AbstractFifo scopeFifo { 8192 };
+    juce::AbstractFifo sysexFifo { 65536 };
+    std::vector<uint8_t> sysexBuf = std::vector<uint8_t> (65536);
     float scopeBuf[8192] {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PaulaProcessor)

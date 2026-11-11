@@ -386,6 +386,28 @@ void PaulaProcessor::renderPreview (float* l, float* r, int n)
     previewPos = (int) prevPos;
 }
 
+void PaulaProcessor::pushSysex (const uint8_t* d, int n)
+{
+    // [length lo, length hi, bytes...]; a message that doesn't fit is dropped
+    if (d == nullptr || n <= 0 || n > 60000 || sysexFifo.getFreeSpace() < n + 2) return;
+    int k = 0;
+    sysexFifo.write (n + 2).forEach ([&] (int idx) { sysexBuf[(size_t) idx] = k == 0 ? (uint8_t) (n & 255) : k == 1 ? (uint8_t) (n >> 8) : d[k - 2]; ++k; });
+}
+
+bool PaulaProcessor::readSysex (std::vector<uint8_t>& msg)
+{
+    if (sysexFifo.getNumReady() < 2) return false;
+    int len = 0, k = 0;
+    // the length (peeked), then the bytes
+    int s1, n1, s2, n2;
+    sysexFifo.prepareToRead (2, s1, n1, s2, n2);
+    len = sysexBuf[(size_t) s1] | ((n1 > 1 ? sysexBuf[(size_t) s1 + 1] : sysexBuf[(size_t) s2]) << 8);
+    if (sysexFifo.getNumReady() < len + 2) return false;
+    msg.resize ((size_t) len);
+    sysexFifo.read (len + 2).forEach ([&] (int idx) { if (k >= 2) msg[(size_t) (k - 2)] = sysexBuf[(size_t) idx]; ++k; });
+    return true;
+}
+
 int PaulaProcessor::readScope (float* dest, int maxSamples)
 {
     int got = 0;
@@ -496,6 +518,7 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     {
         const auto msg = meta.getMessage();
         renderTo (juce::jlimit (0, n, meta.samplePosition));
+        if (msg.isSysEx()) { pushSysex (msg.getRawData(), msg.getRawDataSize()); continue; }
         if (msg.isNoteOn() && midiToPreview.load() && preview != nullptr)
         {
             // sample browser: play the highlighted file at this note's pitch

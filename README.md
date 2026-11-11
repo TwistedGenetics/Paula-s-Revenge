@@ -885,6 +885,17 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 * The numbers come from the makers' own documents (the microKORG 2 Owner's Manual's MIDI chart, the NTS-1 mkII MIDI Implementation, the Artemis Product Manual v1.20); the Virus TI's are its **PAGE A** (about 90 controls: oscillators, mixer, both filters, envelopes, LFOs, unison, chorus, delay, reverb), from the midi.guide chart, since Access's manuals leave the list to their website. Its PAGE B and C controls (sent as poly pressure and SysEx) aren't in yet. Units loaded into the microKORG 2 (oscillators and effects) have no MIDI messages in Korg's chart, so they're set on the synth. Rollers on the NTS-1 is untested on hardware: if a control lands wrong, that's worth reporting.
 * RENDER WAV writes its voltages into their own files (see CV out below).
 
+### AKAI S1000 EDITOR
+
+**GEAR: AKAI S1000** on a MIDI-out instrument, then **S1000 EDITOR...**, edits the sampler itself over System Exclusive:
+* Connect both ways: this instrument's MIDI output to the S1000's MIDI IN, and the S1000's MIDI OUT to a MIDI input switched on in Settings. The S1000's exclusive channel (its MIDI page) must be this instrument's **CHANNEL** minus one (CHANNEL 1 = exclusive channel 0, the S1000's default).
+* **GET PROGRAMS** asks the S1000 what's in its memory; **PROGRAM:** picks one, and its settings and every keygroup are read.
+* **PROGRAM** edits the program's own settings, by part: PROGRAM (loudness, polyphony, priority, stereo level, pan, output), RANGE (play range, octave shift, tune), MODULATION (velocity, key and pressure to loudness, bend range...), LFO, LFO KEYS, PAN LFO, VOICES (crossfade, coherence, reassign, soft pedal).
+* **KEYGROUP** (with **KG** for which one) edits a keygroup: KEYS (range, tune, velocity crossfade, attack hold), FILTER (cutoff and what moves it), AMP ENV and FILTER ENV (with their velocity and key modifiers, and env to pitch), and its four velocity **ZONES** (velocity range, tune, loudness, filter, pan, PLAY mode; the line at the top names the zone's sample).
+* A change goes to the S1000 at once. The S1000 only takes whole blocks, so the program's (or keygroup's) block is sent back - at most every 80 ms while you drag. Nothing is saved on the S1000's disk: save there as usual.
+* If nothing comes back it says **NO ANSWER**: check the two cables, the MIDI input in Settings and the exclusive channel.
+* The layout comes from Akai's S1000 MIDI Exclusive Communication document (as transcribed for the lakai project). The S950 speaks a different, older protocol and isn't covered yet.
+
 ## CV out to a modular (ES-9)
 
 With a **DC-coupled** audio interface — an Expert Sleepers **ES-9** or anything that can put out steady voltages — Paula's Revenge plays and clocks a Eurorack modular, like Ableton's CV Tools.

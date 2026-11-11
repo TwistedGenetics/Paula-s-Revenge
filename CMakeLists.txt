@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.68.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.69.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,7 +56,8 @@ add_library(prv_engine STATIC
     Source/engine/LiveFx.cpp
     Source/engine/Crunch.cpp
     Source/engine/LowEnd.cpp
-    Source/engine/GearMaps.cpp)
+    Source/engine/GearMaps.cpp
+    Source/engine/AkaiSysex.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 # STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
 if(APPLE OR WIN32)
@@ -162,6 +163,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/CommandPicker.cpp
     Source/ui/SynthPage.cpp
     Source/ui/MidiOutPage.cpp
+    Source/ui/AkaiPanel.cpp
     Source/ui/HelpPage.cpp
     Source/ui/ChordsPage.cpp
     Source/ui/ChordPicker.cpp

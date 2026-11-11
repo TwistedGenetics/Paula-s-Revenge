@@ -7,6 +7,7 @@
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
+#include "engine/AkaiSysex.h"
 #include <set>
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
@@ -4917,7 +4918,7 @@ static void testLiveMode()
 static void testGear()
 {
     std::printf ("\n== GEAR\n");
-    CHECK (gearCount() == 5 && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (6) == nullptr);
+    CHECK (gearCount() == 6 && gearName (6) == "AKAI S1000" && gearHasEditor (6) && ! gearHasEditor (5) && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (7) == nullptr);
     auto find = [] (int id, const std::string& label) { const auto* m = gearMap (id); for (size_t i = 0; i < m->params.size(); ++i) if (m->params[i].label() == label) return (int) i; return -1; };
     // the microKORG 2: plain CCs as its manual lists them
     {
@@ -4993,6 +4994,58 @@ static void testGear()
         in.midiGear = 0; synth.update (in);
         synth.setParameterAt (0, 0.8f, 0);
         CHECK (log.size() == 4);
+    }
+}
+
+static void testAkaiS1000()
+{
+    std::printf ("\n== AKAI S1000 SYSEX\n");
+    using namespace akai;
+    // names in Akai's character set
+    const auto codes = toAkai ("Amen 1+");
+    CHECK (codes.size() == 12 && codes[0] == 11 && codes[4] == 10 && codes[5] == 1 && codes[6] == 38 && fromAkai (codes.data(), 12) == "AMEN 1+");
+    // requests, as the spec has them
+    CHECK ((requestPrograms (0) == std::vector<uint8_t> { 0xF0, 0x47, 0x00, 0x02, 0x48, 0xF7 }));
+    CHECK ((requestProgram (1, 130) == std::vector<uint8_t> { 0xF0, 0x47, 0x01, 0x06, 0x48, 2, 1, 0xF7 }));
+    CHECK ((requestKeygroup (0, 3, 5) == std::vector<uint8_t> { 0xF0, 0x47, 0x00, 0x08, 0x48, 3, 0, 5, 0xF7 }));
+    // a block goes as nibbles (low first) and comes back the same
+    std::vector<uint8_t> blk (kKeygroupBytes, 0);
+    for (int i = 0; i < kKeygroupBytes; ++i) blk[(size_t) i] = (uint8_t) (i * 37);
+    const auto msg = keygroupMessage (0, 2, 7, blk);
+    CHECK ((int) msg.size() == 9 + kKeygroupBytes * 2 && msg[8] == (blk[0] & 15) && msg[10] == (blk[1] & 15) && msg[11] == (blk[1] >> 4));
+    Reply r;
+    CHECK (parse (msg.data(), (int) msg.size(), r) && r.op == KDATA && r.program == 2 && r.keygroup == 7 && r.block == blk);
+    // the fields: signed values as two's complement, ranges clamped, text
+    {
+        std::vector<uint8_t> k (kKeygroupBytes, 0);
+        const auto& fs = keygroupFields();
+        auto field = [&] (const std::string& g, const std::string& n) { for (const auto& x : fs) if (x.group == g && x.name == n) return x; return Field {}; };
+        const auto cut = field ("FILTER", "CUTOFF"), kf = field ("FILTER", "KEY > FREQ"), lo = field ("KEYS", "LOW NOTE"), play = field ("ZONE 2", "PLAY");
+        set (k, cut, 150); set (k, kf, -12); set (k, lo, 60); set (k, play, 3);
+        CHECK (k[7] == 99 && get (k, cut) == 99 && k[8] == 244 && get (k, kf) == -12 && lo.text (60) == "C-3" && lo.text (24) == "C-0");
+        CHECK (k[34 + 24 + 19] == 3 && play.text (3) == "NO LOOP" && kf.text (-12) == "-12");
+        std::set<int> offs; bool dup = false;
+        for (const auto& x : fs) dup = dup || ! offs.insert (x.offset).second || x.offset >= kKeygroupBytes;
+        for (const auto& x : programFields()) dup = dup || x.offset >= kProgramBytes;
+        CHECK (! dup);
+        std::printf ("program: %d controls in %d parts; keygroup: %d in %d\n", (int) programFields().size(), (int) groupsOf (programFields()).size(),
+                     (int) fs.size(), (int) groupsOf (fs).size());
+    }
+    // a pretend S1000: the names, a program, a keygroup; an edit sent back is kept
+    {
+        FakeS1000 s1k;
+        s1k.addProgram ("AMEN", 2); s1k.addProgram ("REESE BASS", 1);
+        auto ask = [&] (const std::vector<uint8_t>& m) { auto a = s1k.receive (m.data(), (int) m.size()); Reply rr; if (! a.empty()) parse (a[0].data(), (int) a[0].size(), rr); return rr; };
+        auto list = ask (requestPrograms (0));
+        CHECK (list.op == PLIST && list.names.size() == 2 && list.names[1] == "REESE BASS");
+        auto prog = ask (requestProgram (0, 0));
+        CHECK (prog.op == PDATA && prog.program == 0 && fromAkai (prog.block.data() + 3, 12) == "AMEN" && prog.block[42] == 2);
+        auto kg = ask (requestKeygroup (0, 0, 1));
+        CHECK (kg.op == KDATA && kg.keygroup == 1 && fromAkai (kg.block.data() + 34, 12) == "AMEN-2");
+        kg.block[7] = 40;
+        auto ok = ask (keygroupMessage (0, 0, 1, kg.block));
+        CHECK (ok.op == REPLY && ok.replyCode == 0 && s1k.keygroups[0][1][7] == 40);
+        CHECK (ask (requestKeygroup (0, 1, 5)).replyCode == 1);
     }
 }
 
@@ -5648,6 +5701,7 @@ int main()
     testCrunch();
     testDuckAndLowEnd();
     testGear();
+    testAkaiS1000();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

@@ -37,6 +37,8 @@ struct GearMap
 constexpr int kGearNone = 0;
 constexpr int kGearKnobBase = 128;   // a knob's CC of 128 + n: the gear's parameter n
 int gearCount();                     // the maps (ids 1 .. gearCount())
+constexpr int kGearAkaiS1000 = 6;
+bool gearHasEditor (int id);         // its own editor page (the S1000: SysEx) instead of ALL CONTROLS
 const GearMap* gearMap (int id);     // nullptr for 0 / out of range
 std::string gearName (int id);       // "NONE" for 0
 

@@ -148,7 +148,10 @@ namespace
 
     const std::vector<GearMap>& maps()
     {
-        static const std::vector<GearMap> all { microKorg2(), nts1(), nts1Rollers(), artemis(), virusTi() };
+        GearMap s1000;
+        s1000.name = "AKAI S1000";
+        s1000.note = "SYSEX EDITOR - S1000 EXCLUSIVE CH = CHANNEL - 1";   // (no controls by CC: S1000 EDITOR... instead)
+        static const std::vector<GearMap> all { microKorg2(), nts1(), nts1Rollers(), artemis(), virusTi(), s1000 };
         return all;
     }
 }
@@ -168,6 +171,7 @@ std::vector<std::string> GearMap::groups() const
 }
 
 int gearCount() { return (int) maps().size(); }
+bool gearHasEditor (int id) { return id == kGearAkaiS1000; }
 const GearMap* gearMap (int id) { return id >= 1 && id <= gearCount() ? &maps()[(size_t) id - 1] : nullptr; }
 std::string gearName (int id) { const auto* m = gearMap (id); return m != nullptr ? m->name : std::string ("NONE"); }
 

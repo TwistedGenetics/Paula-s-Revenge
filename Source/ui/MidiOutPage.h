@@ -7,6 +7,7 @@
 #include "Panels.h"
 #include "Learn.h"
 #include "../engine/GearMaps.h"
+#include "AkaiPanel.h"
 
 namespace prv::ui
 {
@@ -54,9 +55,12 @@ public:
     void moveControl (int row, float v) { if (row >= 0 && row < (int) ctlBars.size()) ctlBars[(size_t) row]->setValue (v, true); }
     juce::String controlName (int row) const { return row >= 0 && row < (int) ctlNames.size() ? ctlNames[(size_t) row] : juce::String(); }
     PixButton gearBtn { "GEAR: NONE" }, controlsBtn { "ALL CONTROLS...", true };
+    AkaiPanel& akai() { return *akaiPanel; }   // (the S1000 editor)
 
 private:
     std::unique_ptr<PixButton> paramBtn[kInstrumentKnobs];
+    std::unique_ptr<AkaiPanel> akaiPanel;
+    juce::String akaiStatus;
     bool controlsOpen = false;
     int controlsGroup = 0;
     std::vector<std::unique_ptr<PixButton>> groupBtns;
