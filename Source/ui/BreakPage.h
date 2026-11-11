@@ -43,6 +43,11 @@ public:
     void rebuildAs (int i);              // CLASSIC '94, ROLLER, TWO-STEP, HALF-STEP
     int  variations();                   // 4 new blocks after the current one; how many
     void setKind (int slice, HitKind);   // (right-click a slice)
+    // BREAK LAB: EDIT ME writes a new jungle edit of the break on the track (STYLE, WILD); MUTATE changes a few things
+    int  labStyle = 0, labWild = 50;
+    LabReport editMe();
+    LabReport mutate();
+    void setLabStyle (int s);
     juce::Rectangle<float> waveRect() const { return waveArea; }
     int  sliceAt (float x) const;
     // THE MARKERS (where each slice starts): drag one to move it, double-click the wave to add one,
@@ -62,6 +67,7 @@ public:
     PixButton shuffleBtn { "SHUFFLE" }, ghostBtn { "GHOST ROLL" }, halfBtn { "HALF-TIME" }, doubleBtn { "DOUBLE-TIME" };
     PixButton rebuildBtns[kRebuilds] { PixButton { "CLASSIC '94" }, PixButton { "ROLLER" }, PixButton { "TWO-STEP" }, PixButton { "HALF-STEP" } };
     PixButton variationsBtn { "4 VARIATIONS" }, fillBtn { "FILL", true };
+    PixButton styleBtn { "'94 ROLLERS" }, wildDown { "-" }, wildUp { "+" }, editMeBtn { "EDIT ME" }, mutateBtn { "MUTATE" };
 
 private:
     PaulaProcessor& proc;
@@ -70,6 +76,8 @@ private:
     std::vector<HitKind> kindCache;
     std::vector<int> kindSlices;         // (the slices they were worked out for)
     int kindIns = -1;
+    uint32_t labSeed = 1;
+    juce::Rectangle<float> labLabel, wildArea;
     juce::Rectangle<float> titleArea, insArea, sliceLabel, sensArea, barsArea, waveArea, trackArea, reLabel, rbLabel, gridArea, gridTitle;
     void status (const juce::String& s) { if (onStatus) onStatus (s); }
     void changed() { repaint(); if (onChanged) onChanged(); }

@@ -4893,6 +4893,104 @@ static void testScopes()
 }
 
 // ---- the BREAK page: which slices are kicks, snares, hats; the re-edits
+// ---- BREAK LAB: edits written for you
+static void testBreakLab()
+{
+    std::printf ("\n== BREAK LAB\n");
+    std::vector<HitKind> kinds;
+    for (char c : std::string ("KHSHKKSHKHSHKHSS")) kinds.push_back (c == 'K' ? HitKind::Kick : c == 'S' ? HitKind::Snare : HitKind::Hat);
+    auto same = [] (const Block& a, const Block& b, int track, int lines)
+    {
+        int d = 0;
+        for (int l = 0; l < lines; ++l) if (! (const_cast<Block&> (a).at (l, track) == const_cast<Block&> (b).at (l, track))) ++d;
+        return d;
+    };
+    auto valid = [&] (Block& b, int track, int lines, int ins)
+    {
+        for (int l = 0; l < lines; ++l)
+        {
+            const auto& c = b.at (l, track);
+            if (c.note == 0) { if (c.instr != 0) return false; continue; }
+            const int sl = (int) c.note - kSliceC3;
+            if (sl < 0 || sl >= (int) kinds.size() || c.instr != ins + 1) return false;
+            if (c.cmd == 0x0C && c.param > 0x40) return false;
+        }
+        for (int l = lines; l < b.lines; ++l) if (! b.at (l, track).isEmpty()) return false;
+        return true;
+    };
+    for (int style = 0; style < kLabStyles; ++style)
+    {
+        int rolls = 0, revs = 0, drops = 0, ghosts = 0, stut = 0;
+        for (uint32_t seed = 1; seed <= 12; ++seed)
+        {
+            Block b; b.lines = 64;
+            const auto r = breakLab (b, 1, 2, kinds, 64, 2, style, 100, seed);
+            CHECK (valid (b, 1, 64, 2) && r.notes >= 5);
+            CHECK (b.at (0, 1).note == kSliceC3 + 0 || kinds[(size_t) (b.at (0, 1).note - kSliceC3)] == HitKind::Kick);   // it starts on a kick
+            for (int t = 0; t < kMaxTracks; ++t) if (t != 1) for (int l = 0; l < 64; ++l) CHECK (b.at (l, t).isEmpty());   // (its own track only)
+            rolls += r.rolls; revs += r.reverses; drops += r.drops; ghosts += r.ghosts; stut += r.stutters;
+            if (seed == 1) std::printf ("%-13s WILD 100: %s\n", labStyleName (style), r.text().c_str());
+        }
+        std::printf ("  12 edits: %d rolls, %d reverses, %d drops, %d ghosts, %d stutters\n", rolls, revs, drops, ghosts, stut);
+        CHECK (rolls > 0 && revs > 0 && drops > 0 && rolls + revs + drops + ghosts + stut >= 30);
+        // WILD 0: the groove alone, no frills
+        Block z; z.lines = 64;
+        const auto r0 = breakLab (z, 1, 2, kinds, 64, 2, style, 0, 5);
+        CHECK (r0.rolls == 0 && r0.reverses == 0 && r0.drops == 0 && r0.ghosts == 0 && r0.stutters == 0 && r0.halfBars == 0 && r0.notes >= 6);
+    }
+    // the same seed, the same edit; another seed, another edit
+    {
+        Block a, b, c; a.lines = b.lines = c.lines = 64;
+        breakLab (a, 0, 0, kinds, 64, 2, 0, 60, 77);
+        breakLab (b, 0, 0, kinds, 64, 2, 0, 60, 77);
+        breakLab (c, 0, 0, kinds, 64, 2, 0, 60, 78);
+        CHECK (same (a, b, 0, 64) == 0 && same (a, c, 0, 64) > 0);
+    }
+    // the drill'n'bass style is wilder than techstep (more edits a bar, on average)
+    {
+        int tech = 0, drill = 0;
+        for (uint32_t seed = 1; seed <= 20; ++seed)
+        {
+            Block a, b; a.lines = b.lines = 64;
+            const auto x = breakLab (a, 0, 0, kinds, 64, 2, 1, 70, seed), y = breakLab (b, 0, 0, kinds, 64, 2, 3, 70, seed);
+            tech += x.rolls + x.stutters + x.reverses; drill += y.rolls + y.stutters + y.reverses;
+        }
+        std::printf ("rolls + stutters + reverses over 20: TECHSTEP %d, DRILL'N'BASS %d\n", tech, drill);
+        CHECK (drill > tech * 2);
+    }
+    // MUTATE: a few changes, the rest kept; wilder, more changes
+    {
+        int calm = 0, wild = 0;
+        for (uint32_t seed = 1; seed <= 10; ++seed)
+        {
+            Block a; a.lines = 64;
+            breakLab (a, 0, 0, kinds, 64, 2, 0, 50, seed);
+            Block m = a;
+            const auto r = mutateBreak (m, 0, 0, kinds, 64, 2, 0, 20, seed + 100);
+            const int d = same (a, m, 0, 64);
+            CHECK (r.changes >= 1 && d >= 1 && d <= r.changes * 6 && valid (m, 0, 64, 0));
+            calm += r.changes;
+            Block m2 = a;
+            wild += mutateBreak (m2, 0, 0, kinds, 64, 2, 0, 100, seed + 100).changes;
+            if (seed == 1) std::printf ("MUTATE (WILD 20): %s - %d lines differ\n", r.text().c_str(), d);
+        }
+        std::printf ("MUTATE changes over 10: WILD 20 %d, WILD 100 %d\n", calm, wild);
+        CHECK (wild > calm);
+        // on an empty track it writes a whole edit
+        Block e; e.lines = 32;
+        CHECK (mutateBreak (e, 0, 0, kinds, 32, 1, 2, 50, 3).notes > 4);
+    }
+    // a break with no hats or snares found (all OTHER): still an edit, from stand-in slices
+    {
+        std::vector<HitKind> other (8, HitKind::Other);
+        Block b; b.lines = 16;
+        const auto r = breakLab (b, 0, 0, other, 16, 1, 2, 80, 9);
+        bool ok = r.notes > 3;
+        for (int l = 0; l < 16; ++l) if (b.at (l, 0).note > 0) ok = ok && b.at (l, 0).note - kSliceC3 < 8;
+        CHECK (ok);
+    }
+}
+
 static void testBreakTools()
 {
     std::printf ("\n== break tools\n");
@@ -5064,6 +5162,7 @@ int main()
     testDoubleHalve();
     testScopes();
     testBreakTools();
+    testBreakLab();
     testStretchSync();
     testConditions();
     testLineLoop();

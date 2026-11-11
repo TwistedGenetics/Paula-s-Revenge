@@ -227,4 +227,312 @@ int chopToPhrase (Song& s, int ins, int division, double lineSec)
     in.phrases.push_back (p);
     return (int) in.phrases.size() - 1;
 }
+
+// ============================================================================ BREAK LAB
+namespace
+{
+    struct LabRng
+    {
+        uint32_t s;
+        explicit LabRng (uint32_t seed) : s (seed * 2654435761u + 0x9E3779B9u) { next(); }
+        uint32_t next() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
+        float uni() { return (float) (next() >> 8) / 16777216.0f; }          // 0..1
+        int   pick (int n) { return n <= 1 ? 0 : (int) (next() % (uint32_t) n); }
+        bool  chance (float p) { return uni() < p; }
+    };
+
+    // per style: bar grooves to choose from (16 steps: K S H G .), and how much of each edit it likes (x WILD)
+    struct LabStyle
+    {
+        std::vector<const char*> grooves;
+        float ghost, roll, reverse, drop, stutter, cut, gap, half, swing;
+        int   rollSpeed[2];   // Rxy x: the retrigger ticks it picks from (at speed 6: 3 = 32nds, 2 = triplet 32nds, 1 = a buzz)
+    };
+    const LabStyle& labStyle (int style)
+    {
+        //                                   1...2...3...4...
+        static const LabStyle st[kLabStyles] = {
+            // '94 ROLLERS: busy, rolling, plenty of ghosts and hats pushed a touch late
+            { { "K.H.S.HKK.HKS.HG", "K.HKS.HG.KK.S.HS", "K.H.S.HK.KHKS.HG", "K.HGS.HKK.H.S.KG" },
+              0.9f, 0.5f, 0.25f, 0.2f, 0.25f, 0.1f, 0.3f, 0.1f, 0.6f, { 3, 2 } },
+            // '96 TECHSTEP: tight and sparse, the kick skipping, hats cut short, few frills
+            { { "K......KS.......", "K..K....S..K....", "K.....K.S..H..K.", "K......KS....K.G" },
+              0.35f, 0.25f, 0.2f, 0.35f, 0.15f, 0.8f, 0.45f, 0.25f, 0.0f, { 3, 3 } },
+            // AMEN CHOPS: the amen cut up - reversed snares, pitched-down hits, stutters
+            { { "K.HKS.HG.KK.S.HS", "K.H.S.HKS.HKK.HS", "K.HKS.H.SKK.S.HG", "KKH.S.HGK.HKS.SS" },
+              0.6f, 0.45f, 0.6f, 0.5f, 0.5f, 0.2f, 0.35f, 0.15f, 0.3f, { 3, 2 } },
+            // DRILL'N'BASS: chaos - buzzing rolls, stutters, pitch everywhere, hits moved about
+            { { "KSHKSGHSKKSHGSKS", "K.SSHKGSKSHHSKGS", "KKSGSHSKGKSSHKSG", "SKHGKSSKHGSKKSHS" },
+              0.7f, 1.0f, 0.6f, 0.8f, 0.9f, 0.4f, 0.3f, 0.2f, 0.4f, { 2, 1 } } };
+        return st[std::clamp (style, 0, kLabStyles - 1)];
+    }
+
+    int lineOf (int step, int steps, int lines) { return (int) ((long long) step * lines / steps); }
+    bool isHit (const Cell& c) { return c.note > 0 && c.note != kNoteOff; }
+    int  sliceOfNote (const Cell& c) { return (int) c.note - kSliceC3; }
+    HitKind kindOfCell (const Cell& c, const std::vector<HitKind>& kinds)
+    {
+        const int s = sliceOfNote (c);
+        return s >= 0 && s < (int) kinds.size() ? kinds[(size_t) s] : HitKind::Other;
+    }
+    // a command in a free effect column (the first, else the second); false if both are taken
+    bool addCmd (Cell& c, uint8_t cmd, uint8_t param)
+    {
+        if (c.fx1Empty()) { c.cmd = cmd; c.param = param; return true; }
+        if (c.cmd == cmd) { c.param = param; return true; }
+        if (c.fx2Empty()) { c.cmd2 = cmd; c.param2 = param; return true; }
+        if (c.cmd2 == cmd) { c.param2 = param; return true; }
+        return false;
+    }
+    bool hasCmd (const Cell& c, uint8_t cmd) { uint8_t p; return c.has (cmd, p); }
+
+    const uint8_t kR = cmdLetter ('R'), kU = cmdLetter ('U'), kI = cmdLetter ('I'), kM = cmdLetter ('M'), kE = 0x0E, kC = 0x0C;
+
+    // the edits, each on one step of one bar (they say whether they did anything)
+    bool edGhost (Block& b, int track, int ins, const std::vector<HitKind>& kinds, int line, LabRng& r)
+    {
+        if (isHit (b.at (line, track))) return false;
+        put (b, line, track, ins, sliceFor (kinds, HitKind::Snare, 1 + r.pick (3)), 0x0C + r.pick (0x0C));
+        return true;
+    }
+    bool edRoll (Block& b, int track, const LabStyle& st, int line, LabRng& r)
+    {
+        auto& c = b.at (line, track);
+        if (! isHit (c) || hasCmd (c, kR)) return false;
+        const int x = st.rollSpeed[r.pick (2)];
+        const int y = r.chance (0.6f) ? 0x0A + r.pick (4) : 0;   // mostly getting louder
+        return addCmd (c, kR, (uint8_t) (x * 16 + y));
+    }
+    bool edReverse (Block& b, int track, int line)
+    {
+        auto& c = b.at (line, track);
+        if (! isHit (c) || hasCmd (c, kU)) return false;
+        return addCmd (c, kU, 0x01);
+    }
+    bool edDrop (Block& b, int track, int line, LabRng& r)
+    {
+        auto& c = b.at (line, track);
+        if (! isHit (c) || hasCmd (c, kI)) return false;
+        static const int semis[] = { -12, -7, -5, -3, -2, 5, 7 };
+        return addCmd (c, kI, (uint8_t) (0x80 + semis[r.pick (r.chance (0.8f) ? 5 : 7)]));
+    }
+    // the hit again on the lines after it, cut short (ECx), quieter each time
+    int edStutter (Block& b, int track, int line, int stepLines, int upTo, LabRng& r)
+    {
+        const Cell src = b.at (line, track);
+        if (! isHit (src)) return 0;
+        const int reps = 2 + r.pick (3);
+        const int gap = std::max (1, stepLines / (r.chance (0.5f) ? 2 : 1));
+        int n = 0;
+        for (int k = 1; k <= reps; ++k)
+        {
+            const int l = line + k * gap;
+            if (l >= upTo) break;
+            Cell c {}; c.note = src.note; c.instr = src.instr;
+            c.cmd = kC; c.param = (uint8_t) std::max (0x10, 0x40 - k * 0x0A);
+            c.cmd2 = kE; c.param2 = (uint8_t) (0xC0 + 2 + r.pick (2));   // cut at tick 2-3
+            b.at (l, track) = c; ++n;
+        }
+        return n;
+    }
+    bool edCut (Block& b, int track, int line, LabRng& r)
+    {
+        auto& c = b.at (line, track);
+        if (! isHit (c) || hasCmd (c, kE)) return false;
+        return addCmd (c, kE, (uint8_t) (0xC0 + 2 + r.pick (3)));
+    }
+    bool edSwing (Block& b, int track, int line, LabRng& r)
+    {
+        auto& c = b.at (line, track);
+        if (! isHit (c) || hasCmd (c, kM)) return false;
+        return addCmd (c, kM, (uint8_t) (0x06 + r.pick (0x0C)));   // a touch late
+    }
+
+    // one bar of the groove (bar `bar` of `bars`, its lines from..to), written fresh
+    void writeGroove (Block& b, int track, int ins, const std::vector<HitKind>& kinds, const char* tmpl, int bar, int steps, int lines, int pick)
+    {
+        for (int s = 0; s < 16; ++s)
+        {
+            const char c = tmpl[s];
+            const int step = bar * 16 + s;
+            const int line = lineOf (step, steps, lines);
+            if (line >= lines) break;
+            switch (c)
+            {
+                case 'K': put (b, line, track, ins, sliceFor (kinds, HitKind::Kick, pick + bar)); break;
+                case 'S': put (b, line, track, ins, sliceFor (kinds, HitKind::Snare, pick + bar)); break;
+                case 'H': put (b, line, track, ins, sliceFor (kinds, HitKind::Hat, pick + s)); break;
+                case 'G': put (b, line, track, ins, sliceFor (kinds, HitKind::Snare, pick + 1), 0x14); break;
+                default: break;
+            }
+        }
+    }
+
+    // the edits over one bar, as many as the style and WILD ask for; `fill`: the bar before a phrase ends
+    void editBar (Block& b, int track, int ins, const std::vector<HitKind>& kinds, const LabStyle& st, float w,
+                  int bar, int steps, int lines, bool fill, LabRng& r, LabReport& rep)
+    {
+        const int stepLines = std::max (1, lines / steps);
+        const int from = lineOf (bar * 16, steps, lines), to = std::min (lines, lineOf ((bar + 1) * 16, steps, lines));
+        const float boost = fill ? 1.8f : 1.0f;
+        for (int s = 0; s < 16; ++s)
+        {
+            const int line = lineOf (bar * 16 + s, steps, lines);
+            if (line >= to) break;
+            const auto& c = b.at (line, track);
+            const HitKind k = isHit (c) ? kindOfCell (c, kinds) : HitKind::Other;
+            const bool off = (s % 2) == 1;
+            if (! isHit (c))
+            {
+                if (off && r.chance (st.ghost * w * 0.35f) && edGhost (b, track, ins, kinds, line, r)) ++rep.ghosts;
+                continue;
+            }
+            if (k == HitKind::Snare && s >= 8 && r.chance (st.roll * w * 0.3f * boost) && edRoll (b, track, st, line, r)) ++rep.rolls;
+            else if (k != HitKind::Kick && r.chance (st.reverse * w * 0.15f * boost) && edReverse (b, track, line)) ++rep.reverses;
+            if (r.chance (st.drop * w * 0.12f * boost) && edDrop (b, track, line, r)) ++rep.drops;
+            if (k == HitKind::Hat && r.chance (st.cut * 0.6f) && edCut (b, track, line, r)) ++rep.cuts;
+            if (k == HitKind::Hat && off && r.chance (st.swing * 0.5f) && edSwing (b, track, line, r)) { /* (feel, not counted) */ }
+            if (s >= 10 && r.chance (st.stutter * w * 0.12f * boost))
+            {
+                const int n = edStutter (b, track, line, stepLines, to, r);
+                if (n > 0) { ++rep.stutters; s += 3; }   // (past what it wrote over)
+            }
+        }
+        // the gap before the drop: the last two steps of a phrase's last bar left empty
+        if (fill && r.chance (st.gap * (0.4f + w * 0.6f)))
+        {
+            for (int s = 14; s < 16; ++s)
+            {
+                const int line = lineOf (bar * 16 + s, steps, lines);
+                for (int l = line; l < std::min (to, lineOf (bar * 16 + s + 1, steps, lines)); ++l) b.at (l, track) = Cell {};
+            }
+            ++rep.gaps;
+        }
+        (void) from;
+    }
+    // a bar as half-time: its first half spread over all of it
+    void halfBar (Block& b, int track, int bar, int steps, int lines)
+    {
+        const int from = lineOf (bar * 16, steps, lines), to = std::min (lines, lineOf ((bar + 1) * 16, steps, lines));
+        std::vector<Cell> src;
+        for (int l = from; l < to; ++l) src.push_back (b.at (l, track));
+        for (int l = from; l < to; ++l) b.at (l, track) = Cell {};
+        for (int k = 0; from + k * 2 < to && k < (int) src.size(); ++k) b.at (from + k * 2, track) = src[(size_t) k];
+    }
+    int countHits (const Block& b, int track, int lines)
+    {
+        int n = 0;
+        for (int l = 0; l < lines; ++l) n += isHit (const_cast<Block&> (b).at (l, track)) ? 1 : 0;
+        return n;
+    }
+}
+
+const char* labStyleName (int style)
+{
+    static const char* n[kLabStyles] = { "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS" };
+    return n[std::clamp (style, 0, kLabStyles - 1)];
+}
+
+std::string LabReport::text() const
+{
+    std::string t;
+    auto add = [&] (int n, const char* one, const char* many) { if (n <= 0) return; if (! t.empty()) t += ", "; t += std::to_string (n) + " " + (n == 1 ? one : many); };
+    add (ghosts, "GHOST", "GHOSTS"); add (rolls, "ROLL", "ROLLS"); add (reverses, "REVERSE", "REVERSES");
+    add (drops, "PITCH DROP", "PITCH DROPS"); add (stutters, "STUTTER", "STUTTERS"); add (cuts, "CUT", "CUTS");
+    add (gaps, "GAP", "GAPS"); add (halfBars, "HALF-TIME BAR", "HALF-TIME BARS");
+    const std::string head = changes > 0 ? std::to_string (changes) + (changes == 1 ? " CHANGE" : " CHANGES")
+                                         : std::to_string (notes) + " HITS";
+    return t.empty() ? head : head + ": " + t;
+}
+
+LabReport breakLab (Block& b, int track, int ins, const std::vector<HitKind>& kinds, int lines, int bars, int style, int wild, uint32_t seed)
+{
+    LabReport rep;
+    if (track < 0 || track >= kMaxTracks) return rep;
+    lines = std::clamp (lines, 1, b.lines);
+    bars = std::max (1, bars);
+    const int steps = 16 * bars;
+    const auto& st = labStyle (style);
+    const float w = std::clamp (wild, 0, 100) / 100.0f;
+    LabRng r (seed);
+    clearTrack (b, track, lines);
+    const int pick = r.pick (4);
+    // the groove: a bar from the style each bar (the first bar the style's own; wilder, more of them mixed)
+    for (int bar = 0; bar < bars; ++bar)
+    {
+        const int g = bar == 0 ? r.pick (2) : (r.chance (0.3f + w * 0.6f) ? r.pick ((int) st.grooves.size()) : 0);
+        writeGroove (b, track, ins, kinds, st.grooves[(size_t) g], bar, steps, lines, pick);
+    }
+    // a half-time bar now and then (never the first)
+    for (int bar = 1; bar < bars; ++bar)
+        if (r.chance (st.half * w * 0.5f)) { halfBar (b, track, bar, steps, lines); ++rep.halfBars; }
+    // the edits: the last bar of every 2 (and the very last bar) is a fill
+    for (int bar = 0; bar < bars; ++bar)
+        editBar (b, track, ins, kinds, st, w, bar, steps, lines, bar == bars - 1 || (bar % 2) == 1, r, rep);
+    // with only one bar, still something to hear at WILD > 0
+    if (w > 0.0f && rep.ghosts + rep.rolls + rep.reverses + rep.drops + rep.stutters == 0)
+    {
+        for (int s = 15; s >= 8; --s)
+        {
+            const int line = lineOf ((bars - 1) * 16 + s, steps, lines);
+            if (line < lines && isHit (b.at (line, track)) && edRoll (b, track, st, line, r)) { ++rep.rolls; break; }
+        }
+    }
+    rep.notes = countHits (b, track, lines);
+    return rep;
+}
+
+LabReport mutateBreak (Block& b, int track, int ins, const std::vector<HitKind>& kinds, int lines, int bars, int style, int wild, uint32_t seed)
+{
+    LabReport rep;
+    if (track < 0 || track >= kMaxTracks) return rep;
+    lines = std::clamp (lines, 1, b.lines);
+    bars = std::max (1, bars);
+    const int steps = 16 * bars;
+    const auto& st = labStyle (style);
+    const float w = std::clamp (wild, 0, 100) / 100.0f;
+    LabRng r (seed);
+    if (countHits (b, track, lines) == 0) return breakLab (b, track, ins, kinds, lines, bars, style, wild, seed);
+    const int wanted = 1 + (int) std::lround (w * 4.0f) + r.pick (2);
+    int tries = 0;
+    while (rep.changes < wanted && ++tries < 200)
+    {
+        const int bar = r.pick (bars), s = r.pick (16);
+        const int line = lineOf (bar * 16 + s, steps, lines);
+        if (line >= lines) continue;
+        auto& c = b.at (line, track);
+        bool done = false;
+        switch (r.pick (8))
+        {
+            case 0: done = edGhost (b, track, ins, kinds, line, r); if (done) ++rep.ghosts; break;
+            case 1: done = edRoll (b, track, st, line, r); if (done) ++rep.rolls; break;
+            case 2: done = edReverse (b, track, line); if (done) ++rep.reverses; break;
+            case 3: done = edDrop (b, track, line, r); if (done) ++rep.drops; break;
+            case 4: { const int to = std::min (lines, lineOf ((bar + 1) * 16, steps, lines));
+                      done = edStutter (b, track, line, std::max (1, lines / steps), to, r) > 0; if (done) ++rep.stutters; } break;
+            case 5:   // another hit of the same kind
+                if (isHit (c))
+                {
+                    const HitKind k = kindOfCell (c, kinds);
+                    const int ns = sliceFor (kinds, k == HitKind::Other ? HitKind::Hat : k, r.pick (8));
+                    if (ns != sliceOfNote (c)) { c.note = (uint8_t) std::min ((int) kNoteMax, kSliceC3 + ns); done = true; }
+                }
+                break;
+            case 6:   // a hit moves a step (to an empty one)
+                if (isHit (c))
+                {
+                    const int dir = r.chance (0.5f) ? 1 : -1;
+                    const int nl = lineOf (bar * 16 + std::clamp (s + dir, 0, 15), steps, lines);
+                    if (nl != line && nl >= 0 && nl < lines && ! isHit (b.at (nl, track))) { b.at (nl, track) = c; c = Cell {}; done = true; }
+                }
+                break;
+            default:  // a hit taken out (not the first kick)
+                if (isHit (c) && line > 0 && kindOfCell (c, kinds) != HitKind::Kick) { c = Cell {}; done = true; }
+                break;
+        }
+        if (done) ++rep.changes;
+    }
+    rep.notes = countHits (b, track, lines);
+    return rep;
+}
 } // namespace prv

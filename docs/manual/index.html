@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.60</span>
+  <span class="ver">MANUAL &middot; V0.61</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -569,11 +569,16 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>. <span class="b">TO PHRASE</span>: the slices into a new phrase (see CHOP TO PHRASE).</li>
     <li><b>REBUILD</b> it from its own kicks, snares and hats, 16 steps a bar: <span class="b">CLASSIC '94</span> (the cut-up amen &mdash; kick pushed, a ghost snare before the second half, a snare on the last 16th), <span class="b">ROLLER</span>, <span class="b">TWO-STEP</span>, <span class="b">HALF-STEP</span>. Ghost snares go in quiet, as <code>C14</code>.</li>
     <li><span class="b">4 VARIATIONS</span> makes four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll.</li>
+    <li><b>BREAK LAB</b> (the <b>LAB</b> row) writes jungle edits for you on the break's track. <b>STYLE</b> (click for the next): <span class="b">'94 ROLLERS</span> (busy, rolling, ghost snares, hats a touch late), <span class="b">'96 TECHSTEP</span> (tight and sparse, the kick skipping, hats cut short), <span class="b">AMEN CHOPS</span> (reversed snares, pitched-down hits, stutters), <span class="b">DRILL'N'BASS</span> (buzzing rolls, stutters, pitch everywhere). <b>WILD</b> &minus; / + sets how many edits (0 = just the groove). <span class="b">EDIT ME</span> writes a whole new edit &mdash; a groove from the style, then ghost snares, rolls (<code>Rxy</code>), reversed hits (<code>U01</code>), pitch drops (<code>Ixx</code>), stutters cut short (<code>ECx</code>), a gap before the drop, now and then a half-time bar, with every second bar a fill. Press it again for another. <span class="b">MUTATE</span> changes a few things and keeps the rest, so an edit can evolve. In the grid an edited hit shows its edits: <b>R</b> roll, <b>&lt;</b> reversed, <b>P</b> pitched, <b>X</b> cut short. It's all ordinary notes and commands, every press one undo step.</li>
     <li>The grid at the bottom is the block's track, a bar (16 lines) a row, each note tinted by kind with its slice number; it lights the line that's playing. Every change is one undo step.</li>
   </ul>
   <figure>
     <div class="frame sunken"><img src="img/break_markers.png" alt="The BREAK page with a marker just added between slices 3 and 4, drawn as a thick white line with a grip at the top; the slices after it renumbered." width="1440" height="900" loading="lazy"></div>
     <figcaption>A marker added with a double-click (the picked marker is the thick white line)</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/breaklab.png" alt="The BREAK page after BREAK LAB's EDIT ME in the DRILL'N'BASS style: the LAB row with STYLE, WILD 100, EDIT ME and MUTATE, and the grid of the block full of rolls, reversed and pitched hits." width="1440" height="900" loading="lazy"></div>
+    <figcaption>BREAK LAB: DRILL'N'BASS at WILD 100</figcaption>
   </figure>
   <figure>
     <div class="frame sunken"><img src="img/break_page.png" alt="The BREAK page: a 16-hit break with its slices tagged K, H and S in red, blue and orange; the slicing, MAKE BLOCK, RE-EDIT and REBUILD buttons; and the grid of the block rebuilt as CLASSIC '94, four bars of coloured kick, snare and hat steps." width="1440" height="900" loading="lazy"></div>
@@ -1259,7 +1264,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.60</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.61</footer>
 </main>
 </div>
 <script>

@@ -445,6 +445,13 @@ A short block can play differently each time round, like the conditional steps o
 * **RE-EDIT** the chopped break: **SHUFFLE** (the rhythm stays, which slice plays changes; again for another), **GHOST ROLL** (the last quarter becomes a snare roll, quiet to loud), **HALF-TIME**, **DOUBLE-TIME**. **TO PHRASE**: the break's slices into a new phrase of the instrument, each hit a note (see CHOP TO PHRASE).
 * **REBUILD** it from its own kicks, snares and hats, 16 steps a bar: **CLASSIC '94** (the cut-up amen: the kick pushed, a ghost snare before the second half, a snare on the last 16th), **ROLLER**, **TWO-STEP**, **HALF-STEP**. Ghost snares go in quiet (`C14`).
 * **4 VARIATIONS**: four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll - the makings of an arrangement in one click.
+* **BREAK LAB** (the **LAB** row): jungle edits written for you, on the track the break is on.
+  * **STYLE** (click it for the next one): **'94 ROLLERS** (busy and rolling, lots of ghost snares, hats pushed a touch late), **'96 TECHSTEP** (tight and sparse, the kick skipping, hats cut short), **AMEN CHOPS** (the amen cut up: reversed snares, pitched-down hits, stutters), **DRILL'N'BASS** (chaos: buzzing rolls, stutters, pitch everywhere).
+  * **WILD** `-` / `+`: how many edits (0 = just the groove, 100 = everything).
+  * **EDIT ME**: a whole new edit of the break - a groove from the STYLE, then ghost snares, rolls (`Rxy`), reversed hits (`U01`), pitch drops (`Ixx`), stutters (the hit again, cut short with `ECx`), hats cut short, a gap before the drop, now and then a half-time bar. Every 2nd bar (and the last) is a fill, so it gets busier going into the next phrase. Press it again for another; each is different.
+  * **MUTATE**: changes a few things about what's there (more the wilder) - a ghost added, a roll, a reverse, a hit swapped for another of its kind, moved a step, or taken out - and keeps the rest. Press it a few times to let the edit evolve.
+  * In the grid at the bottom, an edited hit shows its edits after it: **R** a roll, **<** reversed, **P** pitched, **X** cut short.
+  * It's all ordinary notes and commands in the pattern, so every hit can be changed afterwards, and each press is one undo step.
 * The grid at the bottom is the block's track, 16 lines a row (a bar), each note tinted by kind with its slice number. Everything is one undo step.
 
 ## Slicing

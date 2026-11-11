@@ -4,6 +4,7 @@
 
 #include "Song.h"
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace prv
@@ -43,4 +44,20 @@ const char* rebuildTemplate (int i);
 // plays the chopped break as it is. lineSec: a line at the song's tempo (to find how many bars it is).
 // Returns the new phrase's index (-1: no sample, or 16 phrases already).
 int chopToPhrase (Song&, int instrument, int division, double lineSec);
+
+// ---- BREAK LAB: jungle edits written for you. EDIT ME writes a whole new edit of the chopped break on one track
+// of a block (its first `lines` lines, `bars` bars of 16 steps): a groove from the STYLE, then edits - ghost snares,
+// rolls (Rxy), reversed hits (U01), pitch drops (Ixx), stutters, cuts (ECx), a gap before the drop, a half-time
+// bar - as many as WILD (0..100) asks for. MUTATE changes a few things about what's there (more the wilder),
+// keeping the rest. Everything is ordinary notes and commands: every hit can be edited afterwards. The same seed
+// gives the same edit.
+constexpr int kLabStyles = 4;
+const char* labStyleName (int style);    // "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS"
+struct LabReport
+{
+    int notes = 0, ghosts = 0, rolls = 0, reverses = 0, drops = 0, stutters = 0, cuts = 0, gaps = 0, halfBars = 0, changes = 0;
+    std::string text() const;            // "14 HITS: 3 GHOSTS, 2 ROLLS, 1 REVERSE ..." (MUTATE: "3 CHANGES: ...")
+};
+LabReport breakLab (Block&, int track, int ins, const std::vector<HitKind>&, int lines, int bars, int style, int wild, uint32_t seed);
+LabReport mutateBreak (Block&, int track, int ins, const std::vector<HitKind>&, int lines, int bars, int style, int wild, uint32_t seed);
 } // namespace prv

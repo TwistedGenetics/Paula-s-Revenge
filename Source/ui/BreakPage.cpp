@@ -28,7 +28,8 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     setWantsKeyboardFocus (true);
     setOpaque (true);
     for (auto* b : { &closeBtn, &insDown, &insUp, &autoBtn, &evenBtn, &sensDown, &sensUp, &barsDown, &barsUp, &trackDown, &trackUp,
-                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn, &fillBtn })
+                     &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn, &fillBtn,
+                     &styleBtn, &wildDown, &wildUp, &editMeBtn, &mutateBtn })
         addAndMakeVisible (*b);
     for (auto& b : rebuildBtns) addAndMakeVisible (b);
     closeBtn.onClick = [this] { if (onClose) onClose(); };
@@ -56,6 +57,12 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     halfBtn.onClick    = [this] { reEdit (2); };
     doubleBtn.onClick  = [this] { reEdit (3); };
     for (int i = 0; i < kRebuilds; ++i) rebuildBtns[i].onClick = [this, i] { rebuildAs (i); };
+    // BREAK LAB
+    styleBtn.onClick = [this] { setLabStyle ((labStyle + 1) % kLabStyles); };
+    wildDown.onClick = [this] { labWild = std::max (0, labWild - 10); repaint(); };
+    wildUp.onClick   = [this] { labWild = std::min (100, labWild + 10); repaint(); };
+    editMeBtn.onClick = [this] { editMe(); };
+    mutateBtn.onClick = [this] { mutate(); };
     variationsBtn.onClick = [this] { variations(); };
 }
 
@@ -279,6 +286,54 @@ void BreakPage::rebuildAs (int i)
     });
     status (juce::String (rebuildName (i)) + ": REBUILT FROM ITS KICKS, SNARES AND HATS (" + juce::String (n) + " NOTES)");
     changed();
+}
+
+void BreakPage::setLabStyle (int s)
+{
+    labStyle = juce::jlimit (0, kLabStyles - 1, s);
+    styleBtn.setButtonText (labStyleName (labStyle));
+    status (juce::String ("BREAK LAB STYLE: ") + labStyleName (labStyle) + " - EDIT ME TO HEAR IT");
+    repaint();
+}
+
+LabReport BreakPage::editMe()
+{
+    LabReport rep;
+    const int ins = instrument();
+    if (! ensureSlices (ins)) return rep;
+    auto& st = proc.editorState;
+    const int blk = proc.song.safeBlock (st.block);
+    const auto& k = kinds();
+    proc.history.block (blk, juce::String ("BREAK LAB: EDIT ME (") + labStyleName (labStyle) + ")");
+    const uint32_t seed = labSeed++ * 7919u + (uint32_t) juce::Time::getMillisecondCounter();
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        rep = breakLab (b, st.track, ins, k, b.lines, std::max (1, b.lines / 16), labStyle, labWild, seed);
+    });
+    status (juce::String (labStyleName (labStyle)) + " (WILD " + juce::String (labWild) + "): " + juce::String (rep.text()) + " - EDIT ME AGAIN FOR ANOTHER, UNDO TO GO BACK");
+    changed();
+    return rep;
+}
+
+LabReport BreakPage::mutate()
+{
+    LabReport rep;
+    const int ins = instrument();
+    if (! ensureSlices (ins)) return rep;
+    auto& st = proc.editorState;
+    const int blk = proc.song.safeBlock (st.block);
+    const auto& k = kinds();
+    proc.history.block (blk, "BREAK LAB: MUTATE");
+    const uint32_t seed = labSeed++ * 104729u + (uint32_t) juce::Time::getMillisecondCounter();
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        rep = mutateBreak (b, st.track, ins, k, b.lines, std::max (1, b.lines / 16), labStyle, labWild, seed);
+    });
+    status ("MUTATE: " + juce::String (rep.text()) + " - AGAIN FOR MORE, UNDO TO GO BACK");
+    changed();
+    return rep;
 }
 
 int BreakPage::variations()
@@ -574,6 +629,16 @@ void BreakPage::resized()
     for (auto& b : rebuildBtns) { b.setBounds (row.removeFromLeft (charsW (b.getButtonText().length()))); row.removeFromLeft (gap); }
     row.removeFromLeft (gap * 3);
     variationsBtn.setBounds (row.removeFromLeft (charsW (12)));
+    // BREAK LAB
+    rows.removeFromTop (gap);
+    row = rows.removeFromTop (rowH);
+    labLabel = row.removeFromLeft (charsW (8)).toFloat();
+    styleBtn.setBounds (row.removeFromLeft (charsW (12))); row.removeFromLeft (gap * 3);
+    wildDown.setBounds (row.removeFromLeft (charsW (1)));
+    wildArea = row.removeFromLeft (charsW (9)).toFloat();
+    wildUp.setBounds (row.removeFromLeft (charsW (1))); row.removeFromLeft (gap * 3);
+    editMeBtn.setBounds (row.removeFromLeft (charsW (7))); row.removeFromLeft (gap);
+    mutateBtn.setBounds (row.removeFromLeft (charsW (6)));
     rows.removeFromTop (gap * 2);
     gridTitle = rows.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2)).toFloat();
     gridArea = rows.toFloat();
@@ -670,8 +735,16 @@ void BreakPage::paintGrid (juce::Graphics& g)
             const bool quiet = c.cmd == 0x0C && c.param < 0x20;
             g.setColour (col.withAlpha (quiet ? 0.35f : 0.75f));
             g.fillRect (cell.reduced (px * 0.5f));
-            const juce::String label = (s < (int) k.size() ? juce::String::charToString ((juce::juce_wchar) hitLetter (k[(size_t) s])) : juce::String()) + juce::String (s + 1);
-            if (PixelFont::textWidth (label, px) < cell.getWidth()) PixelFont::drawCentred (g, label, cell, px, sk.bg);
+            // its edits after it: R a roll, < reversed, P pitched, X cut short (BREAK LAB's, or yours)
+            juce::String edits;
+            uint8_t pv = 0;
+            if (c.has (cmdLetter ('R'), pv)) edits << "R";
+            if (c.has (cmdLetter ('U'), pv) && (pv & 1)) edits << "<";
+            if (c.has (cmdLetter ('I'), pv) && pv != 0x80) edits << "P";
+            if (c.has (0x0E, pv) && (pv >> 4) == 0x0C) edits << "X";
+            const juce::String kind = s < (int) k.size() ? juce::String::charToString ((juce::juce_wchar) hitLetter (k[(size_t) s])) : juce::String();
+            for (const auto& label : { kind + juce::String (s + 1) + edits, kind + edits, kind })
+                if (PixelFont::textWidth (label, px) < cell.getWidth()) { PixelFont::drawCentred (g, label, cell, px, sk.bg); break; }
         }
         else if (c.note > 0)
         {
@@ -701,6 +774,8 @@ void BreakPage::paint (juce::Graphics& g)
     PixelFont::drawCentred (g, "TRACK " + juce::String (track() + 1), trackArea, px, pal.ink);
     PixelFont::drawLeft (g, "RE-EDIT", reLabel, px, pal.ink);
     PixelFont::drawLeft (g, "REBUILD", rbLabel, px, pal.ink);
+    PixelFont::drawLeft (g, "LAB", labLabel, px, pal.ink);
+    PixelFont::drawCentred (g, "WILD " + juce::String (labWild), wildArea, px, pal.ink);
     paintWave (g);
     paintGrid (g);
 }
