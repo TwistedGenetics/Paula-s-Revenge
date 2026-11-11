@@ -6,13 +6,14 @@
 #include "engine/SongOps.h"
 #include "engine/CvOut.h"
 #include "engine/Groove.h"
+#include "engine/GearMaps.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 30;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx)
+    constexpr int kVersion = 31;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -498,6 +499,14 @@ juce::MemoryBlock writeSong (const Song& songIn)
             }
         }
     }
+    // v31: MIDI out GEAR (the knobs' CCs above can then be 128 + its parameter)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.midiGear != 0) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+            if (song.instruments[(size_t) i].midiGear != 0) { raw.writeByte ((char) i); raw.writeByte ((char) song.instruments[(size_t) i].midiGear); }
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -708,7 +717,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             ins.midiDevice.assign (dev.begin(), dev.end());
             ins.midiChannel = juce::jlimit (1, 16, in.readIntBigEndian());
             ins.midiDelayMs = juce::jlimit (-50, 200, in.readIntBigEndian());
-            for (int& c : ins.midiCC) c = juce::jlimit (0, 127, in.readIntBigEndian());
+            for (int& c : ins.midiCC) c = juce::jlimit (0, 383, in.readIntBigEndian());   // (128+: a GEAR parameter, v31)
         }
         if (! ok) { error = "The instrument settings part of this song is damaged."; return false; }
     }
@@ -1029,6 +1038,17 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                     if (p.block < (int) s.blocks.size() && (int) list.size() < kMaxPhrases) list.push_back (p);
                 }
                 if (i < kMaxInstruments) s.instruments[(size_t) i].phrases = std::move (list);
+            }
+        }
+        if (version >= 31 && ! in.isExhausted())
+        {
+            // v31: MIDI out GEAR
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                const int g = (int) (uint8_t) in.readByte();
+                if (i < kMaxInstruments) s.instruments[(size_t) i].midiGear = g <= gearCount() ? g : 0;
             }
         }
     }

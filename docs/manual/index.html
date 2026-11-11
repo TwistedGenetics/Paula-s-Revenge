@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.66</span>
+  <span class="ver">MANUAL &middot; V0.67</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1051,6 +1051,13 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     </tbody>
   </table></div>
   <p>Notes, velocity, pitch bend, the mod wheel and the timing commands work as for plug-in instruments. If the device isn't connected, the instrument shows <code>!NAME</code>, sends nothing and keeps its settings; <span class="b">CHANGE DEVICE...</span> and the same device again reconnects it. MIDI-out instruments aren't in renders or bounces (they're hardware).</p>
+  <h3>Gear: a synth's controls by name</h3>
+  <p><span class="b">GEAR</span> says what synth is on the other end: <b>MICROKORG 2</b>, <b>NTS-1 MKII</b>, or <b>NTS-1 MKII + ROLLERS</b>. The knobs then get that synth's usual four, and clicking a knob's name picks another control by part and name. Each is sent the way the synth wants it: CCs, the NTS-1's 14-bit pairs and TYPE switches, and Rollers' controls as NRPNs (switch on the NTS-1's MIDI RX SHORT MESSAGE, and MIDI NRPN for Rollers).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/gear_controls.png" alt="ALL CONTROLS for the NTS-1 mkII with Rollers: tabs ROLLERS, ROLLERS 2, OSC, FILTER, EG, TREMOLO, MOD FX, DELAY, REVERB, ARP, MASTER; under them bars for VOICES, DRIFT RATE, DRIVE, CRUNCH and MODE, each with its NRPN number." width="1440" height="900" loading="lazy"></div>
+    <figcaption>ALL CONTROLS: every control of the synth, a page per part</figcaption>
+  </figure>
+  <p><span class="b">ALL CONTROLS...</span> shows every control as a bar that sends as you move it. The numbers come from Korg's own documents. Units loaded into the microKORG 2 aren't in Korg's MIDI chart, so they're set on the synth.</p>
 </section>
 
 <!-- ============================================================ 011b -->
@@ -1330,7 +1337,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.66</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.67</footer>
 </main>
 </div>
 <script>

@@ -1,5 +1,6 @@
 // Paula's Revenge - an instrument that plays hardware over MIDI
 #include "MidiOut.h"
+#include "GearMaps.h"
 #include <algorithm>
 #include <cmath>
 
@@ -71,9 +72,28 @@ void MidiOutSynth::setParameterAt (int knob, float v, int offset)
 {
     if (knob < 0 || knob >= kInstrumentKnobs) return;
     const int value = std::clamp ((int) std::lround (v * 127.0f), 0, 127);
+    if (cc[knob] >= kGearKnobBase)
+    {
+        // a GEAR parameter: 14-bit and NRPN ones move in finer steps
+        const int fine = std::clamp ((int) std::lround (v * 16383.0f), 0, 16383);
+        if (fine == last14[knob]) return;
+        last14[knob] = fine; lastCc[knob] = value;
+        sendGear (cc[knob] - kGearKnobBase, v, offset);
+        return;
+    }
     if (value == lastCc[knob]) return;
     lastCc[knob] = value;
     controller (cc[knob], value, offset);
+}
+
+void MidiOutSynth::sendGear (int param, float v, int offset)
+{
+    const auto* map = gearMap (gear);
+    if (map == nullptr || param < 0 || param >= (int) map->params.size()) return;
+    uint8_t m[4][3];
+    const int n = gearMessages (map->params[(size_t) param], v, chan, m);
+    for (int k = 0; k < n; ++k) out (offset, m[k][0], m[k][1], m[k][2]);
+    usedChan[chan] = true;
 }
 
 void MidiOutSynth::render (float* left, float* right, int n)
@@ -88,9 +108,10 @@ void MidiOutSynth::update (const Instrument& in)
     chan = std::clamp (in.midiChannel - 1, 0, 15);
     for (int k = 0; k < kInstrumentKnobs; ++k)
     {
-        const int c = std::clamp (in.midiCC[k], 0, 127);
-        if (c != cc[k]) { cc[k] = c; lastCc[k] = -1; }
+        const int c = std::clamp (in.midiCC[k], 0, kGearKnobBase + 255);
+        if (c != cc[k] || in.midiGear != gear) { cc[k] = c; lastCc[k] = last14[k] = -1; }
     }
+    gear = in.midiGear;
     clockOn = in.midiClock;
     delayMs = std::max (0, in.midiDelayMs);   // (a negative delay makes the audio later instead)
 }

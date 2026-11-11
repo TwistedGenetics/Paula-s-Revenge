@@ -36,6 +36,7 @@ public:
     void render (float* left, float* right, int numSamples) override;
     void update (const Instrument&) override;
     void clock (int kind, double ppq, int offset) override;
+    void sendGear (int param, float value01, int offset);   // the GEAR's parameter (by its own messages)
 
     MidiSink* output() const { return sink.get(); }
     int channel() const { return chan; }
@@ -47,6 +48,8 @@ private:
     int chan = 0;                                  // 0..15
     int cc[kInstrumentKnobs] { 74, 71, 73, 10 };
     int lastCc[kInstrumentKnobs] { -1, -1, -1, -1 };
+    int gear = 0;
+    int last14[kInstrumentKnobs] { -1, -1, -1, -1 };
     bool clockOn = false;
     double delayMs = 0;
     int sounding[128] {};                          // note-ons not yet switched off

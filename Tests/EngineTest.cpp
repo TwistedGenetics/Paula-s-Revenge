@@ -6,6 +6,7 @@
 #include "engine/ReeseSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
+#include "engine/GearMaps.h"
 #include <set>
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
@@ -4913,6 +4914,70 @@ static void testLiveMode()
 }
 
 // ---- CRUNCH: a sample through an old sampler for good
+static void testGear()
+{
+    std::printf ("\n== GEAR\n");
+    CHECK (gearCount() == 3 && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (4) == nullptr);
+    auto find = [] (int id, const std::string& label) { const auto* m = gearMap (id); for (size_t i = 0; i < m->params.size(); ++i) if (m->params[i].label() == label) return (int) i; return -1; };
+    // the microKORG 2: plain CCs as its manual lists them
+    {
+        const auto* m = gearMap (1);
+        const auto& cut = m->params[(size_t) find (1, "FILTER: CUTOFF")];
+        CHECK (cut.how == GearSend::Cc && cut.num == 74 && m->params[(size_t) find (1, "AMP EG: ATTACK")].num == 73 && m->params[(size_t) find (1, "OSC 3: WAVE")].num == 48);
+        std::set<int> seen; bool dup = false;
+        for (const auto& p : m->params) { dup = dup || ! seen.insert (p.num).second; }
+        CHECK (! dup && m->params.size() >= 60);   // (no CC twice)
+        uint8_t out[4][3];
+        CHECK (gearMessages (cut, 1.0f, 2, out) == 1 && out[0][0] == 0xB2 && out[0][1] == 74 && out[0][2] == 127);
+    }
+    // the NTS-1 mkII: 14-bit pairs, MSB then LSB; the TYPE switches land on the chart's values
+    {
+        const auto& cut = gearMap (2)->params[(size_t) find (2, "FILTER: CUTOFF")];
+        uint8_t out[4][3];
+        CHECK (gearMessages (cut, 0.5f, 0, out) == 2 && out[0][1] == 43 && out[1][1] == 107);
+        const int x = out[0][2] * 128 + out[1][2];
+        CHECK (std::abs (x - 8192) <= 1);
+        const auto& ft = gearMap (2)->params[(size_t) find (2, "FILTER: TYPE")];
+        int vals[7];
+        for (int i = 0; i < 7; ++i) { gearMessages (ft, i / 6.0f, 0, out); vals[i] = out[0][2]; }
+        CHECK (vals[0] == 0 && vals[1] == 18 && vals[5] == 90 && vals[6] == 127);   // (0, 18, 36, 54, 72, 90, 127)
+        CHECK (gearStepValue (2, 5) == 50 && gearStepValue (4, 5) == 127 && gearStepValue (8, 9) == 127 && gearStepValue (1, 9) == 14);
+        CHECK (gearStepValue (3, 10) == 36 && gearStepValue (1, 6) == 21);   // (ARP PATTERN 0,12,24,36..; INTERVALS 0,21,42..)
+    }
+    // + ROLLERS: BLEND / DETUNE on OSC A / B, the rest as NRPN 0:0 - 0:7 (LSB of the value first, then its MSB)
+    {
+        const auto* m = gearMap (3);
+        CHECK (m->params[0].label() == "ROLLERS: BLEND" && m->params[0].num == 54 && m->params[1].label() == "ROLLERS: DETUNE" && m->params[1].num == 55);
+        const auto& drop = m->params[(size_t) find (3, "ROLLERS: PITCH DROP")];
+        uint8_t out[4][3];
+        CHECK (gearMessages (drop, 1.0f, 1, out) == 4);
+        CHECK (out[0][0] == 0xB1 && out[0][1] == 99 && out[0][2] == 0 && out[1][1] == 98 && out[1][2] == 1 && out[2][1] == 38 && out[2][2] == 127 && out[3][1] == 6 && out[3][2] == 127);
+        const auto& mode = m->params[(size_t) find (3, "ROLLERS 2: MODE")];
+        gearMessages (mode, 0.4f, 0, out);   // (4 positions: 0.4 is the second)
+        CHECK (out[1][2] == 7 && out[2][2] + out[3][2] * 128 == 5461);
+    }
+    // a MIDI-out instrument: a knob on a GEAR parameter sends that parameter's messages
+    {
+        std::vector<MidiEv> log;
+        MidiOutSynth synth (std::make_unique<FakeSink> (&log));
+        synth.prepare (48000, 512);
+        Instrument in; in.plugin = in.midiOut = true; in.midiChannel = 5; in.midiGear = 2;
+        in.midiCC[0] = kGearKnobBase + find (2, "FILTER: CUTOFF");
+        in.midiCC[1] = 71;
+        synth.update (in);
+        synth.setParameterAt (0, 0.25f, 0);
+        synth.setParameterAt (1, 0.5f, 0);
+        synth.setParameterAt (0, 0.25f, 0);   // (the same again: nothing)
+        CHECK (log.size() == 3 && log[0].m[0] == 0xB4 && log[0].m[1] == 43 && log[1].m[1] == 107 && log[2].m[1] == 71 && log[2].m[2] == 64);
+        synth.sendGear (find (2, "EG: TYPE"), 1.0f, 0);
+        CHECK (log.size() == 4 && log[3].m[1] == 14 && log[3].m[2] == 127);
+        // no GEAR: a knob on 128+ sends nothing
+        in.midiGear = 0; synth.update (in);
+        synth.setParameterAt (0, 0.8f, 0);
+        CHECK (log.size() == 4);
+    }
+}
+
 static void testDuckAndLowEnd()
 {
     std::printf ("\n== DUCK + LOW-END CHECK\n");
@@ -5564,6 +5629,7 @@ int main()
     testLiveMode();
     testCrunch();
     testDuckAndLowEnd();
+    testGear();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

@@ -1,0 +1,46 @@
+// Paula's Revenge - GEAR: a MIDI-out instrument can be told what's on the other end, and its controls are then
+// picked by name ("FILTER: CUTOFF") instead of by CC number, and sent the way that synth wants them: a plain CC,
+// a 14-bit CC pair (MSB then LSB), or an NRPN. The numbers come from Korg's own MIDI implementation documents
+// (the microKORG 2 Owner's Manual's MIDI chart; the NTS-1 mkII MIDI Implementation). Nothing is guessed: what
+// those documents don't give isn't here.
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace prv
+{
+enum class GearSend : uint8_t { Cc = 0, Cc14, Nrpn };
+
+struct GearParam
+{
+    std::string group, name;   // "FILTER", "CUTOFF"
+    GearSend how = GearSend::Cc;
+    int num = 0;               // CC: the CC (Cc14: the MSB's); NRPN: the parameter's MSB (CC 99)
+    int lsb = -1;              // Cc14: the LSB's CC; NRPN: the parameter's LSB (CC 98)
+    int steps = 0;             // 0: continuous; else a switch with this many positions
+    std::string label() const { return group + ": " + name; }
+    std::string where() const; // "CC 74", "CC 43+107", "NRPN 0:3"
+};
+
+struct GearMap
+{
+    std::string name;          // "MICROKORG 2"
+    std::string note;          // a line about it
+    std::vector<GearParam> params;
+    std::vector<std::string> groups() const;    // in order
+};
+
+constexpr int kGearNone = 0;
+constexpr int kGearKnobBase = 128;   // a knob's CC of 128 + n: the gear's parameter n
+int gearCount();                     // the maps (ids 1 .. gearCount())
+const GearMap* gearMap (int id);     // nullptr for 0 / out of range
+std::string gearName (int id);       // "NONE" for 0
+
+// the MIDI bytes that set a parameter to v (0..1) on channel 0..15: up to 4 three-byte messages
+// (a switch lands on its nearest position - the values the device's chart lists)
+int gearMessages (const GearParam&, float v01, int channel, uint8_t out[4][3]);
+// a switch's value for position i of n, as Korg's charts give them (0, 128 / n, 2 x 128 / n ... and 127 last)
+int gearStepValue (int i, int n);
+} // namespace prv

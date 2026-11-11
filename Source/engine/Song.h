@@ -261,7 +261,8 @@ struct Instrument
     std::string midiDevice;                 // the MIDI output's name
     int  midiChannel = 1;                   // 1..16
     int  midiDelayMs = 0;                   // -50..+200: later MIDI, or (negative) later audio
-    int  midiCC[kInstrumentKnobs] { 74, 71, 73, 10 };   // the CCs knobs L, Q, H, W send
+    int  midiCC[kInstrumentKnobs] { 74, 71, 73, 10 };   // the CCs knobs L, Q, H, W send (128 + n: the GEAR's parameter n)
+    int  midiGear = 0;                      // GEAR (GearMaps.h): the synth on the other end, its controls by name; 0 = NONE
     bool midiClock = false;                 // send MIDI clock and start / stop to the device
     bool isMidiOut() const { return plugin && midiOut; }
 

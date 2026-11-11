@@ -1,5 +1,6 @@
 // Paula's Revenge - a MIDI-out instrument's page
 #include "MidiOutPage.h"
+#include "ChoiceBox.h"
 
 namespace prv::ui
 {
@@ -67,13 +68,31 @@ MidiOutPage::MidiOutPage (PaulaProcessor& p) : proc (p)
         {
             // sends the CC straight away (and REC AUTO can record it)
             const int i = proc.editorState.instrument;
-            proc.withLock ([&] { if (auto* m = proc.midiAt (i)) m->setParameterAt (k, v, 0); });
+            proc.withLock ([&] { if (auto* m = proc.midiAt (i)) { m->update (inst()); m->setParameterAt (k, v, 0); } });   // (with the latest settings: a knob just given a new control)
         };
         learnCcBtn[k].onClick = [this, k] { learnCc (k); };
         addChildComponent (*ccBox[k]);
         addChildComponent (knobBar[k]);
         addChildComponent (learnCcBtn[k]);
     }
+    for (int k = 0; k < kInstrumentKnobs; ++k)
+    {
+        paramBtn[k] = std::make_unique<PixButton> ("BY NAME...");
+        paramBtn[k]->onClick = [this, k] { pickParam (k); };
+        addChildComponent (*paramBtn[k]);
+    }
+    gearBtn.onClick = [this]
+    {
+        if (! menuHook()) return;
+        juce::StringArray names { "NONE (CC NUMBERS)" };
+        for (int g = 1; g <= gearCount(); ++g) names.add (gearName (g));
+        juce::Component::SafePointer<MidiOutPage> safe (this);
+        menuHook() ("WHAT'S ON THE OTHER END?", names, [safe] (int a) { if (safe != nullptr && a >= 0) safe->setGear (a); });
+    };
+    controlsBtn.setClickingTogglesState (false);
+    controlsBtn.onClick = [this] { openControls (! controlsOpen); };
+    addChildComponent (gearBtn);
+    addChildComponent (controlsBtn);
     for (auto* c : std::initializer_list<juce::Component*> { &list, &rescanBtn, &cancelBtn, &changeBtn, &sampleBtn, &panicBtn, &closeBtn,
                                                              &chanBox, &bendBox, &delayBox, &trackBox, &onBtn, &clockBtn, &learnA, &learnB })
         addChildComponent (c);
@@ -103,7 +122,7 @@ void MidiOutPage::setKnobNames()
     {
         auto& in = inst();
         for (int k = 0; k < kInstrumentKnobs; ++k)
-            in.knobs[k] = AutoTarget { kAutoInstrumentBase + i, k, (juce::String (in.midiDevice).toUpperCase() + ": CC " + juce::String (in.midiCC[k])).toStdString() };
+            in.knobs[k] = AutoTarget { kAutoInstrumentBase + i, k, (juce::String (in.midiDevice).toUpperCase() + ": " + knobTargetName (k)).toStdString() };
     });
     repaint();
 }
@@ -187,7 +206,7 @@ void MidiOutPage::learned (int param)
 {
     const int i = proc.editorState.instrument;
     const juce::String name = juce::String (inst().midiDevice).toUpperCase() + ": "
-                            + (param == kAutoOnOff ? juce::String ("ON/OFF") : "CC " + juce::String (inst().midiCC[juce::jlimit (0, 3, param)]));
+                            + (param == kAutoOnOff ? juce::String ("ON/OFF") : knobTargetName (juce::jlimit (0, 3, param)));
     const int k = learner.what - 10, tr = trackBox.getValue() - 1;
     proc.history.mixer ("TRACK " + juce::String (tr + 1) + (k == 0 ? " AUTO A = " : " AUTO B = ") + name);
     proc.withLock ([&] { proc.song.mixer.trackAuto[tr][k] = AutoTarget { kAutoInstrumentBase + i, param, name.toStdString() }; });
@@ -217,7 +236,24 @@ void MidiOutPage::refresh()
     for (auto* c : std::initializer_list<juce::Component*> { &changeBtn, &sampleBtn, &panicBtn, &chanBox, &bendBox, &delayBox, &trackBox,
                                                              &onBtn, &clockBtn, &learnA, &learnB, &chordsBtn })
         c->setVisible (midi);
-    for (int k = 0; k < kInstrumentKnobs; ++k) { ccBox[k]->setVisible (midi); knobBar[k].setVisible (midi); learnCcBtn[k].setVisible (midi); }
+    const int gr = midi ? inst().midiGear : 0;
+    if (gr == 0) controlsOpen = false;
+    const bool knobs = midi && ! controlsOpen;
+    for (int k = 0; k < kInstrumentKnobs; ++k)
+    {
+        const bool named = gr != 0 && inst().midiCC[k] >= kGearKnobBase;
+        ccBox[k]->setVisible (knobs && ! named); knobBar[k].setVisible (knobs); learnCcBtn[k].setVisible (knobs && ! named);
+        paramBtn[k]->setVisible (knobs && gr != 0);
+        paramBtn[k]->setButtonText (named ? knobTargetName (k) : juce::String ("BY NAME..."));
+    }
+    for (auto* c : std::initializer_list<juce::Component*> { &trackBox, &learnA, &learnB }) c->setVisible (knobs);
+    for (auto* c : std::initializer_list<juce::Component*> { &chanBox, &bendBox, &delayBox, &clockBtn, &onBtn }) c->setVisible (midi && ! controlsOpen);   // (ALL CONTROLS: the room for them)
+    gearBtn.setVisible (midi);
+    gearBtn.setButtonText ("GEAR: " + juce::String (gearName (gr)));
+    controlsBtn.setVisible (midi && gr != 0);
+    controlsBtn.setToggleState (controlsOpen, juce::dontSendNotification);
+    for (auto& b : groupBtns) b->setVisible (midi && controlsOpen);
+    for (auto& b : ctlBars) b->setVisible (midi && controlsOpen);
     closeBtn.setVisible (true);
     if (midi)
     {
@@ -232,7 +268,7 @@ void MidiOutPage::refresh()
         auto* m = proc.midiAt (proc.editorState.instrument);
         for (int k = 0; k < kInstrumentKnobs; ++k)
         {
-            ccBox[k]->setValue (in.midiCC[k]);
+            if (in.midiCC[k] < kGearKnobBase) ccBox[k]->setValue (in.midiCC[k]);
             if (m != nullptr && m->knobValue (k) >= 0) knobBar[k].setValue (m->knobValue (k));
             learnCcBtn[k].setToggleState (ccLearn == k, juce::dontSendNotification);
         }
@@ -333,6 +369,147 @@ bool MidiOutPage::keyStateChanged (bool)
     return false;
 }
 
+// ---- GEAR
+juce::String MidiOutPage::knobTargetName (int k)
+{
+    const auto& in = inst();
+    const int c = in.midiCC[juce::jlimit (0, kInstrumentKnobs - 1, k)];
+    if (c >= kGearKnobBase)
+        if (const auto* map = gearMap (in.midiGear))
+            if (c - kGearKnobBase < (int) map->params.size()) return juce::String (map->params[(size_t) (c - kGearKnobBase)].label());
+    return "CC " + juce::String (std::min (c, 127));
+}
+
+void MidiOutPage::setGear (int id)
+{
+    id = juce::jlimit (0, gearCount(), id);
+    // the knobs: that synth's usual four (NONE: back to CC numbers)
+    int want[kInstrumentKnobs] { 74, 71, 73, 10 };
+    if (const auto* map = gearMap (id))
+    {
+        const char* picks[3][kInstrumentKnobs] = {
+            { "FILTER: CUTOFF", "FILTER: RESONANCE", "FILTER EG: INTENSITY", "AMP EG: RELEASE" },
+            { "FILTER: CUTOFF", "FILTER: RESONANCE", "OSC: A", "OSC: B" },
+            { "FILTER: CUTOFF", "ROLLERS: BLEND", "ROLLERS: DETUNE", "ROLLERS: PITCH DROP" } };
+        for (int k = 0; k < kInstrumentKnobs; ++k)
+            for (size_t n = 0; n < map->params.size(); ++n)
+                if (id <= 3 && map->params[n].label() == picks[id - 1][k]) want[k] = kGearKnobBase + (int) n;
+    }
+    edit ("GEAR: " + juce::String (gearName (id)), [id, &want] (Instrument& in)
+    {
+        in.midiGear = id;
+        for (int k = 0; k < kInstrumentKnobs; ++k) in.midiCC[k] = want[k];
+    }, false);
+    ctlValues.clear();
+    controlsGroup = 0;
+    setKnobNames();
+    if (controlsOpen) buildControls();
+    refresh();
+    if (onStatus)
+        onStatus (id == 0 ? juce::String ("NO GEAR: THE KNOBS SEND CC NUMBERS")
+                          : "GEAR: " + juce::String (gearName (id)) + " - KNOBS L Q H W: " + knobTargetName (0) + ", " + knobTargetName (1) + ", "
+                            + knobTargetName (2) + ", " + knobTargetName (3));
+}
+
+void MidiOutPage::setKnobParam (int k, int param)
+{
+    if (k < 0 || k >= kInstrumentKnobs) return;
+    const auto* map = gearMap (inst().midiGear);
+    static const int plain[kInstrumentKnobs] { 74, 71, 73, 10 };
+    if (! (map != nullptr && param < (int) map->params.size())) param = -1;
+    const int v = param >= 0 ? kGearKnobBase + param : inst().midiCC[k] < kGearKnobBase ? inst().midiCC[k] : plain[k];
+    edit (juce::String ("KNOB ") + kKnobLetters[k] + " = " + (param >= 0 && map != nullptr ? juce::String (map->params[(size_t) param].label()) : juce::String ("A CC")),
+          [k, v] (Instrument& in) { in.midiCC[k] = v; }, false);
+    setKnobNames();
+    refresh();
+    if (onStatus) onStatus (juce::String ("KNOB ") + kKnobLetters[k] + " NOW SENDS " + knobTargetName (k) + " - USE " + kKnobLetters[k] + "XX ON THIS INSTRUMENT'S NOTES");
+}
+
+void MidiOutPage::pickParam (int k)
+{
+    const auto* map = gearMap (inst().midiGear);
+    if (map == nullptr || ! menuHook()) return;
+    const auto groups = map->groups();
+    juce::StringArray names;
+    for (const auto& gname : groups) names.add (gname);
+    names.add ("A CC NUMBER INSTEAD");
+    juce::Component::SafePointer<MidiOutPage> safe (this);
+    menuHook() (juce::String ("KNOB ") + kKnobLetters[k] + ": WHICH PART?", names, [safe, k, groups] (int a)
+    {
+        if (safe == nullptr || a < 0) return;
+        if (a >= (int) groups.size()) { safe->setKnobParam (k, -1); return; }
+        const auto* m = gearMap (safe->inst().midiGear);
+        if (m == nullptr) return;
+        juce::StringArray ps; std::vector<int> idx;
+        for (size_t n = 0; n < m->params.size(); ++n)
+            if (m->params[n].group == groups[(size_t) a]) { ps.add (juce::String (m->params[n].name) + "  (" + m->params[n].where() + ")"); idx.push_back ((int) n); }
+        menuHook() (juce::String ("KNOB ") + kKnobLetters[k] + ": " + groups[(size_t) a], ps, [safe, k, idx] (int b)
+        {
+            if (safe != nullptr && b >= 0 && b < (int) idx.size()) safe->setKnobParam (k, idx[(size_t) b]);
+        });
+    });
+}
+
+void MidiOutPage::openControls (bool open)
+{
+    controlsOpen = open && inst().midiGear != 0;
+    learner.cancel(); ccLearn = -1;
+    if (controlsOpen) buildControls();
+    refresh();
+}
+
+void MidiOutPage::showGroup (int g)
+{
+    controlsGroup = g;
+    buildControls();
+    refresh();
+}
+
+void MidiOutPage::buildControls()
+{
+    for (auto& b : groupBtns) removeChildComponent (b.get());
+    for (auto& b : ctlBars) removeChildComponent (b.get());
+    groupBtns.clear(); ctlBars.clear(); ctlParams.clear(); ctlNames.clear(); ctlWhere.clear();
+    const auto* map = gearMap (inst().midiGear);
+    if (map == nullptr) return;
+    const auto groups = map->groups();
+    controlsGroup = juce::jlimit (0, std::max (0, (int) groups.size() - 1), controlsGroup);
+    for (int gi = 0; gi < (int) groups.size(); ++gi)
+    {
+        auto b = std::make_unique<PixButton> (juce::String (groups[(size_t) gi]), true);
+        b->setClickingTogglesState (false);
+        b->setToggleState (gi == controlsGroup, juce::dontSendNotification);
+        b->onClick = [this, gi] { showGroup (gi); };
+        addChildComponent (*b);
+        groupBtns.push_back (std::move (b));
+    }
+    int longest = 4;
+    for (const auto& p : map->params) if (p.group == groups[(size_t) controlsGroup]) longest = std::max (longest, (int) p.name.size());
+    for (size_t n = 0; n < map->params.size(); ++n)
+    {
+        const auto& p = map->params[n];
+        if (p.group != groups[(size_t) controlsGroup]) continue;
+        auto b = std::make_unique<PixSlider> (juce::String (p.name));
+        b->labelChars = longest + 1; b->valueChars = 5.5f;
+        const int steps = p.steps;
+        b->format = [steps] (float v) { return steps >= 2 ? juce::String (juce::roundToInt (v * (steps - 1)) + 1) + "/" + juce::String (steps) : juce::String (juce::roundToInt (v * 127.0f)); };
+        b->defaultValue = 0.5f;
+        const auto it = ctlValues.find ((int) n);
+        b->value = it != ctlValues.end() ? it->second : (steps >= 2 ? 0.0f : 0.5f);
+        const int param = (int) n;
+        b->onChange = [this, param] (float v)
+        {
+            ctlValues[param] = v;
+            const int i = proc.editorState.instrument;
+            proc.withLock ([&] { if (auto* m = proc.midiAt (i)) { m->update (inst()); m->sendGear (param, v, 0); } });
+        };
+        addChildComponent (*b);
+        ctlNames.add (juce::String (p.name));
+        ctlParams.push_back (param);
+        ctlBars.push_back (std::move (b));
+    }
+}
+
 void MidiOutPage::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
@@ -358,11 +535,21 @@ void MidiOutPage::paint (juce::Graphics& g)
     lines.add (! loaded ? juce::String ("SILENT, SETTINGS KEPT - TRY CHANGE DEVICE...")
                : ! proc.player.instrumentIsOn (i) ? juce::String ("SWITCHED OFF: SENDS NO NOTES UNTIL IT IS ON AGAIN")
                : juce::String ("NOT IN RENDERS - STOP TWICE FOR PANIC"));
+    if (in.midiGear != 0)
+        if (const auto* map = gearMap (in.midiGear))
+            lines.add (controlsOpen ? juce::String ("MOVE ONE: IT'S SENT STRAIGHT AWAY") : juce::String (map->note));
     auto r = infoArea;
     for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::palFor (*this).ink); }
 
+    if (controlsOpen)
+    {
+        for (size_t r = 0; r < ctlWhere.size() && r < ctlParams.size(); ++r)
+            if (const auto* map = gearMap (in.midiGear))
+                PixelFont::drawLeft (g, juce::String (map->params[(size_t) ctlParams[r]].where()), ctlWhere[r], px, Theme::palFor (*this).ink);
+        return;
+    }
     for (int k = 0; k < kInstrumentKnobs; ++k)
-        PixelFont::drawLeft (g, juce::String ("KNOB ") + kKnobLetters[k] + "XX", knobLabel[k], px, Theme::palFor (*this).ink);
+        PixelFont::drawLeft (g, (in.midiGear != 0 ? juce::String() : juce::String ("KNOB ")) + kKnobLetters[k] + "XX", knobLabel[k], px, Theme::palFor (*this).ink);
     const int tr = trackBox.getValue() - 1;
     const auto& a = proc.song.mixer.trackAuto[tr][0];
     const auto& b = proc.song.mixer.trackAuto[tr][1];
@@ -401,13 +588,21 @@ void MidiOutPage::resized()
         chordsBtn.setBounds (row.getWidth() >= charsW (9) ? row.removeFromLeft (charsW (9)) : juce::Rectangle<int>());
     }
     r.removeFromBottom (gap);
-    infoArea = r.removeFromTop (rowH * 2).toFloat();
+    infoArea = r.removeFromTop (rowH * (inst().midiGear != 0 ? 3 : 2)).toFloat();
     r.removeFromTop (gap);
     {
         auto row = r.removeFromTop (rowH);
         changeBtn.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap * 3);
         panicBtn.setBounds (row.removeFromLeft (charsW (5)));
     }
+    r.removeFromTop (gap);
+    {
+        auto row = r.removeFromTop (rowH);
+        gearBtn.setBounds (row.removeFromLeft (charsW (26))); row.removeFromLeft (gap);
+        controlsBtn.setBounds (controlsBtn.isVisible() ? row.removeFromLeft (charsW (15)) : juce::Rectangle<int>());
+    }
+    if (! controlsOpen)
+    {
     r.removeFromTop (gap);
     {
         auto row = r.removeFromTop (rowH);
@@ -421,13 +616,49 @@ void MidiOutPage::resized()
         delayBox.setBounds (row.removeFromLeft (delayBox.preferredWidth (px))); row.removeFromLeft (gap * 3);
         clockBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (15))));
     }
+    }
     r.removeFromTop (gap * 3);
+    if (controlsOpen)
+    {
+        // the groups as tabs (as many rows as they need), then the group's controls
+        auto row = r.removeFromTop (rowH);
+        for (auto& gb : groupBtns)
+        {
+            const int w = charsW (gb->getButtonText().length() + 1);
+            if (w > row.getWidth() && row.getWidth() < r.getWidth()) { r.removeFromTop (gap); row = r.removeFromTop (rowH); }
+            gb->setBounds (row.removeFromLeft (std::min (w, row.getWidth()))); row.removeFromLeft (gap);
+        }
+        r.removeFromTop (gap * 3);
+        ctlWhere.clear();
+        // (one column, or two when they don't fit)
+        const int fits = std::max (1, (r.getHeight() + gap) / (rowH + gap));
+        const int cols = (int) ctlBars.size() > fits ? 2 : 1;
+        const int perCol = (int) (ctlBars.size() + (size_t) cols - 1) / cols;
+        const int colW = (r.getWidth() - gap * 4 * (cols - 1)) / cols;
+        for (int n = 0; n < (int) ctlBars.size(); ++n)
+        {
+            const int c = n / perCol, row = n % perCol;
+            juce::Rectangle<int> cr (r.getX() + c * (colW + gap * 4), r.getY() + row * (rowH + gap), colW, rowH);
+            if (cols == 1) { ctlWhere.push_back (cr.removeFromRight (charsW (11)).toFloat()); cr.removeFromRight (gap * 2); }
+            ctlBars[(size_t) n]->setBounds (cr);
+        }
+        return;
+    }
     for (int k = 0; k < kInstrumentKnobs; ++k)
     {
         auto row = r.removeFromTop (rowH); r.removeFromTop (gap);
-        knobLabel[k] = row.removeFromLeft (charsW (8)).toFloat(); row.removeFromLeft (gap);
-        ccBox[k]->setBounds (row.removeFromLeft (ccBox[k]->preferredWidth (px))); row.removeFromLeft (gap * 2);
-        learnCcBtn[k].setBounds (row.removeFromRight (charsW (8))); row.removeFromRight (gap * 2);
+        const bool named = inst().midiGear != 0 && inst().midiCC[k] >= kGearKnobBase;
+        knobLabel[k] = row.removeFromLeft (charsW (inst().midiGear != 0 ? 3 : 8)).toFloat(); row.removeFromLeft (gap);
+        knobBar[k].setLabel (named ? juce::String() : juce::String ("SEND"));
+        knobBar[k].labelChars = named ? 0 : 5;
+        if (named) { paramBtn[k]->setBounds (row.removeFromLeft (charsW (20))); row.removeFromLeft (gap * 2); }
+        else
+        {
+            ccBox[k]->setBounds (row.removeFromLeft (ccBox[k]->preferredWidth (px))); row.removeFromLeft (gap);
+            if (inst().midiGear != 0) { paramBtn[k]->setBounds (row.removeFromLeft (charsW (11))); row.removeFromLeft (gap * 2); }
+            else row.removeFromLeft (gap);
+        }
+        if (! named) { learnCcBtn[k].setBounds (row.removeFromRight (charsW (8))); row.removeFromRight (gap * 2); }
         knobBar[k].setBounds (row);
     }
     r.removeFromTop (gap * 2);

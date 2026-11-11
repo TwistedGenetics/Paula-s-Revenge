@@ -6,6 +6,7 @@
 #include "Widgets.h"
 #include "Panels.h"
 #include "Learn.h"
+#include "../engine/GearMaps.h"
 
 namespace prv::ui
 {
@@ -38,7 +39,33 @@ public:
     bool isLearning() const { return learner.armed || ccLearn >= 0; }
     void toggleOn();
 
+    // GEAR: what's on the other end (GearMaps.h); its controls by name
+    void setGear (int id);                       // (sets the knobs to that synth's usual four)
+    int  gear() { return inst().midiGear; }
+    void pickParam (int knob);                   // a knob's control: a group, then the control (or back to a CC number)
+    void setKnobParam (int knob, int param);     // -1: a plain CC again
+    juce::String knobTargetName (int knob);      // "FILTER: CUTOFF" or "CC 74"
+    // ALL CONTROLS: every control of the gear by group, sliders that send as you move them
+    void openControls (bool open);
+    bool controlsShown() const { return controlsOpen; }
+    void showGroup (int g);
+    int  shownGroup() const { return controlsGroup; }
+    int  controlCount() const { return (int) ctlBars.size(); }
+    void moveControl (int row, float v) { if (row >= 0 && row < (int) ctlBars.size()) ctlBars[(size_t) row]->setValue (v, true); }
+    juce::String controlName (int row) const { return row >= 0 && row < (int) ctlNames.size() ? ctlNames[(size_t) row] : juce::String(); }
+    PixButton gearBtn { "GEAR: NONE" }, controlsBtn { "ALL CONTROLS...", true };
+
 private:
+    std::unique_ptr<PixButton> paramBtn[kInstrumentKnobs];
+    bool controlsOpen = false;
+    int controlsGroup = 0;
+    std::vector<std::unique_ptr<PixButton>> groupBtns;
+    std::vector<std::unique_ptr<PixSlider>> ctlBars;
+    std::vector<int> ctlParams;
+    juce::StringArray ctlNames;
+    std::vector<juce::Rectangle<float>> ctlWhere;
+    std::map<int, float> ctlValues;              // what each control was last sent (this session)
+    void buildControls();
     PaulaProcessor& proc;
     bool browsing = false;
     int shown = -1;

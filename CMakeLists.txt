@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.66.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.67.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -55,7 +55,8 @@ add_library(prv_engine STATIC
     Source/engine/ReeseSynth.cpp
     Source/engine/LiveFx.cpp
     Source/engine/Crunch.cpp
-    Source/engine/LowEnd.cpp)
+    Source/engine/LowEnd.cpp
+    Source/engine/GearMaps.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 # STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
 if(APPLE OR WIN32)

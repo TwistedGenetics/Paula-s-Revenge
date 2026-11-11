@@ -875,6 +875,14 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 * Messages are timed from the audio and sent by the device's own thread at the moment the audio is heard.
 * STOP sends note-offs for everything sounding plus All Notes Off on its channels. **PANIC** on its page (or STOP while already stopped) does that for every MIDI output.
 * All its settings are saved in the song and changes are undo steps. If the device isn't connected, the instrument shows `!NAME`, sends nothing and keeps its settings; CHANGE DEVICE... and the same device again reconnects it.
+
+### GEAR: a synth's controls by name
+
+**GEAR: NONE** (under CHANGE DEVICE...) says what synth is on the other end: **MICROKORG 2**, **NTS-1 MKII**, or **NTS-1 MKII + ROLLERS** (the NTS-1 with your Rollers oscillator loaded). Then:
+* The knobs get that synth's usual four (microKORG 2: FILTER CUTOFF, RESONANCE, FILTER EG INTENSITY, AMP EG RELEASE; NTS-1: CUTOFF, RESONANCE, OSC A, OSC B; with Rollers: CUTOFF, BLEND, DETUNE, PITCH DROP). Click a knob's name to pick another: a part (FILTER, AMP EG, DELAY…), then the control, each shown with what it sends. **A CC NUMBER INSTEAD** goes back to a number (and LEARN CC).
+* Each control is sent the way that synth wants it: the microKORG 2's CCs, the NTS-1's 14-bit CC pairs (finer steps), its TYPE switches on the values Korg lists, and Rollers' own controls (SUB SHAPE, PITCH DROP, DROP TIME, VOICES, DRIFT RATE, DRIVE, CRUNCH, MODE) as NRPNs. On the NTS-1 switch on **MIDI RX SHORT MESSAGE** (and **MIDI NRPN** for Rollers) in its global settings.
+* **ALL CONTROLS...** shows every control of the synth, a page per part, as bars that send as you move them — for sound design from the tracker. (What you send isn't saved: the synth keeps it.)
+* The numbers come from Korg's own documents (the microKORG 2 Owner's Manual's MIDI chart and the NTS-1 mkII MIDI Implementation). Units loaded into the microKORG 2 (oscillators and effects) have no MIDI messages in Korg's chart, so they're set on the synth. Rollers on the NTS-1 is untested on hardware: if a control lands wrong, that's worth reporting.
 * RENDER WAV writes its voltages into their own files (see CV out below).
 
 ## CV out to a modular (ES-9)
