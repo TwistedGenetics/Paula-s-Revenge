@@ -15,10 +15,12 @@ namespace
     // transparent below 0.8, smoothly limits towards 1.0 above
     inline float softClip (float x)
     {
+        // (v0.73: the knee at 0.9, where the limiter holds things - from 0.8 it bent every loud sub's peaks, a
+        // buzz that came and went with the wobble)
         const float a = std::abs (x);
-        if (a <= 0.8f) return x;
-        const float over = (a - 0.8f) / 0.2f;
-        return std::copysign (0.8f + 0.2f * over / (1.0f + over), x);
+        if (a <= 0.9f) return x;
+        const float over = (a - 0.9f) / 0.1f;
+        return std::copysign (0.9f + 0.1f * over / (1.0f + over), x);
     }
 
     inline float quant8 (float s) { return std::round (std::clamp (s, -1.0f, 1.0f) * 127.0f) / 127.0f; }
@@ -360,6 +362,7 @@ void Player::setSampleRate (double sr)
     limRelease = (float) (1.0 - std::exp (-1.0 / (0.15 * sampleRate)));
     cvRunner.prepare (sampleRate);
     limGain = 1.0f;
+    limHoldLen = (int) (0.05 * sampleRate); limHold = 0;
     updateFilters();
     mixerEngine.prepare (sampleRate);
     for (auto& u : util) u.prepare (sampleRate);
@@ -515,6 +518,11 @@ void Player::stop()
 void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, int end, bool loopRegion)
 {
     if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
+    if (holdKeys && note >= 0 && note < 256)
+    {
+        if (latched[(size_t) note]) { latched[(size_t) note] = false; releaseJam (note); return; }   // (again: it lets go)
+        latched[(size_t) note] = true;
+    }
     mixerEngine.mods.noteOn (-1, note, velocity127 / 127.0f);   // (MODULATION on ANY TRACK hears what you play)
     const auto& in = song->instruments[(size_t) instrIndex];
     if (! instrumentIsOn (instrIndex)) return;   // switched off
@@ -550,7 +558,9 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
     {
         // slice to keys: C-3 = slice 1, C#3 = slice 2... each at its own pitch
         int a = 0, b = 0;
-        if (! in.sliceRange (note - 37, a, b)) { v.active = false; return; }
+        // (v0.73: any note plays one - they wrap round, so C-2 is the last slice but eleven, not silence)
+        const int ns = in.numSlices();
+        if (! in.sliceRange (((note - 37) % ns + ns) % ns, a, b)) { v.active = false; return; }
         v.note = std::clamp (37 + in.transpose, 1, (int) kNoteMax);
         v.period = v.outPeriod = periodFor (v.note, v.finetune);
         v.regionStart = a; v.regionEnd = b; v.pos = a;
@@ -584,6 +594,12 @@ void Player::jamNoteFrom (int note, int instrIndex, int pos)
 
 void Player::jamNoteOff (int note)
 {
+    if (holdKeys) return;   // (HOLD KEYS: it stays on until played again)
+    releaseJam (note);
+}
+
+void Player::releaseJam (int note)
+{
     for (auto& j : jamSynth)
         if (j.note == note) { if (auto* s = rack.at (j.instr)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
     for (int i = kMaxTracks; i < kVoices; ++i)
@@ -592,6 +608,7 @@ void Player::jamNoteOff (int note)
 
 void Player::jamAllOff()
 {
+    latched.fill (false);
     for (auto& j : jamSynth) if (j.note >= 0) { if (auto* s = rack.at (j.instr)) s->noteOff (j.midi, chunkPos); j = JamSynth {}; }
     for (int i = kMaxTracks; i < kVoices; ++i) { voices[i].active = false; voices[i].jamNote = -1; }
 }
@@ -759,7 +776,8 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
     int keySlice = -1;
     if (in.sliceKeys && in.numSlices() > 0)
     {
-        keySlice = (int) cell.note - 37;
+        const int ns = in.numSlices();
+        keySlice = (((int) cell.note - 37) % ns + ns) % ns;   // (v0.73: wraps round - any note plays a slice)
         int a = 0, b = 0;
         if (! in.sliceRange (keySlice, a, b)) { v.active = false; return; }
         note = 37 + in.transpose;
@@ -1647,7 +1665,9 @@ void Player::outputStage (float& L, float& R, bool led)
     // a safety limiter (eight loud tracks at full level): instant down, back up over ~150 ms
     const float pk = std::max (std::abs (L), std::abs (R));
     const float want = pk > 0.9f ? 0.9f / pk : 1.0f;
-    limGain = want < limGain ? want : limGain + (want - limGain) * limRelease;
+    if (want < limGain) { limGain = want; limHold = limHoldLen; }
+    else if (limHold > 0) --limHold;
+    else limGain += (want - limGain) * limRelease;
     L = softClip (L * limGain);
     R = softClip (R * limGain);
 }

@@ -486,7 +486,7 @@ A short block can play differently each time round, like the conditional steps o
 
 * **AUTO** finds the hits (drum hits, notes) by jumps in loudness; **SENS** (1–100) sets how quiet a hit it will catch. **EVEN** cuts **COUNT** (2–64) equal slices.
 * The slices show as numbered tabs along the bottom of the waveform. Drag a tab to move that slice point, double-click the waveform to add one, Alt-click a tab to remove it (or ADD AT CURSOR / REMOVE / CLEAR ALL). Click a tab to select and hear that slice.
-* **SLICE TO KEYS**: notes play slices instead of the whole sample: `C-3` = slice 1, `C#3` = slice 2, `D-3` = slice 3 and so on, each at its own pitch and stopping at the end of its slice. This works in patterns, from the computer keys and from MIDI. To pitch one hit up or down, add `Ixx` to that note (`I8C` = an octave up, `I7B` = 5 semitones down).
+* **SLICE TO KEYS**: notes play slices instead of the whole sample: `C-3` = slice 1, `C#3` = slice 2, `D-3` = slice 3 and so on, each at its own pitch and stopping at the end of its slice. This works in patterns, from the computer keys and from MIDI. Every note plays a slice: past the last one they wrap round to slice 1 again, and below `C-3` they count back from the last (with 8 slices, `B-2` is slice 8 and `C-2` slice 5) — so a note typed in the wrong octave is never silent. To pitch one hit up or down, add `Ixx` to that note (`I8C` = an octave up, `I7B` = 5 semitones down).
 * Without SLICE TO KEYS, `Sxx` plays slice xx+1 of the instrument's slices (`S00` = slice 1). Instruments with no slice points still split into 16 equal parts, as before.
 
 ## Stereo samples
@@ -547,6 +547,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Cmd+7` | LIVE MODE (again to go back) |
 | `Cmd+8` | VISUALS, the whole window (again, or `Esc`, to go back) |
 | `F2` (hold) / `Shift+F2` | FILL while held / latched on or off |
+| `F4` | **HOLD KEYS** on / off: notes stay on after their keys come up (play one again to stop it) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |
 | `Cmd+O` | Load a song |
@@ -559,6 +560,7 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 ## Recording, note-offs and CAPTURE
 
 * With **EDIT** on, notes from a MIDI keyboard or the laptop keys go in at the cursor (while playing with FOLLOW on, on the line that's playing).
+* **HOLD KEYS** (`F4`, or HOLD KEYS in the `Cmd+K` palette): a note you play stays on after its key comes up; play the same note again to stop it, and `F4` again stops them all. It's for laptops: while a key is held, macOS ignores the trackpad (so your palm can't move the pointer as you type) — which is why the mouse won't move while you hold a note. With HOLD KEYS your hands are free; an external mouse isn't affected either way.
 * **Note-offs:** on a plug-in or MIDI-out instrument, letting go of a key while the song or block plays writes `OFF` on the line playing at that moment (the next line if it's still the note's own line), so held sounds stop where you stopped them. It never writes over another note.
   * **Legato:** if you let go of a key as (or just after) the next one goes down, no `OFF` is written — the next note ends the old one by itself. So the OFF never lands on top of the next note, and the next note isn't pushed onto another track. The same goes for CAPTURE.
   * **NOTE-OFFS** in the title bar (also right-click EDIT, and the View menu) switches note-off recording off altogether: live, step entry and CAPTURE then write notes only. It's remembered. In step entry (stopped) that's off to start with, because the OFF would land where your next note goes: right-click **EDIT** and switch **STEP ENTRY NOTE-OFFS** on if you want them.
@@ -649,7 +651,7 @@ Every track has a **second effect column** so a note can carry two effects; **FX
 | S1000 | Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output (see below) |
 | STEPPED | Paula's stepped (sample-and-hold) playback, exactly as the chip makes it (off = smooth interpolation) — see "How the Paula modes work" |
 | 8-BIT | Samples are played at 8-bit resolution |
-| 8CH GRIT | OctaMED's 8-channel sound on all 8 tracks: the real Amiga has 4 channels, so 8-channel trackers mixed two tracks into each one (1+5, 2+6, 3+7, 4+8) at half level and squashed the result back to 8 bits. 8CH GRIT does that squashing, then brings the level back up — the grit without the quieter mix. On to start with on the Amiga models; not on CLEAN or the Akais. Every track plays at full level whether it's on or off, and a safety limiter on the output stops eight loud tracks clipping |
+| 8CH GRIT | OctaMED's 8-channel sound on all 8 tracks: the real Amiga has 4 channels, so 8-channel trackers mixed two tracks into each one (1+5, 2+6, 3+7, 4+8) at half level and squashed the result back to 8 bits. 8CH GRIT does that squashing, then brings the level back up — the grit without the quieter mix. On to start with on the Amiga models; not on CLEAN or the Akais. Every track plays at full level whether it's on or off, and a safety limiter on the output stops eight loud tracks clipping (it holds its level for a moment rather than following each wave, so a loud sub comes through clean instead of buzzing) |
 | LED | The "LED" low-pass filter (12 dB/oct Butterworth at 3.2 kHz), on at the start of the song (commands `E00`/`E01` switch it while playing) |
 | SEP | (Right-click a machine button, or View → Stereo Separation...) How far tracks lean to the Amiga sides (tracks 1, 4, 5, 8 left; 2, 3, 6, 7 right): 0% (mono), 10, 20 (the default), 35, 50, 75 or 100% (the full Amiga split). Track pans, instrument pans and `8xx` ignore it |
 | VOL | The master volume, after everything (0–200%, 100 = as it is). Click − / + or drag or wheel it |
@@ -768,11 +770,11 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
 
-## Built-in synths: SUB, REESE and GRANULAR
+## Built-in synths: SUB, REESE, RAVE and GRANULAR
 
 ### SUB
 
-**SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → the **SYNTHS** tab (or right-click the instrument → **LOAD A BUILT-IN SYNTH (SUB, REESE, GRANULAR)...**) and pick SUB. The instrument becomes SUB and its page opens; **EDIT** opens the page again later.
+**SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → the **SYNTHS** tab (or right-click the instrument → **LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...**) and pick SUB. The instrument becomes SUB and its page opens; **EDIT** opens the page again later.
 
 It never clicks when notes overlap or follow each other: its oscillator is never restarted (a new note only moves its pitch), its envelope carries on from where it is instead of starting from silence, and anything that has to start afresh starts where the wave crosses zero or fades in.
 
@@ -786,7 +788,7 @@ It never clicks when notes overlap or follow each other: its oscillator is never
   * **BEAT ST** — the whole sound again, **BEAT ST** semitones up (−12 to +12; +1 to start), at the same level: exactly what holding that second key too sounds like (in POLY), wobble and all. Like two keys, the wobble follows the note — faster up the keyboard (a semitone over a low A beats about 3 times a second; an octave higher, 6) — and it glides with LEGATO.
   * **BEAT HZ** — a copy of the oscillator **BEAT RATE** Hz higher (0.1 to 10 Hz): the same wobble speed on every note, for a steady pulse.
   * **OFF** — no BEAT.
-  **BEAT AMT** is how strong the second one is (100% = as loud as the first: with BEAT HZ the dips go right down to nothing). Only the controls for the BEAT chosen are shown. Switching it, even mid-note, never clicks, and it works in every MODE. Right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern. (Songs from before v0.72 keep their BEAT as BEAT HZ.)
+  **BEAT AMT** is how strong the second one is (100% = as loud as the first: with BEAT HZ the dips go right down to nothing). **BEAT WAIT** is a delay before the beat comes in (0 to 4 seconds): each note starts as a plain, steady sub, then the wobble swells in after that long — and again from each new attack (0 = straight away, as before). Only the controls for the BEAT chosen are shown; when they don't all fit, SUB splits onto two tabs, **SOUND** and **OSC 2 + DRIVE**. Switching it, even mid-note, never clicks, and it works in every MODE. Right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern. (Songs from before v0.72 keep their BEAT as BEAT HZ.)
 * **LEVEL**: the synth's output level.
 
 Click a control and drag, or use the buttons. **Right-click** a control to make it one of the instrument's knobs (`L`, `Q`, `H`, `W`) or the track's AUTO A / B, so the pattern can move it. Hold **▶ HOLD TO PLAY**, or play the computer or MIDI keyboard, to hear it. **OUTPUT & KNOBS...** opens the same page a plug-in instrument has (OUTPUT, BEND, ON, the filter and envelopes, EQ / FX, chords) — everything in Plug-in instruments below works for SUB too. Its settings are saved in the song and every change is an undo step.
@@ -796,7 +798,7 @@ Click a control and drag, or use the buttons. **Right-click** a control to make 
 **REESE** is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB (the oscillators never restart, the envelope carries on from where it is), so it pairs with SUB for a mid bass over a clean sub. Load it from LOAD → **SYNTHS** → REESE. Its controls are on two tabs: **SOUND** and **HOOVER + FILTER**.
 
 * **MODE** and **GLIDE**: as on SUB (LEGATO, ALWAYS, OFF, POLY - up to 6 notes).
-* **OSCILLATORS**: **TYPE** **REESE** (saws) or **HOOVER** (pulse-saws, a square sub). **VOICES** (1-7 oscillators), **DETUNE** (cents between the outermost two - more is wider and faster phasing), **SPREAD** (how far they're spread left and right), **OCTAVE**, **SUB** (an octave below: a sine, or a square on HOOVER).
+* **OSCILLATORS**: **TYPE** **REESE** (saws) or **HOOVER** (pulse-saws, a square sub). **VOICES** (1-7 oscillators), **DETUNE** (cents between the outermost two - more is wider and faster phasing), **SPREAD** (how far they're spread left and right), **OCTAVE**, **SUB** (an octave below: a sine, or a square on HOOVER). REESE's sine sub is added after the filter, so the resonance and the filter sweep never ring on it.
 * **MOVEMENT**: **MOVE** breathes the detune wider and narrower at **MOVE RATE**, so the reese keeps moving.
 * **HOOVER**: **BEND** - each note swoops up from this many semitones below over **BEND TIME** (works on REESE too). **PWM** and **PWM RATE** move the pulse width (HOOVER).
 * **FILTER**: a 24 dB low-pass - **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it, or closes it below 0) and **ENV DECAY**. **WOBBLE**: an LFO on the cutoff (**WOB RATE**, **WOBBLE** amount) for wobble and growl.
@@ -804,6 +806,26 @@ Click a control and drag, or use the buttons. **Right-click** a control to make 
 * **ENVELOPE** and **OUTPUT** (VELOCITY, LEVEL).
 
 Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Knobs and automation make a slow `WOBBLE` or `CUTOFF` ride easy.
+
+### RAVE
+
+**RAVE** is the jungle and hardcore keys — the sounds over the breaks rather than under them. Load it from LOAD → **SYNTHS** → RAVE and pick a sound; every control is set for it, and you can change any of them afterwards (TYPE too).
+
+* **STAB** — the rave chord stab: three detuned saws over a square an octave down, the filter snapping shut. CHORD starts on MINOR, so one key plays the whole chord.
+* **PAD** — five wide saws drifting against each other, slow in and slow out: the rolling, atmospheric side of jungle.
+* **ORGAN** — drawbar organ with a click at the front: house and hardcore organ stabs and basslines.
+* **BLEEP** — a sine with a touch of its third harmonic, and an echo: bleep-and-bass tones.
+* **BELL** — FM electric piano / bell, bright at the start and mellowing as it rings: the soulful, Rhodes-y side.
+
+The controls:
+
+* **SOUND**: **TYPE**; **CHORD** (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) — one key plays the chord, the old rave chord-memory trick, at the level of one note; **DETUNE**; **OCTAVE**.
+* **FILTER**: a 12 dB low-pass — **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it) and **ENV DECAY**.
+* **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE.
+* **SPACE**: **CHORUS**, and **ECHO** — a stereo ping-pong echo, each repeat a little darker — with **ECHO TIME**.
+* **OUTPUT**: VELOCITY, LEVEL.
+
+Up to 16 notes at once; when it's full, the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB.
 
 ### GRANULAR
 

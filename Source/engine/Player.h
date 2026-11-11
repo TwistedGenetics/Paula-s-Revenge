@@ -145,6 +145,10 @@ public:
     void jamNoteFrom (int note, int instrIndex, int pos);
     void jamNoteOff (int note);
     void jamAllOff();
+    // HOLD KEYS (v0.73): a note played stays on after its key comes up; the same note again lets it go. (On a
+    // laptop, the trackpad stops while a key's held - this keeps the hands free.) Turning it off lets all go.
+    void setHoldKeys (bool on) { if (holdKeys && ! on) jamAllOff(); holdKeys = on; latched.fill (false); }
+    bool isHoldKeys() const { return holdKeys; }
     // a phrase heard from its editor (the song playing or not), from `note` (C-3 = as written)
     void previewPhrase (int instrIndex, int phraseIndex, int note = 37);
     void stopPhrasePreview();
@@ -352,6 +356,7 @@ private:
     void advanceLine();
     void renderChunk (float* left, float* right, int numSamples);
     void outputStage (float& L, float& R, bool led);
+    void releaseJam (int note);
     MixerEngine mixerEngine;
     float trkL[kMaxTracks][MixerEngine::kMaxBlock] {}, trkR[kMaxTracks][MixerEngine::kMaxBlock] {};
     float jamL[MixerEngine::kMaxBlock] {}, jamR[MixerEngine::kMaxBlock] {};
@@ -424,6 +429,9 @@ private:
     FirstOrder lpL, lpR;     // the model's fixed output filter (measured response where there is one)
     OnePole hpL, hpR;
     float limGain = 1.0f, limRelease = 0.0002f;   // the safety limiter
+    bool holdKeys = false;
+    std::array<bool, 256> latched {};
+    int limHold = 0, limHoldLen = 2400;           // (it holds its gain 50 ms before letting go: a low note's cycle isn't bent)
     Biquad  ledL, ledR;
     Biquad  akL[4], akR[4];   // Akai output filter (cascaded 2-pole sections)
     int     akStages = 0;

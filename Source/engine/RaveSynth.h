@@ -1,0 +1,82 @@
+// Paula's Revenge - RAVE: the built-in jungle / hardcore keys. Five sounds from the early 90s:
+//   STAB  - detuned saws over a square an octave down, the filter snapping shut: the rave chord stab
+//   PAD   - five wide saws drifting against each other, slow in and out: the rolling-jungle atmosphere
+//   ORGAN - drawbar sines with a click at the front: the house / hardcore organ (bass or stabs)
+//   BLEEP - a sine with a touch of its third: bleep-and-bass tones and sub bleeps
+//   BELL  - two-operator FM, bright then mellow: the electric-piano / bell of the soulful side
+// CHORD plays a whole chord from one key (the rave chord-memory trick: MINOR, MIN 7...); a 12 dB low-pass with its
+// own envelope; CHORUS and a stereo ECHO after it. POLY (16 voices; the oldest fades out in 4 ms when it's full).
+// Plays through the synth rack like SUB (pluginKey "SYN:RAVE"). Plain C++, unit tested.
+#pragma once
+
+#include "PluginSynth.h"
+#include <array>
+#include <string>
+#include <vector>
+
+namespace prv
+{
+struct SynthParam;
+constexpr const char* kRaveKey = "SYN:RAVE";
+
+namespace rave
+{
+    enum P { Type, Chord, Detune, Octave, Cutoff, Resonance, EnvAmount, FilterDecay,
+             Attack, Decay, Sustain, Release, Chorus, Echo, EchoTime, VelSens, Level, Count };
+    enum TypeKind { Stab = 0, Pad, Organ, Bleep, Bell, Types };
+}
+const std::vector<SynthParam>& raveParams();
+const char* raveTypeName (int type);                 // "STAB"
+std::vector<float> ravePreset (int type);            // every control set for that sound (the menu's starting points)
+
+class RaveSynth : public PluginSynth
+{
+public:
+    RaveSynth();
+    void prepare (double sampleRate, int maxBlock) override;
+    void noteOn (int midiNote, int velocity, int offset) override;
+    void noteOff (int midiNote, int offset) override;
+    void allNotesOff (int offset) override;
+    void pitchBend (int value14, int offset) override;
+    void controller (int, int, int) override {}
+    void setParameter (int index, float value01) override;
+    void render (float* left, float* right, int numSamples) override;
+    void update (const Instrument&) override;
+    void setValues (const std::vector<float>& v);   // (tests)
+    int  voicesPlaying() const;                     // (tests)
+
+private:
+    struct Event { int offset; int type; int note; int vel; };
+    std::vector<Event> events;
+    std::array<float, rave::Count> p {};
+    std::vector<uint8_t> lastState;
+    double sr = 48000.0;
+    static constexpr int kOsc = 5;
+    struct Voice
+    {
+        int   key = -1;            // the key that plays it (a CHORD's notes share one)
+        float pitch = 60;          // semitones (MIDI)
+        bool  gate = false;
+        double ph[kOsc] {};
+        double phLow = 0, phMod = 0;
+        float env = 0; int stage = 0; float vel = 1;
+        float fenv = 0, click = 0, modEnv = 0;
+        float s1[2][2] {};         // the 12 dB low-pass, left / right
+        float fade = 1; bool fading = false;
+        int   order = 0, upd = 0;
+        float a1 = 0, a2 = 0, a3 = 0;
+        float drift[kOsc] {};      // (PAD: each saw's slow wander)
+    };
+    static constexpr int kVoices = 16;
+    Voice voices[kVoices];
+    float bend = 0; int bendRange = 2;
+    int orderCount = 0;
+    uint32_t seed = 777;
+    double driftPh = 0;
+    std::vector<float> chBuf[2]; int chPos = 0; double chPh = 0;    // CHORUS
+    std::vector<float> echoBuf[2]; int echoPos = 0; float echoLp[2] {};   // ECHO
+    void handle (const Event&);
+    void startVoice (int key, float pitch, int vel);
+    float renderVoice (Voice&, float& l, float& r);
+};
+} // namespace prv

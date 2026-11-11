@@ -192,7 +192,9 @@ void ReeseSynth::renderVoice (Voice& v, float& outL, float& outR, float moveNow,
     }
     const float norm = 1.0f / std::sqrt ((float) n);
     l *= norm; r *= norm;
-    // SUB: an octave below (a sine on REESE, a square on HOOVER), in the middle
+    // SUB: an octave below (a sine on REESE, a square on HOOVER), in the middle - REESE's sine added after the filter
+    // (v0.73), so the resonance and the filter's sweep never ring on it: the low end stays a plain, steady tone
+    float subOut = 0;
     {
         const double dt = (hz * 0.5) / sr;
         v.phSub += dt; if (v.phSub >= 1.0) v.phSub -= 1.0;
@@ -200,7 +202,8 @@ void ReeseSynth::renderVoice (Voice& v, float& outL, float& outR, float moveNow,
         if (hoover) { double t2 = v.phSub + 0.5; if (t2 >= 1.0) t2 -= 1.0; s = 0.5f * (saw (v.phSub, dt) - saw (t2, dt)); }
         else s = (float) std::sin (kTwoPiR * v.phSub);
         s *= p[reese::SubLevel] * 0.01f;
-        l += s; r += s;
+        if (hoover) { l += s; r += s; }   // (HOOVER's square stays in the filter: it's part of the buzz)
+        else subOut = s;
     }
     // the amp envelope (from where it is), the filter envelope
     const float sus = p[reese::Sustain] * 0.01f;
@@ -233,6 +236,7 @@ void ReeseSynth::renderVoice (Voice& v, float& outL, float& outR, float moveNow,
     const float b1 = 1.0f / (1.0f + v.g * (v.g + 1.414f)), b2 = v.g * b1, b3 = v.g * b2;
     l = svf (svf (l, v.s1[0][0], v.s1[0][1], b1, b2, b3), v.s2[0][0], v.s2[0][1], v.a1, v.a2, v.a3);
     r = svf (svf (r, v.s1[1][0], v.s1[1][1], b1, b2, b3), v.s2[1][0], v.s2[1][1], v.a1, v.a2, v.a3);
+    l += subOut; r += subOut;
     const float vs = p[reese::VelSens] * 0.01f;
     float a = v.env * (1.0f - vs + vs * v.vel);
     if (v.fading)

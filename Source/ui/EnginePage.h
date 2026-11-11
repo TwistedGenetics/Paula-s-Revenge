@@ -6,6 +6,7 @@
 #include "../PluginProcessor.h"
 #include "../engine/BuiltinSynths.h"
 #include "../engine/ReeseSynth.h"
+#include "../engine/RaveSynth.h"
 #include "Widgets.h"
 
 namespace prv::ui
@@ -59,6 +60,7 @@ private:
     PixButton loadSampleBtn { "LOAD SAMPLE..." };
     PixButton pageBtn[2] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true) };
     int pageShown = 0;
+    bool subPages = false, relayout = false;   // (SUB: on two pages only when it doesn't all fit - BEAT's rows on)
   public:
     void showPage (int);
     int  pageNow() const { return pageShown; }

@@ -4,6 +4,7 @@
 #include "engine/Player.h"
 #include "engine/BuiltinSynths.h"
 #include "engine/ReeseSynth.h"
+#include "engine/RaveSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
@@ -1775,7 +1776,12 @@ static void testSlices()
     std::printf ("slice keys: slice 1 level %.3f len %d, slice 3 level %.3f len %d, slice 5 %.3f\n", s1.first, s1.second, s3.first, s3.second, s5.first);
     CHECK (std::abs (s3.first / s1.first - 3.0) < 0.1);
     CHECK (std::abs (s1.second - 1000) <= 20);   // stops at the end of the slice
-    CHECK (s5.first == 0.0);                      // no slice 5
+    // (v0.73) no slice 5: it wraps round to slice 1 - and below C-3 too (B-2 = the last slice): any note plays
+    const auto sb = level ({ 36, 1, 0, 0 }), sc2 = level ({ 25, 1, 0, 0 });
+    std::printf ("wrapped: E-3 (5th) level %.3f, B-2 %.3f, C-2 %.3f\n", s5.first, sb.first, sc2.first);
+    CHECK (std::abs (s5.first / s1.first - 1.0) < 0.1);
+    CHECK (std::abs (sb.first / s1.first - 4.0) < 0.15);
+    CHECK (std::abs (sc2.first / s1.first - 1.0) < 0.1);
     // Sxx uses the slice points (S01 = slice 2)
     in.sliceKeys = false;
     const auto sx = level ({ 37, 1, cmdLetter ('S'), 0x01 });
@@ -1796,6 +1802,35 @@ static void testSlices()
         int len = 0; for (float x : L) if (std::abs (x) > 1e-4f) ++len;
         std::printf ("jam slice 4: len %d\n", len);
         CHECK (std::abs (len - 1000) <= 20);
+    }
+    // (v0.73) a jam note below C-3 still plays a slice, and HOLD KEYS keeps a note on after its key comes up
+    {
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.options.model = PaulaOptions::Model::Clean; p.options.zeroOrderHold = false; p.options.eightBit = false; p.options.stereoSep = 0.0f;
+        p.jamNoteOn (13, 0);   // C-1
+        std::vector<float> L (3000), R (3000);
+        p.render (L.data(), R.data(), 3000);
+        int len = 0; for (float x : L) if (std::abs (x) > 1e-4f) ++len;
+        std::printf ("jam C-1 (wrapped to slice 1): len %d\n", len);
+        CHECK (std::abs (len - 1000) <= 20);
+    }
+    {
+        Song ls = oneShot (square (100, 48000));
+        ls.instruments[0].rate = 48000;
+        Player p; p.setSampleRate (48000); p.setSong (&ls);
+        p.options.model = PaulaOptions::Model::Clean; p.options.zeroOrderHold = false; p.options.eightBit = false; p.options.stereoSep = 0.0f;
+        auto loud = [&] { std::vector<float> L (4800), R (4800); p.render (L.data(), R.data(), 4800); float m = 0; for (size_t i = 2400; i < L.size(); ++i) m = std::max (m, std::abs (L[i]) + std::abs (R[i])); return m; };
+        p.jamNoteOn (37, 0); loud(); p.jamNoteOff (37);
+        const float plain = loud(); loud();
+        p.setHoldKeys (true);
+        p.jamNoteOn (37, 0); loud(); p.jamNoteOff (37);
+        const float held = loud();
+        p.jamNoteOn (37, 0);   // (again: lets it go)
+        loud(); const float gone = loud();
+        p.jamNoteOn (37, 0); loud(); p.setHoldKeys (false);
+        loud(); const float off = loud();
+        std::printf ("HOLD KEYS: after key up %.3f (without HOLD %.3f), played again %.3f, HOLD switched off %.3f\n", held, plain, gone, off);
+        CHECK (plain < 0.001f && held > 0.05f && gone < 0.001f && off < 0.001f);
     }
     // finding hits
     {
@@ -4690,6 +4725,78 @@ static void testSubBeat()
                          mode == sub::Poly ? "POLY" : "LEGATO", (int) drive, peak, diff);
             CHECK (peak > 0.1f && diff < peak * 0.02f);
         }
+    // BEAT DELAY: plain for that long, then BEAT comes in - and again from each new attack
+    {
+        auto v = builtinDefaults (kSubKey);
+        v[sub::Drive] = 0; v[sub::BeatOn] = 1; v[sub::BeatRate] = 4; v[sub::BeatDepth] = 100; v[sub::BeatDelay] = 1000;
+        SubSynth s; s.prepare (sr, 512); s.setValues (v);
+        std::vector<float> L ((size_t) sr * 3), R (L.size());
+        s.noteOn (36, 127, 0);
+        s.render (L.data(), R.data(), (int) L.size());
+        auto dip = [&] (double from, double to)
+        {
+            float hi = 0, lo = 9;
+            for (size_t a = (size_t) (from * sr); a + 960 <= (size_t) (to * sr); a += 480)
+            { float m = 0; for (size_t i = a; i < a + 960; ++i) m = std::max (m, std::abs (L[i])); hi = std::max (hi, m); lo = std::min (lo, m); }
+            return lo / hi;
+        };
+        const float before = dip (0.1, 0.95), after = dip (1.8, 2.9);
+        std::printf ("BEAT DELAY 1 S: before it, the level dips to %.2f of its peak (steady); after, to %.2f (beating)\n", before, after);
+        CHECK (before > 0.9f && after < 0.3f);
+        float step = 0;
+        for (size_t i = 1; i < L.size(); ++i) step = std::max (step, std::abs (L[i] - L[i - 1]));
+        CHECK (step < 0.0139f);
+        Instrument in; makeBuiltin (in, kSubKey);
+        auto old = readBuiltinState (in); old.resize (sub::BeatDelay); writeBuiltinState (in, old);
+        CHECK (readBuiltinState (in)[sub::BeatDelay] == 0);   // (a v0.72 song: no delay)
+    }
+}
+
+// ---- RAVE (v0.73): the jungle keys
+static void testRaveSynth()
+{
+    std::printf ("\n== RAVE\n");
+    const double sr = 48000;
+    for (int t = 0; t < rave::Types; ++t)
+    {
+        RaveSynth s; s.prepare (sr, 512); s.setValues (ravePreset (t));
+        std::vector<float> L ((size_t) sr * 5), R (L.size());   // (PAD's release is 2.5 s, and the echo after it)
+        s.noteOn (60, 110, 0);
+        s.render (L.data(), R.data(), 24000);
+        const int playing = s.voicesPlaying();
+        s.noteOff (60, 0);
+        s.render (L.data() + 24000, R.data() + 24000, (int) L.size() - 24000);
+        float peak = 0, step = 0, early = 0, tail = 0;
+        for (size_t i = 0; i < L.size(); ++i) { peak = std::max (peak, std::max (std::abs (L[i]), std::abs (R[i]))); if (i) step = std::max (step, std::abs (L[i] - L[i - 1])); }
+        for (size_t i = 0; i < 4; ++i) early = std::max (early, std::abs (L[i]));   // (the attack ramps from 0)
+        for (size_t i = L.size() - 4800; i < L.size(); ++i) tail = std::max (tail, std::abs (L[i]));
+        std::printf ("%-5s: %d voices for one key, peak %.3f, first 4 samples %.3f, biggest step %.3f, last 0.1 s of 5 %.4f\n", raveTypeName (t), playing, peak, early, step, tail);
+        CHECK (peak > 0.05f && peak < 0.95f);
+        CHECK (early < 0.05f);                        // (no click at the front)
+        CHECK (playing == (t == rave::Stab ? 3 : 1)); // (STAB's MINOR chord: three notes)
+        CHECK (tail < 0.01f);                          // (it ends - the echo too)
+        Instrument in; makeRave (in, t);
+        CHECK (in.pluginKey == kRaveKey && in.name == std::string ("RAVE ") + raveTypeName (t) && (int) readBuiltinState (in)[rave::Type] == t);
+    }
+    // BLEEP plays the note's pitch (A-4 = 440 Hz)
+    {
+        RaveSynth s; s.prepare (sr, 512); auto v = ravePreset (rave::Bleep); v[rave::Sustain] = 100; v[rave::Echo] = 0; s.setValues (v);
+        std::vector<float> L (48000), R (L.size());
+        s.noteOn (69, 100, 0); s.render (L.data(), R.data(), (int) L.size());
+        const double hz = crossingsHz (L, 4800, 47000, 48000);
+        std::printf ("BLEEP A-4: %.1f Hz\n", hz);
+        CHECK (std::abs (hz - 440.0) < 3.0);
+    }
+    // 16 voices: a run of chords never stops dead (the oldest fade) and nothing blows up
+    {
+        RaveSynth s; s.prepare (sr, 512); auto v = ravePreset (rave::Pad); v[rave::Chord] = 3; s.setValues (v);
+        std::vector<float> L (96000), R (L.size());
+        for (int k = 0; k < 12; ++k) { s.noteOn (48 + k * 2, 100, 0); s.render (L.data() + k * 8000, R.data() + k * 8000, 8000); }
+        float peak = 0; bool ok = true;
+        for (float x : L) { ok = ok && std::isfinite (x); peak = std::max (peak, std::abs (x)); }
+        std::printf ("12 MIN 7 chords held on PAD: %d voices, peak %.3f\n", s.voicesPlaying(), peak);
+        CHECK (ok && s.voicesPlaying() <= 16 && peak < 1.0f);
+    }
 }
 
 // ---- REESE: detuned saws / HOOVER, click-free like SUB
@@ -5818,6 +5925,7 @@ int main()
     testSubSynth();
     testGrainSynth();
     testSubBeat();
+    testRaveSynth();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

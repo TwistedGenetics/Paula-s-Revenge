@@ -1124,11 +1124,22 @@ void PaulaEditor::openLoad (int kind)
         choice.show (*this, "INSTRUMENT " + hex + (has ? ": PLAY A BUILT-IN SYNTH INSTEAD? (UNDO BRINGS IT BACK)" : ": A BUILT-IN SYNTH"),
                      { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)",
                        "REESE - DETUNED SAWS THAT PHASE, OR A HOOVER (FILTER, WOBBLE)",
-                       "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)", "CANCEL" }, [safe] (int a)
+                       "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)",
+                       "RAVE - JUNGLE KEYS: CHORD STAB, PAD, ORGAN, BLEEP, BELL...", "CANCEL" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
             if (safe != nullptr && a == 2) safe->makeBuiltinSynth (prv::kGrainKey);
+            if (safe != nullptr && a == 3)
+                safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
+                                   { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
+                                     "PAD - WIDE, SLOW, DRIFTING: THE ROLLING-JUNGLE ATMOSPHERE",
+                                     "ORGAN - THE HOUSE / HARDCORE ORGAN (DRAWBARS AND A CLICK)",
+                                     "BLEEP - BLEEP-AND-BASS TONES (A SINE WITH ECHO)",
+                                     "BELL - FM ELECTRIC PIANO / BELL, BRIGHT THEN MELLOW", "CANCEL" }, [safe] (int t)
+                {
+                    if (safe != nullptr && t >= 0 && t < 5) safe->makeBuiltinSynth (prv::kRaveKey, t);
+                });
         });
         return;
     }
@@ -1148,19 +1159,20 @@ void PaulaEditor::openLoad (int kind)
     refreshAll();
 }
 
-void PaulaEditor::makeBuiltinSynth (const std::string& key)
+void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
-        prv::makeBuiltin (proc.song.instruments[(size_t) i], key);
+        if (key == prv::kRaveKey) prv::makeRave (proc.song.instruments[(size_t) i], raveType);
+        else prv::makeBuiltin (proc.song.instruments[(size_t) i], key);
         for (auto& sl : proc.song.mixer.inst[i]) sl = prv::FxSlot {};
     });
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 
@@ -1354,12 +1366,27 @@ void PaulaEditor::toggleHelp()
     setView (View::Help);
 }
 
+void PaulaEditor::setHoldKeys (bool on)
+{
+    proc.withLock ([&] { proc.player.setHoldKeys (on); });
+    setStatus (on ? "HOLD KEYS ON: A NOTE STAYS ON AFTER ITS KEY COMES UP - PLAY IT AGAIN TO STOP IT (F4 TO TURN OFF)"
+                  : "HOLD KEYS OFF (NOTES STOP WHEN THEIR KEYS COME UP)");
+}
+
 bool PaulaEditor::keyPressed (const juce::KeyPress& k)
 {
     // F2: FILL (held - the timer watches it); Shift+F2 latches it
     if (k.getKeyCode() == juce::KeyPress::F2Key)
     {
         if (k.getModifiers().isShiftDown()) setFillLatch (! fillLatched);
+        return true;
+    }
+    // F4: HOLD KEYS - notes from the computer keys (and MIDI) stay on until played again
+    if (k.getKeyCode() == juce::KeyPress::F4Key)
+    {
+        bool on = false;
+        proc.withLock ([&] { on = proc.player.isHoldKeys(); });
+        setHoldKeys (! on);
         return true;
     }
     // Cmd+K: the command palette
@@ -2351,6 +2378,7 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
     out.push_back ({ "PAGE: HELP", "F1", "PAGE", [safe] { if (safe) safe->toggleHelp(); } });
     out.push_back ({ "PAGE: BREAK", "CMD+6", "PAGE", [safe] { if (safe) safe->openBreak(); } });
     out.push_back ({ "FILL: LATCH ON / OFF", "SHIFT+F2", "PLAY", [safe] { if (safe) safe->setFillLatch (! safe->fillLatched); } });
+    out.push_back ({ "HOLD KEYS: ON / OFF (NOTES STAY ON)", "F4", "PLAY", [safe] { if (safe) { bool on = false; safe->proc.withLock ([&] { on = safe->proc.player.isHoldKeys(); }); safe->setHoldKeys (! on); } } });
     out.push_back ({ "CONDITION ON THE HIGHLIGHTED NOTES...", {}, "EDIT", [safe] { if (safe) safe->showConditionMenu(); } });
     // the look and the layout
     for (int i = 0; i < prv::ui::Theme::kSkins; ++i)

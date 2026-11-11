@@ -1,6 +1,7 @@
 // Paula's Revenge - the built-in synths (SUB, GRANULAR)
 #include "BuiltinSynths.h"
 #include "ReeseSynth.h"
+#include "RaveSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -82,6 +83,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
         { "BEAT RATE", "OSCILLATOR", 0.1f, 10, 1,  1, "HZ", "" },
         { "BEAT AMT",  "OSCILLATOR", 0, 100, 100,  0, "%",  "" },
         { "BEAT ST",   "OSCILLATOR", -12, 12, 1,   2, "ST", "" },
+        { "BEAT WAIT", "OSCILLATOR", 0, 4000, 0,   0, "MS", "" },   // (the delay before BEAT comes in)
     };
     static const std::vector<SynthParam> grainP {
         { "SOURCE",    "SOURCE",     0, 2, 0,      3, "",   "TABLE|SAMPLE|RECORDING" },
@@ -117,6 +119,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kSubKey) return subP;
     if (key == kGrainKey) return grainP;
     if (key == kReeseKey) return reeseParams();
+    if (key == kRaveKey) return raveParams();
     return none;
 }
 
@@ -162,10 +165,17 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     writeBuiltinState (in, builtinDefaults (key));
+}
+
+void makeRave (Instrument& in, int type)
+{
+    makeBuiltin (in, kRaveKey);
+    writeBuiltinState (in, ravePreset (type));
+    in.name = std::string ("RAVE ") + raveTypeName (type);
 }
 
 std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sampleRate)
@@ -173,6 +183,7 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     std::unique_ptr<PluginSynth> s;
     if (in.pluginKey == kSubKey) s = std::make_unique<SubSynth>();
     if (in.pluginKey == kReeseKey) s = std::make_unique<ReeseSynth>();
+    if (in.pluginKey == kRaveKey) s = std::make_unique<RaveSynth>();
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;
@@ -228,7 +239,8 @@ void SubSynth::startVoice (Voice& v, int note, int vel, bool retrigger, bool gli
     if (v.stage == 0 && ! v.fading)
     {
         v.pitch = (float) note; glide = false;   // (from silence: no slide from nowhere)
-        v.beatMix = std::lround (p[sub::BeatOn]) >= 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;   // (and BEAT there from the start, as a second key would be)
+        // (and BEAT there from the start, as a second key would be - unless BEAT DELAY holds it back)
+        v.beatMix = std::lround (p[sub::BeatOn]) >= 1 && p[sub::BeatDelay] < 0.5f ? p[sub::BeatDepth] * 0.01f : 0.0f;
     }
     v.target = (float) note;
     if (glide && glideMs > 1.5f) v.glideStep = (v.target - v.pitch) / (float) std::max (1.0, glideMs * 0.001 * sr);
@@ -241,6 +253,7 @@ void SubSynth::startVoice (Voice& v, int note, int vel, bool retrigger, bool gli
         v.stage = 1;
         v.vel = (float) vel / 127.0f;
         v.drop = p[sub::DropAmount];          // (the 808 drop: the pitch starts up there and falls; the wave never jumps)
+        v.beatAge = 0;                        // (BEAT DELAY counts from each new attack)
         v.noiseEnv = 1.0f;
     }
     else if (v.stage == 0 || v.stage == 3) v.stage = 2;   // (legato into a voice that was letting go: back to sustain)
@@ -334,8 +347,14 @@ float SubSynth::renderVoice (Voice& v)
     const bool bySemis = std::lround (p[sub::BeatOn]) == 2;
     const double hzB = bySemis ? hz * std::pow (2.0, std::round (p[sub::BeatSemis]) / 12.0) : hz + p[sub::BeatRate];
     v.phaseB += hzB / sr; v.phaseB -= std::floor (v.phaseB);
-    const float beatTo = std::lround (p[sub::BeatOn]) >= 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;
-    v.beatMix += (beatTo - v.beatMix) * (float) (1.0 - std::exp (-1.0 / (0.015 * sr)));   // (15 ms)
+    // BEAT DELAY: the note plays plain that long first, then BEAT eases in (a short delay: as fast as switching it
+    // on - 15 ms; a longer one fades it in over a quarter of the delay, at most 400 ms, so it swells in rather than snaps)
+    const double delaySamples = p[sub::BeatDelay] * 0.001 * sr;
+    const bool waiting = v.beatAge < delaySamples;
+    if (waiting) ++v.beatAge;
+    const float beatTo = std::lround (p[sub::BeatOn]) >= 1 && ! waiting ? p[sub::BeatDepth] * 0.01f : 0.0f;
+    const double ease = std::clamp (p[sub::BeatDelay] * 0.25 * 0.001, 0.015, 0.4);
+    v.beatMix += (beatTo - v.beatMix) * (float) (1.0 - std::exp (-1.0 / (ease * sr)));
     static const float iv[4] = { 12.0f, 7.0f, 19.0f, -12.0f };
     const int ii = std::clamp ((int) std::lround (p[sub::Osc2Interval]), 0, 3);
     const double osc2 = std::pow (2.0, iv[ii] / 12.0);

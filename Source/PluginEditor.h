@@ -53,7 +53,7 @@ public:
     prv::ui::RadioPage& getRadio() { return radioPage; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::EnginePage& getEnginePage() { return enginePage; }
-    void makeBuiltinSynth (const std::string& key);   // the current instrument becomes SUB / GRANULAR (its page opens)
+    void makeBuiltinSynth (const std::string& key, int raveType = 0);   // the current instrument becomes SUB / REESE / GRANULAR / RAVE (that sound) - its page opens
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }
     prv::ui::HelpPage& getHelp() { return help; }
@@ -287,6 +287,7 @@ public:
     void openBreak();
     void showConditionMenu();          // ?xy on the highlighted notes
     void setFillLatch (bool on);       // FILL stays on (Shift+F2)
+    void setHoldKeys (bool on);        // HOLD KEYS (F4): notes stay on after their keys come up
     bool fillLatched = false;
     prv::ui::BreakPage& getBreakPage() { return breakPage; }
     prv::ui::LivePage& getLivePage() { return livePage; }

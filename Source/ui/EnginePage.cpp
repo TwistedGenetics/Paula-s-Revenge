@@ -157,7 +157,8 @@ void EnginePage::build()
             // (REESE: HOOVER, FILTER, WOBBLE and DRIVE are on its second page)
             const bool grainPage = shownKey == kGrainKey, reesePage = shownKey == kReeseKey;
             const bool second = (grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER"))
-                             || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"));
+                             || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"))
+                             || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"));   // (when SUB needs two pages)
             boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
@@ -285,6 +286,7 @@ void EnginePage::resized()
     const int rowH = (int) (px * 11);
     const int gap = (int) std::max (2.0f, px);
     const int title = (int) (px * 11);
+    if (! relayout) subPages = false;
     auto r = getLocalBounds().reduced (gap);
     auto top = r.removeFromTop (rowH);
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
@@ -327,6 +329,7 @@ void EnginePage::resized()
             case sub::BeatRate:  return beat != 1;
             case sub::BeatSemis: return beat != 2;
             case sub::BeatDepth: return beat == 0;
+            case sub::BeatDelay: return beat == 0;
             default: return false;
         }
     };
@@ -385,16 +388,17 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey;
+    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged);
     loadSampleBtn.setVisible (shownKey == kGrainKey);
-    if (shownKey == kReeseKey)
+    if (shownKey == kReeseKey || (shownKey == kSubKey && subPages))
     {
-        // REESE: its two pages' tabs on a line of their own
-        pageBtn[0].setButtonText ("SOUND"); pageBtn[1].setButtonText ("HOOVER + FILTER");
+        // REESE (and SUB when it needs them): its two pages' tabs on a line of their own
+        const bool sub = shownKey == kSubKey;
+        pageBtn[0].setButtonText ("SOUND"); pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : "HOOVER + FILTER");
         auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
         pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
-        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (17)));
+        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (sub ? 15 : 17)));
         for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
     }
     else if (paged)
@@ -504,6 +508,13 @@ void EnginePage::resized()
         place (*shownBoxes[(size_t) k], { r.getX() + c * (colW + gap * 3), colY[(size_t) c], colW, h });
         colY[(size_t) c] += h + gap * 2;
     }
+    // SUB that doesn't all fit (BEAT's rows on, a small window): OSC 2, 808 DROP and DRIVE go to a second page
+    if (shownKey == kSubKey && ! subPages && best - gap * 2 > r.getHeight())
+    {
+        subPages = relayout = true;
+        resized();
+        relayout = false;
+    }
 }
 
 void EnginePage::paint (juce::Graphics& g)
@@ -514,7 +525,8 @@ void EnginePage::paint (juce::Graphics& g)
     // the title: as much of it as fits (never cut)
     const juce::String name = juce::String (inst().pluginName);
     const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH"
-                            : inst().pluginKey == kReeseKey ? " - REESE / HOOVER BASS" : "";
+                            : inst().pluginKey == kReeseKey ? " - REESE / HOOVER BASS"
+                            : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth() || t == name) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
