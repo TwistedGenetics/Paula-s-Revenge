@@ -1,5 +1,6 @@
 // Paula's Revenge - graphical AUTOMATION (see AutomationPanel.h)
 #include "AutomationPanel.h"
+#include "../engine/GearMaps.h"
 #include "ModPage.h"
 #include "MixerPage.h"
 #include "../engine/Modulation.h"
@@ -21,6 +22,9 @@ namespace
             const int ins = target - kAutoInstrumentBase;
             juce::String p = "#" + juce::String (param);
             if (auto* s = proc.synthAt (ins)) p = prv::PluginHost::parameterName (s->instance(), param).toUpperCase();
+            else if (param >= kGearAutoBase)
+                if (const auto* map = gearMap (proc.song.instruments[(size_t) ins].midiGear))
+                    if (param - kGearAutoBase < (int) map->params.size()) p = juce::String (map->params[(size_t) (param - kGearAutoBase)].label());
             return "INSTRUMENT " + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2) + ": " + p;
         }
         return ModPage::targetName (proc, target, param);
@@ -119,6 +123,14 @@ void AutomationPanel::rebuildList()
     for (int k = 0; k < kInstMacros; ++k)
         if (proc.song.mixer.instMacro[ins][k].routes() > 0) add (kInstMacroBase + ins * kInstMacros + k, 0, insName + "MACRO " + juce::String (k + 1));
     for (int k = 0; k < kInserts; ++k) addSlot (instrumentSlot (ins, k), insName);
+    // a MIDI-out instrument's GEAR: every control, by name (sent to the synth as the lane moves)
+    {
+        const auto& in = proc.song.instruments[(size_t) ins];
+        if (in.isMidiOut())
+            if (const auto* map = gearMap (in.midiGear))
+                for (size_t n = 0; n < map->params.size() && n < 256; ++n)
+                    add (kAutoInstrumentBase + ins, kGearAutoBase + (int) n, insName + juce::String (map->params[n].label()));
+    }
     if (auto* sy = proc.synthAt (ins))
     {
         const int n = std::min ((int) prv::PluginHost::parameterValues (sy->instance()).size(), 48);

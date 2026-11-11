@@ -2,6 +2,7 @@
 #pragma once
 
 #include "PluginSynth.h"
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 
@@ -22,7 +23,7 @@ public:
 class MidiOutSynth : public PluginSynth
 {
 public:
-    explicit MidiOutSynth (std::unique_ptr<MidiSink> s) : sink (std::move (s)) {}
+    explicit MidiOutSynth (std::unique_ptr<MidiSink> s) : sink (std::move (s)) { std::fill (std::begin (lastGear), std::end (lastGear), -1); }
     ~MidiOutSynth() override;   // anything still sounding is switched off
 
     void prepare (double sampleRate, int) override { rate = sampleRate; }
@@ -50,6 +51,8 @@ private:
     int lastCc[kInstrumentKnobs] { -1, -1, -1, -1 };
     int gear = 0;
     int last14[kInstrumentKnobs] { -1, -1, -1, -1 };
+    static constexpr int kMaxGearAuto = 256;
+    int lastGear[kMaxGearAuto];
     bool clockOn = false;
     double delayMs = 0;
     int sounding[128] {};                          // note-ons not yet switched off

@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.70</span>
+  <span class="ver">MANUAL &middot; V0.71</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1057,6 +1057,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <div class="frame sunken"><img src="img/gear_controls.png" alt="ALL CONTROLS for the Access Virus TI: eighteen part tabs from OSC 1 to MASTER; LFO 1 is chosen, with bars for RATE, SHAPE, ENV MODE, MODE, SYMMETRY, KEY FOLLOW and RESTART, each with its CC number." width="1440" height="900" loading="lazy"></div>
     <figcaption>ALL CONTROLS: every control of the synth, a page per part</figcaption>
   </figure>
+  <p>More GEAR: <b>DREADBOX TYPHON</b> (its firmware-3 CCs; MIDI CC: ENABLED), <b>KORG M1 / M1R</b> (Korg's parameter-change System Exclusive; pick SINGLE or DOUBLE to match the program, and put the M1 in EDIT PROGRAM) and <b>ROLAND JV-1080</b> (Roland's DT1 to the patch being played: patch, effects, all four tones at once, or each tone). The Behringer TD-3's sound knobs are analog, with no MIDI control.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/gear_jv.png" alt="ALL CONTROLS for the Roland JV-1080: part tabs PATCH, EFX, CHORUS + REVERB, FILTER, FILTER ENV, AMP ENV, PITCH, LFO, LEVEL + PAN and TONE 1 to 4; LFO is shown with bars for LFO 1 WAVE, LFO 1 RATE, LFO 2 WAVE, LFO 2 RATE, LEVEL LFO 1 and PAN LFO 1, each sent to TONES 1-4." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The JV-1080's controls: LFO on all four tones</figcaption>
+  </figure>
+  <p><b>Every GEAR control can be automated:</b> the AUTOMATION panel lists them all by name, and a lane on one sends it to the synth as the block plays (only when the value changes).</p>
   <p><span class="b">ALL CONTROLS...</span> shows every control as a bar that sends as you move it. The numbers come from Korg's own documents. Units loaded into the microKORG 2 aren't in Korg's MIDI chart, so they're set on the synth.</p>
   <h3>Akai S1000 editor</h3>
   <p><span class="b">GEAR: AKAI S1000</span>, then <span class="b">S1000 EDITOR...</span>, edits the sampler itself over System Exclusive. Connect both ways (the S1000's MIDI OUT to a MIDI input switched on in Settings) and set its exclusive channel to this instrument's CHANNEL minus one. <span class="b">GET PROGRAMS</span> reads the program names; <span class="b">PROGRAM:</span> picks one and reads its settings and every keygroup.</p>
@@ -1351,7 +1357,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.70</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.71</footer>
 </main>
 </div>
 <script>

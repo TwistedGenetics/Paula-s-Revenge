@@ -393,15 +393,9 @@ void MidiOutPage::setGear (int id)
     int want[kInstrumentKnobs] { 74, 71, 73, 10 };
     if (const auto* map = gearMap (id))
     {
-        const char* picks[5][kInstrumentKnobs] = {
-            { "FILTER: CUTOFF", "FILTER: RESONANCE", "FILTER EG: INTENSITY", "AMP EG: RELEASE" },
-            { "FILTER: CUTOFF", "FILTER: RESONANCE", "OSC: A", "OSC: B" },
-            { "FILTER: CUTOFF", "ROLLERS: BLEND", "ROLLERS: DETUNE", "ROLLERS: PITCH DROP" },
-            { "LPF: CUTOFF", "LPF: RESONANCE", "LPF: EG AMOUNT", "VCA EG: RELEASE" },
-            { "FILTER 1: CUTOFF", "FILTER 1: RESONANCE", "FILTER 1: EG AMOUNT", "OSC 1: SHAPE" } };
-        for (int k = 0; k < kInstrumentKnobs; ++k)
+        for (int k = 0; k < kInstrumentKnobs && k < (int) map->knobs.size(); ++k)
             for (size_t n = 0; n < map->params.size(); ++n)
-                if (id <= 5 && map->params[n].label() == picks[id - 1][k]) want[k] = kGearKnobBase + (int) n;
+                if (map->params[n].label() == map->knobs[(size_t) k]) want[k] = kGearKnobBase + (int) n;
     }
     edit ("GEAR: " + juce::String (gearName (id)), [id, &want] (Instrument& in)
     {
@@ -501,7 +495,8 @@ void MidiOutPage::buildControls()
         auto b = std::make_unique<PixSlider> (juce::String (p.name));
         b->labelChars = longest + 1; b->valueChars = 5.5f;
         const int steps = p.steps;
-        b->format = [steps] (float v) { return steps >= 2 ? juce::String (juce::roundToInt (v * (steps - 1)) + 1) + "/" + juce::String (steps) : juce::String (juce::roundToInt (v * 127.0f)); };
+        const GearParam gp = p;
+        b->format = [gp] (float v) { return juce::String (gp.text (v)); };
         b->defaultValue = 0.5f;
         const auto it = ctlValues.find ((int) n);
         b->value = it != ctlValues.end() ? it->second : (steps >= 2 ? 0.0f : 0.5f);
@@ -651,7 +646,7 @@ void MidiOutPage::resized()
         {
             const int c = n / perCol, row = n % perCol;
             juce::Rectangle<int> cr (r.getX() + c * (colW + gap * 4), r.getY() + row * (rowH + gap), colW, rowH);
-            if (cols == 1) { ctlWhere.push_back (cr.removeFromRight (charsW (11)).toFloat()); cr.removeFromRight (gap * 2); }
+            if (cols == 1) { ctlWhere.push_back (cr.removeFromRight (charsW (12)).toFloat()); cr.removeFromRight (gap * 2); }
             ctlBars[(size_t) n]->setBounds (cr);
         }
         return;

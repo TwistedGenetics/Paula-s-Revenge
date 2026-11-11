@@ -70,6 +70,24 @@ void MidiOutSynth::controller (int number, int value, int offset)
 
 void MidiOutSynth::setParameterAt (int knob, float v, int offset)
 {
+    if (knob >= kGearAutoBase)
+    {
+        // an AUTOMATION lane on one of the GEAR's controls (it moves in fine steps; the same again sends nothing)
+        const int n = knob - kGearAutoBase;
+        if (n >= kMaxGearAuto) return;
+        // (only when what's sent changes: SysEx and plain CCs move in their own steps, so a slow lane isn't a flood)
+        const auto* map = gearMap (gear);
+        if (map == nullptr || n >= (int) map->params.size()) return;
+        const auto& p = map->params[(size_t) n];
+        const float c = std::clamp (v, 0.0f, 1.0f);
+        const int key = gearIsSysex (p) ? (int) std::lround (c * (p.hi - p.lo))
+                      : p.how == GearSend::Cc ? (p.steps >= 2 ? (int) std::lround (c * (p.steps - 1)) : (int) std::lround (c * 127.0f))
+                      : (int) std::lround (c * 16383.0f);
+        if (key == lastGear[n]) return;
+        lastGear[n] = key;
+        sendGear (n, v, offset);
+        return;
+    }
     if (knob < 0 || knob >= kInstrumentKnobs) return;
     const int value = std::clamp ((int) std::lround (v * 127.0f), 0, 127);
     if (cc[knob] >= kGearKnobBase)
@@ -90,8 +108,19 @@ void MidiOutSynth::sendGear (int param, float v, int offset)
 {
     const auto* map = gearMap (gear);
     if (map == nullptr || param < 0 || param >= (int) map->params.size()) return;
+    const auto& p = map->params[(size_t) param];
+    if (gearIsSysex (p))
+    {
+        // System Exclusive: each message (F0 ... F7) on its own
+        const auto bytes = gearSysex (p, v, chan);
+        size_t from = 0;
+        for (size_t i = 0; i < bytes.size(); ++i)
+            if (bytes[i] == 0xF7) { if (sink != nullptr) sink->send (bytes.data() + from, (int) (i + 1 - from), std::max (0, offset)); from = i + 1; }
+        usedChan[chan] = true;
+        return;
+    }
     uint8_t m[4][3];
-    const int n = gearMessages (map->params[(size_t) param], v, chan, m);
+    const int n = gearMessages (p, v, chan, m);
     for (int k = 0; k < n; ++k) out (offset, m[k][0], m[k][1], m[k][2]);
     usedChan[chan] = true;
 }
@@ -111,6 +140,7 @@ void MidiOutSynth::update (const Instrument& in)
         const int c = std::clamp (in.midiCC[k], 0, kGearKnobBase + 255);
         if (c != cc[k] || in.midiGear != gear) { cc[k] = c; lastCc[k] = last14[k] = -1; }
     }
+    if (in.midiGear != gear) std::fill (std::begin (lastGear), std::end (lastGear), -1);
     gear = in.midiGear;
     clockOn = in.midiClock;
     delayMs = std::max (0, in.midiDelayMs);   // (a negative delay makes the audio later instead)

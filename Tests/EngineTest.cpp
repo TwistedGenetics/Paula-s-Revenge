@@ -4918,7 +4918,7 @@ static void testLiveMode()
 static void testGear()
 {
     std::printf ("\n== GEAR\n");
-    CHECK (gearCount() == 7 && gearName (6) == "AKAI S1000" && gearName (7) == "AKAI S950" && gearHasEditor (6) && gearHasEditor (7) && ! gearHasEditor (5) && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (8) == nullptr);
+    CHECK (gearCount() == 11 && gearName (8) == "DREADBOX TYPHON" && gearName (11) == "ROLAND JV-1080" && gearName (6) == "AKAI S1000" && gearName (7) == "AKAI S950" && gearHasEditor (6) && gearHasEditor (7) && ! gearHasEditor (5) && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (12) == nullptr);
     auto find = [] (int id, const std::string& label) { const auto* m = gearMap (id); for (size_t i = 0; i < m->params.size(); ++i) if (m->params[i].label() == label) return (int) i; return -1; };
     // the microKORG 2: plain CCs as its manual lists them
     {
@@ -4974,6 +4974,57 @@ static void testGear()
         gearMessages (gearMap (5)->params[(size_t) find (5, "OSC 1: WAVE")], 0.5f, 0, out);
         CHECK (out[0][1] == 19 && (out[0][2] == 49 || out[0][2] == 50));
         CHECK (gearMap (5)->params[(size_t) find (5, "FILTER 1: CUTOFF")].num == 40 && gearMap (5)->params[(size_t) find (5, "MASTER: VOLUME")].num == 91);
+    }
+    // the Typhon (CCs, none twice; 64 left for the sustain pedal)
+    {
+        std::set<int> seen; bool dup = false, sixtyFour = false;
+        for (const auto& p : gearMap (8)->params) { dup = dup || ! seen.insert (p.num).second; sixtyFour = sixtyFour || p.num == 64; }
+        CHECK (! dup && ! sixtyFour && gearMap (8)->params[(size_t) find (8, "FILTER: CUTOFF")].num == 4 && gearMap (8)->params[(size_t) find (8, "MOD 2 TO: VCA")].num == 65);
+        CHECK (gearMap (8)->params[(size_t) find (8, "MOD 3 CUSTOM: CUSTOM 3")].num == 88 && gearMap (8)->params[(size_t) find (8, "SEQ: SWING")].num == 92);
+    }
+    // the M1: PARAMETER CHANGE, page and position as Korg's Table 5 has them (SINGLE and DOUBLE differ)
+    {
+        const auto& cutS = gearMap (9)->params[(size_t) find (9, "VDF 1: CUTOFF")];
+        const auto& cutD = gearMap (10)->params[(size_t) find (10, "VDF 1: CUTOFF")];
+        const auto& cut2 = gearMap (10)->params[(size_t) find (10, "VDF 2: CUTOFF")];
+        CHECK (cutS.num == 3 && cutS.lsb == 8 && cutD.num == 5 && cut2.num == 9 && find (9, "VDF 2: CUTOFF") < 0 && find (9, "OSC 2: DETUNE") < 0);
+        const auto m = gearSysex (cutS, 1.0f, 2);
+        CHECK ((m == std::vector<uint8_t> { 0xF0, 0x42, 0x32, 0x19, 0x41, 3, 8, 99, 0, 0xF7 }));
+        const auto neg = gearSysex (gearMap (9)->params[(size_t) find (9, "VDF 1 EG: SUSTAIN")], 0.0f, 0);   // (-99: 3F9D)
+        CHECK (neg[7] == 0x1D && neg[8] == 0x7F);
+        CHECK (gearMap (10)->params[(size_t) find (10, "VDA 2 EG: RELEASE")].num == 16 && gearMap (9)->params[(size_t) find (9, "PITCH MG: INTENSITY")].num == 10
+               && gearMap (10)->params[(size_t) find (10, "PITCH MG: INTENSITY")].num == 19);
+    }
+    // the JV-1080: DT1 to the temporary patch, Roland's checksum; all four tones, or one
+    {
+        const auto& lvl = gearMap (11)->params[(size_t) find (11, "PATCH: LEVEL")];
+        auto m = gearSysex (lvl, 1.0f, 0);   // 03 00 00 2E = 127: sum 03+2E+7F = B0 -> checksum 50
+        CHECK ((m == std::vector<uint8_t> { 0xF0, 0x41, 0x10, 0x6A, 0x12, 0x03, 0x00, 0x00, 0x2E, 0x7F, 0x50, 0xF7 }));
+        const auto& cut = gearMap (11)->params[(size_t) find (11, "FILTER: CUTOFF")];
+        m = gearSysex (cut, 0.0f, 0);
+        CHECK (m.size() == 48 && m[7] == 0x10 && m[8] == 0x51 && m[19] == 0x12 && m[31] == 0x14 && m[43] == 0x16 && m[44] == 0x51);
+        const auto& rev = gearMap (11)->params[(size_t) find (11, "LEVEL + PAN: REVERB SEND")];   // (offset 128: 01 00 on)
+        m = gearSysex (rev, 0.0f, 0);
+        CHECK (m[6] == 0x00 && m[7] == 0x11 && m[8] == 0x00 && m[19] == 0x13 && m[20] == 0x00);
+        const auto& wave = gearMap (11)->params[(size_t) find (11, "TONE 3: WAVE")];       // (two nibbles, tone 3 = 03 00 14 03)
+        m = gearSysex (wave, 1.0f, 0);
+        CHECK (m.size() == 13 && m[7] == 0x14 && m[8] == 0x03 && m[9] == 0x0F && m[10] == 0x0E && wave.text (1.0f) == "255");
+        CHECK (gearMap (11)->params[(size_t) find (11, "PITCH: COARSE")].text (0.0f) == "-48" && cut.where() == "TONES 1-4 51");
+    }
+    // an automation lane on a GEAR control: setParameterAt (kGearAutoBase + n) sends it (once per value)
+    {
+        std::vector<MidiEv> log;
+        MidiOutSynth synth (std::make_unique<FakeSink> (&log));
+        synth.prepare (48000, 512);
+        Instrument in; in.plugin = in.midiOut = true; in.midiChannel = 1; in.midiGear = 11;
+        synth.update (in);
+        synth.setParameterAt (kGearAutoBase + find (11, "PATCH: LEVEL"), 1.0f, 0);
+        synth.setParameterAt (kGearAutoBase + find (11, "PATCH: LEVEL"), 1.0f, 0);
+        std::printf ("JV-1080 lane: %d messages, first %d bytes\n", (int) log.size(), log.empty() ? 0 : (int) log[0].m.size());
+        CHECK (log.size() == 1 && log[0].m.size() == 12);
+        in.midiGear = 8; synth.update (in); log.clear();
+        synth.setParameterAt (kGearAutoBase + find (8, "FILTER: CUTOFF"), 0.5f, 0);
+        CHECK (log.size() == 1 && log[0].m[1] == 4 && log[0].m[2] == 64);
     }
     // a MIDI-out instrument: a knob on a GEAR parameter sends that parameter's messages
     {
