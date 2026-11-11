@@ -168,8 +168,9 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     zoomIn.onClick  = [this, &st] { st.uiZoom = std::min (4, st.uiZoom + 1); resized(); repaint(); };
 
     // ---- transport
-    playSongBtn.onClick  = [this, &st] { proc.withLock ([&] { proc.player.playSong (st.seqPos, 0); }); refreshAll(); };
-    playBlockBtn.onClick = [this, &st] { proc.withLock ([&] { proc.player.playBlock (st.block, 0); }); refreshAll(); };
+    // SONG / BLOCK: play - and back to the main page (the pattern) from whatever page is open
+    playSongBtn.onClick  = [this, &st] { if (st.view != View::Pattern) setView (View::Pattern); proc.withLock ([&] { proc.player.playSong (st.seqPos, 0); }); refreshAll(); };
+    playBlockBtn.onClick = [this, &st] { if (st.view != View::Pattern) setView (View::Pattern); proc.withLock ([&] { proc.player.playBlock (st.block, 0); }); refreshAll(); };
     stopBtn.onClick      = [this]
     {
         // STOP while already stopped: panic (all notes off on every MIDI output)

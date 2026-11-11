@@ -78,9 +78,10 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
         { "VELOCITY",  "OUTPUT",     0, 100, 50,   0, "%",  "" },
         { "LEVEL",     "OUTPUT",     0, 100, 80,   0, "%",  "" },
         // (BEAT sits in the OSCILLATOR box: it's a second copy of that oscillator)
-        { "BEAT",      "OSCILLATOR", 0, 1, 0,      3, "",   "BEAT OFF|BEAT ON" },
+        { "BEAT",      "OSCILLATOR", 0, 2, 0,      3, "",   "OFF|BEAT HZ|BEAT ST" },
         { "BEAT RATE", "OSCILLATOR", 0.1f, 10, 1,  1, "HZ", "" },
         { "BEAT AMT",  "OSCILLATOR", 0, 100, 100,  0, "%",  "" },
+        { "BEAT ST",   "OSCILLATOR", -12, 12, 1,   2, "ST", "" },
     };
     static const std::vector<SynthParam> grainP {
         { "SOURCE",    "SOURCE",     0, 2, 0,      3, "",   "TABLE|SAMPLE|RECORDING" },
@@ -224,7 +225,11 @@ float SubSynth::shapeWave (double ph) const
 void SubSynth::startVoice (Voice& v, int note, int vel, bool retrigger, bool glide)
 {
     const float glideMs = p[sub::Glide];
-    if (v.stage == 0 && ! v.fading) { v.pitch = (float) note; glide = false; }   // (from silence: no slide from nowhere)
+    if (v.stage == 0 && ! v.fading)
+    {
+        v.pitch = (float) note; glide = false;   // (from silence: no slide from nowhere)
+        v.beatMix = std::lround (p[sub::BeatOn]) >= 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;   // (and BEAT there from the start, as a second key would be)
+    }
     v.target = (float) note;
     if (glide && glideMs > 1.5f) v.glideStep = (v.target - v.pitch) / (float) std::max (1.0, glideMs * 0.001 * sr);
     else { v.pitch = v.target; v.glideStep = 0; }
@@ -324,12 +329,18 @@ float SubSynth::renderVoice (Voice& v)
     const double hz = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
     v.phase += hz / sr; v.phase -= std::floor (v.phase);
     // BEAT: the same wave RATE Hz higher - the two drift in and out of step RATE times a second, whatever the note
-    v.phaseB += (hz + p[sub::BeatRate]) / sr; v.phaseB -= std::floor (v.phaseB);
-    const float beatTo = std::lround (p[sub::BeatOn]) == 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;
+    // or (BEAT ST) the whole sound BEAT ST semitones up, at full level: exactly a second key held with it, so
+    // the wobble follows the note as two keys' would (a semitone over a 55 Hz A: 3.3 times a second; an octave up: 6.5)
+    const bool bySemis = std::lround (p[sub::BeatOn]) == 2;
+    const double hzB = bySemis ? hz * std::pow (2.0, std::round (p[sub::BeatSemis]) / 12.0) : hz + p[sub::BeatRate];
+    v.phaseB += hzB / sr; v.phaseB -= std::floor (v.phaseB);
+    const float beatTo = std::lround (p[sub::BeatOn]) >= 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;
     v.beatMix += (beatTo - v.beatMix) * (float) (1.0 - std::exp (-1.0 / (0.015 * sr)));   // (15 ms)
     static const float iv[4] = { 12.0f, 7.0f, 19.0f, -12.0f };
     const int ii = std::clamp ((int) std::lround (p[sub::Osc2Interval]), 0, 3);
-    v.phase2 += hz * std::pow (2.0, iv[ii] / 12.0) / sr; v.phase2 -= std::floor (v.phase2);
+    const double osc2 = std::pow (2.0, iv[ii] / 12.0);
+    v.phase2 += hz * osc2 / sr; v.phase2 -= std::floor (v.phase2);
+    v.phase2B += hzB * osc2 / sr; v.phase2B -= std::floor (v.phase2B);
 
     // the envelope: a straight attack from where it is, decay to sustain, release (exponential)
     const float sus = p[sub::Sustain] * 0.01f;
@@ -342,8 +353,13 @@ float SubSynth::renderVoice (Voice& v)
         default: break;
     }
     float x = shapeWave (v.phase);
-    if (v.beatMix > 0.0001f) x = (x + shapeWave (v.phaseB) * v.beatMix) / (1.0f + 0.6f * v.beatMix);
-    x += shapeWave (v.phase2) * p[sub::Osc2Level] * 0.01f;
+    const float o2 = p[sub::Osc2Level] * 0.01f;
+    if (v.beatMix > 0.0001f)
+    {
+        if (bySemis) x += (shapeWave (v.phaseB) + shapeWave (v.phase2B) * o2) * v.beatMix;   // (the second key, as it is)
+        else x = (x + shapeWave (v.phaseB) * v.beatMix) / (1.0f + 0.6f * v.beatMix);
+    }
+    x += shapeWave (v.phase2) * o2;
     if (p[sub::Noise] > 0.0f && v.noiseEnv > 0.0001f)
     {
         noiseSeed = noiseSeed * 1664525u + 1013904223u;

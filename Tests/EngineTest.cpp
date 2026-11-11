@@ -4670,6 +4670,26 @@ static void testSubBeat()
         const auto back = readBuiltinState (in);
         CHECK ((int) back.size() == sub::Count && back[sub::BeatOn] == 0 && std::abs (back[sub::BeatRate] - 1) < 0.001f && back[sub::Glide] == 222);
     }
+    // BEAT BY SEMITONES: one key with BEAT ST +1 is the same sound as two keys a semitone apart held together
+    for (int mode : { (int) sub::Poly, (int) sub::Legato })
+        for (float drive : { 0.0f, 40.0f })
+        {
+            auto v = builtinDefaults (kSubKey);
+            v[sub::Mode] = (float) sub::Poly; v[sub::Drive] = drive; v[sub::Osc2Level] = 30; v[sub::Shape] = 40;
+            SubSynth two; two.prepare (sr, 512); two.setValues (v);
+            std::vector<float> A (96000), AR (A.size()), B (A.size()), BR (A.size());
+            two.noteOn (36, 100, 0); two.noteOn (37, 100, 0);
+            two.render (A.data(), AR.data(), (int) A.size());
+            v[sub::Mode] = (float) mode; v[sub::BeatOn] = 2; v[sub::BeatSemis] = 1; v[sub::BeatDepth] = 100;
+            SubSynth one; one.prepare (sr, 512); one.setValues (v);
+            one.noteOn (36, 100, 0);
+            one.render (B.data(), BR.data(), (int) B.size());
+            float diff = 0, peak = 0;
+            for (size_t k = 2000; k < A.size(); ++k) { diff = std::max (diff, std::abs (A[k] - B[k])); peak = std::max (peak, std::abs (A[k])); }
+            std::printf ("two keys (POLY) against one key + BEAT ST +1 (%s, drive %d): peak %.3f, biggest difference %.4f\n",
+                         mode == sub::Poly ? "POLY" : "LEGATO", (int) drive, peak, diff);
+            CHECK (peak > 0.1f && diff < peak * 0.02f);
+        }
 }
 
 // ---- REESE: detuned saws / HOOVER, click-free like SUB

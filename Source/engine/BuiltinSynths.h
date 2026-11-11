@@ -46,7 +46,8 @@ namespace sub
 {
     enum P { Mode, Glide, Shape, Octave, Fine, Osc2Level, Osc2Interval, Noise, NoiseDecay, DropAmount, DropTime,
              Drive, DriveType, Tone, Attack, Decay, Sustain, Release, VelSens, Level,
-             BeatOn, BeatRate, BeatDepth,   // (v0.60: added at the end, so older songs read as before - BEAT off)
+             BeatOn, BeatRate, BeatDepth,   // (v0.60: added at the end, so older songs read as before - BEAT off; BeatOn 1 = BEAT HZ, 2 = BEAT ST)
+             BeatSemis,                     // (v0.72: BEAT ST - BEAT's 2 - a number of semitones up, as a second key held)
              Count };
     enum ModeKind { Legato = 0, Always, Retrigger, Poly };
 }
@@ -79,7 +80,7 @@ private:
         int   note = -1;           // (-1: free)
         bool  gate = false;
         double phase = 0, phase2 = 0;
-        double phaseB = 0;         // BEAT: a copy of the oscillator a few Hz above it (it never restarts either)
+        double phaseB = 0, phase2B = 0;   // BEAT: a copy of the oscillator (and its OSC 2) above it (it never restarts either)
         float beatMix = 0;         // (BEAT on / off and DEPTH, eased so switching it never clicks)
         float pitch = 48, target = 48, glideStep = 0;   // semitones; glide: semitones a sample
         float env = 0;             // the amp envelope, 0..1

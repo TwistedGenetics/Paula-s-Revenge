@@ -91,6 +91,7 @@ public:
     prv::ui::SequencePanel& getSequence() { return sequence; }
     prv::ui::Spectrum& getSpectrum() { return spectrum; }
     prv::ui::AutomationPanel& getAutomation() { return automation; }
+    void clickPlay (bool song) { (song ? playSongBtn : playBlockBtn).onClick(); }   // (tests: the SONG / BLOCK buttons)
     prv::ui::InstrumentPanel& getInstruments() { return instruments; }
     bool exportSamplesTo (const juce::File& folder, int& written, juce::String& error);
     // the File menu (the standalone's menu bar; tests)

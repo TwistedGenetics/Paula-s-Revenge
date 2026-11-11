@@ -73,6 +73,7 @@ void EnginePage::edit (int param, float value, bool merge)
     });
     if (onStatus) onStatus (juce::String (inst().pluginName) + " " + q.name + ": " + juce::String (q.text (value)));
     sync();
+    if (inst().pluginKey == kSubKey && param == sub::BeatOn) resized();   // (BEAT's rows come and go)
     if (onChanged) onChanged();
 }
 
@@ -304,13 +305,35 @@ void EnginePage::resized()
         {
             const int per = (n + lines - 1) / lines;
             if (widest * per + gap * (per - 1) <= width) return lines;
+            if (lines == 1)
+            {
+                // (one line still, if each button is as wide as its own label: "OFF" needn't be as wide as "BEAT HZ")
+                int sum = gap * (n - 1);
+                for (const auto& c : rw.choices) sum += charsW (c->getButtonText().length());
+                if (sum <= width) return 1;
+            }
         }
         return n;
+    };
+    // (SUB's BEAT: only what's in use - RATE for BEAT HZ, ST for BEAT ST, nothing more when it's OFF)
+    std::vector<float> vals;
+    if (inst().pluginKey == kSubKey) vals = readBuiltinState (inst());
+    auto hidden = [&] (const Row& rw)
+    {
+        if (vals.size() <= (size_t) sub::BeatSemis) return false;
+        const int beat = (int) std::lround (vals[(size_t) sub::BeatOn]);
+        switch (rw.param)
+        {
+            case sub::BeatRate:  return beat != 1;
+            case sub::BeatSemis: return beat != 2;
+            case sub::BeatDepth: return beat == 0;
+            default: return false;
+        }
     };
     auto boxHeight = [&] (const Box& b, int width)
     {
         int lines = 0;
-        for (int ri : b.rowIndex) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
+        for (int ri : b.rowIndex) if (! hidden (rows[(size_t) ri])) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
         return gap * 4 + title + lines * (rowH + gap);
     };
     auto place = [&] (Box& b, juce::Rectangle<int> area)
@@ -320,6 +343,12 @@ void EnginePage::resized()
         for (int ri : b.rowIndex)
         {
             auto& rw = rows[(size_t) ri];
+            if (hidden (rw))
+            {
+                for (juce::Component* c : { (juce::Component*) rw.slider.get(), (juce::Component*) rw.number.get(), (juce::Component*) rw.cycle.get() }) if (c) c->setVisible (false);
+                for (auto& c : rw.choices) c->setVisible (false);
+                continue;
+            }
             const int lines = choiceLines (rw, in.getWidth());
             auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
             if (rw.slider) rw.slider->setBounds (row);
@@ -329,6 +358,19 @@ void EnginePage::resized()
             {
                 const int n = (int) rw.choices.size();
                 const int perLine = (n + lines - 1) / lines;
+                int widest = 0, sum = gap * (n - 1);
+                for (const auto& c : rw.choices) { widest = std::max (widest, charsW (c->getButtonText().length())); sum += charsW (c->getButtonText().length()); }
+                if (lines == 1 && n > 1 && widest * n + gap * (n - 1) > row.getWidth())
+                {
+                    // (each as wide as its label, the room left shared out)
+                    const int spare = std::max (0, row.getWidth() - sum) / n;
+                    for (int j = 0; j < n; ++j)
+                    {
+                        const int w = j < n - 1 ? charsW (rw.choices[(size_t) j]->getButtonText().length()) + spare : row.getWidth();
+                        rw.choices[(size_t) j]->setBounds (row.removeFromLeft (w)); row.removeFromLeft (gap);
+                    }
+                    continue;
+                }
                 int k = 0;
                 for (int line = 0; line < lines; ++line)
                 {
