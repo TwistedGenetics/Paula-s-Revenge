@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.59</span>
+  <span class="ver">MANUAL &middot; V0.60</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -883,7 +883,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>The built-in SUB synth</h3>
   <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; the <span class="b">SYNTHS</span> tab (or right-click the instrument &rarr; <b>LOAD A BUILT-IN SYNTH (SUB, GRANULAR)...</b>) and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later.</p>
   <figure>
-    <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page: boxes for MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR, OSC 2, 808 DROP, DRIVE, ENVELOPE and OUTPUT, with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page: boxes for MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR, OSC 2, 808 DROP, DRIVE, ENVELOPE and OUTPUT (BEAT is in OSCILLATOR), with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
     <figcaption>The SUB page</figcaption>
   </figure>
   <p><b>It never clicks</b> when notes overlap or follow each other. Most mono synths click there because they restart the oscillator or drop the envelope to zero. SUB never restarts its oscillator (a new note only moves its pitch), its envelope carries on from where it is, and anything that has to start afresh starts where the wave crosses zero or fades in.</p>
@@ -893,6 +893,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>808 DROP:</b> each note starts DROP semitones higher and falls to its pitch over DROP TIME.</li>
     <li><b>DRIVE:</b> TAPE (soft) or TUBE (warmer) saturation; TONE is a low-pass after it.</li>
     <li><b>ENVELOPE</b> (ATTACK, DECAY, SUSTAIN, RELEASE) and <b>OUTPUT</b> (VELOCITY: how much <code>Cxx</code> changes the level; LEVEL).</li>
+    <li><b>BEAT</b> (in the OSCILLATOR box): <span class="b">BEAT ON</span> adds a copy of the oscillator slightly higher, so the sub swells and dips on a single note &mdash; the beating of two notes a little out of tune. BEAT RATE is how many times a second (0.1&ndash;10 Hz, the same on every note), BEAT AMT how deep the dips go. Switching it on or off never clicks, even mid-note; right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern.</li>
     <li><b>Right-click</b> any control to make it a knob (<code>L</code> <code>Q</code> <code>H</code> <code>W</code>) or the track's AUTO A / B, so the pattern can move it. Hold <span class="b">HOLD TO PLAY</span> or play the keys to hear it. <span class="b">OUTPUT &amp; KNOBS...</span> opens the plug-in instrument page above &mdash; OUTPUT, BEND, ON, FILTER AND ENVELOPES, EQ / FX and chords all work for SUB.</li>
   </ul>
   <h3>The built-in GRANULAR synth</h3>
@@ -1258,7 +1259,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.59</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.60</footer>
 </main>
 </div>
 <script>
