@@ -76,6 +76,10 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
         { "RELEASE",   "ENVELOPE",   5, 5000, 60,  1, "MS", "" },
         { "VELOCITY",  "OUTPUT",     0, 100, 50,   0, "%",  "" },
         { "LEVEL",     "OUTPUT",     0, 100, 80,   0, "%",  "" },
+        // (BEAT sits in the OSCILLATOR box: it's a second copy of that oscillator)
+        { "BEAT",      "OSCILLATOR", 0, 1, 0,      3, "",   "BEAT OFF|BEAT ON" },
+        { "BEAT RATE", "OSCILLATOR", 0.1f, 10, 1,  1, "HZ", "" },
+        { "BEAT AMT",  "OSCILLATOR", 0, 100, 100,  0, "%",  "" },
     };
     static const std::vector<SynthParam> grainP {
         { "SOURCE",    "SOURCE",     0, 2, 0,      3, "",   "TABLE|SAMPLE|RECORDING" },
@@ -316,6 +320,10 @@ float SubSynth::renderVoice (Voice& v)
     const double semis = v.pitch + v.drop + bend + p[sub::Octave] * 12.0f + p[sub::Fine] * 0.01f;
     const double hz = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
     v.phase += hz / sr; v.phase -= std::floor (v.phase);
+    // BEAT: the same wave RATE Hz higher - the two drift in and out of step RATE times a second, whatever the note
+    v.phaseB += (hz + p[sub::BeatRate]) / sr; v.phaseB -= std::floor (v.phaseB);
+    const float beatTo = std::lround (p[sub::BeatOn]) == 1 ? p[sub::BeatDepth] * 0.01f : 0.0f;
+    v.beatMix += (beatTo - v.beatMix) * (float) (1.0 - std::exp (-1.0 / (0.015 * sr)));   // (15 ms)
     static const float iv[4] = { 12.0f, 7.0f, 19.0f, -12.0f };
     const int ii = std::clamp ((int) std::lround (p[sub::Osc2Interval]), 0, 3);
     v.phase2 += hz * std::pow (2.0, iv[ii] / 12.0) / sr; v.phase2 -= std::floor (v.phase2);
@@ -330,7 +338,9 @@ float SubSynth::renderVoice (Voice& v)
                 if (v.env < 0.00003f) { v.env = 0; v.stage = 0; } break;
         default: break;
     }
-    float x = shapeWave (v.phase) + shapeWave (v.phase2) * p[sub::Osc2Level] * 0.01f;
+    float x = shapeWave (v.phase);
+    if (v.beatMix > 0.0001f) x = (x + shapeWave (v.phaseB) * v.beatMix) / (1.0f + 0.6f * v.beatMix);
+    x += shapeWave (v.phase2) * p[sub::Osc2Level] * 0.01f;
     if (p[sub::Noise] > 0.0f && v.noiseEnv > 0.0001f)
     {
         noiseSeed = noiseSeed * 1664525u + 1013904223u;

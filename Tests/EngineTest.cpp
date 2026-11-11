@@ -4586,6 +4586,86 @@ static void testSubSynth()
     }
 }
 
+// ---- SUB's BEAT: a copy of the oscillator RATE Hz higher - the level swells and dips RATE times a second on any note
+static void testSubBeat()
+{
+    std::printf ("\n== SUB BEAT\n");
+    const double sr = 48000;
+    auto wobble = [&] (int note, float rate, float depth, float& lowHigh, double& perSec)
+    {
+        SubSynth s; s.prepare (sr, 512);
+        auto v = builtinDefaults (kSubKey);
+        v[sub::Drive] = 0; v[sub::BeatOn] = 1; v[sub::BeatRate] = rate; v[sub::BeatDepth] = depth;
+        s.setValues (v);
+        std::vector<float> L ((size_t) sr * 4), R (L.size());
+        s.noteOn (note, 127, 0);
+        s.render (L.data(), R.data(), (int) L.size());
+        // the level, 20 ms at a time, over the last 3 seconds: how low it dips against how high it swells, and how often
+        std::vector<float> lv;
+        for (size_t a = (size_t) sr; a + 960 <= L.size(); a += 480) { float m = 0; for (size_t i = a; i < a + 960; ++i) m = std::max (m, std::abs (L[i])); lv.push_back (m); }
+        const float hi = *std::max_element (lv.begin(), lv.end()), lo = *std::min_element (lv.begin(), lv.end());
+        lowHigh = lo / hi;
+        const float mid = 0.5f * (hi + lo);
+        int dips = 0;
+        for (size_t i = 1; i < lv.size(); ++i) if (lv[i - 1] >= mid && lv[i] < mid) ++dips;
+        perSec = dips / 3.0;
+    };
+    float lh; double ps;
+    wobble (36, 2.0f, 100, lh, ps);
+    std::printf ("C-1, RATE 2 HZ: dips to %.2f of its peak, %.2f times a second\n", lh, ps);
+    CHECK (lh < 0.2f && std::abs (ps - 2.0) < 0.4);
+    wobble (60, 2.0f, 100, lh, ps);
+    std::printf ("C-3, RATE 2 HZ: dips to %.2f, %.2f times a second (the same on any note)\n", lh, ps);
+    CHECK (lh < 0.2f && std::abs (ps - 2.0) < 0.4);
+    wobble (36, 0.5f, 100, lh, ps);
+    std::printf ("C-1, RATE 0.5 HZ: %.2f times a second\n", ps);
+    CHECK (std::abs (ps - 0.5) < 0.2);
+    wobble (36, 2.0f, 40, lh, ps);
+    std::printf ("DEPTH 40%%: dips only to %.2f\n", lh);
+    CHECK (lh > 0.35f && lh < 0.8f);
+    // switching it on and off in the middle of a note: no click
+    {
+        SubSynth s; s.prepare (sr, 512);
+        auto v = builtinDefaults (kSubKey); v[sub::Drive] = 0; v[sub::BeatRate] = 3;
+        s.setValues (v);
+        std::vector<float> L (96000), R (L.size());
+        s.noteOn (36, 127, 0);
+        s.render (L.data(), R.data(), 24000);
+        v[sub::BeatOn] = 1; s.setValues (v);
+        s.render (L.data() + 24000, R.data() + 24000, 36000);
+        v[sub::BeatOn] = 0; s.setValues (v);
+        s.render (L.data() + 60000, R.data() + 60000, 36000);
+        float step = 0;
+        for (size_t i = 1; i < L.size(); ++i) step = std::max (step, std::abs (L[i] - L[i - 1]));
+        std::printf ("BEAT switched on and off mid-note: biggest step %.4f\n", step);
+        CHECK (step < 0.0139f);
+    }
+    // in LEGATO, gliding between overlapping notes with BEAT on: still no click
+    {
+        SubSynth s; s.prepare (sr, 512);
+        auto v = builtinDefaults (kSubKey); v[sub::Drive] = 0; v[sub::BeatOn] = 1; v[sub::BeatRate] = 1.5f;
+        s.setValues (v);
+        std::vector<float> L (96000), R (L.size());
+        s.noteOn (36, 127, 0); s.render (L.data(), R.data(), 24000);
+        s.noteOn (43, 127, 0); s.render (L.data() + 24000, R.data() + 24000, 24000);
+        s.noteOff (36, 0); s.noteOn (39, 127, 0); s.noteOff (43, 0); s.render (L.data() + 48000, R.data() + 48000, 48000);
+        float step = 0;
+        for (size_t i = 1; i < L.size(); ++i) step = std::max (step, std::abs (L[i] - L[i - 1]));
+        std::printf ("LEGATO with BEAT: biggest step %.4f\n", step);
+        CHECK (step < 0.0139f);
+    }
+    // a song saved before BEAT: BEAT off
+    {
+        Instrument in; makeBuiltin (in, kSubKey);
+        auto v = readBuiltinState (in);
+        v.resize (sub::BeatOn);   // (the 20 values v0.57 - v0.59 saved)
+        v[sub::Glide] = 222;
+        writeBuiltinState (in, v);
+        const auto back = readBuiltinState (in);
+        CHECK ((int) back.size() == sub::Count && back[sub::BeatOn] == 0 && std::abs (back[sub::BeatRate] - 1) < 0.001f && back[sub::Glide] == 222);
+    }
+}
+
 // ---- GRANULAR
 static void testGrainSynth()
 {
@@ -5025,6 +5105,7 @@ int main()
     testPhrases();
     testSubSynth();
     testGrainSynth();
+    testSubBeat();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

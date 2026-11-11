@@ -1,5 +1,6 @@
 // Paula's Revenge - a built-in synth's page
 #include "EnginePage.h"
+#include <limits>
 #include "ChoiceBox.h"
 
 namespace prv::ui
@@ -401,21 +402,53 @@ void EnginePage::resized()
         cols = juce::jlimit (1, maxCols, (int) std::ceil ((double) total / std::max (1, r.getHeight())));
         colW = (r.getWidth() - gap * 3 * (cols - 1)) / std::max (1, cols);
     }
-    int total = 0;
-    for (const auto* b : shownBoxes) total += boxHeight (*b, colW) + gap * 2;
-    std::vector<int> colY ((size_t) cols, r.getY());
-    int col = 0;
-    const int perCol = (int) std::ceil ((double) total / cols);
-    for (auto* bp : shownBoxes)
+    // which column each box goes in: whatever makes the tallest column shortest (each column keeps the boxes' order;
+    // a few boxes, so every way is tried - first the boxes in order, so a tie keeps the natural reading order)
+    const int n = (int) shownBoxes.size();
+    std::vector<int> hs ((size_t) n);
+    for (int k = 0; k < n; ++k) hs[(size_t) k] = boxHeight (*shownBoxes[(size_t) k], colW) + gap * 2;
+    std::vector<int> colOf ((size_t) n, 0), bestOf ((size_t) n, 0);
+    int best = std::numeric_limits<int>::max();
+    auto score = [&]
     {
-        const int h = boxHeight (*bp, colW);
-        const int used = colY[(size_t) col] - r.getY();
-        if (used > 0 && (used + h > perCol + rowH || colY[(size_t) col] + h > r.getBottom()) && col < cols - 1) ++col;
-        // (no room left at the foot of the last column: the column with the most room)
-        if (colY[(size_t) col] + h > r.getBottom())
-            for (int c = 0; c < cols; ++c) if (colY[(size_t) c] + h <= r.getBottom() && colY[(size_t) c] < colY[(size_t) col]) col = c;
-        place (*bp, { r.getX() + col * (colW + gap * 3), colY[(size_t) col], colW, h });
-        colY[(size_t) col] += h + gap * 2;
+        int h[3] {};
+        for (int k = 0; k < n; ++k) h[colOf[(size_t) k]] += hs[(size_t) k];
+        return std::max ({ h[0], h[1], h[2] });
+    };
+    {
+        // in order first: a run per column, cut where the columns come out most even
+        int total = 0;
+        for (int x : hs) total += x;
+        int c = 0, acc = 0;
+        for (int k = 0; k < n; ++k)
+        {
+            if (c < cols - 1 && acc > 0 && acc + hs[(size_t) k] / 2 > total * (c + 1) / cols) ++c;
+            colOf[(size_t) k] = c; acc += hs[(size_t) k];
+        }
+        best = score(); bestOf = colOf;
+    }
+    if (cols > 1 && n <= 12)
+    {
+        long combos = 1;
+        for (int k = 0; k < n; ++k) combos *= cols;
+        for (long m = 0; m < combos; ++m)
+        {
+            long q = m;
+            for (int k = 0; k < n; ++k) { colOf[(size_t) k] = (int) (q % cols); q /= cols; }
+            const int sc = score();
+            if (sc > best) continue;
+            // (as short: the one nearest the reading order - fewest boxes in an earlier column than one before them)
+            auto disorder = [&] (const std::vector<int>& co) { int d = 0; for (int x = 0; x < n; ++x) for (int y = x + 1; y < n; ++y) d += co[(size_t) x] > co[(size_t) y] ? 1 : 0; return d; };
+            if (sc < best || disorder (colOf) < disorder (bestOf)) { best = sc; bestOf = colOf; }
+        }
+    }
+    std::vector<int> colY ((size_t) cols, r.getY());
+    for (int k = 0; k < n; ++k)
+    {
+        const int c = bestOf[(size_t) k];
+        const int h = hs[(size_t) k] - gap * 2;
+        place (*shownBoxes[(size_t) k], { r.getX() + c * (colW + gap * 3), colY[(size_t) c], colW, h });
+        colY[(size_t) c] += h + gap * 2;
     }
 }
 
