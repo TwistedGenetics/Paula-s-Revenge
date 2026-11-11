@@ -73,7 +73,9 @@ public:
     void recordAutomation();                          // REC AUTO: called by the timer
     void toggleHelp();                                // HELP (F1, Cmd+/)
     enum BounceFx { BounceNoFx = 0, BounceInstrumentFx, BounceMixerFx, BounceAllFx };
-    bool bounceSelection (int fx);                    // the highlighted area to a new instrument (a BounceFx)
+    bool bounceSelection (int fx);
+    void askAfterBounce (int slot);                   // RESAMPLE: and then? (slice, GRANULAR, crunch, reverse)
+    bool afterBounce (int slot, int what);            // (1 slice, 2 GRANULAR, 3-5 crunch, 6 reverse)                    // the highlighted area to a new instrument (a BounceFx)
     // RESAMPLE: the highlighted area (or, with none, the whole block) with all its FX to a new
     // instrument in one go - cut to its length, a slice a beat (a line when short), BEAT SYNC'd
     void setFollowClock (bool on);                    // FOLLOW MIDI CLOCK (the View menu)

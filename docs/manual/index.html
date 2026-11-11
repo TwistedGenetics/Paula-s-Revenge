@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.64</span>
+  <span class="ver">MANUAL &middot; V0.65</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1196,6 +1196,19 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>The sample goes into the first empty instrument slot, named like <code>BOUNCE T1-2 000-015</code>, at 44.1 kHz. <code>C-3</code> plays it exactly as recorded.</li>
     <li>Nothing else changes: your pattern and the instruments that played it stay as they are. Undo removes the new instrument.</li>
   </ul>
+  <h3>And then? (resampling)</h3>
+  <p>Straight after a bounce it asks what to do with the new sample. Each choice is one undo step; <span class="b">KEEP IT AS IT IS</span> leaves it alone.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/after_bounce.png" alt="The choice box BOUNCED TO INSTRUMENT 07 - AND THEN?, with KEEP IT AS IT IS, SLICE IT ON THE BREAK PAGE, MAKE IT A GRANULAR, CRUNCH: AMIGA 8-BIT, CRUNCH: SP-1200, CRUNCH: MPC60, REVERSE IT, STRETCH IT TO FIT A NUMBER OF LINES and CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>After a bounce: AND THEN?</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+      <tr><td><span class="b">SLICE IT ON THE BREAK PAGE</span></td><td>Opens the BREAK page with it chopped at its hits.</td></tr>
+      <tr><td><span class="b">MAKE IT A GRANULAR</span></td><td>The instrument becomes a GRANULAR synth whose grains come from the bounce; the ENGINE page opens.</td></tr>
+      <tr><td><span class="b">CRUNCH</span></td><td>Re-samples it through an old sampler's converter: <b>AMIGA 8-BIT</b> (16.7&nbsp;kHz), <b>SP-1200</b> (12-bit, 26&nbsp;kHz, a little drive, gritty), <b>MPC60</b> (12-bit, 40&nbsp;kHz, warm). Pitch, timing, slices and loop stay where they were.</td></tr>
+      <tr><td><span class="b">REVERSE IT</span></td><td>Backwards.</td></tr>
+      <tr><td><span class="b">STRETCH IT TO FIT</span></td><td>Opens the sample editor's STRETCH, set to the nearest whole number of beats; change LINES, then PREVIEW and APPLY.</td></tr>
+  </table></div>
 </section>
 
 <!-- ============================================================ 013 -->
@@ -1303,7 +1316,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.64</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.65</footer>
 </main>
 </div>
 <script>

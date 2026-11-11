@@ -4,6 +4,8 @@
 #include "engine/Player.h"
 #include "engine/BuiltinSynths.h"
 #include "engine/ReeseSynth.h"
+#include "engine/Crunch.h"
+#include <set>
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
 #include "engine/Recorder.h"
@@ -4909,6 +4911,35 @@ static void testLiveMode()
     }
 }
 
+// ---- CRUNCH: a sample through an old sampler for good
+static void testCrunch()
+{
+    std::printf ("\n== CRUNCH\n");
+    for (int st = 0; st < 3; ++st)
+    {
+        Instrument in; in.rate = 44100; in.natRate = 44100;
+        in.data.resize (44100);
+        for (int i = 0; i < 44100; ++i) in.data[(size_t) i] = (int16_t) (16000 * std::sin (6.2831853 * 440.0 * i / 44100.0));
+        in.slices = { 0, 11025, 22050, 33075 }; in.loopStart = 22050; in.loopLength = 11025; in.playEnd = 40000;
+        CHECK (crunchInstrument (in, (CrunchStyle) st));
+        const double ratio = in.rate / 44100.0;
+        // the pitch: still 440 Hz at its new rate
+        int c = 0, f = -1, l = -1;
+        for (size_t i = 1; i < in.data.size(); ++i) if (in.data[i - 1] < 0 && in.data[i] >= 0) { ++c; if (f < 0) f = (int) i; l = (int) i; }
+        const double hz = (c - 1) * in.rate / (l - f);
+        // the bits: an 8-bit sample uses at most 256 levels
+        std::set<int> levels; for (auto v : in.data) levels.insert (v);
+        std::printf ("%-12s rate %.0f, %d samples, %.1f Hz, %d levels, slice 2 at %d, loop %d+%d\n", crunchName ((CrunchStyle) st), in.rate, (int) in.data.size(), hz, (int) levels.size(), in.slices[1], in.loopStart, in.loopLength);
+        CHECK (std::abs (hz - 440) < 2 && std::abs ((int) in.data.size() - (int) std::lround (44100 * ratio)) <= 1);
+        CHECK (std::abs (in.slices[1] - (int) std::lround (11025 * ratio)) <= 1 && std::abs (in.loopStart - (int) std::lround (22050 * ratio)) <= 1 && in.playEnd > 0);
+        if (st == 0) CHECK (levels.size() <= 256);
+        if (st == 2) CHECK (levels.size() > 256);
+        CHECK (std::abs (in.pitchShift()) < 0.01);
+    }
+    Instrument empty;
+    CHECK (! crunchInstrument (empty, CrunchStyle::Amiga8));
+}
+
 // ---- GRANULAR
 static void testGrainSynth()
 {
@@ -5451,6 +5482,7 @@ int main()
     testReeseSynth();
     testDubThrows();
     testLiveMode();
+    testCrunch();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

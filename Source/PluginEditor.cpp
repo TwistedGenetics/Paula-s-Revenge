@@ -1,5 +1,6 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
+#include "engine/Crunch.h"
 #include "Diagnostics.h"
 #include "ui/ChoiceBox.h"
 #include "ui/MeterColours.h"
@@ -300,7 +301,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                      [safe, line, track, group] (int a)
         {
             if (safe == nullptr) return;
-            if (a >= 0 && a <= 3) safe->bounceSelection (a);
+            if (a >= 0 && a <= 3) { if (safe->bounceSelection (a)) safe->askAfterBounce (safe->proc.editorState.instrument); }
             else if (a == 4) safe->pattern.openCommandMenu (line, track, group);
             else if (a >= 5 && a <= 8) { safe->pattern.breakTool (a - 5); safe->refreshAll(); }
             else if (a == 9) safe->showConditionMenu();
@@ -1158,7 +1159,7 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key)
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 
@@ -2070,8 +2071,93 @@ void PaulaEditor::askBounce()
                    "RESAMPLE: ALL FX, CHOPPED A SLICE A BEAT, IN TIME" }, [safe] (int a)
     {
         if (safe == nullptr || a < 0) return;
-        if (a == 4) safe->resampleChop(); else safe->bounceSelection (a);
+        if (a == 4) safe->resampleChop();
+        else if (safe->bounceSelection (a)) safe->askAfterBounce (safe->proc.editorState.instrument);
     });
+}
+
+// RESAMPLE: what to do with what was just bounced - slice it, make it GRANULAR, crunch it, reverse it
+void PaulaEditor::askAfterBounce (int slot)
+{
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "BOUNCED TO INSTRUMENT " + juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2) + " - AND THEN?",
+                 { "KEEP IT AS IT IS", "SLICE IT ON THE BREAK PAGE (IT FINDS THE HITS)", "MAKE IT A GRANULAR (ITS GRAINS COME FROM IT)",
+                   "CRUNCH: AMIGA 8-BIT", "CRUNCH: SP-1200 (GRITTY)", "CRUNCH: MPC60 (WARM)", "REVERSE IT", "STRETCH IT TO FIT A NUMBER OF LINES" }, [safe, slot] (int a)
+    {
+        if (safe != nullptr && a > 0) safe->afterBounce (slot, a);
+    });
+}
+
+bool PaulaEditor::afterBounce (int slot, int what)
+{
+    if (slot < 0 || slot >= prv::kMaxInstruments || ! proc.song.instruments[(size_t) slot].hasData()) return false;
+    auto& st = proc.editorState;
+    st.instrument = slot;
+    const juce::String num = juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2);
+    if (what == 1)
+    {
+        openBreak();
+        breakPage.sliceAuto();
+        return true;
+    }
+    if (what == 2)
+    {
+        proc.history.instrument (slot, "MAKE IT GRANULAR");
+        proc.withLock ([&]
+        {
+            auto& in = proc.song.instruments[(size_t) slot];
+            auto data = std::move (in.data); auto dataR = std::move (in.dataR);
+            const double rate = in.rate, nat = in.natRate;
+            const auto name = in.name;
+            prv::makeBuiltin (in, prv::kGrainKey);
+            in.data = std::move (data); in.dataR = std::move (dataR); in.rate = rate; in.natRate = nat;
+            in.name = ("GRAIN " + juce::String (name).fromFirstOccurrenceOf ("BOUNCE", false, false).trim()).substring (0, 22).toStdString();
+            auto v = prv::readBuiltinState (in);
+            v[prv::grain::Source] = 1; v[prv::grain::SampleSlot] = (float) (slot + 1);
+            prv::writeBuiltinState (in, v);
+        });
+        proc.updateMixerEffects();
+        setView (View::Engine);
+        setStatus ("INSTRUMENT " + num + " IS NOW A GRANULAR PLAYING THE BOUNCE - PLAY IT, SCAN IT, FREEZE IT");
+        refreshAll();
+        return true;
+    }
+    if (what >= 3 && what <= 5)
+    {
+        const auto style = (prv::CrunchStyle) (what - 3);
+        proc.history.instrument (slot, juce::String ("CRUNCH: ") + prv::crunchName (style));
+        bool ok = false;
+        proc.withLock ([&] { ok = prv::crunchInstrument (proc.song.instruments[(size_t) slot], style); });
+        setStatus (ok ? "INSTRUMENT " + num + " CRUNCHED: " + prv::crunchName (style) + " (" + juce::String ((int) proc.song.instruments[(size_t) slot].rate) + " HZ) - SAME PITCH, OLD-SAMPLER GRIT"
+                      : juce::String ("NOTHING TO CRUNCH"));
+        refreshAll();
+        return ok;
+    }
+    if (what == 6)
+    {
+        proc.history.instrument (slot, "REVERSE IT");
+        proc.withLock ([&]
+        {
+            auto& in = proc.song.instruments[(size_t) slot];
+            std::reverse (in.data.begin(), in.data.end());
+            std::reverse (in.dataR.begin(), in.dataR.end());
+        });
+        setStatus ("INSTRUMENT " + num + " REVERSED");
+        refreshAll();
+        return true;
+    }
+    if (what == 7)
+    {
+        // the stretch, set up to fit the nearest whole bar (16 lines) - change LINES and APPLY
+        const auto& in = proc.song.instruments[(size_t) slot];
+        const double secs = (double) in.data.size() / std::max (1.0, in.rate);
+        const double lineSecs = proc.song.speed * 2.5 / std::max (1.0, (double) proc.song.tempo);
+        const int lines = juce::jlimit (1, 256, std::max (4, (int) std::lround (secs / lineSecs / 4.0) * 4));
+        setView (View::SampleEdit);
+        sampleEditor.openFit (lines);
+        return true;
+    }
+    return false;
 }
 
 bool PaulaEditor::bounceSelection (int fx)

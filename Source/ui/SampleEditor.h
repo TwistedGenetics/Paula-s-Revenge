@@ -56,6 +56,7 @@ public:
     void showStretch (bool show);
     void openFit (int lines);                 // STRETCH TO FIT (PARAMS): the stretch, START to END to that many lines
     bool isStretchOpen() const { return stretchOpen; }
+    int stretchLines() const { return stLines.getValue(); }
 
     // loop points (also used by tests); end is exclusive
     void setLoop (int start, int end, bool on);

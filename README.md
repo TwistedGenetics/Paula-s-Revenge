@@ -224,6 +224,16 @@ It plays just those lines of just those tracks, from the first highlighted line 
 
 The result is a new instrument in the first empty slot, named like `BOUNCE T1-2 000-015` (`BOUNCE+FX` with FX), at 44.1 kHz, stereo when it's stereo. `C-3` plays it exactly as recorded. It becomes the current instrument. Nothing else changes: the pattern and the instruments that played it stay as they are. Undo removes it.
 
+### AND THEN? (resampling)
+
+Straight after a bounce it asks what to do with the new sample (each choice is one undo step; **KEEP IT AS IT IS** leaves it alone):
+
+* **SLICE IT ON THE BREAK PAGE** — opens the BREAK page with it chopped at its hits, ready to play from the pads or rearrange.
+* **MAKE IT A GRANULAR** — the instrument becomes a GRANULAR synth whose grains come from the bounce (SOURCE: SAMPLE, the same slot), and the ENGINE page opens: play it, scan it with POSITION, freeze it.
+* **CRUNCH: AMIGA 8-BIT / SP-1200 (GRITTY) / MPC60 (WARM)** — re-samples it through that old sampler's converter: Amiga 8-bit at 16.7 kHz, SP-1200 12-bit at 26 kHz with a little drive, MPC60 12-bit at 40 kHz. The pitch and timing stay the same (its slices and loop move with it); the grit and the dull top end are in the sample itself.
+* **REVERSE IT** — backwards.
+* **STRETCH IT TO FIT A NUMBER OF LINES** — opens the sample editor's STRETCH, set to the nearest whole number of beats at the song's tempo; change LINES, PREVIEW, APPLY.
+
 ## Playing a block
 
 While a block plays (▶ BLOCK, `Space`), picking another block — in the sequence, the BLOCK box, or the BLK corner — carries playback straight over to it **on the same line**, without stopping, so you can audition blocks against each other in time. (A shorter block wraps the line round.)
