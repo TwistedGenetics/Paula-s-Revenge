@@ -141,6 +141,12 @@ Every control glides to its new value (no zipper noise, so they can be automated
 
 **Returns** — SEND A starts with a reverb and SEND B with a delay, both fully wet; they're silent until a track sends to them. Each has three inserts, a fader, a balance and a mute. **Master** has three inserts and a fader, and then comes the machine's output stage (A500/A1200/CLEAN/S950/S1000 and their options).
 
+**Dub throws** — a dub engineer's trick in the pattern: a single snare, vocal or stab thrown into the echo and left to ring while the rest plays on dry. Put **`!xy`** on a note's line (type `!` with Shift+1, or right-click the effect cell → **DUB THROW**):
+* `x` is how much of the track goes into the echo (`1`–`F`, `F` = all of it), `y` how many lines it stays open (`0` = until the track's next note, so just that hit). `!F0` on a snare throws just that snare; `!84` throws four lines' worth at half level.
+* `!0y` rides the echo's **feedback** up while the song plays (`!08` longer, `!0F` nearly endless - the classic runaway build), `!00` puts it back. It goes back by itself when playback stops.
+* The throw goes into **SEND B** before the fader, on top of the track's own send, and fades in and out over a few milliseconds, so it never clicks. The echoes ring on after the throw closes.
+* The first `!` you put in a song makes SEND B a **dub echo**: DUB DELAY (tempo-synced, filtered, driven, with a little wobble) into a SPRING reverb. That's one undo step of its own, and it only happens while SEND B is still as a new song has it - if you've put your own effects there, it uses those (any echo with a FEEDBACK control works with `!0y`).
+
 **Delay compensation** — some plug-ins (lookahead limiters, linear-phase EQs, some instruments) give their sound back late. Each track is delayed just enough that every track lines up with the slowest one, sends included, so breaks stay tight. A bypassed plug-in (or one switched off from the pattern) keeps its delay, so nothing jumps mid-song. The strips page shows the total delay in its title, and a plug-in's effect page says how late it is. Plug-ins on SEND A / B and the master just add their delay at the end. Notes you play live through a sample instrument aren't delayed; live notes on a plug-in instrument go through its track, so they are.
 
 Signal flow per track: EQ → inserts → pre-fader sends → fader → post-fader sends → master. A mixer with nothing changed (all faders at 0 dB, no EQ, no effects, no sends) is skipped, so the song sounds exactly as it did before v0.8. Everything in the mixer is saved in the song, undoable, and included in RENDER WAV. (The insert slots are built so plug-in effects can be added later.)
@@ -535,6 +541,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | `#xy` | **Chord**: plays chord slot `xy` from the song's chord table, held, on plug-in / MIDI-out instruments (on a sample instrument, just the note). Type `#` with Shift+3; first in the right-click list. See Chords |
 | `?xy` | **Condition**: the step plays only on pass `x` of every `y` times its block plays (`?12` the 1st of every 2, `?44` the 4th of every 4). `?01` only in a FILL (hold **F2**), `?02` not in a FILL, `?03` only the first time, `?04` every time but the first. Highlight notes and right-click → **CONDITION...** for the usual ones |
 | `@xx` | **Phrase**: the note plays the instrument's phrase `xx` (`@01`–`@10`); `@00` plays its sample, not a phrase. See Phrases |
+| `!xy` | **Dub throw**: throws this track into the dub echo on SEND B - `x` how much (`1`–`F`), `y` for how many lines (`0` = until the track's next note). `!0y` rides the echo's feedback up (`!0F` nearly endless, `!00` back to its own setting). Type `!` with Shift+1. See Dub throws |
 | `0xy` | Arpeggio (+x, +y semitones) |
 | `1xx` / `2xx` | Slide pitch up / down |
 | `3xx` | Slide to note |

@@ -1878,7 +1878,27 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         hv = (k.getModifiers().isShiftDown() && k.getKeyCode() == '3') || k.getTextCharacter() == '#' ? (int) kCmdChord
            : (k.getModifiers().isShiftDown() && k.getKeyCode() == '1') || k.getTextCharacter() == '!' ? (int) kCmdDub
            : commandFromChar ((char) ch);
-        if (hv == kCmdDub && st.editMode) ensureDubEcho();
+        if (hv == kCmdDub && st.editMode)
+        {
+            // !: a DUB THROW - F0 (all of it, to the track's next note) to start with, the cursor on the value
+            const bool madeDub = ensureDubEcho();
+            pushUndo (st.block, "COMMAND ! DUB THROW");
+            const int col = st.column;
+            proc.withLock ([&] {
+                auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+                if (col == 6) { if (c.cmd2 != kCmdDub) c.param2 = 0xF0; c.cmd2 = kCmdDub; }
+                else { if (c.cmd != kCmdDub) c.param = 0xF0; c.cmd = kCmdDub; }
+            });
+            st.column = col + 1;
+            changed();
+            if (onStatus)
+            {
+                const auto& c = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (st.line, st.track);
+                onStatus (contextDescribe (st.line, st.track, kCmdDub, col == 6 ? c.param2 : c.param)
+                          + (madeDub ? "  -  SEND B IS NOW A DUB ECHO (DUB DELAY + SPRING)" : "  -  TYPE X (HOW MUCH) AND Y (LINES)"));
+            }
+            return true;
+        }
         if (hv == kCmdChord && st.editMode)
         {
             // #: a chord - start it on the first filled slot, the cursor stays to type the slot
@@ -1907,15 +1927,16 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     return false;
 }
 
-void PatternEditor::ensureDubEcho()
+bool PatternEditor::ensureDubEcho()
 {
     // a DUB THROW wants a dub echo on SEND B: a song's own B left as it came becomes DUB DELAY + SPRING (an undo step)
     MixerSettings m = proc.song.mixer;
-    if (! m.setUpDub()) return;
+    if (! m.setUpDub()) return false;
     proc.history.mixer ("DUB ECHO ON SEND B");
     proc.withLock ([&] { proc.song.mixer.setUpDub(); });
     proc.updateMixerEffects();
     if (onStatus) onStatus ("SEND B IS NOW THE DUB ECHO (DUB DELAY + SPRING) - !XY THROWS A HIT INTO IT, !0Y RIDES ITS FEEDBACK");
+    return true;
 }
 
 void PatternEditor::noteRecorded (int note, int group)

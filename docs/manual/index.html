@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.62</span>
+  <span class="ver">MANUAL &middot; V0.63</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -482,6 +482,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><code>Kxx</code></td><td>Chance: the step plays xx/FF of the time</td></tr>
       <tr><td><code>?xy</code></td><td>Condition: plays only on pass x of every y (<code>?01</code> FILL only, <code>?02</code> not in a FILL, <code>?03</code> first time only, <code>?04</code> not the first) &mdash; see below</td></tr>
       <tr><td><code>@xx</code></td><td>Phrase: the note plays the instrument's phrase xx (<code>@01</code>&ndash;<code>@10</code>); <code>@00</code> plays the sample &mdash; see Phrases</td></tr>
+      <tr><td><code>!xy</code></td><td>Dub throw: this track into the dub echo on SEND B, x how much, y lines (0 = to the next note); <code>!0y</code> rides the echo's feedback &mdash; see Mixer</td></tr>
       <tr><td><code>Mxx</code></td><td>Micro-move: <code>01</code>–<code>7F</code> late by xx/128 of a line, <code>81</code>–<code>FF</code> early</td></tr>
       <tr><td><code>Nxx</code></td><td>Note length: release after xx ticks</td></tr>
       <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
@@ -797,6 +798,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       </ul></li>
     <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect: 23 built in. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
     <li><b>Returns:</b> SEND A starts with a reverb and SEND B with a delay, fully wet, silent until a track sends to them.</li>
+    <li><b>Dub throws:</b> <code>!xy</code> on a note's line throws that track into the dub echo on SEND B &mdash; <code>x</code> how much (1&ndash;F), <code>y</code> for how many lines (0 = just that hit, until the track's next note). <code>!0y</code> rides the echo's feedback up (<code>!0F</code> nearly endless), <code>!00</code> puts it back. Type <code>!</code> with Shift+1. The first <code>!</code> in a song makes SEND B a dub echo &mdash; DUB DELAY into SPRING &mdash; if SEND B is still as a new song has it (an undo step of its own). The throw fades in and out over a few milliseconds, so it never clicks, and the echoes ring on after it.</li>
     <li><b>Delay compensation:</b> plug-ins that give their sound back late (lookahead limiters, linear-phase EQs) are lined up, so every track stays in time, sends included. The strips page title shows the total delay.</li>
   </ul>
   <p>A mixer with nothing changed is skipped, so the song sounds exactly as it would without one. Everything in it is saved in the song, undoable and in renders.</p>
@@ -1277,7 +1279,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.62</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.63</footer>
 </main>
 </div>
 <script>

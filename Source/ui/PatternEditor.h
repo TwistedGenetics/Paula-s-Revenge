@@ -180,7 +180,7 @@ public:
 private:
     juce::String contextName (int line, int track, uint8_t cmd) const;
     juce::String contextOverview (int line, int track, uint8_t cmd) const;
-    void ensureDubEcho();                 // (DUB THROW: SEND B set up as a dub echo, if it's still as it came)
+    bool ensureDubEcho();                 // (DUB THROW: SEND B set up as a dub echo, if it's still as it came)
     void applyPickedCommand (const CommandInfo&);
 
     std::map<int, int> heldKeys;   // key code -> jam note
