@@ -4848,6 +4848,67 @@ static void testDubThrows()
     }
 }
 
+// ---- LIVE MODE: blocks launched in time; the held effects on the mix
+static void testLiveMode()
+{
+    std::printf ("\n== LIVE MODE\n");
+    const double sr = 48000;
+    // the effects: no clicks going in or out, they change the sound while held, and it's all gone after
+    auto mix = [&] (int i) { const double t = i / sr; return (float) (0.5 * std::sin (6.2831853 * 220 * t) * (0.6 + 0.4 * std::sin (6.2831853 * 3 * t))); };
+    for (int k = LiveFx::Repeat4; k < LiveFx::Count; ++k)
+    {
+        LiveFx fx; fx.prepare (sr);
+        std::vector<float> L (192000), R (L.size());
+        for (int i = 0; i < (int) L.size(); ++i) L[(size_t) i] = R[(size_t) i] = mix (i);
+        const auto dry = L;
+        for (int b = 0; b < (int) L.size() / 256; ++b)
+        {
+            if (b == 100) fx.hold ((LiveFx::Kind) k);
+            if (b == 400) { CHECK (fx.holding() == (LiveFx::Kind) k); fx.release(); }
+            fx.process (L.data() + b * 256, R.data() + b * 256, 256, 137.0);
+        }
+        float step = 0, base = 0; double held = 0, after = 0;
+        for (size_t i = 1; i < L.size(); ++i) { step = std::max (step, std::abs (L[i] - L[i - 1])); base = std::max (base, std::abs (dry[i] - dry[i - 1])); }
+        for (int i = 60000; i < 100000; ++i) held += std::abs (L[(size_t) i] - dry[(size_t) i]);
+        for (int i = 170000; i < 192000; ++i) after += std::abs (L[(size_t) i] - dry[(size_t) i]);
+        std::printf ("%-13s biggest step %.4f (the mix's own %.4f), changed while held %.3f, after %.6f\n", LiveFx::name ((LiveFx::Kind) k), step, base, held / 40000, after / 22000);
+        CHECK (step <= base * 1.6f + 0.002f && held / 40000 > 0.01 && after / 22000 < 1e-5 && ! fx.busy());
+    }
+    // a launched block starts on the line it's due: the next multiple of 4 lines (a beat) here
+    {
+        Song s = makeSong();
+        s.blocks.assign (3, Block {});
+        for (auto& b : s.blocks) b.lines = 16;
+        s.blocks[1].at (0, 0) = Cell { 25, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.playBlock (0, 0);
+        const int perLine = (int) std::lround (48000 * 2.5 / s.tempo * s.speed);
+        std::vector<float> L ((size_t) perLine * 2), R (L.size());
+        p.render (L.data(), R.data(), perLine + perLine / 2);   // into line 1
+        p.queueBlock (1, 4);
+        CHECK (p.queuedBlock() == 1);
+        int before = -1, switchedAt = -1;
+        for (int k = 0; k < 20 && switchedAt < 0; ++k)
+        {
+            before = p.uiLine.load();
+            p.render (L.data(), R.data(), perLine);
+            if (p.uiBlock.load() == 1) switchedAt = before;
+        }
+        std::printf ("queued at line 1 (a beat = 4 lines): block 1 started after line %d, at line %d\n", switchedAt, p.uiLine.load());
+        CHECK (switchedAt == 3 && p.uiLine.load() == 0 && p.queuedBlock() == -1);
+        // it loops: 16 lines on, still block 1
+        for (int k = 0; k < 17; ++k) p.render (L.data(), R.data(), perLine);
+        CHECK (p.uiBlock.load() == 1);
+        // AT ONCE: the next line
+        p.queueBlock (2, 0);
+        p.render (L.data(), R.data(), perLine);
+        CHECK (p.uiBlock.load() == 2);
+        // stopping forgets a launch
+        p.queueBlock (0, 16); p.stop();
+        CHECK (p.queuedBlock() == -1);
+    }
+}
+
 // ---- GRANULAR
 static void testGrainSynth()
 {
@@ -5389,6 +5450,7 @@ int main()
     testSubBeat();
     testReeseSynth();
     testDubThrows();
+    testLiveMode();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

@@ -29,6 +29,8 @@
 #include "ui/RadioPage.h"
 #include "ui/CommandPalette.h"
 #include "ui/BreakPage.h"
+#include "ui/LivePage.h"
+#include "ui/VisualsPage.h"
 #include "StemsJob.h"
 
 class PaulaEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -204,7 +206,7 @@ private:
     // song strip
     PixButton viewBtn { "BIG VIEW", true };
     PixButton mixerBtn { "MIXER", true };
-    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true }, radioBtn { "RADIO", true }, autoBtn { "AUTOMATION", true };
+    PixButton skinBtn { "DARK", true }, specBtn { "SPECTRUM", true }, fx2Btn { "FX2", true }, recAutoBtn { "REC AUTO", true }, grooveBtn { "GROOVE", true }, radioBtn { "RADIO", true }, autoBtn { "AUTOMATION", true }, liveBtn { "LIVE", true };
     PixLabel  statusLabel;
 
     prv::ui::PatternEditor pattern;
@@ -274,6 +276,9 @@ private:
     prv::ui::CvSourcesPage cvSources;
     prv::ui::RadioPage radioPage { proc };
     prv::ui::BreakPage breakPage { proc };
+    prv::ui::LivePage livePage { proc };
+    prv::ui::VisualsPage visualsPage { proc };
+    PaulaProcessor::EditorState::View liveReturn = PaulaProcessor::EditorState::View::Pattern, visualsReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View breakReturn = PaulaProcessor::EditorState::View::Pattern;
 public:
     void openBreak();
@@ -281,6 +286,10 @@ public:
     void setFillLatch (bool on);       // FILL stays on (Shift+F2)
     bool fillLatched = false;
     prv::ui::BreakPage& getBreakPage() { return breakPage; }
+    prv::ui::LivePage& getLivePage() { return livePage; }
+    prv::ui::VisualsPage& getVisualsPage() { return visualsPage; }
+    void openLive();
+    void openVisuals();
 private:
     PaulaProcessor::EditorState::View radioReturn = PaulaProcessor::EditorState::View::Pattern;
     PaulaProcessor::EditorState::View sampleReturn = PaulaProcessor::EditorState::View::Pattern;

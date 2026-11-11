@@ -365,6 +365,7 @@ void Player::setSampleRate (double sr)
     for (auto& u : util) u.prepare (sampleRate);
     for (auto& e : instEq) e.prepare (sampleRate);
     rack.prepare (sampleRate, MixerEngine::kMaxBlock);
+    live.prepare (sampleRate);
     lpL.reset(); lpR.reset(); hpL.reset(); hpR.reset(); ledL.reset(); ledR.reset();
     if (blepTable.rate() != sampleRate) blepTable.build (sampleRate);
     for (auto& b : blepCh) b.reset();
@@ -499,6 +500,7 @@ void Player::stop()
     if (mode != Mode::Stopped && ! clockStartPending) sendClock (2, chunkPos);
     clockStartPending = false;
     synthAllOff();
+    queued = -1;
     resetSwitches();
     for (auto& ph : phrase) ph = PhraseRun {};
     mode = Mode::Stopped;
@@ -1358,6 +1360,22 @@ void Player::advanceLine()
     const int lines = song->blocks[(size_t) block].lines;
     const int seqLen = (int) song->sequence.size();
 
+    // LIVE MODE: a launched block takes over on the line it's due (it then loops, as a played block does)
+    if (queued >= 0)
+    {
+        const int next = line + 1;
+        if (queueQuant <= 0 || next >= lines || next % queueQuant == 0)
+        {
+            block = song->safeBlock (queued);
+            queued = -1;
+            line = 0;
+            if (mode == Mode::Song) mode = Mode::Block;
+            breakLine = jumpPos = loopJumpLine = -1;
+            uiSeqPos = seqPos; uiBlock = block; uiLine = line;
+            return;
+        }
+    }
+
     if (inLineLoop() && loopJumpLine < 0)
     {
         // the marked loop wins over block ends and pattern jumps
@@ -1601,6 +1619,7 @@ void Player::render (float* left, float* right, int numSamples)
         const int n = std::min (numSamples - done, MixerEngine::kMaxBlock);
         cv.base = done;
         renderChunk (left + done, right + done, n);
+        live.process (left + done, right + done, n, (double) uiTempo.load());   // (LIVE MODE's held effects: a pass-through when none)
         done += n;
     }
 }

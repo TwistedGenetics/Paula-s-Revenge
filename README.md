@@ -38,7 +38,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **SYNTHS** (the built-in SUB, REESE and GRANULAR synths), **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
-| Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays) and the status line. The song's name (top) is its file's name, set when you save or load |
+| Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white (WORKBENCH); **SPECTRUM** hides the strip. Every spectrum — the strip, PARAMS' filter, the EQ pages — is drawn as an analyser: a smooth line at 1/12 of an octave with the fill fading away under it, a faint peak-hold line above and a light grid at 100 Hz, 1 kHz and 10 kHz.
 
@@ -475,6 +475,24 @@ Stereo files stay stereo. A stereo sample plays with its own stereo image, centr
 
 Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills tracks 1–4). **BIG VIEW** is on by default so the pattern text is large: it shows 4 tracks at a time, with a **TRACKS 5-8 ▶** tab beside them (in a small window just **5-8 ▶**); click it for tracks 5–8, and **◀ TRACKS 1-4** takes you back. Tabbing the cursor past track 4 flips the view too. Turn BIG VIEW off, or hide the panels, to see all 8 tracks at once.
 
+## LIVE MODE
+
+**LIVE** (bottom row, or `Cmd+7`) is for playing the song live: launching blocks in time, playing slices, and throwing effects over the whole mix.
+
+* **PADS** - 16 big pads, also on the keys `1 2 3 4`, `Q W E R`, `A S D F`, `Z X C V` (four rows of four, as on the screen).
+  * **BLOCKS**: each pad is a block (`-` / `+` for the next 16). Stopped, a pad starts its block playing; playing, it's next - it takes over **AT** the next bar (16 lines), beat (4 lines), line, or at once (click **AT:** to change it), and loops until you launch another. The playing pad is lit; the one waiting blinks.
+  * **SLICES**: each pad plays the current instrument's slices (C-3 = slice 1), or its notes up from C-3 if it has none. With **EDIT** on while the song plays, what you play goes into the pattern on the cursor's track, on the line playing.
+* **REC ARRANGE**: press it, launch blocks, press it again - the blocks you played, in order (and every time one looped round), become the song's **sequence**. One undo brings the old sequence back. A quick way to jam out an arrangement.
+* **Held effects** on the whole mix - hold the button (or its key) and let go to stop. Every one fades in and out, so nothing clicks:
+  * **REPEAT 1/4**, **1/8**, **1/16** and **STUTTER 1/32** (keys `5 6 7 8`): the next slice of that length is caught and repeats, in time with the tempo.
+  * **TAPE STOP** (`T`): the mix slows to a stop, pitch and all; let go and it spins back up.
+  * **FILTER DOWN** (`G`) sweeps a low-pass down while held, **FILTER UP** (`B`) a high-pass up; let go and it opens again.
+* **PLAY** / **STOP** (or `Space`), **VISUALS** (below), **CLOSE** (or `Esc`).
+
+## VISUALS
+
+**VISUALS** (`Cmd+8`, or the button on the LIVE page) fills the whole window with a demoscene show in time with the song - for live sets, or a screen recording to go with a release. Copper bars roll through the top, a starfield rushes forward on the beat, each track has its own oscilloscope (it flashes on every note), and a sine scroller runs along the bottom with the song's name, tempo and block. **Tab** (or the buttons at the top) changes the scene: **ALL**, **COPPER**, **STARS**, **SCOPES**. The buttons hide when the mouse is still. Space / Return play and stop as usual; `Esc` or `Cmd+8` goes back.
+
 ## Keys
 
 | Key | Action |
@@ -506,6 +524,8 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Cmd+4` | SAMPLE: record audio into the instrument (again to go back) |
 | `Cmd+5` | INTERNET RADIO (again to go back) |
 | `Cmd+6` | The BREAK page (again to go back) |
+| `Cmd+7` | LIVE MODE (again to go back) |
+| `Cmd+8` | VISUALS, the whole window (again, or `Esc`, to go back) |
 | `F2` (hold) / `Shift+F2` | FILL while held / latched on or off |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
 | `Cmd+R` | CAPTURE: what you just played goes into the pattern |

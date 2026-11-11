@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.63</span>
+  <span class="ver">MANUAL &middot; V0.64</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -148,7 +148,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><a href="#bounce"><span class="n">014</span><span>Bouncing</span></a></li>
     <li><a href="#render"><span class="n">015</span><span>Rendering</span></a></li>
     <li><a href="#files"><span class="n">016</span><span>Saving &amp; files</span></a></li>
-    <li><a href="#keys"><span class="n">017</span><span>Keys</span></a></li>
+    <li><a href="#live"><span class="n">017</span><span>Live mode &amp; visuals</span></a></li>
+    <li><a href="#keys"><span class="n">018</span><span>Keys</span></a></li>
   </ol>
 </nav>
 
@@ -1238,6 +1239,27 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p>The app logs anything that could cause a dropout: audio blocks that took too long, the driver's own dropout count, the window stalling, saves and loads, the radio running dry, plug-ins that wouldn't load, and the audio device's rate and buffer. <b>Help &rarr; Save Diagnostics Report&hellip;</b> puts it all in a text file on your desktop, to send in; <b>Help &rarr; Show the Log Folder</b> opens the log.</p>
 </section>
 
+<!-- ============================================================ LIVE -->
+<section class="ch raised" id="live">
+  <h2>LIVE MODE &amp; VISUALS</h2>
+  <p><span class="b">LIVE</span> (bottom row, or <kbd>Cmd</kbd><kbd>7</kbd>) is for playing the song live: launching blocks in time, playing slices, and throwing effects over the whole mix.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/live.png" alt="The LIVE page: BLOCKS and SLICES, the AT: NEXT BAR button, REC ARRANGE, VISUALS, PLAY, STOP and CLOSE along the top; sixteen big pads, one per block, the playing one lit and the next one outlined; the held effects REPEAT 1/4, 1/8, 1/16, STUTTER 1/32, TAPE STOP, FILTER DOWN and FILTER UP along the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The LIVE page: block 003 playing, 004 next at the bar</figcaption>
+  </figure>
+  <ul>
+    <li><b>Pads:</b> 16 big pads, also on the keys <kbd>1</kbd>&ndash;<kbd>4</kbd>, <kbd>Q</kbd>&ndash;<kbd>R</kbd>, <kbd>A</kbd>&ndash;<kbd>F</kbd>, <kbd>Z</kbd>&ndash;<kbd>V</kbd>. In <span class="b">BLOCKS</span> each pad is a block: stopped, it starts playing; playing, it's next &mdash; it takes over <b>AT</b> the next bar, beat or line, or at once, and loops until you launch another. In <span class="b">SLICES</span> each pad plays the current instrument's slices; with <span class="b">EDIT</span> on while the song plays, they go into the pattern.</li>
+    <li><span class="b">REC ARRANGE</span>: press it, launch blocks, press it again &mdash; the blocks you played, in order, become the song's sequence (one undo brings the old one back).</li>
+    <li><b>Held effects</b> on the whole mix (hold, let go to stop; every one fades in and out, so nothing clicks): <span class="b">REPEAT 1/4</span>, <span class="b">1/8</span>, <span class="b">1/16</span> and <span class="b">STUTTER 1/32</span> (<kbd>5</kbd>&ndash;<kbd>8</kbd>) catch the next slice of that length and repeat it in time; <span class="b">TAPE STOP</span> (<kbd>T</kbd>) slows the mix to a stop and spins it back up when you let go; <span class="b">FILTER DOWN</span> (<kbd>G</kbd>) and <span class="b">FILTER UP</span> (<kbd>B</kbd>) sweep a low-pass down or a high-pass up.</li>
+  </ul>
+  <h3>Visuals</h3>
+  <p><span class="b">VISUALS</span> (<kbd>Cmd</kbd><kbd>8</kbd>, or the button on the LIVE page) fills the window with a demoscene show in time with the song &mdash; copper bars, a starfield that rushes forward on the beat, each track's oscilloscope flashing on its notes, and a sine scroller with the song's name, tempo and block. <kbd>Tab</kbd> changes the scene (ALL, COPPER, STARS, SCOPES); the buttons hide when the mouse is still; <kbd>Esc</kbd> goes back. For live sets, or a screen recording to go with a release.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/visuals.png" alt="VISUALS: rainbow copper bars across the top over a starfield, eight coloured oscilloscopes in the middle, and a sine-wave scroller of big rainbow letters along the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>VISUALS</figcaption>
+  </figure>
+</section>
+
 <!-- ============================================================ 015 -->
 <section class="ch raised" id="keys">
   <h2>KEYS</h2>
@@ -1270,6 +1292,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Cmd</kbd><kbd>4</kbd></td><td>SAMPLE: record audio into the instrument</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>5</kbd></td><td>INTERNET RADIO</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>6</kbd></td><td>The BREAK page</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>7</kbd></td><td>LIVE MODE</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>8</kbd></td><td>VISUALS (the whole window)</td></tr>
       <tr><td><kbd>F2</kbd> (hold) / <kbd>Shift</kbd><kbd>F2</kbd></td><td>FILL while held / latched on or off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
@@ -1279,7 +1303,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.63</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.64</footer>
 </main>
 </div>
 <script>

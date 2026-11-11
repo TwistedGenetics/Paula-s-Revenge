@@ -3,6 +3,7 @@
 
 #include "Song.h"
 #include "Mixer.h"
+#include "LiveFx.h"
 #include "PluginSynth.h"
 #include "CvOut.h"
 #include "DelayLine.h"
@@ -105,6 +106,11 @@ public:
 
     void playSong (int seqPos = 0, int line = 0);
     void playBlock (int block, int line = 0);
+    // LIVE MODE: this block next - when the line playing reaches a multiple of quantLines (or the block's end;
+    // 0 = at the next line), it starts from its top and loops. queuedBlock: -1 = none waiting
+    void queueBlock (int block, int quantLines) { queued = block; queueQuant = quantLines; }
+    int  queuedBlock() const { return queued; }
+    LiveFx& liveFx() { return live; }
     // While playing a block: move to block `b` at the same line and tick (no restart). False if not in block play.
     bool switchBlock (int b);
     int  playingBlock() const { return block; }
@@ -284,6 +290,8 @@ private:
     Lane trackLanes[kMaxTracks][kTrackKnobs];
     Lane instLanes[kMaxInstruments][kInstrumentKnobs];
     int  pendingGlide[kMaxTracks] {};          // Yxx: ticks for the next knob change on the track
+    volatile int queued = -1, queueQuant = 16;   // LIVE MODE: the block launched next
+    LiveFx live;                               // LIVE MODE: the held effects on the whole mix
     int  throwLines[kMaxTracks] {};            // DUB THROW: -1 open until the next note, > 0 lines still open, 0 closed
     bool feedbackRidden = false;
     void dubLine (int ch, const Cell&);         // (each line, each track: a throw closing)
