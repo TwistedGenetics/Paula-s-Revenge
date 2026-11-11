@@ -46,6 +46,7 @@ std::string SynthParam::text (float v) const
     else if (u == "MS") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.2fS", v / 1000.0f); else std::snprintf (buf, sizeof (buf), "%dMS", (int) std::lround (v)); }
     else if (u == "HZ") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.1fK", v / 1000.0f); else if (v < 10.0f) std::snprintf (buf, sizeof (buf), "%.2fHZ", v); else std::snprintf (buf, sizeof (buf), "%dHZ", (int) std::lround (v)); }
     else if (u == "ST" || u == "C") std::snprintf (buf, sizeof (buf), "%+d%s", (int) std::lround (v), u.c_str());
+    else if (u == "#") std::snprintf (buf, sizeof (buf), "%02X", (int) std::lround (v));   // (an instrument, as the instruments list shows it)
     else if (kind == 2) std::snprintf (buf, sizeof (buf), "%+d", (int) std::lround (v));
     else std::snprintf (buf, sizeof (buf), "%.2f", v);
     return buf;
@@ -79,7 +80,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     static const std::vector<SynthParam> grainP {
         { "SOURCE",    "SOURCE",     0, 2, 0,      3, "",   "TABLE|SAMPLE|RECORDING" },
         { "TABLE",     "SOURCE",     0, 7, 0,      3, "",   "SINE|SAW|SQUARE|VOCAL|BELL|GLASS|NOISE|CHOIR" },
-        { "SAMPLE",    "SOURCE",     1, 63, 1,     2, "",   "" },
+        { "SAMPLE",    "SOURCE",     1, 63, 1,     2, "#",  "" },
         { "POSITION",  "GRAINS",     0, 100, 30,   0, "%",  "" },
         { "SCAN",      "GRAINS",     -100, 100, 0, 0, "%",  "" },
         { "SIZE",      "GRAINS",     5, 1000, 90,  1, "MS", "" },
@@ -602,7 +603,7 @@ GrainSynth::Src GrainSynth::source() const
         if (song != nullptr && slot >= 0 && slot < kMaxInstruments)
         {
             const auto& in = song->instruments[(size_t) slot];
-            if (! in.isPlugin() && ! in.data.empty())
+            if (! in.data.empty())   // (a sample instrument's, or one loaded into GRANULAR itself)
             {
                 const size_t n = in.data.size();
                 const size_t a = (size_t) std::clamp (in.playStart, 0, (int) n - 1);

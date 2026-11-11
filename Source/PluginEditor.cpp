@@ -82,6 +82,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     enginePage.onClose = [this] { setView (View::Pattern); };
     enginePage.onChanged = [this] { instruments.refresh(); };
     enginePage.onStatus = [this] (const juce::String& m) { setStatus (m); };
+    enginePage.onLoadSample = [this] { openLoad (0); setStatus ("PICK A SAMPLE FOR GRANULAR - DOUBLE-CLICK OR LOAD INTO LOADS IT"); };
     enginePage.onOptions = [this] { setView (View::Synth); };
     addChildComponent (enginePage);
     synthPage.onOpenBuiltin = [this] { setView (View::Engine); };

@@ -14,7 +14,7 @@ class EnginePage : public juce::Component
 public:
     explicit EnginePage (PaulaProcessor&);
     ~EnginePage() override;
-    std::function<void()> onClose, onChanged, onOptions;   // onOptions: OUTPUT & KNOBS... (the plug-in instrument page)
+    std::function<void()> onClose, onChanged, onOptions, onLoadSample;   // onLoadSample: GRANULAR's LOAD SAMPLE... (the sample browser)   // onOptions: OUTPUT & KNOBS... (the plug-in instrument page)
     std::function<void (const juce::String&)> onStatus;
 
     void refresh();                      // the current instrument's values into the controls (rebuilt for another synth)
@@ -55,7 +55,8 @@ private:
     // GRANULAR: the sound its grains come from, where it's reading, how many grains are playing
     juce::Rectangle<float> waveArea;
     // (GRANULAR has more than fits at once: its controls on two pages)
-    PixButton pageBtn[2] { PixButton ("GRAINS", true), PixButton ("LFOS, ENV MOD, FILTER", true) };
+    PixButton loadSampleBtn { "LOAD SAMPLE..." };
+    PixButton pageBtn[2] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true) };
     int pageShown = 0;
   public:
     void showPage (int);

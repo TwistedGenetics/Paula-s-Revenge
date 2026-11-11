@@ -1,5 +1,6 @@
 // Paula's Revenge - sample browser that auditions files as you move through them
 #include "SampleBrowser.h"
+#include "../engine/BuiltinSynths.h"
 #include "../SongFile.h"
 #include "../Prefs.h"
 
@@ -105,7 +106,8 @@ void SampleBrowser::opened()
 
 void SampleBrowser::updateLoadLabel()
 {
-    loadBtn.setButtonText ("LOAD INTO " + juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2));
+    loadBtn.setButtonText ("LOAD INTO " + juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2)
+                           + (proc.song.instruments[(size_t) proc.editorState.instrument].pluginKey == kGrainKey ? " (GRANULAR)" : ""));
 }
 
 void SampleBrowser::setDirectory (const juce::File& d)
@@ -244,6 +246,26 @@ bool SampleBrowser::loadSelected()
     if (! importSample (e.file, in, err)) { if (onStatus) onStatus ("ERROR: " + err); return false; }
     stopAudition();
     const int idx = proc.editorState.instrument;
+    if (proc.song.instruments[(size_t) idx].pluginKey == kGrainKey)
+    {
+        // GRANULAR: the sample goes into it (it stays GRANULAR) and it takes its grains from it
+        proc.history.instrument (idx, "LOAD SAMPLE INTO GRANULAR");
+        proc.withLock ([&]
+        {
+            proc.player.jamAllOff();
+            auto& g = proc.song.instruments[(size_t) idx];
+            g.data = std::move (in.data); g.dataR = std::move (in.dataR);
+            g.rate = in.rate; g.natRate = in.natRate; g.playStart = 0; g.playEnd = 0;
+            g.loopStart = 0; g.loopLength = 0; g.slices.clear(); g.name = in.name;
+            auto v = readBuiltinState (g);
+            v[grain::Source] = 1; v[grain::SampleSlot] = (float) (idx + 1);
+            writeBuiltinState (g, v);
+        });
+        if (onStatus) onStatus ("LOADED " + e.file.getFileName().toUpperCase() + " INTO GRANULAR "
+                                + juce::String::toHexString (idx + 1).toUpperCase().paddedLeft ('0', 2) + " - ITS GRAINS COME FROM IT NOW");
+        if (onLoaded) onLoaded();
+        return true;
+    }
     proc.history.instrument (idx, "LOAD SAMPLE");
     proc.withLock ([&] { proc.player.jamAllOff(); std::swap (proc.song.instruments[(size_t) idx], in); });
     if (onStatus) onStatus ("LOADED " + e.file.getFileName().toUpperCase() + " INTO "

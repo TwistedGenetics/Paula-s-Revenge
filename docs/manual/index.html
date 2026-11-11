@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.58</span>
+  <span class="ver">MANUAL &middot; V0.59</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -898,12 +898,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
-    <div class="frame sunken"><img src="img/grain_page.png" alt="The GRANULAR page: the sound across the top with a line at POSITION and the SOURCE box beside it, the GRAINS and LFOS, ENV MOD, FILTER tabs, then boxes for GRAINS, PITCH, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/grain_page.png" alt="The GRANULAR page: the sound across the top with a line at POSITION and the SOURCE box beside it, the GRAINS and LFOS + FILTER tabs, then boxes for GRAINS, PITCH, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>The GRANULAR page: click the sound to set where the grains come from</figcaption>
   </figure>
   <ul>
-    <li><b>SOURCE:</b> <span class="b">TABLE</span> &mdash; 8 built-in sounds that change from start to end (SINE, SAW, SQUARE, VOCAL through A E I O U, BELL, GLASS, NOISE, CHOIR). <span class="b">SAMPLE</span> &mdash; any instrument's sample (set SAMPLE to its number). <span class="b">RECORDING</span> &mdash; the audio input, live: the last 8 seconds of what comes in.</li>
-    <li>Across the top, beside the SOURCE box, is the sound itself, with a line at POSITION and a thin line where the grains are reading. <b>Click or drag on it</b> to set POSITION. Two tabs under it show the rest: <span class="b">GRAINS</span> and <span class="b">LFOS, ENV MOD, FILTER</span>.</li>
+    <li><b>SOURCE:</b> <span class="b">TABLE</span> &mdash; 8 built-in sounds that change from start to end (SINE, SAW, SQUARE, VOCAL through A E I O U, BELL, GLASS, NOISE, CHOIR). <span class="b">SAMPLE</span> &mdash; press <span class="b">LOAD SAMPLE...</span> under the SOURCE box and pick a sample in the browser, just as for any instrument: it goes into GRANULAR (which stays GRANULAR) and is saved with the song. Or set SAMPLE to another instrument's number to use its sample. <span class="b">RECORDING</span> &mdash; the audio input, live: the last 8 seconds of what comes in.</li>
+    <li>Across the top, beside the SOURCE box, is the sound itself, with a line at POSITION and a thin line where the grains are reading. <b>Click or drag on it</b> to set POSITION. Two tabs under it show the rest: <span class="b">GRAINS</span> and <span class="b">LFOS + FILTER</span>.</li>
     <li><b>GRAINS:</b> POSITION; SCAN (moves the position on as the note plays &mdash; 100% plays through at the sound's own speed, less stretches it, minus goes backwards); SIZE; DENSITY (grains a second); SPRAY (scatters where and when grains start); <b>FREEZE</b> (holds the position &mdash; and on RECORDING stops taking in sound, so you can play what was caught).</li>
     <li><b>PITCH:</b> PITCH, SPREAD (each grain randomly out of tune), REVERSE (how many play backwards), STEREO (how wide they spread).</li>
     <li><b>ENVELOPE</b>; <b>LFO 1</b> (sine) and <b>LFO 2</b> (triangle) with RATE, AMT and TO; <b>ENV MOD</b> &mdash; each can move POSITION, SIZE, DENSITY, SPRAY, PITCH, STEREO, CUTOFF or LEVEL.</li>
@@ -1258,7 +1258,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.58</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.59</footer>
 </main>
 </div>
 <script>

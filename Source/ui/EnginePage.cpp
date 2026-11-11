@@ -31,6 +31,8 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     optionsBtn.onClick = [this] { if (onOptions) onOptions(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
     for (auto* c : { &playBtn, &optionsBtn, &closeBtn }) addAndMakeVisible (c);
+    loadSampleBtn.onClick = [this] { if (onLoadSample) onLoadSample(); };
+    addChildComponent (loadSampleBtn);
     for (int k = 0; k < 2; ++k)
     {
         pageBtn[k].setClickingTogglesState (false);
@@ -219,7 +221,8 @@ void EnginePage::readWave()
     {
         const int slot = juce::jlimit (1, kMaxInstruments, (int) std::lround (v[grain::SampleSlot]));
         const auto& from = proc.song.instruments[(size_t) slot - 1];
-        waveName = "SAMPLE " + hex2 (slot) + ": " + (from.data.empty() || from.isPlugin() ? juce::String ("(NO SAMPLE IN IT)") : juce::String (from.name).toUpperCase());
+        if (from.data.empty()) waveName = slot - 1 == i ? juce::String ("NO SAMPLE - LOAD SAMPLE...") : "SAMPLE " + hex2 (slot) + ": (NO SAMPLE IN IT)";
+        else waveName = (slot - 1 == i ? juce::String() : "SAMPLE " + hex2 (slot) + ": ") + juce::String (from.name).toUpperCase();
     }
     else waveName = std::lround (v[grain::Freeze]) == 1 ? "INPUT - FROZEN" : "INPUT - LAST 8 SECONDS";
     repaint (waveArea.toNearestInt());
@@ -339,18 +342,38 @@ void EnginePage::resized()
     waveArea = {};
     const bool paged = shownKey == kGrainKey;
     for (auto& b : pageBtn) b.setVisible (paged);
+    loadSampleBtn.setVisible (paged);
     if (paged)
     {
         Box* src = nullptr;
         for (auto& b : boxes) if (b.page == 2) src = &b;
         const int srcW = juce::jlimit (charsW (14), std::max (charsW (14), r.getWidth() / 2), charsW (22));
-        auto band = r.removeFromTop (std::max (title + rowH * 4 + gap * 4, src != nullptr ? boxHeight (*src, srcW) : 0));
+        // (the SOURCE box ends with LOAD SAMPLE...: a sample straight into GRANULAR, as into any instrument)
+        // (beside SAMPLE's number when there's room, else a line of its own)
+        const Row* slotRow = nullptr;
+        for (const auto& rw : rows) if (rw.param == grain::SampleSlot) slotRow = &rw;
+        const int numW = slotRow != nullptr && slotRow->number ? slotRow->number->preferredWidth (px) : 0;
+        const bool beside = numW + gap * 2 + charsW (14) <= srcW - gap * 4;
+        auto band = r.removeFromTop (std::max (title + rowH * 5 + gap * 6, src != nullptr ? boxHeight (*src, srcW) + (beside ? 0 : rowH + gap) : 0));
         r.removeFromTop (gap * 2);
-        if (src != nullptr) { place (*src, band.removeFromRight (srcW)); band.removeFromRight (gap * 3); }
+        if (src != nullptr)
+        {
+            auto sa = band.removeFromRight (srcW);
+            place (*src, sa);
+            if (beside && slotRow != nullptr && slotRow->number)
+            {
+                auto nb = slotRow->number->getBounds();
+                loadSampleBtn.setBounds (nb.getRight() + gap * 2, nb.getY(), sa.reduced (gap * 2).getRight() - nb.getRight() - gap * 2, rowH);
+            }
+            else loadSampleBtn.setBounds (sa.reduced (gap * 2).removeFromBottom (rowH));
+            band.removeFromRight (gap * 3);
+        }
+        // the page tabs under the sound, beside the SOURCE box (no line of their own)
+        auto tabs = band.removeFromBottom (rowH); band.removeFromBottom (gap * 2);
         waveArea = band.toFloat();
-        auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
-        pageBtn[0].setBounds (tabs.removeFromLeft (charsW (10))); tabs.removeFromLeft (gap);
-        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (22)));
+        const int tw = std::max (charsW (8), (tabs.getWidth() - gap) * 2 / 5);
+        pageBtn[0].setBounds (tabs.removeFromLeft (tw)); tabs.removeFromLeft (gap);
+        pageBtn[1].setBounds (tabs);
         for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
     }
     // the boxes not on the page shown: hidden
