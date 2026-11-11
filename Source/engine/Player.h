@@ -284,6 +284,9 @@ private:
     Lane trackLanes[kMaxTracks][kTrackKnobs];
     Lane instLanes[kMaxInstruments][kInstrumentKnobs];
     int  pendingGlide[kMaxTracks] {};          // Yxx: ticks for the next knob change on the track
+    int  throwLines[kMaxTracks] {};            // DUB THROW: -1 open until the next note, > 0 lines still open, 0 closed
+    bool feedbackRidden = false;
+    void dubLine (int ch, const Cell&);         // (each line, each track: a throw closing)
     int  rowGlide = 0; bool knobSetThisRow = false;
     void setLane (Lane&, float value, int glide, int kind, int a, int b);
     void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob

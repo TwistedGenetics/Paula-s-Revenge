@@ -502,6 +502,10 @@ void Player::stop()
     resetSwitches();
     for (auto& ph : phrase) ph = PhraseRun {};
     mode = Mode::Stopped;
+    // the throws close (the echoes ring on), a feedback ride goes back
+    mixerEngine.endThrows();
+    for (auto& t : throwLines) t = 0;
+    if (feedbackRidden && song != nullptr) { mixerEngine.setFeedbackRide (song->mixer, -1.0f); feedbackRidden = false; }
     for (int i = 0; i < kMaxTracks; ++i) { voices[i].active = false; voices[i].microDelay = -1; }
 }
 
@@ -667,6 +671,7 @@ void Player::processRow()
         if (ch < song->numTracks)
         {
             const Cell& c = b.at (line, ch);
+            dubLine (ch, c);
             uint8_t chance = 0, cond = 0;
             if (c.has (C_K, chance) && (nextRandom() % 255u) >= chance)
                 continue;   // Kxx: this step doesn't play this time
@@ -1141,11 +1146,28 @@ void Player::processCell (int ch, const Cell& cell)
     else if (hasY) pendingGlide[ch] = yp;
 }
 
+void Player::dubLine (int ch, const Cell& c)
+{
+    // a throw open "until the next note" closes at a note without its own !; one open for y lines counts them down
+    uint8_t p = 0;
+    const bool own = c.has (kCmdDub, p) && (p >> 4) > 0;
+    if (throwLines[ch] == -1 && c.note != 0 && ! own) { mixerEngine.setThrow (ch, 0.0f); throwLines[ch] = 0; }
+    else if (throwLines[ch] > 0 && --throwLines[ch] == 0) mixerEngine.setThrow (ch, 0.0f);
+}
+
 void Player::applyRowCommand (Voice& v, uint8_t cmd, uint8_t param, const Cell& cell)
 {
     const int x = param >> 4, y = param & 15;
     if (cmd == 0 && param == 0) return;
     const int ch = (int) (&v - voices);
+    // !xy DUB THROW: the track into the dub echo (return B) at x/F, for y lines (0: to its next note);
+    // !0y: the echo's feedback ridden to y/F (!00: back to its own setting)
+    if (cmd == kCmdDub && ch >= 0 && ch < kMaxTracks && song != nullptr)
+    {
+        if (x > 0) { mixerEngine.setThrow (ch, x / 15.0f); throwLines[ch] = y > 0 ? y : -1; }
+        else { mixerEngine.setFeedbackRide (song->mixer, y > 0 ? 0.35f + 0.6f * y / 15.0f : -1.0f); feedbackRidden = y > 0; }
+        return;
+    }
     // automation: the track's knobs, and a plug-in instrument's own knobs / mod wheel
     if (ch >= 0 && ch < kMaxTracks && (cmd == C_V || cmd == C_J))
     {
@@ -1685,7 +1707,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         }
     // (and while the EQ's spectrum shows a channel: it's taken from the channel's strip)
     const bool envelopes = applyEnvelopes();   // (AUTOMATION: before anything plays this chunk)
-    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility || envelopes
+    const bool mixActive = song != nullptr && (forceMixPath || ! song->mixer.isFlat() || rack.any() || anyUtility || envelopes || mixerEngine.dubEver
                                                || mixerEngine.chTap.source.load (std::memory_order_relaxed) >= 0);
     // the EQ's spectrum display: one instrument's sound (tapIns), copied as it goes past
     const bool tapsLive = mode != Mode::Stopped || [&]

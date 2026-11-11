@@ -4773,6 +4773,81 @@ static void testReeseSynth()
     }
 }
 
+// ---- DUB THROWS: !xy sends a hit into the dub echo on SEND B; !0y rides its feedback
+static void testDubThrows()
+{
+    std::printf ("\n== DUB THROWS\n");
+    CHECK (commandFromChar ('!') == kCmdDub && commandChar (kCmdDub) == '!');
+    CHECK (commandName (kCmdDub) == "DUB THROW");
+    std::printf ("%s\n%s\n", describeCommand (kCmdDub, 0xC0).c_str(), describeCommand (kCmdDub, 0x08).c_str());
+    // SEND B as a new song has it becomes DUB DELAY + SPRING; a B you've changed is left alone
+    {
+        MixerSettings m;
+        CHECK (m.dubReady() && m.setUpDub() && m.ret[1].inserts[0].type == FxType::DubDelay && m.ret[1].inserts[1].type == FxType::Spring && m.dubReady());
+        CHECK (! m.setUpDub());   // (now it's not as it came)
+        MixerSettings c; c.ret[1].inserts[0].type = FxType::Reverb; c.ret[1].inserts[0].p[0] = 0.3f;
+        CHECK (! c.setUpDub() && c.ret[1].inserts[0].type == FxType::Reverb);
+    }
+    // a hat (a short noise burst) on line 0: with !F0 its echoes carry on after it; without, silence
+    auto render = [] (uint8_t cmd, uint8_t param, Cell second, float& throwAt4, float& throwAt12)
+    {
+        Song s = makeSong();
+        s.blocks[0] = Block {}; s.blocks[0].lines = 32;
+        s.blocks[0].at (0, 0) = Cell { 37, 2, cmd, param };
+        s.blocks[0].at (8, 0) = second;
+        s.sequence = { 0 };
+        s.mixer.setUpDub();
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.mixer().syncEffectsNow (s.mixer);
+        p.playSong (0);
+        const int line = (int) (48000 * 2.5 / 125.0 * 6 / 6.0 * 1.0);   // (a line at 125 BPM, speed 6: 0.12 s)
+        std::vector<float> L ((size_t) 48000 * 3), R (L.size());
+        const int perLine = (int) std::lround (48000 * 0.12);
+        p.render (L.data(), R.data(), perLine * 4); throwAt4 = p.mixer().throwLevel (0);
+        p.render (L.data() + perLine * 4, R.data() + perLine * 4, perLine * 8); throwAt12 = p.mixer().throwLevel (0);
+        p.render (L.data() + perLine * 12, R.data() + perLine * 12, (int) L.size() - perLine * 12);
+        (void) line;
+        return L;
+    };
+    float a4, a12, b4, b12;
+    const auto dry = render (0, 0, Cell {}, b4, b12);
+    const auto wet = render (kCmdDub, 0xF0, Cell {}, a4, a12);
+    const int from = (int) (48000 * 0.12 * 2), to = (int) (48000 * 0.12 * 7);   // (after the hat, before line 8)
+    std::printf ("after the hat: dry rms %.5f, thrown rms %.5f\n", rmsOf (dry, from, to), rmsOf (wet, from, to));
+    CHECK (rmsOf (dry, from, to) < 0.002f && rmsOf (wet, from, to) > rmsOf (dry, from, to) * 10 + 0.003f);
+    CHECK (a4 > 0.9f && a12 > 0.9f);   // open to the next note (there isn't one)
+    // the next note on the track (without !) closes it; !C2 is open for two lines only
+    {
+        float x4, x12;
+        render (kCmdDub, 0xF0, Cell { 37, 2, 0, 0 }, x4, x12);
+        std::printf ("throw to the next note: open at line 4 %.2f, at line 12 %.2f\n", x4, x12);
+        CHECK (x4 > 0.9f && x12 == 0.0f);
+        render (kCmdDub, 0xC2, Cell {}, x4, x12);
+        std::printf ("!C2: at line 4 %.2f\n", x4);
+        CHECK (x4 == 0.0f);
+    }
+    // !0F rides the feedback up: longer echoes
+    {
+        Song s = makeSong();
+        s.blocks[0] = Block {}; s.blocks[0].lines = 64;
+        s.blocks[0].at (0, 0) = Cell { 37, 2, kCmdDub, 0xF0 };
+        s.sequence = { 0 };
+        s.mixer.setUpDub();
+        Song s2 = s;
+        s2.blocks[0].at (0, 1) = Cell { 0, 0, kCmdDub, 0x0F };
+        auto tail = [] (Song& song)
+        {
+            Player p; p.setSampleRate (48000); p.setSong (&song); p.mixer().syncEffectsNow (song.mixer); p.playSong (0);
+            std::vector<float> L ((size_t) 48000 * 4), R (L.size());
+            p.render (L.data(), R.data(), (int) L.size());
+            return rmsOf (L, 48000 * 3, 48000 * 4);
+        };
+        const float plain = tail (s), ridden = tail (s2);
+        std::printf ("echo tail 3-4 s after: feedback as set %.5f, ridden up %.5f\n", plain, ridden);
+        CHECK (ridden > plain * 2.0f);
+    }
+}
+
 // ---- GRANULAR
 static void testGrainSynth()
 {
@@ -5313,6 +5388,7 @@ int main()
     testGrainSynth();
     testSubBeat();
     testReeseSynth();
+    testDubThrows();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

@@ -995,6 +995,7 @@ void PatternEditor::applyPickedCommand (const CommandInfo& info)
         chordFromCommandList = true;
         return;
     }
+    if (info.cmd == kCmdDub) ensureDubEcho();
     pushUndo (blk, "COMMAND " + juce::String (info.code) + " " + juce::String (info.name));
     proc.withLock ([&]
     {
@@ -1874,7 +1875,10 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     int hv = -1;
     if (st.column == 3 || st.column == 6)
     {
-        hv = (k.getModifiers().isShiftDown() && k.getKeyCode() == '3') || k.getTextCharacter() == '#' ? (int) kCmdChord : commandFromChar ((char) ch);
+        hv = (k.getModifiers().isShiftDown() && k.getKeyCode() == '3') || k.getTextCharacter() == '#' ? (int) kCmdChord
+           : (k.getModifiers().isShiftDown() && k.getKeyCode() == '1') || k.getTextCharacter() == '!' ? (int) kCmdDub
+           : commandFromChar ((char) ch);
+        if (hv == kCmdDub && st.editMode) ensureDubEcho();
         if (hv == kCmdChord && st.editMode)
         {
             // #: a chord - start it on the first filled slot, the cursor stays to type the slot
@@ -1901,6 +1905,17 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     else if (ch >= 'a' && ch <= 'f') hv = (int) (ch - 'a' + 10);
     if (hv >= 0) { enterHex (hv); return true; }
     return false;
+}
+
+void PatternEditor::ensureDubEcho()
+{
+    // a DUB THROW wants a dub echo on SEND B: a song's own B left as it came becomes DUB DELAY + SPRING (an undo step)
+    MixerSettings m = proc.song.mixer;
+    if (! m.setUpDub()) return;
+    proc.history.mixer ("DUB ECHO ON SEND B");
+    proc.withLock ([&] { proc.song.mixer.setUpDub(); });
+    proc.updateMixerEffects();
+    if (onStatus) onStatus ("SEND B IS NOW THE DUB ECHO (DUB DELAY + SPRING) - !XY THROWS A HIT INTO IT, !0Y RIDES ITS FEEDBACK");
 }
 
 void PatternEditor::noteRecorded (int note, int group)

@@ -33,11 +33,12 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kAmigaC3Rate = 16574.27;
 
 // Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD), 37 ? (CONDITION).
-constexpr int kNumCommands = 39;
+constexpr int kNumCommands = 40;
 constexpr uint8_t kCmdChord = 36;   // #xy: plays chord slot xy from the song's chord table
 constexpr uint8_t kCmdCond  = 37;   // ?xy: the step plays only on pass x of every y (?01 FILL, ?02 NOT FILL, ?03 FIRST, ?04 NOT FIRST)
 constexpr uint8_t kCmdPhrase = 38;  // @xx: the note plays the instrument's phrase xx (@00: its sample, no phrase)
-inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c == kCmdPhrase ? '@' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+constexpr uint8_t kCmdDub   = 39;   // !xy: DUB THROW - x (1-F) this track into the dub echo (SEND B), y lines (0 = to the next note); !0y: the echo's feedback ride
+inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c == kCmdPhrase ? '@' : c == kCmdDub ? '!' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
 // ?xy: does the step play on this pass of its block (1 = the first time it plays), with FILL held or not
 inline bool conditionPlays (uint8_t p, int passNo, bool fill)
 {
@@ -52,6 +53,7 @@ inline int  commandFromChar (char ch)
     if (ch == '#') return kCmdChord;
     if (ch == '?') return kCmdCond;
     if (ch == '@') return kCmdPhrase;
+    if (ch == '!') return kCmdDub;
     if (ch >= '0' && ch <= '9') return ch - '0';
     if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
     if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;

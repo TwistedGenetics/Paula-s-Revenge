@@ -45,6 +45,7 @@ std::string commandName (int c)
         case '#': return "CHORD";
         case '?': return "CONDITION";
         case '@': return "PHRASE";
+        case '!': return "DUB THROW";
         default: return "UNUSED";
     }
 }
@@ -94,6 +95,9 @@ std::string describeCommand (int c, uint8_t p)
     switch (commandChar (c))
     {
         case '@': return head + (p ? fmt ("PLAY THE INSTRUMENT'S PHRASE %02X", (int) p) : std::string ("PLAY THE SAMPLE, NOT A PHRASE"));
+        case '!':
+            if (x == 0) return head + (y ? fmt ("DUB ECHO FEEDBACK UP TO %d/15 (!00 PUTS IT BACK)", y) : std::string ("DUB ECHO FEEDBACK BACK TO ITS OWN SETTING"));
+            return head + fmt ("THROW THIS TRACK INTO THE DUB ECHO AT %d%%, ", x * 100 / 15) + (y ? fmt ("FOR %d LINE%s", y, y == 1 ? "" : "S") : std::string ("TO ITS NEXT NOTE"));
         case '#': return head + (p ? fmt ("CHORD SLOT %02X, HELD (PLUG-IN / MIDI-OUT INSTRUMENTS)", p) : std::string ("CHORD SLOT 00: JUST THE NOTE"));
         case 'G': return head + fmt ("GLIDE TO THE NOTE OVER %d TICKS", std::max (1, (int) p));
         case 'H': return head + fmt ("HIGH-PASS CUTOFF %d%% (%d HZ)", pct (p), (int) cutoffHz (p));
@@ -141,6 +145,7 @@ const std::vector<CommandInfo>& commandList()
     static const std::vector<CommandInfo> list {
         { kCmdChord, 0x01, false, "#", "CHORD",        "PLAYS CHORD XY FROM THE SONG'S CHORD TABLE, HELD - PLUG-IN / MIDI-OUT INSTRUMENTS; ON A SAMPLE, JUST THE NOTE" },
         { kCmdPhrase, 0x01, false, "@", "PHRASE",      "THIS NOTE PLAYS THE INSTRUMENT'S PHRASE XX (@01-@10); @00 PLAYS ITS SAMPLE, NOT A PHRASE" },
+        { kCmdDub, 0xC0, false, "!", "DUB THROW",     "THROWS THIS HIT INTO THE DUB ECHO (SEND B): X HOW MUCH (1-F), Y FOR HOW MANY LINES (0 = TO THE NEXT NOTE); !0Y RIDES THE ECHO'S FEEDBACK UP" },
         { kCmdCond, 0x12, false, "?", "CONDITION",    "PLAYS ON PASS X OF EVERY Y (?12 1ST OF 2, ?44 4TH OF 4); ?01 ONLY IN A FILL, ?02 NOT IN ONE, ?03 FIRST TIME ONLY, ?04 NOT THE FIRST" },
         { 0x0, 0x37, false, "0",  "ARPEGGIO",          "NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },
         { 0x1, 0x08, false, "1",  "SLIDE UP",          "BENDS THE PITCH UP, XX PER TICK" },

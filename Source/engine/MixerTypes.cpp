@@ -44,6 +44,33 @@ FxSlot& MixerSettings::slot (int i)
 
 const FxSlot& MixerSettings::slot (int i) const { return const_cast<MixerSettings*> (this)->slot (i); }
 
+bool MixerSettings::setUpDub()
+{
+    const MixerSettings fresh;
+    bool asNew = true, empty = true;
+    for (int k = 0; k < kInserts; ++k)
+    {
+        asNew = asNew && ret[1].inserts[k] == fresh.ret[1].inserts[k];
+        empty = empty && ret[1].inserts[k].type == FxType::None;
+    }
+    if (! asNew && ! empty) return false;
+    for (auto& s : ret[1].inserts) s = FxSlot {};
+    initFxSlot (ret[1].inserts[0], FxType::DubDelay);
+    ret[1].inserts[0].p[2] = 0.55f;    // FEEDBACK: a good few repeats
+    ret[1].inserts[0].p[9] = 1.0f;     // MIX: all echo (it's a return)
+    initFxSlot (ret[1].inserts[1], FxType::Spring);
+    ret[1].inserts[1].p[0] = 0.3f;     // MIX: a splash of spring on the echoes
+    return true;
+}
+
+bool MixerSettings::dubReady() const
+{
+    for (const auto& s : ret[1].inserts)
+        if (s.active())
+            for (const auto& q : fxParams (s.type)) if (q.name == "FEEDBACK") return true;
+    return false;
+}
+
 bool MixerSettings::isFlat() const
 {
     for (const auto& c : ch)

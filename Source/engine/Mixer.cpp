@@ -44,9 +44,29 @@ void MixerEngine::prepare (double sampleRate)
     for (auto& f : fx) if (f) f->prepare (sr);
 }
 
+void MixerEngine::setFeedbackRide (const MixerSettings& m, float v)
+{
+    // the first echo on return B with a FEEDBACK control: ridden to v (< 0: back to its own setting)
+    for (int k = 0; k < kInserts; ++k)
+    {
+        const auto& s = m.ret[1].inserts[k];
+        if (! s.active()) continue;
+        const auto& ps = fxParams (s.type);
+        for (int i = 0; i < (int) ps.size(); ++i)
+            if (ps[(size_t) i].name == "FEEDBACK")
+            {
+                if (v < 0) releaseAutomation (returnSlot (1, k), i); else setAutomation (returnSlot (1, k), i, v);
+                return;
+            }
+    }
+}
+
 void MixerEngine::reset()
 {
     mods.reset();
+    for (auto& t : throwTo) t = 0.0f;
+    for (auto& t : throwNow) t = 0.0f;
+    dubEver = false;
     for (auto& t : stripMulNow) for (auto& v : t) v = 1.0f;
     for (auto& e : eq) e.reset();
     for (auto& f : fx) if (f) f->reset();
@@ -239,6 +259,18 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
                 const float sg = s * (a + (b - a) * f) * (c.sendPre[r] ? 1.0f : (va + (vb - va) * f));
                 sendL[r][(size_t) i] += L[i] * sg; sendR[r][(size_t) i] += R[i] * sg;
             }
+        }
+        // DUB THROW: into return B, pre-fader, easing to where it's going (about 4 ms) so it never clicks
+        if (throwTo[t] > 0.0f || throwNow[t] > 0.0f)
+        {
+            const float k = 1.0f - std::exp (-1.0f / (0.004f * (float) sr));
+            float tn = throwNow[t];
+            for (int i = 0; i < n; ++i)
+            {
+                tn += (throwTo[t] - tn) * k;
+                sendL[1][(size_t) i] += L[i] * tn; sendR[1][(size_t) i] += R[i] * tn;
+            }
+            throwNow[t] = tn < 0.0001f && throwTo[t] == 0.0f ? 0.0f : tn;
         }
         if (! ramp) for (int i = 0; i < n; ++i) { L[i] *= g; R[i] *= g; outL[i] += L[i]; outR[i] += R[i]; }
         else

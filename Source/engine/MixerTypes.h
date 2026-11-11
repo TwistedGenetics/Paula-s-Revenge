@@ -187,6 +187,10 @@ struct MixerSettings
 
     // true when the mixer changes nothing: the song plays exactly as without a mixer
     bool isFlat() const;
+    // DUB: return B as a dub echo (DUB DELAY, then SPRING) - only if it's still as a new song has it (or empty);
+    // true if it changed it. dubReady: return B has an echo of some kind (anything with FEEDBACK)
+    bool setUpDub();
+    bool dubReady() const;
 };
 
 // ---- effect descriptions (names, parameter labels, defaults, value text)

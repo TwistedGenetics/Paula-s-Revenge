@@ -43,6 +43,13 @@ public:
     void releaseAutomation (int slot, int param);           // a built-in control back to its slider
     // a track's VOLUME (fader travel 0..1) / SEND A / SEND B from AUTOMATION (-1 = its own setting)
     void setStripAutomation (int track, int what, float value01);
+    // DUB THROW (!xy): a track sent into SEND B (the dub echo) on top of its own send, pre-fader, until set back to 0
+    // (it fades in and out over a few ms: no click). setFeedbackRide: the echo's feedback on return B (< 0 = its own)
+    void setThrow (int track, float level01) { if (track >= 0 && track < kMixTracks) { throwTo[track] = std::clamp (level01, 0.0f, 1.0f); if (level01 > 0) dubEver = true; } }
+    float throwLevel (int track) const { return track >= 0 && track < kMixTracks ? throwTo[track] : 0.0f; }
+    void setFeedbackRide (const MixerSettings&, float value01);
+    bool dubEver = false;   // (a throw happened since the last reset: the mixer path stays on for the echoes to ring out)
+    void endThrows() { for (auto& t : throwTo) t = 0.0f; }
     void clearAutomation();
     void clearOnOff (int slot = -1);   // on/off automation back to the slot's BYPASS button (-1 = every slot)
     int  onOffOverride (int slot) const { return slot >= 0 && slot < kTotalSlots ? autoOn[slot] : -1; }
@@ -95,6 +102,7 @@ private:
     float stripMulNow[kMixTracks][kModStripParams];   // the modulated VOLUME / SENDS the last block ended on
     bool  anyModLeft = false;                          // modulation was on last block
     float stripAuto[kMixTracks][kModStripParams];      // automated VOLUME / SENDS (< 0 = not)
+    float throwTo[kMixTracks] {}, throwNow[kMixTracks] {};   // DUB THROW: where it's going, where it is
     int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];
     DelayLine slotDelay[kTotalSlots];      // a bypassed plug-in keeps its delay
