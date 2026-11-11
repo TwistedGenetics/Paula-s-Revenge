@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.65</span>
+  <span class="ver">MANUAL &middot; V0.66</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -775,6 +775,20 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     </tbody>
   </table></div>
   <div class="flow"><span class="stage">EQ</span>&rarr;<span class="stage">INSERTS</span>&rarr;<span class="stage">PRE SENDS</span>&rarr;<span class="stage">FADER</span>&rarr;<span class="stage">POST SENDS</span>&rarr;<span class="stage">MASTER</span>&rarr;<span class="stage">PAULA / AKAI OUTPUT</span></div>
+  <h3>Duck and the low-end check</h3>
+  <p><span class="b">DUCK...</span> (top of the strips page) makes room for the kick in one go: pick the kick's track, what dips under it (every other track, or just the bass), and how hard &mdash; <b>LIGHT</b> (about &minus;4&nbsp;dB), <b>MEDIUM</b> (&minus;8&nbsp;dB) or <b>HARD</b> (the pump). It's a FOLLOWER on the kick's track turning those tracks' VOLUME down on every hit, back up over a line and a half (three when HARD). One undo step; MODULATION shows it to fine-tune. Ask again to change it or take it off.</p>
+  <p><span class="b">LOW-END CHECK</span> opens a panel under the strips that listens to the master while the song plays and says, with a lamp (green fine, amber worth a look, red fix it):</p>
+  <figure>
+    <div class="frame sunken"><img src="img/low_end.png" alt="The mixer's strips with the LOW-END CHECK panel under them: a red lamp by BASS OUT OF PHASE - IT CANCELS IN MONO - UTILITY: MONO 120HZ ON THE BASS, and green lamps by SUB LEVEL OK, CLEAR LOW MIDS and NO CLIPPING." width="1440" height="900" loading="lazy"></div>
+    <figcaption>LOW-END CHECK: a bass out of phase</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+      <tr><td><b>BASS MONO?</b></td><td>Below 120&nbsp;Hz, are the sides the same? Out of phase, the bass cancels on a club system or a phone. Fix: the bass's UTILITY <b>MONO</b> &lt;120HZ.</td></tr>
+      <tr><td><b>SUB LEVEL</b></td><td>The sub (below 80&nbsp;Hz) against everything. Too much: turn it down, or DUCK it under the kick.</td></tr>
+      <tr><td><b>LOW MIDS</b></td><td>How much is 200&ndash;500&nbsp;Hz. Muddy: cut there on pads and breaks.</td></tr>
+      <tr><td><b>CLIPPING</b></td><td>Samples at full scale in the last few seconds: turn the master down.</td></tr>
+  </table></div>
+  <p>Stopped, it says PLAY THE SONG. It's a guide, not a rule.</p>
   <div class="two">
     <div>
       <figure>
@@ -1316,7 +1330,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.65</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.66</footer>
 </main>
 </div>
 <script>

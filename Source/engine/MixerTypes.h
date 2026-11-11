@@ -190,6 +190,11 @@ struct MixerSettings
     // DUB: return B as a dub echo (DUB DELAY, then SPRING) - only if it's still as a new song has it (or empty);
     // true if it changed it. dubReady: return B has an echo of some kind (anything with FEEDBACK)
     bool setUpDub();
+    // DUCK: a FOLLOWER listening to the kick's track turns the tracks in trackMask (bit t = track t) down on every
+    // hit by depth (0..1) and lets them back up over releaseMs. A duck already following that track is reused
+    // (its targets replaced). Returns the modulator (-1: all 16 are in use).
+    int setUpDuck (int kickTrack, unsigned trackMask, float depth, float releaseMs);
+    int duckFrom (int kickTrack) const;   // the modulator ducking from that track (-1: none)
     bool dubReady() const;
 };
 

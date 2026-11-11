@@ -5,6 +5,7 @@
 #include "engine/BuiltinSynths.h"
 #include "engine/ReeseSynth.h"
 #include "engine/Crunch.h"
+#include "engine/LowEnd.h"
 #include <set>
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
@@ -4912,6 +4913,85 @@ static void testLiveMode()
 }
 
 // ---- CRUNCH: a sample through an old sampler for good
+static void testDuckAndLowEnd()
+{
+    std::printf ("\n== DUCK + LOW-END CHECK\n");
+    // DUCK: a follower on the kick's track, every other chosen track's VOLUME down
+    {
+        MixerSettings m;
+        const int d = m.setUpDuck (0, 0xFFu, 0.7f, 150.0f);
+        CHECK (d == 0 && m.mods.mod[0].source == ModSource::Follower && m.mods.mod[0].routes() == 7);
+        CHECK (m.mods.mod[0].route[0].target == kModStripBase + 1 && m.mods.mod[0].route[0].amount < -0.69f);
+        CHECK (m.duckFrom (0) == 0 && m.duckFrom (1) == -1);
+        CHECK (m.setUpDuck (0, 0x2u, 0.4f, 100.0f) == 0 && m.mods.mod[0].routes() == 1);   // (the same duck, changed)
+        CHECK (m.setUpDuck (2, 0x1u, 0.4f, 100.0f) == 1);
+    }
+    // in the mix: the square (track 2) is quieter just after the hit on track 1 when it ducks
+    auto render = [] (bool duck, bool square)
+    {
+        Song s = makeSong();
+        s.blocks[0] = Block {}; s.blocks[0].lines = 16;
+        s.blocks[0].at (0, 0) = Cell { 37, 2, 0, 0 };
+        if (square) s.blocks[0].at (0, 1) = Cell { 25, 1, 0, 0 };
+        s.sequence = { 0 };
+        if (duck) s.mixer.setUpDuck (0, 0xFFu, 0.8f, 150.0f);
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.mixer().syncEffectsNow (s.mixer);
+        p.playSong (0);
+        std::vector<float> L (48000), R (L.size());
+        p.render (L.data(), R.data(), (int) L.size());
+        return L;
+    };
+    auto diff = [] (const std::vector<float>& a, const std::vector<float>& b) { std::vector<float> d (a.size()); for (size_t i = 0; i < a.size(); ++i) d[i] = a[i] - b[i]; return d; };
+    const auto ducked = diff (render (true, true), render (true, false)), plain = diff (render (false, true), render (false, false));
+    const int from = 480, to = 4800;   // (10 - 100 ms: the hit is on)
+    std::printf ("square under the hit: plain %.4f, ducked %.4f; later (0.8 s): plain %.4f ducked %.4f\n",
+                 rmsOf (plain, from, to), rmsOf (ducked, from, to), rmsOf (plain, 38000, 40000), rmsOf (ducked, 38000, 40000));
+    CHECK (rmsOf (plain, from, to) > 0.01f && rmsOf (ducked, from, to) < rmsOf (plain, from, to) * 0.6f);
+    CHECK (rmsOf (ducked, 38000, 40000) > rmsOf (plain, 38000, 40000) * 0.85f);   // (back up after it)
+
+    // LOW-END CHECK
+    auto check = [] (std::function<void (int, float&, float&)> gen, double secs = 4.0)
+    {
+        LowEndCheck c; c.prepare (48000);
+        std::vector<float> L (480), R (480);
+        for (int at = 0; at < (int) (48000 * secs); at += 480)
+        {
+            for (int i = 0; i < 480; ++i) gen (at + i, L[(size_t) i], R[(size_t) i]);
+            c.process (L.data(), R.data(), 480);
+        }
+        return c.report();
+    };
+    const double w = 6.283185307179586 / 48000.0;
+    {
+        const auto r = check ([] (int, float& l, float& r) { l = r = 0; });
+        CHECK (! r.signal && lowEndAdvice (r).size() == 1 && lowEndAdvice (r)[0].title == "PLAY THE SONG");
+    }
+    {   // a mono 50 Hz sub with a little 2 kHz: mono, the sub OK-to-big, clean
+        const auto r = check ([w] (int i, float& l, float& r) { l = r = (float) (0.4 * std::sin (w * 50 * i) + 0.15 * std::sin (w * 2000 * i)); });
+        std::printf ("mono sub: corr %.2f sub %.1f dB mud %.1f dB peak %.1f clips %d\n", r.lowCorr, r.subDb, r.mudDb, r.peakDb, r.clips);
+        CHECK (r.signal && r.lowCorr > 0.99f && r.clips == 0 && r.subDb > -3 && r.mudDb < -20);
+        const auto a = lowEndAdvice (r);
+        CHECK (a.size() == 4 && a[0].level == 0 && a[3].level == 0);
+    }
+    {   // the sub out of phase between the sides
+        const auto r = check ([w] (int i, float& l, float& r) { l = (float) (0.4 * std::sin (w * 50 * i)); r = -l; });
+        std::printf ("out of phase: corr %.2f\n", r.lowCorr);
+        CHECK (r.lowCorr < -0.9f && lowEndAdvice (r)[0].level == 2 && lowEndAdvice (r)[0].title == "BASS OUT OF PHASE");
+    }
+    {   // wide (unrelated) bass
+        const auto r = check ([w] (int i, float& l, float& r) { l = (float) (0.4 * std::sin (w * 50 * i)); r = (float) (0.4 * std::sin (w * 71 * i)); });
+        std::printf ("wide: corr %.2f\n", r.lowCorr);
+        CHECK (r.lowCorr > -0.5f && r.lowCorr < 0.5f && lowEndAdvice (r)[0].level == 1);
+    }
+    {   // all mud, and clipping
+        const auto r = check ([w] (int i, float& l, float& r) { l = r = (float) (1.1 * std::sin (w * 300 * i)); });
+        std::printf ("mud: %.1f dB, sub %.1f dB, clips %d, peak %.1f\n", r.mudDb, r.subDb, r.clips, r.peakDb);
+        const auto a = lowEndAdvice (r);
+        CHECK (r.clips > 0 && a[3].level == 2 && a[2].title == "MUDDY" && a[1].title == "NOT MUCH SUB");
+    }
+}
+
 static void testCrunch()
 {
     std::printf ("\n== CRUNCH\n");
@@ -5483,6 +5563,7 @@ int main()
     testDubThrows();
     testLiveMode();
     testCrunch();
+    testDuckAndLowEnd();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

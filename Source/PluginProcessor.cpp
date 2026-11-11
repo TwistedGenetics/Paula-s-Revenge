@@ -162,6 +162,7 @@ void PaulaProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     radio.prepare (sampleRate);   // (outside the lock: it may wait for its thread)
     const juce::SpinLock::ScopedLockType sl (lock);
     player.setSampleRate (sampleRate);
+    lowEnd.prepare (sampleRate);
     scratchSize = std::max (samplesPerBlock, 512);
     scratchL.allocate ((size_t) scratchSize, true);
     inL.allocate ((size_t) scratchSize, true);
@@ -540,6 +541,7 @@ void PaulaProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         }
     }
     renderTo (n);
+    lowEnd.process (scratchL.get(), scratchR.get(), n);
     clockSamples += n;
     if (followClock.load (std::memory_order_relaxed) && ! clockIn.locked (clockSamples / std::max (1.0, currentRate))) clockBpm.store (0.0f, std::memory_order_relaxed);
     renderPreview (scratchL.get(), scratchR.get(), n);

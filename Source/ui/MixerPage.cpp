@@ -5,6 +5,7 @@
 #include "ChoiceBox.h"
 #include "MeterColours.h"
 #include "../engine/Effects.h"
+#include "../engine/LowEnd.h"
 
 namespace prv::ui
 {
@@ -666,6 +667,11 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     addChildComponent (*modPage);
     modsBtn.onClick = [this] { showMods(); };
     addChildComponent (modsBtn);
+    duckBtn.onClick = [this] { askDuck(); };
+    addChildComponent (duckBtn);
+    lowEndBtn.setClickingTogglesState (false);
+    lowEndBtn.onClick = [this] { setLowEnd (! lowEndOn); };
+    addChildComponent (lowEndBtn);
     modulateBtn.onClick = [this] { modulate(); };
     addChildComponent (modulateBtn);
     for (int k = 0; k < kInstMacros; ++k)
@@ -1218,6 +1224,8 @@ void MixerPage::updateVisibility()
     closeBtn.setVisible (true);
     resetAllBtn.setVisible (strip);
     modsBtn.setVisible (strip);
+    duckBtn.setVisible (strip);
+    lowEndBtn.setVisible (strip);
     modPage->setVisible (mods);
     modulateBtn.setVisible (false);
     backBtn.setVisible (! strip);
@@ -1502,6 +1510,7 @@ void MixerPage::tickMeters()
 
 void MixerPage::tick()
 {
+    if (lowEndOn && currentPage == Page::Strips && ++lowEndTicks >= 15) { lowEndTicks = 0; updateLowEnd(); }
     if (proc.player.latencySamples() != shownDelay) { shownDelay = proc.player.latencySamples(); repaint (titleArea.toNearestInt()); }
     if (learner.armed && currentPage == Page::Effect)
     {
@@ -1742,11 +1751,22 @@ void MixerPage::paint (juce::Graphics& g)
     const auto& sk = Theme::skin;
     const float px = Theme::px;
     g.fillAll (Theme::palFor (*this).panel);
-    PixelFont::drawLeft (g, pageTitle(), titleArea, px, Theme::palFor (*this).ink);
+    {
+        // (the strips' title gives way to DUCK... and LOW-END CHECK: the instrument's name goes first, then the rest)
+        auto t = pageTitle();
+        const int room = (int) (titleArea.getWidth() / (px * PixelFont::kCellW));
+        if (currentPage == Page::Strips && t.length() > room)
+        {
+            const int i = proc.editorState.instrument;
+            t = "MIXER  KEYS " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " OCT " + juce::String (proc.editorState.octave) + delayText();
+            if (t.length() > room) t = "MIXER";
+        }
+        PixelFont::drawLeft (g, t, titleArea, px, Theme::palFor (*this).ink);
+    }
 
     if (currentPage == Page::Strips)
     {
-        // hint under the strips
+        if (lowEndOn) paintLowEnd (g);
         return;
     }
     if (currentPage == Page::Channel)
@@ -1871,6 +1891,8 @@ void MixerPage::resized()
     {
         resetAllBtn.setBounds (head.removeFromRight (charsW (11))); head.removeFromRight (gap);
         modsBtn.setBounds (head.removeFromRight (charsW (10))); head.removeFromRight (gap);
+        lowEndBtn.setBounds (head.removeFromRight (charsW (13))); head.removeFromRight (gap);
+        duckBtn.setBounds (head.removeFromRight (charsW (7))); head.removeFromRight (gap);
     }
     else
     {
@@ -1887,9 +1909,118 @@ void MixerPage::resized()
     else layoutEffect (r);
 }
 
+// ---- DUCK and the LOW-END CHECK
+void MixerPage::askDuck()
+{
+    if (! menuHook()) return;
+    const int n = std::clamp (proc.song.numTracks, 1, kMixTracks);
+    juce::StringArray kicks;
+    for (int t = 0; t < n; ++t) kicks.add ("TRACK " + juce::String (t + 1) + (proc.song.mixer.duckFrom (t) >= 0 ? " (DUCKING NOW)" : ""));
+    juce::Component::SafePointer<MixerPage> safe (this);
+    menuHook() ("DUCK: WHICH TRACK HAS THE KICK?", kicks, [safe, n] (int kick)
+    {
+        if (safe == nullptr || kick < 0) return;
+        juce::StringArray what { "EVERY OTHER TRACK" };
+        for (int t = 0; t < n; ++t) if (t != kick) what.add ("JUST TRACK " + juce::String (t + 1));
+        const bool has = safe->proc.song.mixer.duckFrom (kick) >= 0;
+        if (has) what.add ("TAKE THIS DUCK OFF");
+        menuHook() ("DUCK WHAT UNDER TRACK " + juce::String (kick + 1) + "'S KICK?", what, [safe, n, kick, has] (int w)
+        {
+            if (safe == nullptr || w < 0) return;
+            if (has && w == n) { safe->makeDuck (kick, 0, -1); return; }
+            unsigned mask = 0xFFu >> (8 - n);
+            if (w > 0) { int t = w - 1; if (t >= kick) ++t; mask = 1u << t; }
+            menuHook() ("HOW HARD?", { "LIGHT (-4 DB: JUST ROOM FOR THE KICK)", "MEDIUM (-8 DB)", "HARD (PUMPING)" }, [safe, kick, mask] (int h)
+            {
+                if (safe != nullptr && h >= 0) safe->makeDuck (kick, mask, h);
+            });
+        });
+    });
+}
+
+bool MixerPage::makeDuck (int kick, unsigned mask, int strength)
+{
+    kick = std::clamp (kick, 0, kMixTracks - 1);
+    if (strength < 0)
+    {
+        const int m = proc.song.mixer.duckFrom (kick);
+        if (m < 0) return false;
+        edit ("TAKE THE DUCK OFF", false, [m] (MixerSettings& s) { s.mods.mod[m] = Modulator {}; });
+        if (onStatus) onStatus ("DUCK FROM TRACK " + juce::String (kick + 1) + " TAKEN OFF");
+        return true;
+    }
+    strength = std::clamp (strength, 0, 2);
+    static const float depth[] = { 0.37f, 0.6f, 0.9f };
+    // it comes back up over a line and a half (LIGHT, MEDIUM) or three lines (HARD: the pump)
+    const double lineMs = 1000.0 * proc.song.speed * 2.5 / std::max (1.0, (double) proc.song.tempo);
+    const float rel = (float) (lineMs * (strength == 2 ? 3.0 : 1.5));
+    int m = -1;
+    edit ("DUCK", false, [&] (MixerSettings& s) { m = s.setUpDuck (kick, mask, depth[strength], rel); });
+    if (m < 0) { if (onStatus) onStatus ("CAN'T DUCK: ALL 16 MODULATORS ARE IN USE"); return false; }
+    static const char* names[] = { "LIGHT", "MEDIUM", "HARD" };
+    int count = 0;
+    for (int t = 0; t < kMixTracks; ++t) if (t != kick && (mask & (1u << t))) ++count;
+    if (onStatus) onStatus ("DUCK " + juce::String (names[strength]) + ": " + (count == 1 ? "1 TRACK DIPS" : juce::String (count) + " TRACKS DIP")
+                            + " ON EVERY HIT ON TRACK " + juce::String (kick + 1) + " - MODULATION, MOD " + juce::String (m + 1) + " TO FINE-TUNE");
+    return true;
+}
+
+void MixerPage::setLowEnd (bool on)
+{
+    lowEndOn = on;
+    lowEndBtn.setToggleState (on, juce::dontSendNotification);
+    if (on) updateLowEnd();
+    resized();
+    repaint();
+}
+
+void MixerPage::updateLowEnd()
+{
+    auto lines = lowEndAdvice (proc.lowEnd.report());
+    bool same = lines.size() == lowEndShown.size();
+    for (size_t i = 0; same && i < lines.size(); ++i)
+        same = lines[i].level == lowEndShown[i].level && lines[i].title == lowEndShown[i].title && lines[i].detail == lowEndShown[i].detail;
+    if (same) return;
+    lowEndShown = std::move (lines);
+    repaint (lowEndArea.toNearestInt().expanded (2));
+}
+
+void MixerPage::paintLowEnd (juce::Graphics& g)
+{
+    if (lowEndArea.isEmpty()) return;
+    const float px = Theme::px;
+    const auto pal = Theme::palFor (*this);
+    Theme::panelBox (g, lowEndArea, "LOW-END CHECK (THE MASTER, THE LAST FEW SECONDS)", pal);
+    auto in = lowEndArea.reduced (px * 3);
+    in.removeFromTop (px * 8);
+    const float lineH = px * 11;
+    const float titleW = px * 6 * 19 + px * 4;
+    auto fit = [px] (juce::String t, float w) { const int n = std::max (4, (int) (w / (px * PixelFont::kCellW))); return t.length() > n ? t.substring (0, n - 2) + ".." : t; };
+    for (const auto& l : lowEndShown)
+    {
+        auto row = in.removeFromTop (lineH);
+        // the lamp: green fine, amber worth a look, red fix it
+        const auto lamp = row.removeFromLeft (lineH).reduced (px * 1.5f);
+        g.setColour (l.level == 0 ? juce::Colour (0xff35b04a) : l.level == 1 ? juce::Colour (0xffe0a020) : juce::Colour (0xffe03535));
+        g.fillRect (lamp);
+        Theme::bevel (g, lamp, true, std::max (1.0f, px * 0.5f));
+        row.removeFromLeft (px * 3);
+        PixelFont::drawLeft (g, juce::String (l.title), row.removeFromLeft (titleW), px, pal.ink);
+        PixelFont::drawLeft (g, fit (juce::String (l.detail), row.getWidth()), row, px, pal.ink);
+    }
+}
+
 void MixerPage::layoutStrips (juce::Rectangle<int> r)
 {
     const float px = Theme::px;
+    if (lowEndOn)
+    {
+        // the LOW-END CHECK under the strips: a title and four lines
+        const int lineH = (int) (px * 11), titleH = (int) (px * 10);
+        lowEndArea = r.removeFromBottom (titleH + lineH * 4 + (int) (px * 6)).toFloat();
+        r.removeFromBottom ((int) (px * 2));
+    }
+    else lowEndArea = {};
     const int gap = (int) std::max (2.0f, px);
     std::vector<MixStrip*> shown;
     for (auto& s : strips) if (s->isVisible()) shown.push_back (s.get());

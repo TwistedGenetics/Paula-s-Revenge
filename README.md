@@ -108,6 +108,16 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 | Fader | −INF to +6 dB, with the meter beside it (red above 0 dB). Drag the cap; `Shift` = fine; double-click = 0 dB; the wheel moves it ½ dB a notch |
 | M / S | Mute / solo (the same as clicking the track names) |
 
+**DUCK...** (top of the strips page) makes room for the kick in one go. Pick the track with the kick, then what dips under it (**EVERY OTHER TRACK**, or just one — the bass, say), then how hard: **LIGHT** (about −4 dB, just room for the kick), **MEDIUM** (about −8 dB) or **HARD** (the pump). It sets up a FOLLOWER on the kick's track turning those tracks' VOLUME down on every hit and back up over a line and a half (three lines when HARD), at the song's tempo — one undo step. It's an ordinary modulator, so MODULATION shows it to fine-tune (the status line says which). Ask again for the same track to change it or **TAKE THIS DUCK OFF**; a track that's ducking says **(DUCKING NOW)**.
+
+**LOW-END CHECK** (top of the strips page; lit when on) opens a panel under the strips that listens to the master while the song plays — the last couple of seconds — and says in plain words, each with a lamp (green fine, amber worth a look, red fix it):
+* **BASS IS MONO** / **BASS NOT MONO** / **BASS OUT OF PHASE** — below 120 Hz, are the two sides the same? Clubs and phones add them together: out of phase, the bass cancels. The fix: the bass instrument's UTILITY **MONO** `<120HZ` (or STEEP).
+* **SUB LEVEL OK** / **NOT MUCH SUB** / **SUB SWAMPS THE MIX** — the sub (below 80 Hz) against everything, in dB. Swamped: turn it down, or DUCK it under the kick.
+* **CLEAR LOW MIDS** / **MUDDY** — how much of the mix is 200–500 Hz. Muddy: cut there on the pads and breaks (their channel EQ).
+* **NO CLIPPING** (with the peak) / **CLIPPING** — samples at full scale in the last few seconds: turn the master down.
+
+Stopped, it says **PLAY THE SONG**. It's a guide, not a rule: a sub-heavy roller may be meant to be.
+
 **Channel page** — the EQ: a response curve with up to **8 points** on it, and the channel's live **spectrum** behind the curve (what the track sounds like after its EQ, while it plays, smoothed to 1/6 octave with a +4.5 dB/octave tilt so a mix reads flat, and a faint peak-hold line; it stays put when you stop; **SPECTRUM** switches it off). **Right-click SPECTRUM** (or an empty part of the graph) to pick its colour: ICE, CYAN, GREEN, LIME, AMBER, ORANGE, MAGENTA or VIOLET (remembered).
 * **Double-click** an empty part of the graph to add a point exactly there: below 80 Hz it's a LOW SHELF, above 10 kHz a HIGH SHELF, anywhere else a BELL. It's selected, ready to drag.
 * **Drag** a point: left / right is its frequency, up / down its gain (a high- or low-pass only moves left and right; hold Shift to move up and down only). A big readout shows the frequency, gain and Q while you drag. The whole drag is one undo step.

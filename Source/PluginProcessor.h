@@ -7,6 +7,7 @@
 #include "engine/Player.h"
 #include "engine/ClockSync.h"
 #include "engine/Recorder.h"
+#include "engine/LowEnd.h"
 #include "History.h"
 #include "PluginHost.h"
 #include "MidiOutHost.h"
@@ -48,6 +49,7 @@ public:
     prv::PluginHost pluginHost;   // (before the player: plug-ins in the mixer go first)
     prv::MidiOutHost midiHost;
     prv::Player player;
+    prv::LowEndCheck lowEnd;      // the mixer's LOW-END CHECK: hears the master output (report() from any thread)
 
     template <typename Fn> void withLock (Fn&& fn)
     {

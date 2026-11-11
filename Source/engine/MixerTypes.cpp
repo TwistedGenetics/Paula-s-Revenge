@@ -63,6 +63,47 @@ bool MixerSettings::setUpDub()
     return true;
 }
 
+int MixerSettings::duckFrom (int kickTrack) const
+{
+    const float want = (float) kickTrack / (float) (kMixTracks - 1);
+    for (int m = 0; m < kMods; ++m)
+    {
+        const auto& md = mods.mod[m];
+        if (md.source != ModSource::Follower || std::abs (md.p[0] - want) > 0.01f) continue;
+        bool vols = md.routes() > 0;
+        for (const auto& r : md.route)
+            if (r.valid() && ! (r.target >= kModStripBase && r.target < kModStripBase + kMixTracks && r.param == 0 && r.amount < 0)) vols = false;
+        if (vols) return m;
+    }
+    return -1;
+}
+
+int MixerSettings::setUpDuck (int kickTrack, unsigned trackMask, float depth, float releaseMs)
+{
+    kickTrack = std::clamp (kickTrack, 0, kMixTracks - 1);
+    int m = duckFrom (kickTrack);
+    for (int i = 0; i < kMods && m < 0; ++i)
+        if (! mods.mod[i].on() && mods.mod[i].routes() == 0) m = i;
+    if (m < 0) return -1;
+    auto& md = mods.mod[m];
+    md = Modulator {};
+    md.source = ModSource::Follower;
+    md.p[0] = (float) kickTrack / (float) (kMixTracks - 1);                                    // TRACK
+    md.p[1] = 0.0f;                                                                             // ATTACK 1 ms
+    md.p[2] = (float) std::clamp (std::log (std::max (20.0, (double) releaseMs) / 20.0) / std::log (100.0), 0.0, 1.0);  // RELEASE
+    md.p[3] = 0.5f;                                                                             // GAIN +12 dB: every hit is a full duck
+    int k = 0;
+    for (int t = 0; t < kMixTracks && k < kModRoutes; ++t)
+    {
+        if (t == kickTrack || ! (trackMask & (1u << t))) continue;
+        auto& r = md.route[k++];
+        r.target = kModStripBase + t; r.param = 0;
+        r.amount = -std::clamp (depth, 0.0f, 1.0f);
+        r.name = "TRACK " + std::to_string (t + 1) + ": VOLUME";
+    }
+    return m;
+}
+
 bool MixerSettings::dubReady() const
 {
     for (const auto& s : ret[1].inserts)

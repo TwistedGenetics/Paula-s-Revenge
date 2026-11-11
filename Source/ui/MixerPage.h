@@ -94,6 +94,14 @@ public:
     void tick();            // everything else, 30 times a second
     void tickMeters();      // the strips' meters, 60 times a second
     void showStrips();
+    // DUCK...: a FOLLOWER on the kick's track turning other tracks down on every hit (strength 0 LIGHT, 1 MEDIUM,
+    // 2 HARD; -1 takes it off). LOW-END CHECK: the panel under the strips saying how the bass sits.
+    void askDuck();
+    bool makeDuck (int kickTrack, unsigned trackMask, int strength);
+    void setLowEnd (bool on);
+    bool lowEndOpen() const { return lowEndOn; }
+    const std::vector<prv::LowEndLine>& lowEndLines() const { return lowEndShown; }
+    void updateLowEnd();     // (tick, every half second; tests)
     void openChannel (int track);
     void openInstrument (int ins);   // an instrument's own EQ and its 3 insert effects (BACK: its page)
     int  channelInstrument() const { return chInstrument; }   // (-1: a mixer track)
@@ -132,6 +140,12 @@ private:
 
     // header
     PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" }, modsBtn { "MODULATION" };
+    PixButton duckBtn { "DUCK..." }, lowEndBtn { "LOW-END CHECK", true };
+    bool lowEndOn = false;
+    int lowEndTicks = 0;
+    std::vector<prv::LowEndLine> lowEndShown;
+    juce::Rectangle<float> lowEndArea;
+    void paintLowEnd (juce::Graphics&);
     std::unique_ptr<ModPage> modPage;
     PixButton modulateBtn { "MODULATE", true };
     // an instrument's page: its 4 MACRO knobs
