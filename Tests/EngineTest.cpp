@@ -4917,7 +4917,7 @@ static void testLiveMode()
 static void testGear()
 {
     std::printf ("\n== GEAR\n");
-    CHECK (gearCount() == 3 && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (4) == nullptr);
+    CHECK (gearCount() == 5 && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (6) == nullptr);
     auto find = [] (int id, const std::string& label) { const auto* m = gearMap (id); for (size_t i = 0; i < m->params.size(); ++i) if (m->params[i].label() == label) return (int) i; return -1; };
     // the microKORG 2: plain CCs as its manual lists them
     {
@@ -4955,6 +4955,24 @@ static void testGear()
         const auto& mode = m->params[(size_t) find (3, "ROLLERS 2: MODE")];
         gearMessages (mode, 0.4f, 0, out);   // (4 positions: 0.4 is the second)
         CHECK (out[1][2] == 7 && out[2][2] + out[3][2] * 128 == 5461);
+    }
+    // the Artemis and the Virus TI: plain CCs, none twice; the Virus's switches go as their position
+    for (int id : { 4, 5 })
+    {
+        std::set<int> seen; bool dup = false;
+        for (const auto& p : gearMap (id)->params) dup = dup || p.how != GearSend::Cc || ! seen.insert (p.num).second;
+        std::printf ("%s: %d controls in %d parts\n", gearName (id).c_str(), (int) gearMap (id)->params.size(), (int) gearMap (id)->groups().size());
+        CHECK (! dup);
+    }
+    {
+        uint8_t out[4][3];
+        CHECK (gearMap (4)->params[(size_t) find (4, "LPF: CUTOFF")].num == 75 && gearMap (4)->params[(size_t) find (4, "VCA EG: RELEASE")].num == 72);
+        const auto& f1 = gearMap (5)->params[(size_t) find (5, "FILTER 1: MODE")];
+        gearMessages (f1, 1.0f, 0, out);
+        CHECK (f1.num == 51 && out[0][2] == 7);
+        gearMessages (gearMap (5)->params[(size_t) find (5, "OSC 1: WAVE")], 0.5f, 0, out);
+        CHECK (out[0][1] == 19 && (out[0][2] == 49 || out[0][2] == 50));
+        CHECK (gearMap (5)->params[(size_t) find (5, "FILTER 1: CUTOFF")].num == 40 && gearMap (5)->params[(size_t) find (5, "MASTER: VOLUME")].num == 91);
     }
     // a MIDI-out instrument: a knob on a GEAR parameter sends that parameter's messages
     {

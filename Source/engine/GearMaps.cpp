@@ -8,6 +8,7 @@ namespace prv
 namespace
 {
     GearParam cc (const char* g, const char* n, int num, int steps = 0)   { GearParam p; p.group = g; p.name = n; p.how = GearSend::Cc; p.num = num; p.steps = steps; return p; }
+    GearParam sw (const char* g, const char* n, int num, int steps)      { GearParam p = cc (g, n, num, steps); p.direct = true; return p; }
     GearParam cc14 (const char* g, const char* n, int msb, int lsb)       { GearParam p; p.group = g; p.name = n; p.how = GearSend::Cc14; p.num = msb; p.lsb = lsb; return p; }
     GearParam nrpn (const char* g, const char* n, int msb, int lsb, int steps = 0) { GearParam p; p.group = g; p.name = n; p.how = GearSend::Nrpn; p.num = msb; p.lsb = lsb; p.steps = steps; return p; }
 
@@ -89,9 +90,65 @@ namespace
         return m;
     }
 
+    // the Dreadbox Artemis: its Product Manual's MIDI CC list (v1.20)
+    GearMap artemis()
+    {
+        GearMap m;
+        m.name = "DREADBOX ARTEMIS";
+        m.note = "DREADBOX'S CC LIST - SET CC IN ON (MIDI MENU)";
+        m.params = {
+            cc ("VCO", "MIX", 8), cc ("VCO", "MORPH", 70), cc ("VCO", "SUB / NOISE", 76), cc ("VCO", "VCO 1 TUNE", 77), cc ("VCO", "VCO 2 TUNE", 78), cc ("VCO", "DETUNE", 79),
+            cc ("VCO MOD", "FM", 84), cc ("VCO MOD", "FM MODE", 80), cc ("VCO MOD", "VCO 2 SYNC", 81), cc ("VCO MOD", "PULSE WIDTH", 85), cc ("VCO MOD", "GLIDE", 5), cc ("VCO MOD", "SPREAD", 10),
+            cc ("LPF", "CUTOFF", 75), cc ("LPF", "RESONANCE", 71), cc ("LPF", "EG AMOUNT", 6), cc ("LPF", "FFM", 4), cc ("LPF", "FFM NOISE SRC", 3), cc ("LPF", "TRACK", 82), cc ("LPF", "POLES", 83),
+            cc ("HPF", "CUTOFF", 16), cc ("HPF", "RESONANCE", 17),
+            cc ("EG", "ATTACK", 12), cc ("EG", "DECAY", 13), cc ("EG", "SUSTAIN", 14), cc ("EG", "RELEASE", 15),
+            cc ("VCA EG", "ATTACK", 73), cc ("VCA EG", "DECAY", 9), cc ("VCA EG", "SUSTAIN", 11), cc ("VCA EG", "RELEASE", 72),
+            cc ("LFO 1", "RATE", 23), cc ("LFO 1", "WAVE", 24), cc ("LFO 1", "FADE", 25), cc ("LFO 1", "VCO TARGET", 18), cc ("LFO 1", "VCO AMOUNT", 19), cc ("LFO 1", "VCF AMOUNT", 20),
+            cc ("LFO 2", "RATE", 26), cc ("LFO 2", "WAVE", 27), cc ("LFO 2", "MORPH AMOUNT", 21), cc ("LFO 2", "PW AMOUNT", 22), cc ("LFO 2", "XMOD", 28), cc ("LFO 2", "SYNC MODE", 29),
+            cc ("DISTORTION", "TYPE", 38), cc ("DISTORTION", "PARAM 1", 33), cc ("DISTORTION", "PARAM 2", 34), cc ("DISTORTION", "PARAM 3", 35), cc ("DISTORTION", "PARAM 4", 36), cc ("DISTORTION", "PARAM 5", 37),
+            cc ("MOD FX", "TYPE", 44), cc ("MOD FX", "PARAM 1", 39), cc ("MOD FX", "PARAM 2", 40), cc ("MOD FX", "PARAM 3", 41), cc ("MOD FX", "PARAM 4", 42), cc ("MOD FX", "PARAM 5", 43),
+            cc ("DELAY", "TYPE", 50), cc ("DELAY", "PARAM 1", 45), cc ("DELAY", "PARAM 2", 46), cc ("DELAY", "PARAM 3", 47), cc ("DELAY", "PARAM 4", 48), cc ("DELAY", "PARAM 5", 49),
+            cc ("REVERB", "TYPE", 56), cc ("REVERB", "PARAM 1", 51), cc ("REVERB", "PARAM 2", 52), cc ("REVERB", "PARAM 3", 53), cc ("REVERB", "PARAM 4", 54), cc ("REVERB", "PARAM 5", 55),
+            cc ("SEQ / ARP", "PARAM TYPE", 91), cc ("SEQ / ARP", "PARAM 1", 86), cc ("SEQ / ARP", "PARAM 2", 87), cc ("SEQ / ARP", "PARAM 3", 88), cc ("SEQ / ARP", "PARAM 4", 89), cc ("SEQ / ARP", "PARAM 5", 90),
+            cc ("VOICE", "PLAY MODE", 30), cc ("VOICE", "GLIDE MODE", 65), cc ("VOICE", "LEGATO", 68), cc ("VOICE", "AMP VELOCITY", 95), cc ("VOICE", "INSTABILITY", 96), cc ("VOICE", "CC74 MOD SOURCE", 74),
+            cc ("MASTER", "VOLUME", 7), cc ("MASTER", "PRESET LEVEL", 94), cc ("MASTER", "DRIVE MODE", 93), cc ("MASTER", "BPM", 92),
+        };
+        return m;
+    }
+
+    // the Access Virus TI: its PAGE A parameters as controllers (the Virus's MIDI CONTROL: PAGE A = CONTROLLER DATA).
+    // The switches (modes, waves, shapes) take their position as the value.
+    GearMap virusTi()
+    {
+        GearMap m;
+        m.name = "ACCESS VIRUS TI";
+        m.note = "PAGE A - SET ITS PAGE A TO CONTROLLER DATA";
+        m.params = {
+            cc ("OSC 1", "SHAPE", 17), cc ("OSC 1", "PULSEWIDTH", 18), sw ("OSC 1", "WAVE", 19, 100), cc ("OSC 1", "SEMITONE", 20), cc ("OSC 1", "KEY FOLLOW", 21), cc ("OSC 1", "LFO 1 AMOUNT", 74),
+            cc ("OSC 2", "SHAPE", 22), cc ("OSC 2", "PULSEWIDTH", 23), sw ("OSC 2", "WAVE", 24, 100), cc ("OSC 2", "SEMITONE", 25), cc ("OSC 2", "DETUNE", 26), cc ("OSC 2", "KEY FOLLOW", 31),
+            cc ("OSC 2 MOD", "FM AMOUNT", 27), sw ("OSC 2 MOD", "SYNC", 28, 2), cc ("OSC 2 MOD", "FILTER EG AMOUNT", 29), cc ("OSC 2 MOD", "LFO 1 AMOUNT", 75),
+            cc ("MIX", "OSC BALANCE", 33), cc ("MIX", "SUB VOLUME", 34), cc ("MIX", "SUB SHAPE", 35), cc ("MIX", "OSC VOLUME", 36), cc ("MIX", "NOISE VOLUME", 37), cc ("MIX", "RING MOD", 38), cc ("MIX", "NOISE COLOUR", 39),
+            cc ("FILTER 1", "CUTOFF", 40), cc ("FILTER 1", "RESONANCE", 42), cc ("FILTER 1", "EG AMOUNT", 44), cc ("FILTER 1", "KEY FOLLOW", 46), sw ("FILTER 1", "MODE", 51, 8),
+            cc ("FILTER 2", "CUTOFF", 41), cc ("FILTER 2", "RESONANCE", 43), cc ("FILTER 2", "EG AMOUNT", 45), cc ("FILTER 2", "KEY FOLLOW", 47), sw ("FILTER 2", "MODE", 52, 8),
+            cc ("FILTERS", "BALANCE", 48), sw ("FILTERS", "ROUTING", 53, 4), cc ("FILTERS", "SATURATION", 49), cc ("FILTERS", "FM EG AMOUNT", 30),
+            cc ("FILTER EG", "ATTACK", 54), cc ("FILTER EG", "DECAY", 55), cc ("FILTER EG", "SUSTAIN", 56), cc ("FILTER EG", "SUSTAIN TIME", 57), cc ("FILTER EG", "RELEASE", 58),
+            cc ("AMP EG", "ATTACK", 59), cc ("AMP EG", "DECAY", 60), cc ("AMP EG", "SUSTAIN", 61), cc ("AMP EG", "SUSTAIN TIME", 62), cc ("AMP EG", "RELEASE", 63),
+            cc ("LFO 1", "RATE", 67), sw ("LFO 1", "SHAPE", 68, 68), sw ("LFO 1", "ENV MODE", 69, 2), sw ("LFO 1", "MODE", 70, 2), cc ("LFO 1", "SYMMETRY", 71), cc ("LFO 1", "KEY FOLLOW", 72), cc ("LFO 1", "RESTART", 73),
+            cc ("LFO 1 TO", "PULSEWIDTH", 76), cc ("LFO 1 TO", "RESONANCE", 77), cc ("LFO 1 TO", "FILTER GAIN", 78),
+            cc ("LFO 2", "RATE", 79), sw ("LFO 2", "SHAPE", 80, 68), sw ("LFO 2", "ENV MODE", 81, 2), sw ("LFO 2", "MODE", 82, 2), cc ("LFO 2", "SYMMETRY", 83), cc ("LFO 2", "KEY FOLLOW", 84), cc ("LFO 2", "RESTART", 85),
+            cc ("LFO 2 TO", "OSC SHAPE", 86), cc ("LFO 2 TO", "FM", 87), cc ("LFO 2 TO", "FILTER 1", 88), cc ("LFO 2 TO", "FILTER 2", 89), cc ("LFO 2 TO", "PAN", 90),
+            cc ("VOICE", "GLIDE TIME", 5), cc ("VOICE", "TRANSPOSE", 93), cc ("VOICE", "KEY MODE", 94), cc ("VOICE", "UNISON MODE", 97), cc ("VOICE", "UNISON DETUNE", 98), cc ("VOICE", "UNISON SPREAD", 99), cc ("VOICE", "UNISON LFO PHASE", 100),
+            sw ("CHORUS", "TYPE", 103, 7), cc ("CHORUS", "MIX", 104), cc ("CHORUS", "RATE", 106), cc ("CHORUS", "DEPTH", 107), cc ("CHORUS", "DELAY", 108), cc ("CHORUS", "FEEDBACK", 109), sw ("CHORUS", "LFO SHAPE", 110, 6),
+            cc ("DELAY", "SEND", 113), cc ("DELAY", "MODE", 112), cc ("DELAY", "TIME", 114), cc ("DELAY", "FEEDBACK", 115), cc ("DELAY", "COLOUR", 119), cc ("DELAY", "LFO SHAPE", 118),
+            cc ("REVERB", "TIME", 116), cc ("REVERB", "SIZE", 117),
+            cc ("MASTER", "VOLUME", 91), cc ("MASTER", "PAN", 10), cc ("MASTER", "BALANCE", 8),
+        };
+        return m;
+    }
+
     const std::vector<GearMap>& maps()
     {
-        static const std::vector<GearMap> all { microKorg2(), nts1(), nts1Rollers() };
+        static const std::vector<GearMap> all { microKorg2(), nts1(), nts1Rollers(), artemis(), virusTi() };
         return all;
     }
 }
@@ -130,7 +187,7 @@ int gearMessages (const GearParam& p, float v, int ch, uint8_t out[4][3])
     switch (p.how)
     {
         case GearSend::Cc:
-            put (0, p.num, step >= 0 ? gearStepValue (step, p.steps) : (int) std::lround (v * 127.0f));
+            put (0, p.num, step >= 0 ? (p.direct ? step : gearStepValue (step, p.steps)) : (int) std::lround (v * 127.0f));
             return 1;
         case GearSend::Cc14:
         {

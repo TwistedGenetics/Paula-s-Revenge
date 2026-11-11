@@ -387,13 +387,15 @@ void MidiOutPage::setGear (int id)
     int want[kInstrumentKnobs] { 74, 71, 73, 10 };
     if (const auto* map = gearMap (id))
     {
-        const char* picks[3][kInstrumentKnobs] = {
+        const char* picks[5][kInstrumentKnobs] = {
             { "FILTER: CUTOFF", "FILTER: RESONANCE", "FILTER EG: INTENSITY", "AMP EG: RELEASE" },
             { "FILTER: CUTOFF", "FILTER: RESONANCE", "OSC: A", "OSC: B" },
-            { "FILTER: CUTOFF", "ROLLERS: BLEND", "ROLLERS: DETUNE", "ROLLERS: PITCH DROP" } };
+            { "FILTER: CUTOFF", "ROLLERS: BLEND", "ROLLERS: DETUNE", "ROLLERS: PITCH DROP" },
+            { "LPF: CUTOFF", "LPF: RESONANCE", "LPF: EG AMOUNT", "VCA EG: RELEASE" },
+            { "FILTER 1: CUTOFF", "FILTER 1: RESONANCE", "FILTER 1: EG AMOUNT", "OSC 1: SHAPE" } };
         for (int k = 0; k < kInstrumentKnobs; ++k)
             for (size_t n = 0; n < map->params.size(); ++n)
-                if (id <= 3 && map->params[n].label() == picks[id - 1][k]) want[k] = kGearKnobBase + (int) n;
+                if (id <= 5 && map->params[n].label() == picks[id - 1][k]) want[k] = kGearKnobBase + (int) n;
     }
     edit ("GEAR: " + juce::String (gearName (id)), [id, &want] (Instrument& in)
     {
@@ -538,6 +540,7 @@ void MidiOutPage::paint (juce::Graphics& g)
     if (in.midiGear != 0)
         if (const auto* map = gearMap (in.midiGear))
             lines.add (controlsOpen ? juce::String ("MOVE ONE: IT'S SENT STRAIGHT AWAY") : juce::String (map->note));
+    if (controlsOpen) while (lines.size() > 1) lines.remove (1);
     auto r = infoArea;
     for (auto& l : lines) { auto row = r.removeFromTop (px * 11); PixelFont::drawLeft (g, fit (l, row.getWidth()), row, px, Theme::palFor (*this).ink); }
 
@@ -588,7 +591,7 @@ void MidiOutPage::resized()
         chordsBtn.setBounds (row.getWidth() >= charsW (9) ? row.removeFromLeft (charsW (9)) : juce::Rectangle<int>());
     }
     r.removeFromBottom (gap);
-    infoArea = r.removeFromTop (rowH * (inst().midiGear != 0 ? 3 : 2)).toFloat();
+    infoArea = r.removeFromTop (rowH * (controlsOpen ? 1 : inst().midiGear != 0 ? 3 : 2)).toFloat();   // (ALL CONTROLS: just who it plays)
     r.removeFromTop (gap);
     {
         auto row = r.removeFromTop (rowH);
