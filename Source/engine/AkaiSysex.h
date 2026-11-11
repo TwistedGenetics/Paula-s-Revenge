@@ -16,7 +16,7 @@ constexpr int kProgramBytes = 72, kKeygroupBytes = 149;
 enum Op : uint8_t { RSTAT = 0x00, STAT = 0x01, RPLIST = 0x02, PLIST = 0x03, RSLIST = 0x04, SLIST = 0x05,
                     RPDATA = 0x06, PDATA = 0x07, RKDATA = 0x08, KDATA = 0x09, REPLY = 0x16 };
 
-enum class Kind : uint8_t { Number, Signed, Note, OnOff, Fine };   // Fine: a 0-255 fraction shown as cents
+enum class Kind : uint8_t { Number, Signed, Note, OnOff, Fine, Sixteenths };   // Fine: a 0-255 fraction shown as cents; Sixteenths: 1/16 semitones
 struct Field
 {
     std::string group, name;
@@ -24,6 +24,9 @@ struct Field
     int lo = 0, hi = 99;
     Kind kind = Kind::Number;
     std::vector<std::string> labels;      // (a switch's positions by name)
+    int enc = 0;                          // 0: a byte (S1000, decoded); S900 / S950: 1 = DB (2 MIDI bytes), 2 = DW (4)
+    int bit = -1;                         // (one bit of a DB: an on / off)
+    bool invert = false;                  // (that bit means ON when it's 0)
     std::string text (int value) const;   // "C-3", "+12", "ON", "50"
 };
 
@@ -52,7 +55,9 @@ struct Reply
     int op = -1;
     int program = -1, keygroup = -1;
     std::vector<uint8_t> block;         // PDATA / KDATA: the block, decoded
-    std::vector<std::string> names;     // PLIST: the programs' names, in order
+    std::vector<std::string> names;     // PLIST / CAT: the programs' names, in order
+    std::vector<int> numbers;           // CAT: each program's number
+    std::vector<std::vector<uint8_t>> keygroups;   // S900 / S950 PRGM: its keygroups (each 140 MIDI bytes)
     int replyCode = -1;                 // REPLY: 0 = OK
 };
 bool parse (const uint8_t* msg, int length, Reply&);   // false: not an S1000 message (or broken)
@@ -66,4 +71,32 @@ struct FakeS1000
     void addProgram (const std::string& name, int keygroups);
     std::vector<std::vector<uint8_t>> receive (const uint8_t* msg, int length);   // its answers
 };
+
+// ---- the S900 / S950 (Akai's "MIDI System Exclusive Data Format for S900", disk V2.0; the S950 shares it).
+// A program travels whole: 76 MIDI bytes of its own, then its keygroups at 140 each, then a checksum (the XOR of
+// those). Values are packed as DB (8 bits as two MIDI bytes, low 7 first) or DW (16 bits as four); blocks here are
+// kept as those MIDI bytes and the fields read and write them in place.
+namespace s900
+{
+    constexpr int kProgramBytes = 76, kKeygroupBytes = 140;
+    enum Op : uint8_t { RPRGM = 2, RCAT = 3, PRGM = 9, CAT = 11 };
+    const std::vector<Field>& programFields();
+    const std::vector<Field>& keygroupFields();
+    std::vector<uint8_t> requestCatalog (int channel);
+    std::vector<uint8_t> requestProgram (int channel, int program);
+    std::vector<uint8_t> programMessage (int channel, int program, const std::vector<uint8_t>& block, const std::vector<std::vector<uint8_t>>& keygroups);
+    bool parse (const uint8_t* msg, int length, Reply&);   // CAT: the programs; PRGM: block + keygroups
+    std::string name (const std::vector<uint8_t>& block, int offset);   // a DB* name (10 characters)
+    void setName (std::vector<uint8_t>& block, int offset, const std::string&);
+    constexpr int kSoftName = 48, kLoudName = 92, kProgramName = 0;      // (offsets in their blocks)
+
+    struct FakeS950   // (tests)
+    {
+        struct Prog { int number; std::vector<uint8_t> block; std::vector<std::vector<uint8_t>> keygroups; };
+        std::vector<Prog> programs;
+        std::vector<std::string> samples;
+        void addProgram (int number, const std::string& name, int keygroups);
+        std::vector<std::vector<uint8_t>> receive (const uint8_t* msg, int length);
+    };
+}
 } // namespace prv::akai

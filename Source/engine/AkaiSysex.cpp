@@ -32,6 +32,7 @@ std::string Field::text (int v) const
         case Kind::OnOff:  return ! labels.empty() && v >= 0 && v < (int) labels.size() ? labels[(size_t) v] : std::string (v ? "ON" : "OFF");
         case Kind::Signed: std::snprintf (b, sizeof b, "%+d", v); return b;
         case Kind::Fine:   std::snprintf (b, sizeof b, "%d", v * 100 / 256); return b;
+        case Kind::Sixteenths: std::snprintf (b, sizeof b, "%+.2f", v / 16.0); return b;
         case Kind::Number:
         default:
             if (! labels.empty() && v >= lo && v - lo < (int) labels.size()) return labels[(size_t) (v - lo)];
@@ -102,17 +103,54 @@ std::vector<std::string> groupsOf (const std::vector<Field>& fs)
     return g;
 }
 
+namespace
+{
+    // the S900's packings: DB = [d6..d0] [d7]; DW = [d6..d0] [d7] [d14..d8] [d15]
+    int readDb (const std::vector<uint8_t>& b, int o) { return (b[(size_t) o] & 127) | ((b[(size_t) o + 1] & 1) << 7); }
+    void writeDb (std::vector<uint8_t>& b, int o, int v) { b[(size_t) o] = (uint8_t) (v & 127); b[(size_t) o + 1] = (uint8_t) ((v >> 7) & 1); }
+    int width (const Field& x) { return x.enc == 2 ? 4 : x.enc == 1 ? 2 : 1; }
+}
+
 int get (const std::vector<uint8_t>& block, const Field& x)
 {
-    if (x.offset < 0 || x.offset >= (int) block.size()) return x.lo;
+    if (x.offset < 0 || x.offset + width (x) > (int) block.size()) return x.lo;
+    if (x.enc == 1)
+    {
+        const int v = readDb (block, x.offset);
+        if (x.bit >= 0) return (((v >> x.bit) & 1) != 0) != x.invert ? 1 : 0;
+        return x.lo < 0 ? (int) (int8_t) (uint8_t) v : v;
+    }
+    if (x.enc == 2)
+    {
+        const int v = readDb (block, x.offset) | (readDb (block, x.offset + 2) << 8);
+        return x.lo < 0 ? (int) (int16_t) (uint16_t) v : v;
+    }
     const uint8_t b = block[(size_t) x.offset];
     return x.lo < 0 ? (int) (int8_t) b : (int) b;
 }
 
 void set (std::vector<uint8_t>& block, const Field& x, int v)
 {
-    if (x.offset < 0 || x.offset >= (int) block.size()) return;
+    if (x.offset < 0 || x.offset + width (x) > (int) block.size()) return;
     v = std::clamp (v, x.lo, x.hi);
+    if (x.enc == 1)
+    {
+        if (x.bit >= 0)
+        {
+            int old = readDb (block, x.offset);
+            const bool on = (v != 0) != x.invert;
+            old = on ? (old | (1 << x.bit)) : (old & ~(1 << x.bit));
+            writeDb (block, x.offset, old);
+        }
+        else writeDb (block, x.offset, v & 255);
+        return;
+    }
+    if (x.enc == 2)
+    {
+        const int u = v & 0xFFFF;
+        writeDb (block, x.offset, u & 255); writeDb (block, x.offset + 2, u >> 8);
+        return;
+    }
     block[(size_t) x.offset] = (uint8_t) (int8_t) v;
 }
 
@@ -262,5 +300,172 @@ std::vector<std::vector<uint8_t>> FakeS1000::receive (const uint8_t* m, int n)
         default: break;
     }
     return out;
+}
+
+// ---- S900 / S950
+namespace s900
+{
+namespace
+{
+    constexpr uint8_t kS900 = 0x40;
+    Field db (const char* g, const char* n, int off, int lo, int hi, Kind k = Kind::Number, std::vector<std::string> labels = {})
+    {
+        Field x = f (g, n, off, lo, hi, k, std::move (labels)); x.enc = 1; return x;
+    }
+    Field dw (const char* g, const char* n, int off, int lo, int hi, Kind k = Kind::Signed) { Field x = f (g, n, off, lo, hi, k); x.enc = 2; return x; }
+    Field bit (const char* g, const char* n, int off, int b, bool invert = false, std::vector<std::string> labels = {})
+    {
+        Field x = f (g, n, off, 0, 1, Kind::OnOff, std::move (labels)); x.enc = 1; x.bit = b; x.invert = invert; return x;
+    }
+    void header (std::vector<uint8_t>& m, int ch, int op, int number) { m = { 0xF0, kAkai, (uint8_t) (ch & 15), (uint8_t) op, kS900, (uint8_t) (number & 127), 0 }; }
+}
+
+const std::vector<Field>& programFields()
+{
+    // (offsets from the program's first data byte - the spec's byte 7)
+    static const std::vector<Field> all {
+        dw ("PROGRAM", "KEY TILT (LOUD)", 32, -50, 50), db ("PROGRAM", "POSITIONAL XFADE", 42, 0, 1, Kind::OnOff),
+    };
+    return all;
+}
+
+const std::vector<Field>& keygroupFields()
+{
+    static const std::vector<Field> all {
+        db ("KEYS", "HIGH NOTE", 0, 24, 127, Kind::Note), db ("KEYS", "LOW NOTE", 2, 24, 127, Kind::Note), db ("KEYS", "VEL SWITCH", 4, 0, 128),
+        db ("KEYS", "MIDI CH OFFSET", 40, 0, 15), bit ("KEYS", "TRANSPOSE", 36, 0, true), bit ("KEYS", "ONE SHOT", 36, 3),
+        db ("AMP ENV", "ATTACK", 6, 0, 99), db ("AMP ENV", "DECAY", 8, 0, 99), db ("AMP ENV", "SUSTAIN", 10, 0, 99), db ("AMP ENV", "RELEASE", 12, 0, 99),
+        db ("VELOCITY", "VEL > ATTACK", 18, 0, 99), db ("VELOCITY", "VEL > RELEASE", 20, -50, 50, Kind::Signed), db ("VELOCITY", "VEL > LOUD", 22, 0, 99),
+        db ("VELOCITY", "VEL > FILTER", 14, 0, 99), bit ("VELOCITY", "RELEASE VEL", 36, 4, false, { "NOTE-OFF", "NOTE-ON" }),
+        db ("FILTER", "KEY TRACK", 16, 0, 99), db ("FILTER", "ENV AMOUNT", 46, -50, 50, Kind::Signed), db ("FILTER", "ATTACK", 68, 0, 99),
+        db ("FILTER", "DECAY", 70, 0, 99), db ("FILTER", "SUSTAIN", 72, 0, 99), db ("FILTER", "RELEASE", 74, 0, 99),
+        db ("PITCH WARP", "WARP", 26, -50, 50, Kind::Signed), db ("PITCH WARP", "WARP TIME", 28, 0, 99), db ("PITCH WARP", "VEL > WARP", 24, 0, 99),
+        db ("LFO", "RATE", 32, 0, 99), db ("LFO", "DEPTH", 34, 0, 99), db ("LFO", "DELAY", 30, 0, 99), db ("LFO", "AFTERTOUCH", 42, 0, 99),
+        db ("LFO", "MOD WHEEL", 44, 0, 99), bit ("LFO", "DESYNC", 36, 2),
+        bit ("CROSSFADE", "VEL XFADE", 36, 1), bit ("CROSSFADE", "XFADE CURVE", 36, 5), db ("CROSSFADE", "50% AT VELOCITY", 76, 0, 127),
+        dw ("SOFT SAMPLE", "TUNE", 84, -384, 384, Kind::Sixteenths), db ("SOFT SAMPLE", "FILTER", 88, 0, 99), db ("SOFT SAMPLE", "LOUDNESS", 90, -50, 50, Kind::Signed),
+        dw ("LOUD SAMPLE", "TUNE", 128, -384, 384, Kind::Sixteenths), db ("LOUD SAMPLE", "FILTER", 132, 0, 99), db ("LOUD SAMPLE", "LOUDNESS", 134, -50, 50, Kind::Signed),
+    };
+    return all;
+}
+
+std::vector<uint8_t> requestCatalog (int ch) { std::vector<uint8_t> m; header (m, ch, RCAT, 0); m.push_back (0xF7); return m; }
+std::vector<uint8_t> requestProgram (int ch, int p) { std::vector<uint8_t> m; header (m, ch, RPRGM, p); m.push_back (0xF7); return m; }
+
+std::vector<uint8_t> programMessage (int ch, int p, const std::vector<uint8_t>& block, const std::vector<std::vector<uint8_t>>& kgs)
+{
+    std::vector<uint8_t> m; header (m, ch, PRGM, p);
+    uint8_t sum = 0;
+    auto add = [&] (const std::vector<uint8_t>& v) { for (uint8_t b : v) { m.push_back (b & 127); sum ^= (uint8_t) (b & 127); } };
+    add (block);
+    for (const auto& k : kgs) add (k);
+    m.push_back (sum & 127); m.push_back (0xF7);
+    return m;
+}
+
+std::string name (const std::vector<uint8_t>& block, int o)
+{
+    std::string s;
+    for (int i = 0; i < 10 && o + i * 2 + 1 < (int) block.size(); ++i)
+    {
+        const int c = readDb (block, o + i * 2);
+        s += c >= 32 && c < 127 ? (char) c : ' ';
+    }
+    while (! s.empty() && s.back() == ' ') s.pop_back();
+    return s;
+}
+
+void setName (std::vector<uint8_t>& block, int o, const std::string& n)
+{
+    for (int i = 0; i < 10 && o + i * 2 + 1 < (int) block.size(); ++i) writeDb (block, o + i * 2, i < (int) n.size() ? (uint8_t) n[(size_t) i] : ' ');
+}
+
+bool parse (const uint8_t* m, int n, Reply& r)
+{
+    r = Reply {};
+    if (m == nullptr || n < 8 || m[0] != 0xF0 || m[1] != kAkai || m[4] != kS900) return false;
+    r.op = m[3];
+    const int end = m[n - 1] == 0xF7 ? n - 1 : n;   // (the checksum is the byte before it)
+    const int data = 7, dataEnd = end - 1;
+    if (r.op == CAT)
+    {
+        for (int at = data; at + 12 <= dataEnd; at += 12)
+        {
+            if (m[at] != 'P') continue;   // (programs only; 'S' is a sample)
+            std::string s;
+            for (int j = 2; j < 12; ++j) s += m[at + j] >= 32 && m[at + j] < 127 ? (char) m[at + j] : ' ';
+            while (! s.empty() && s.back() == ' ') s.pop_back();
+            r.names.push_back (s); r.numbers.push_back (m[at + 1]);
+        }
+        return true;
+    }
+    if (r.op == PRGM)
+    {
+        r.program = m[5];
+        if (dataEnd - data < kProgramBytes) return false;
+        uint8_t sum = 0;
+        for (int i = data; i < dataEnd; ++i) sum ^= m[i];
+        if ((sum & 127) != (m[dataEnd] & 127)) return false;   // (a damaged message)
+        r.block.assign (m + data, m + data + kProgramBytes);
+        for (int at = data + kProgramBytes; at + kKeygroupBytes <= dataEnd; at += kKeygroupBytes)
+            r.keygroups.emplace_back (m + at, m + at + kKeygroupBytes);
+        return true;
+    }
+    return true;
+}
+
+void FakeS950::addProgram (int number, const std::string& nm, int kgs)
+{
+    Prog p; p.number = number;
+    p.block.assign (kProgramBytes, 0);
+    setName (p.block, kProgramName, nm);
+    writeDb (p.block, 44, 255);
+    writeDb (p.block, 46, kgs);
+    for (int k = 0; k < kgs; ++k)
+    {
+        std::vector<uint8_t> g (kKeygroupBytes, 0);
+        writeDb (g, 0, 127); writeDb (g, 2, 24); writeDb (g, 4, 128); writeDb (g, 8, 80); writeDb (g, 10, 99); writeDb (g, 12, 30);
+        writeDb (g, 16, 50); writeDb (g, 22, 30); writeDb (g, 30, 64); writeDb (g, 32, 42); writeDb (g, 36, 4); writeDb (g, 38, 255);
+        writeDb (g, 44, 50); writeDb (g, 68, 20); writeDb (g, 70, 20); writeDb (g, 72, 20); writeDb (g, 74, 20); writeDb (g, 76, 64);
+        writeDb (g, 88, 99); writeDb (g, 132, 99);
+        setName (g, kSoftName, nm.substr (0, 7) + " S" + std::to_string (k + 1));
+        setName (g, kLoudName, nm.substr (0, 7) + " L" + std::to_string (k + 1));
+        p.keygroups.push_back (g);
+    }
+    programs.push_back (p);
+}
+
+std::vector<std::vector<uint8_t>> FakeS950::receive (const uint8_t* m, int n)
+{
+    std::vector<std::vector<uint8_t>> out;
+    if (n < 8 || m[0] != 0xF0 || m[1] != kAkai || m[4] != kS900) return out;
+    const int ch = m[2];
+    if (m[3] == RCAT)
+    {
+        std::vector<uint8_t> r; header (r, ch, CAT, 0);
+        uint8_t sum = 0;
+        auto entry = [&] (char type, int num, const std::string& nm)
+        {
+            uint8_t e[12] = { (uint8_t) type, (uint8_t) num };
+            for (int j = 0; j < 10; ++j) e[2 + j] = j < (int) nm.size() ? (uint8_t) nm[(size_t) j] : ' ';
+            for (uint8_t b : e) { r.push_back (b); sum ^= b; }
+        };
+        for (const auto& p : programs) entry ('P', p.number, name (p.block, kProgramName));
+        for (int i = 0; i < (int) samples.size(); ++i) entry ('S', i, samples[(size_t) i]);
+        r.push_back (sum & 127); r.push_back (0xF7);
+        out.push_back (r);
+    }
+    else if (m[3] == RPRGM)
+    {
+        for (const auto& p : programs) if (p.number == m[5]) out.push_back (programMessage (ch, p.number, p.block, p.keygroups));
+    }
+    else if (m[3] == PRGM)
+    {
+        Reply r;
+        if (s900::parse (m, n, r))
+            for (auto& p : programs) if (p.number == r.program) { p.block = r.block; p.keygroups = r.keygroups; }
+    }
+    return out;
+}
 }
 } // namespace prv::akai

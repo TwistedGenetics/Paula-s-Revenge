@@ -894,7 +894,15 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 * **KEYGROUP** (with **KG** for which one) edits a keygroup: KEYS (range, tune, velocity crossfade, attack hold), FILTER (cutoff and what moves it), AMP ENV and FILTER ENV (with their velocity and key modifiers, and env to pitch), and its four velocity **ZONES** (velocity range, tune, loudness, filter, pan, PLAY mode; the line at the top names the zone's sample).
 * A change goes to the S1000 at once. The S1000 only takes whole blocks, so the program's (or keygroup's) block is sent back - at most every 80 ms while you drag. Nothing is saved on the S1000's disk: save there as usual.
 * If nothing comes back it says **NO ANSWER**: check the two cables, the MIDI input in Settings and the exclusive channel.
-* The layout comes from Akai's S1000 MIDI Exclusive Communication document (as transcribed for the lakai project). The S950 speaks a different, older protocol and isn't covered yet.
+* The layout comes from Akai's S1000 MIDI Exclusive Communication document (as transcribed for the lakai project).
+
+### AKAI S950 EDITOR
+
+**GEAR: AKAI S950**, then **S950 EDITOR...**, does the same for an S950 (or an S900: the S950 speaks its protocol, from Akai's "MIDI System Exclusive Data Format for S900"):
+* Connect both ways, as for the S1000. Its MIDI channel (the S950's MIDI page) must match this instrument's **CHANNEL**.
+* **GET PROGRAMS** reads the S950's catalogue (its programs; the samples aren't listed); **PROGRAM:** reads that program and all its keygroups in one go.
+* **PROGRAM** has the program's own settings (KEY TILT, POSITIONAL XFADE). **KEYGROUP** (with **KG**) has KEYS (range, velocity switch, MIDI channel offset, transpose on/off, one shot), AMP ENV, VELOCITY (to attack, release, loudness, filter; release velocity from note-off or note-on), FILTER (key track, envelope amount and its ADSR), PITCH WARP, LFO (rate, depth, delay, aftertouch, mod wheel, desync), CROSSFADE, and the SOFT and LOUD samples' tune, filter and loudness. The line at the top names the keygroup's soft and loud samples.
+* The S950 only takes a program whole, so every change sends the program and all its keygroups (at most every 150 ms while you drag) - and, as Akai's document says, the program it receives becomes the selected one. Save on the S950 as usual.
 
 ## CV out to a modular (ES-9)
 

@@ -254,7 +254,7 @@ void MidiOutPage::refresh()
     gearBtn.setVisible (midi);
     gearBtn.setButtonText ("GEAR: " + juce::String (gearName (gr)));
     controlsBtn.setVisible (midi && gr != 0);
-    controlsBtn.setButtonText (gearHasEditor (gr) ? "S1000 EDITOR..." : "ALL CONTROLS...");
+    controlsBtn.setButtonText (gr == kGearAkaiS950 ? "S950 EDITOR..." : gearHasEditor (gr) ? "S1000 EDITOR..." : "ALL CONTROLS...");
     akaiPanel->setVisible (midi && controlsOpen && gearHasEditor (gr));
     controlsBtn.setToggleState (controlsOpen, juce::dontSendNotification);
     for (auto& b : groupBtns) b->setVisible (midi && controlsOpen && ! gearHasEditor (gr));
@@ -462,7 +462,7 @@ void MidiOutPage::openControls (bool open)
 {
     controlsOpen = open && inst().midiGear != 0;
     learner.cancel(); ccLearn = -1;
-    if (controlsOpen && gearHasEditor (inst().midiGear)) { akaiPanel->setInstrument (proc.editorState.instrument); akaiPanel->opened(); }
+    if (controlsOpen && gearHasEditor (inst().midiGear)) { akaiPanel->setInstrument (proc.editorState.instrument); akaiPanel->setModel (inst().midiGear == kGearAkaiS950); akaiPanel->opened(); }
     else if (controlsOpen) buildControls();
     refresh();
 }

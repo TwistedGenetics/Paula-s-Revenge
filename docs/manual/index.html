@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.69</span>
+  <span class="ver">MANUAL &middot; V0.70</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1064,7 +1064,14 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <div class="frame sunken"><img src="img/s1000.png" alt="The S1000 editor: GET PROGRAMS, PROGRAM: AMEN, PROGRAM and KEYGROUP with KG 2 of 3, part tabs from KEYS to ZONE 4; ZONE 1 is shown with bars for VEL LOW, VEL HIGH, TUNE, LOUDNESS, FILTER, PAN and PLAY set to NO LOOP; the line at the top names the zone's sample." width="1440" height="900" loading="lazy"></div>
     <figcaption>The S1000 editor: a keygroup's first velocity zone</figcaption>
   </figure>
-  <p><span class="b">PROGRAM</span> edits the program's settings (loudness, polyphony, range, tune, modulation, both LFOs, voices); <span class="b">KEYGROUP</span> edits a keygroup (range, filter, both envelopes and their modifiers, and its four velocity zones). Each change goes to the S1000 at once, as a whole block (at most every 80&nbsp;ms while you drag). Save on the S1000 as usual. The S950 uses an older protocol and isn't covered yet.</p>
+  <p><span class="b">PROGRAM</span> edits the program's settings (loudness, polyphony, range, tune, modulation, both LFOs, voices); <span class="b">KEYGROUP</span> edits a keygroup (range, filter, both envelopes and their modifiers, and its four velocity zones). Each change goes to the S1000 at once, as a whole block (at most every 80&nbsp;ms while you drag). Save on the S1000 as usual.</p>
+  <h3>Akai S950 editor</h3>
+  <p><span class="b">GEAR: AKAI S950</span>, then <span class="b">S950 EDITOR...</span>, edits an S950 (or S900) the same way, in the S900's own protocol: its MIDI channel must match this instrument's CHANNEL. <span class="b">GET PROGRAMS</span> reads its catalogue; picking a program reads it with all its keygroups.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/s950.png" alt="The S950 editor: GET PROGRAMS, PROGRAM: JUNGLE KIT, KEYGROUP 3 of 4, part tabs KEYS, AMP ENV, VELOCITY, FILTER, PITCH WARP, LFO, CROSSFADE, SOFT SAMPLE, LOUD SAMPLE; FILTER is shown with bars for KEY TRACK, ENV AMOUNT, ATTACK, DECAY, SUSTAIN and RELEASE." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The S950 editor: a keygroup's filter</figcaption>
+  </figure>
+  <p>Keygroups have their keys and velocity switch, amp envelope, velocity modulation, filter and its envelope, pitch warp, LFO, crossfade, and the soft and loud samples' tune, filter and loudness. The S950 only takes a program whole, so each change sends it all (at most every 150&nbsp;ms), and that program becomes the selected one.</p>
 </section>
 
 <!-- ============================================================ 011b -->
@@ -1344,7 +1351,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.69</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.70</footer>
 </main>
 </div>
 <script>

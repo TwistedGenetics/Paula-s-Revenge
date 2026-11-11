@@ -12,7 +12,7 @@ AkaiPanel::AkaiPanel (PaulaProcessor& p) : proc (p)
         if (names.isEmpty()) { getPrograms(); return; }
         if (! menuHook()) return;
         juce::Component::SafePointer<AkaiPanel> safe (this);
-        menuHook() ("WHICH S1000 PROGRAM?", names, [safe] (int a) { if (safe != nullptr && a >= 0) safe->pickProgram (a); });
+        menuHook() ("WHICH " + model() + " PROGRAM?", names, [safe] (int a) { if (safe != nullptr && a >= 0) safe->pickProgram (a); });
     };
     progModeBtn.setClickingTogglesState (false);
     kgModeBtn.setClickingTogglesState (false);
@@ -22,6 +22,16 @@ AkaiPanel::AkaiPanel (PaulaProcessor& p) : proc (p)
     kgBox.format = [this] (int v) { return juce::String (v) + "/" + juce::String (std::max (1, keygroupCount())); };
     kgBox.onChange = [this] (int v) { setKeygroup (v - 1); };
     for (auto* c : std::initializer_list<juce::Component*> { &getBtn, &programBtn, &progModeBtn, &kgModeBtn, &kgBox }) addAndMakeVisible (c);
+    build();
+}
+
+void AkaiPanel::setModel (bool isS950)
+{
+    if (isS950 == s950) return;
+    s950 = isS950;
+    names.clear(); numbers.clear(); progBlock.clear(); kgBlocks.clear();
+    program = -1; keygroup = 0; part = 0; pending.clear(); waiting = false;
+    programBtn.setButtonText ("PROGRAM: -");
     build();
 }
 
@@ -45,7 +55,7 @@ void AkaiPanel::send (const std::vector<uint8_t>& msg)
         if (auto* m = proc.midiAt (instrument))
             if (auto* out = m->output()) { out->sendNow (msg.data(), (int) msg.size()); sent = true; }
     });
-    if (! sent) setStatus ("THE S1000'S MIDI OUTPUT ISN'T CONNECTED");
+    if (! sent) setStatus ("THE " + model() + "'S MIDI OUTPUT ISN'T CONNECTED");
 }
 
 void AkaiPanel::ask (std::vector<uint8_t> msg)
@@ -67,15 +77,15 @@ void AkaiPanel::askNext()
 void AkaiPanel::opened()
 {
     build();
-    setStatus (names.isEmpty() ? juce::String ("GET PROGRAMS: ASK THE S1000 WHAT'S IN IT")
+    setStatus (names.isEmpty() ? "GET PROGRAMS: ASK THE " + model() + " WHAT'S IN IT"
                                : statusText);
 }
 
 void AkaiPanel::getPrograms()
 {
     pending.clear(); waiting = false;
-    setStatus ("ASKING THE S1000 FOR ITS PROGRAMS...");
-    ask (akai::requestPrograms (cc()));
+    setStatus ("ASKING THE " + model() + " FOR ITS PROGRAMS...");
+    ask (s950 ? akai::s900::requestCatalog (cc()) : akai::requestPrograms (cc()));
 }
 
 void AkaiPanel::pickProgram (int index)
@@ -86,12 +96,38 @@ void AkaiPanel::pickProgram (int index)
     pending.clear(); waiting = false;
     programBtn.setButtonText ("PROGRAM: " + names[index]);
     setStatus ("READING PROGRAM " + names[index] + "...");
-    ask (akai::requestProgram (cc(), index));
+    ask (s950 ? akai::s900::requestProgram (cc(), index < (int) numbers.size() ? numbers[(size_t) index] : index)
+              : akai::requestProgram (cc(), index));
 }
 
 void AkaiPanel::received (const uint8_t* msg, int n)
 {
     akai::Reply r;
+    if (s950)
+    {
+        // the S950 (S900): the catalogue, or a whole program with its keygroups
+        if (! akai::s900::parse (msg, n, r)) return;
+        if (r.op == akai::s900::CAT)
+        {
+            names.clear(); numbers = r.numbers;
+            for (const auto& x : r.names) names.add (juce::String (x));
+            setStatus (juce::String (names.size()) + " PROGRAMS IN THE S950 - PICK ONE");
+            programBtn.setButtonText (names.isEmpty() ? juce::String ("PROGRAM: -") : juce::String ("PROGRAM: PICK ONE"));
+            askNext();
+            resized();
+        }
+        else if (r.op == akai::s900::PRGM && program >= 0 && program < (int) numbers.size() && r.program == numbers[(size_t) program])
+        {
+            progBlock = r.block; kgBlocks = r.keygroups;
+            keygroup = juce::jlimit (0, std::max (0, keygroupCount() - 1), keygroup);
+            askNext();
+            kgBox.setRange (1, std::max (1, keygroupCount()));
+            kgBox.setValue (keygroup + 1);
+            setStatus (names[program] + ": " + juce::String (keygroupCount()) + " KEYGROUPS - EDITS GO STRAIGHT IN");
+            build();
+        }
+        return;
+    }
     if (! akai::parse (msg, n, r)) return;
     if (r.op == akai::PLIST)
     {
@@ -138,9 +174,17 @@ void AkaiPanel::tick()
     if (waiting && now - askedAt > 2500.0)
     {
         waiting = false; pending.clear();
-        setStatus ("NO ANSWER - SEE HELP: S1000 EDITOR");
+        setStatus ("NO ANSWER - SEE HELP: " + model() + " EDITOR");
     }
-    if ((dirtyProg || dirtyKg) && ! waiting && now - lastSend >= 80.0)
+    if (s950 && (dirtyProg || dirtyKg) && ! waiting && now - lastSend >= 150.0)
+    {
+        // the S950 takes a program whole: its own settings and every keygroup (it becomes the one selected)
+        if (progBlock.size() == (size_t) akai::s900::kProgramBytes && program < (int) numbers.size())
+            send (akai::s900::programMessage (cc(), numbers[(size_t) program], progBlock, kgBlocks));
+        dirtyProg = dirtyKg = false;
+        lastSend = now;
+    }
+    if (! s950 && (dirtyProg || dirtyKg) && ! waiting && now - lastSend >= 80.0)
     {
         if (dirtyProg && progBlock.size() == (size_t) akai::kProgramBytes) send (akai::programMessage (cc(), program, progBlock));
         if (dirtyKg && keygroup < keygroupCount() && kgBlocks[(size_t) keygroup].size() == (size_t) akai::kKeygroupBytes)
@@ -198,7 +242,7 @@ void AkaiPanel::build()
     }
     int longest = 4;
     for (const auto& x : fields()) if (x.group == ps[(size_t) part]) longest = std::max (longest, (int) x.name.size());
-    const bool loaded = progBlock.size() == (size_t) akai::kProgramBytes;
+    const bool loaded = progBlock.size() == (size_t) (s950 ? akai::s900::kProgramBytes : akai::kProgramBytes);
     for (const auto& x : fields())
     {
         if (x.group != ps[(size_t) part]) continue;
@@ -228,8 +272,15 @@ void AkaiPanel::build()
     refreshBars();
     resized();
     repaint();
+    // (the S950: the keygroup's soft / loud sample, by name)
+    if (s950 && kgMode && keygroup < keygroupCount() && kgBlocks[(size_t) keygroup].size() == (size_t) akai::s900::kKeygroupBytes)
+    {
+        const auto& kb = kgBlocks[(size_t) keygroup];
+        setStatus ("KG " + juce::String (keygroup + 1) + " SOFT/LOUD: " + juce::String (akai::s900::name (kb, akai::s900::kSoftName))
+                   + " / " + juce::String (akai::s900::name (kb, akai::s900::kLoudName)));
+    }
     // a zone: its sample, by name
-    if (kgMode && keygroup < keygroupCount() && kgBlocks[(size_t) keygroup].size() == (size_t) akai::kKeygroupBytes && ps[(size_t) part].rfind ("ZONE ", 0) == 0)
+    if (! s950 && kgMode && keygroup < keygroupCount() && kgBlocks[(size_t) keygroup].size() == (size_t) akai::kKeygroupBytes && ps[(size_t) part].rfind ("ZONE ", 0) == 0)
     {
         const int z = ps[(size_t) part].back() - '1';
         const auto sample = akai::fromAkai (kgBlocks[(size_t) keygroup].data() + 34 + 24 * z, 12);

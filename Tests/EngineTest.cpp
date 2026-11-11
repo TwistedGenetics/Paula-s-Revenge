@@ -4918,7 +4918,7 @@ static void testLiveMode()
 static void testGear()
 {
     std::printf ("\n== GEAR\n");
-    CHECK (gearCount() == 6 && gearName (6) == "AKAI S1000" && gearHasEditor (6) && ! gearHasEditor (5) && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (7) == nullptr);
+    CHECK (gearCount() == 7 && gearName (6) == "AKAI S1000" && gearName (7) == "AKAI S950" && gearHasEditor (6) && gearHasEditor (7) && ! gearHasEditor (5) && gearName (4) == "DREADBOX ARTEMIS" && gearName (5) == "ACCESS VIRUS TI" && gearName (0) == "NONE" && gearName (1) == "MICROKORG 2" && gearName (2) == "NTS-1 MKII" && gearMap (8) == nullptr);
     auto find = [] (int id, const std::string& label) { const auto* m = gearMap (id); for (size_t i = 0; i < m->params.size(); ++i) if (m->params[i].label() == label) return (int) i; return -1; };
     // the microKORG 2: plain CCs as its manual lists them
     {
@@ -5046,6 +5046,58 @@ static void testAkaiS1000()
         auto ok = ask (keygroupMessage (0, 0, 1, kg.block));
         CHECK (ok.op == REPLY && ok.replyCode == 0 && s1k.keygroups[0][1][7] == 40);
         CHECK (ask (requestKeygroup (0, 1, 5)).replyCode == 1);
+    }
+}
+
+static void testAkaiS950()
+{
+    std::printf ("\n== AKAI S900 / S950 SYSEX\n");
+    using namespace akai;
+    // requests, as Akai's S900 document has them: F0 47 ch gg 40 nn 00 F7
+    CHECK ((s900::requestCatalog (2) == std::vector<uint8_t> { 0xF0, 0x47, 0x02, 0x03, 0x40, 0x00, 0x00, 0xF7 }));
+    CHECK ((s900::requestProgram (0, 5) == std::vector<uint8_t> { 0xF0, 0x47, 0x00, 0x02, 0x40, 0x05, 0x00, 0xF7 }));
+    // DB, DW and bits, in place in the MIDI bytes
+    {
+        std::vector<uint8_t> k (s900::kKeygroupBytes, 0);
+        const auto& fs = s900::keygroupFields();
+        auto field = [&] (const std::string& g, const std::string& n) { for (const auto& x : fs) if (x.group == g && x.name == n) return x; return Field {}; };
+        set (k, field ("KEYS", "VEL SWITCH"), 128);
+        CHECK (k[4] == 0 && k[5] == 1 && get (k, field ("KEYS", "VEL SWITCH")) == 128);
+        set (k, field ("VELOCITY", "VEL > RELEASE"), -20);           // (two's complement 236 = EC: 6C, 01)
+        CHECK (k[20] == 0x6C && k[21] == 1 && get (k, field ("VELOCITY", "VEL > RELEASE")) == -20);
+        set (k, field ("SOFT SAMPLE", "TUNE"), -16);                  // (DW FFF0: 70 01 7F 01)
+        CHECK (k[84] == 0x70 && k[85] == 1 && k[86] == 0x7F && k[87] == 1 && get (k, field ("SOFT SAMPLE", "TUNE")) == -16);
+        CHECK (field ("SOFT SAMPLE", "TUNE").text (-16) == "-1.00");
+        const auto trd = field ("KEYS", "TRANSPOSE"), shot = field ("KEYS", "ONE SHOT");
+        CHECK (get (k, trd) == 1);                                    // (bit 0 clear: transpose on)
+        set (k, shot, 1); set (k, trd, 0);
+        CHECK ((k[36] & 0x09) == 0x09 && get (k, shot) == 1 && get (k, trd) == 0);
+        bool over = false;
+        for (const auto& x : fs) over = over || x.offset + (x.enc == 2 ? 4 : 2) > s900::kKeygroupBytes;
+        for (const auto& x : s900::programFields()) over = over || x.offset + (x.enc == 2 ? 4 : 2) > s900::kProgramBytes;
+        CHECK (! over);
+    }
+    // a pretend S950: its catalogue (programs only), a program with its keygroups, the checksum, an edit sent back
+    {
+        s900::FakeS950 s;
+        s.addProgram (0, "JUNGLE KIT", 3); s.addProgram (4, "PADS", 1); s.samples = { "AMEN", "SNARE" };
+        auto ask = [&] (const std::vector<uint8_t>& m) { auto a = s.receive (m.data(), (int) m.size()); Reply r; if (! a.empty()) s900::parse (a[0].data(), (int) a[0].size(), r); return r; };
+        auto cat = ask (s900::requestCatalog (0));
+        CHECK (cat.op == s900::CAT && cat.names.size() == 2 && cat.names[1] == "PADS" && cat.numbers[1] == 4);
+        auto prog = ask (s900::requestProgram (0, 4));
+        CHECK (prog.op == s900::PRGM && prog.program == 4 && prog.keygroups.size() == 1 && s900::name (prog.block, s900::kProgramName) == "PADS");
+        CHECK (s900::name (prog.keygroups[0], s900::kSoftName) == "PADS S1");
+        auto msg = s900::programMessage (0, 4, prog.block, prog.keygroups);
+        msg[20] ^= 1;   // (damaged: the checksum catches it)
+        Reply bad; CHECK (! s900::parse (msg.data(), (int) msg.size(), bad));
+        Field cut; for (const auto& x : s900::keygroupFields()) if (x.group == "SOFT SAMPLE" && x.name == "FILTER") cut = x;
+        set (prog.keygroups[0], cut, 40);
+        const auto edit = s900::programMessage (0, 4, prog.block, prog.keygroups);
+        s.receive (edit.data(), (int) edit.size());
+        CHECK (get (s.programs[1].keygroups[0], cut) == 40);
+        std::printf ("S950: program %d controls, keygroup %d in %d parts; a 3-keygroup program is %d MIDI bytes\n",
+                     (int) s900::programFields().size(), (int) s900::keygroupFields().size(), (int) groupsOf (s900::keygroupFields()).size(),
+                     (int) s900::programMessage (0, 0, s.programs[0].block, s.programs[0].keygroups).size());
     }
 }
 
@@ -5702,6 +5754,7 @@ int main()
     testDuckAndLowEnd();
     testGear();
     testAkaiS1000();
+    testAkaiS950();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

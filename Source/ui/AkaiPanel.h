@@ -1,4 +1,4 @@
-// Paula's Revenge - the AKAI S1000 editor (a MIDI-out instrument with GEAR: AKAI S1000). GET PROGRAMS asks the
+// Paula's Revenge - the AKAI S1000 / S950 editor (a MIDI-out instrument with GEAR: AKAI S1000 or AKAI S950). GET PROGRAMS asks the
 // S1000 for its program names; picking one reads its common settings and every keygroup; then any setting of the
 // program or a keygroup (filter, both envelopes, tuning, the four velocity zones...) is a bar by name. The S1000
 // only takes whole blocks, so a change sends the program's (or the keygroup's) block back, at most every 80 ms.
@@ -18,6 +18,8 @@ public:
     std::function<void (const juce::String&)> onStatus;   // (the page's info line)
 
     void setInstrument (int i) { instrument = i; }
+    void setModel (bool isS950);           // the S1000, or the S950 (S900) - which speak differently
+    bool isS950() const { return s950; }
     void opened();
     void tick();                          // (the page's timer: replies, sends, time-outs)
     void resized() override;
@@ -37,7 +39,7 @@ public:
     void received (const uint8_t* msg, int n);   // an S1000 message
     const juce::StringArray& programNames() const { return names; }
     int  keygroupCount() const { return (int) kgBlocks.size(); }
-    bool ready() const { return progBlock.size() == (size_t) akai::kProgramBytes && pending.empty(); }
+    bool ready() const { return progBlock.size() == (size_t) (s950 ? akai::s900::kProgramBytes : akai::kProgramBytes) && pending.empty(); }
     juce::String status() const { return statusText; }
     PixButton getBtn { "GET PROGRAMS" }, programBtn { "PROGRAM: -" }, progModeBtn { "PROGRAM", true }, kgModeBtn { "KEYGROUP", true };
     NumberBox kgBox { "KG", 1, 1, 1 };
@@ -47,6 +49,8 @@ private:
     int instrument = 0;
     juce::StringArray names;
     int program = -1;
+    bool s950 = false;
+    std::vector<int> numbers;              // (the S950: each listed program's own number)
     std::vector<uint8_t> progBlock;
     std::vector<std::vector<uint8_t>> kgBlocks;
     int keygroup = 0;
@@ -62,7 +66,12 @@ private:
     double lastSend = 0;
     juce::String statusText;
 
-    const std::vector<akai::Field>& fields() const { return kgMode ? akai::keygroupFields() : akai::programFields(); }
+    const std::vector<akai::Field>& fields() const
+    {
+        if (s950) return kgMode ? akai::s900::keygroupFields() : akai::s900::programFields();
+        return kgMode ? akai::keygroupFields() : akai::programFields();
+    }
+    juce::String model() const { return s950 ? "S950" : "S1000"; }
     std::vector<std::string> parts() const { return akai::groupsOf (fields()); }
     int cc();
     void send (const std::vector<uint8_t>& msg);
