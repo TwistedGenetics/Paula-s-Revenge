@@ -51,7 +51,8 @@ add_library(prv_engine STATIC
     Source/engine/Radio.cpp
     Source/engine/RadioFormats.cpp
     Source/engine/ChordDatabase.cpp
-    Source/engine/BuiltinSynths.cpp)
+    Source/engine/BuiltinSynths.cpp
+    Source/engine/ReeseSynth.cpp)
 target_include_directories(prv_engine PUBLIC Source)
 # STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
 if(APPLE OR WIN32)

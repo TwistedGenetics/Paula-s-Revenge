@@ -1098,10 +1098,12 @@ void PaulaEditor::openLoad (int kind)
         const bool has = in.hasData() || in.isPlugin();
         choice.show (*this, "INSTRUMENT " + hex + (has ? ": PLAY A BUILT-IN SYNTH INSTEAD? (UNDO BRINGS IT BACK)" : ": A BUILT-IN SYNTH"),
                      { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)",
+                       "REESE - DETUNED SAWS THAT PHASE, OR A HOOVER (FILTER, WOBBLE)",
                        "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)", "CANCEL" }, [safe] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
-            if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kGrainKey);
+            if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
+            if (safe != nullptr && a == 2) safe->makeBuiltinSynth (prv::kGrainKey);
         });
         return;
     }
@@ -1124,7 +1126,7 @@ void PaulaEditor::openLoad (int kind)
 void PaulaEditor::makeBuiltinSynth (const std::string& key)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
         prv::makeBuiltin (proc.song.instruments[(size_t) i], key);

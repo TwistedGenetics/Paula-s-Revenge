@@ -1337,7 +1337,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "CLEAR", [safe] { if (safe != nullptr) safe->clearBtn.onClick(); } },
         { "RENAME...", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
         { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
-        { "LOAD A BUILT-IN SYNTH (SUB, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
+        { "LOAD A BUILT-IN SYNTH (SUB, REESE, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
         { "LOAD A VST / AU SYNTH...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (1); } } },
         { "MIDI OUT TO HARDWARE...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (2); } } },
         { "CV OUT TO A MODULAR...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (3); } } },

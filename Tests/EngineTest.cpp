@@ -3,6 +3,7 @@
 #include <chrono>
 #include "engine/Player.h"
 #include "engine/BuiltinSynths.h"
+#include "engine/ReeseSynth.h"
 #include "engine/Capture.h"
 #include "engine/ChordDetect.h"
 #include "engine/Recorder.h"
@@ -4666,6 +4667,112 @@ static void testSubBeat()
     }
 }
 
+// ---- REESE: detuned saws / HOOVER, click-free like SUB
+static void testReeseSynth()
+{
+    std::printf ("\n== REESE\n");
+    const double sr = 48000;
+    auto defs = [] { std::vector<float> v; for (auto& q : reeseParams()) v.push_back (q.def); return v; };
+    CHECK ((int) reeseParams().size() == reese::Count && builtinParams (kReeseKey).size() == (size_t) reese::Count);
+    auto freq = [&] (const std::vector<float>& x, int from)
+    {
+        int c = 0, f = -1, l = -1;
+        for (size_t i = (size_t) from + 1; i < x.size(); ++i) if (x[i - 1] < 0 && x[i] >= 0) { ++c; if (f < 0) f = (int) i; l = (int) i; }
+        return c > 1 ? (c - 1) * sr / (l - f) : 0.0;
+    };
+    // one saw, the filter open: C-3 an octave down is 130.8 Hz
+    {
+        ReeseSynth s; s.prepare (sr, 512);
+        auto v = defs(); v[reese::Voices] = 1; v[reese::Detune] = 0; v[reese::Cutoff] = 18000; v[reese::EnvAmount] = 0; v[reese::SubLevel] = 0; v[reese::Drive] = 0;
+        s.setValues (v); s.noteOn (60, 127, 0);
+        std::vector<float> L (24000), R (L.size()); s.render (L.data(), R.data(), (int) L.size());
+        const double f = freq (L, 4800);
+        std::printf ("1 saw, C-3, OCTAVE -1: %.2f Hz (130.81)\n", f);
+        CHECK (std::abs (f - 130.81) < 0.5);
+    }
+    // no clicks: a note sliding to another (overlapping), a note-off and the next note at once, fast retriggers.
+    // A saw jumps every cycle anyway, so: the biggest step around each change no bigger than the steady sound's
+    for (int type : { reese::Reese, reese::Hoover })
+        for (int mode : { reese::Legato, reese::Retrigger, reese::Poly })
+        {
+            ReeseSynth s; s.prepare (sr, 512);
+            // (the filter low and still, no drive or chorus: the sound itself smooth, so a click would stand out)
+            auto v = defs(); v[reese::Type] = (float) type; v[reese::Mode] = (float) mode; v[reese::Bend] = type ? 7.0f : 0.0f;
+            v[reese::Cutoff] = 300; v[reese::Resonance] = 0; v[reese::EnvAmount] = 0; v[reese::Drive] = 0; v[reese::Chorus] = 0;
+            s.setValues (v);
+            std::vector<float> L (96000), R (L.size());
+            s.noteOn (36, 110, 0); s.render (L.data(), R.data(), 24000);
+            s.noteOn (39, 110, 0); s.noteOff (36, 0); s.render (L.data() + 24000, R.data() + 24000, 24000);
+            s.noteOff (39, 0); s.noteOn (36, 110, 0); s.render (L.data() + 48000, R.data() + 48000, 24000);
+            for (int k = 0; k < 8; ++k) { s.noteOff (36, 0); s.noteOn (36, 110, 0); s.render (L.data() + 72000 + k * 3000, R.data() + 72000 + k * 3000, 3000); }
+            float steady = 0, around = 0; bool fin = true;
+            for (int i = 12001; i < 23900; ++i) steady = std::max (steady, std::abs (L[(size_t) i] - L[(size_t) i - 1]));
+            for (int at : { 24000, 48000, 72000, 75000, 78000 })
+                for (int i = at - 2; i < at + 96; ++i) around = std::max (around, std::abs (L[(size_t) i] - L[(size_t) i - 1]));
+            for (float x : L) fin = fin && std::isfinite (x);
+            std::printf ("%s %s: steady step %.4f, at the changes %.4f\n", type ? "HOOVER" : "REESE ", mode == reese::Legato ? "LEGATO" : mode == reese::Poly ? "POLY  " : "OFF   ", steady, around);
+            CHECK (fin && around <= steady * (mode == reese::Poly ? 2.2f : 1.35f) + 0.002f);   // (POLY: two notes sound at once)
+        }
+    // LEGATO: the second note glides there, without a new attack (the level never dips)
+    {
+        ReeseSynth s; s.prepare (sr, 512);
+        auto v = defs(); v[reese::Glide] = 200; s.setValues (v);
+        std::vector<float> L (4800), R (L.size());
+        s.noteOn (36, 110, 0); for (int k = 0; k < 5; ++k) s.render (L.data(), R.data(), 4800);
+        const float lv = s.levelNow();
+        s.noteOn (43, 110, 0); s.noteOff (36, 0); s.render (L.data(), R.data(), 2400);
+        const float mid = s.pitchNow();
+        std::printf ("LEGATO: level %.3f -> %.3f, half way through the glide at %.2f (36 -> 43)\n", lv, s.levelNow(), mid);
+        CHECK (s.levelNow() >= lv * 0.98f && mid > 37 && mid < 42);
+    }
+    // HOOVER: each note swoops up from BEND below; the filter opens with its envelope then closes
+    {
+        ReeseSynth s; s.prepare (sr, 512);
+        auto v = defs(); v[reese::Type] = reese::Hoover; v[reese::Bend] = 12; v[reese::BendTime] = 200; v[reese::EnvAmount] = 60; v[reese::Mode] = reese::Retrigger;
+        s.setValues (v);
+        std::vector<float> L (480), R (L.size());
+        s.noteOn (48, 110, 0); s.render (L.data(), R.data(), 48);
+        const float p0 = s.pitchNow(), c0 = s.cutoffNow();
+        for (int k = 0; k < 100; ++k) s.render (L.data(), R.data(), 480);
+        std::printf ("HOOVER: pitch %.2f -> %.2f (48), cutoff %.0f -> %.0f Hz\n", p0, s.pitchNow(), c0, s.cutoffNow());
+        CHECK (p0 < 37.5f && std::abs (s.pitchNow() - 48) < 0.1f && c0 > s.cutoffNow() * 3.0f);
+    }
+    // more VOICES and DETUNE: wider (left and right differ), still not clipping; WOBBLE moves the cutoff
+    {
+        ReeseSynth s; s.prepare (sr, 512);
+        auto v = defs(); v[reese::Voices] = 7; v[reese::Detune] = 60; v[reese::Spread] = 100; v[reese::WobbleDepth] = 80; v[reese::WobbleRate] = 4;
+        v[reese::Chorus] = 70; v[reese::Drive] = 80; v[reese::Resonance] = 90; v[reese::Mode] = reese::Poly;
+        s.setValues (v);
+        s.noteOn (36, 127, 0); s.noteOn (43, 127, 0); s.noteOn (48, 127, 0);
+        std::vector<float> L (48000), R (L.size());
+        float lo = 1e9f, hi = 0;
+        for (int k = 0; k < 10; ++k) { s.render (L.data() + k * 4800, R.data() + k * 4800, 4800); lo = std::min (lo, s.cutoffNow()); hi = std::max (hi, s.cutoffNow()); }
+        float pk = 0, diff = 0; bool fin = true;
+        for (size_t i = 0; i < L.size(); ++i) { pk = std::max ({ pk, std::abs (L[i]), std::abs (R[i]) }); diff = std::max (diff, std::abs (L[i] - R[i])); fin = fin && std::isfinite (L[i]) && std::isfinite (R[i]); }
+        std::printf ("7 voices, a chord, everything up: peak %.3f, L/R differ by %.3f, WOBBLE cutoff %.0f .. %.0f Hz\n", pk, diff, lo, hi);
+        CHECK (fin && pk < 1.5f && diff > 0.05f && hi > lo * 3.0f);
+    }
+    // made, saved and played in a song
+    {
+        Song s = makeSong();
+        makeBuiltin (s.instruments[4], kReeseKey);
+        CHECK (s.instruments[4].name == "REESE" && s.instruments[4].isBuiltin());
+        auto v = readBuiltinState (s.instruments[4]);
+        CHECK ((int) v.size() == reese::Count);
+        v[reese::Type] = reese::Hoover; writeBuiltinState (s.instruments[4], v);
+        CHECK (readBuiltinState (s.instruments[4])[reese::Type] == reese::Hoover);
+        s.blocks[0] = Block {}; s.blocks[0].lines = 16; s.blocks[0].at (0, 0) = Cell { 13, 5, 0, 0 }; s.sequence = { 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s);
+        p.synths().factory = [] (int, const Instrument& in, double r) { return createBuiltinSynth (in, r); };
+        p.synths().syncNow (s, 48000);
+        p.playSong (0);
+        std::vector<float> L (24000), R (L.size());
+        p.render (L.data(), R.data(), (int) L.size());
+        std::printf ("REESE in the song: rms %.3f\n", rmsOf (L, 0, (int) L.size()));
+        CHECK (rmsOf (L, 0, (int) L.size()) > 0.02f);
+    }
+}
+
 // ---- GRANULAR
 static void testGrainSynth()
 {
@@ -5205,6 +5312,7 @@ int main()
     testSubSynth();
     testGrainSynth();
     testSubBeat();
+    testReeseSynth();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

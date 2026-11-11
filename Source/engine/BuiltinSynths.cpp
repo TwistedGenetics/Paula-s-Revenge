@@ -1,5 +1,6 @@
 // Paula's Revenge - the built-in synths (SUB, GRANULAR)
 #include "BuiltinSynths.h"
+#include "ReeseSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -114,6 +115,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     };
     if (key == kSubKey) return subP;
     if (key == kGrainKey) return grainP;
+    if (key == kReeseKey) return reeseParams();
     return none;
 }
 
@@ -159,7 +161,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     writeBuiltinState (in, builtinDefaults (key));
@@ -169,6 +171,7 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
 {
     std::unique_ptr<PluginSynth> s;
     if (in.pluginKey == kSubKey) s = std::make_unique<SubSynth>();
+    if (in.pluginKey == kReeseKey) s = std::make_unique<ReeseSynth>();
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;

@@ -5,6 +5,7 @@
 #include <JuceHeader.h>
 #include "../PluginProcessor.h"
 #include "../engine/BuiltinSynths.h"
+#include "../engine/ReeseSynth.h"
 #include "Widgets.h"
 
 namespace prv::ui

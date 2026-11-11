@@ -153,8 +153,10 @@ void EnginePage::build()
         if (box == boxes.end())
         {
             // (GRANULAR: SOURCE sits beside the sound; LFOS, ENV MOD and FILTER are on the second page)
-            const bool grainPage = shownKey == kGrainKey;
-            const bool second = grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER");
+            // (REESE: HOOVER, FILTER, WOBBLE and DRIVE are on its second page)
+            const bool grainPage = shownKey == kGrainKey, reesePage = shownKey == kReeseKey;
+            const bool second = (grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER"))
+                             || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"));
             boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
@@ -341,11 +343,21 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey;
+    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey;
     for (auto& b : pageBtn) b.setVisible (paged);
-    loadSampleBtn.setVisible (paged);
-    if (paged)
+    loadSampleBtn.setVisible (shownKey == kGrainKey);
+    if (shownKey == kReeseKey)
     {
+        // REESE: its two pages' tabs on a line of their own
+        pageBtn[0].setButtonText ("SOUND"); pageBtn[1].setButtonText ("HOOVER + FILTER");
+        auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
+        pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
+        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (17)));
+        for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+    }
+    else if (paged)
+    {
+        pageBtn[0].setButtonText ("GRAINS"); pageBtn[1].setButtonText ("LFOS + FILTER");
         Box* src = nullptr;
         for (auto& b : boxes) if (b.page == 2) src = &b;
         const int srcW = juce::jlimit (charsW (14), std::max (charsW (14), r.getWidth() / 2), charsW (22));
@@ -459,7 +471,8 @@ void EnginePage::paint (juce::Graphics& g)
     g.fillAll (pal.panel);
     // the title: as much of it as fits (never cut)
     const juce::String name = juce::String (inst().pluginName);
-    const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH" : "";
+    const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH"
+                            : inst().pluginKey == kReeseKey ? " - REESE / HOOVER BASS" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth() || t == name) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
