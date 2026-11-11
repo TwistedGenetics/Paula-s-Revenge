@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.61</span>
+  <span class="ver">MANUAL &middot; V0.62</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -866,7 +866,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>Effects in the mixer</h3>
   <p>On any insert slot's effect page press <span class="b">PLUG-IN...</span>. The first time, it looks for the plug-ins on your Mac, each one in a separate hidden copy of the app, so one that crashes can't take Paula's Revenge down. Double-click one to load it; <span class="b">OPEN PLUG-IN WINDOW</span> shows its own controls. <b>To find one, just type</b>: the list narrows to every word in the name, maker or format (<code>VALHALLA</code>, <code>U-HE ZEB</code>); Esc clears it. <b>Favourites:</b> right-click a plug-in (or <span class="b">FAVOURITE</span>) to star it &mdash; stars come first, and <span class="b">FAVOURITES ONLY</span> shows just them. The instrument list works the same way. Its settings are saved in the song. If a song uses a plug-in this Mac doesn't have, the slot shows <code>!NAME</code>, passes the audio through and keeps the settings.</p>
   <h3>Instruments</h3>
-  <p>Pick an instrument, press <span class="b">LOAD</span> and the <span class="b">VST / AU</span> tab (or right-click the instrument &rarr; <b>LOAD A VST / AU SYNTH...</b>), then double-click a plug-in. (The <span class="b">SYNTHS</span> tab has the built-in SUB and GRANULAR synths, below.) Type to search. PARAMS &rarr; PLUG-IN / MIDI OUT... gets there too.</p>
+  <p>Pick an instrument, press <span class="b">LOAD</span> and the <span class="b">VST / AU</span> tab (or right-click the instrument &rarr; <b>LOAD A VST / AU SYNTH...</b>), then double-click a plug-in. (The <span class="b">SYNTHS</span> tab has the built-in SUB, REESE and GRANULAR synths, below.) Type to search. PARAMS &rarr; PLUG-IN / MIDI OUT... gets there too.</p>
   <div class="two">
     <div><figure><div class="frame sunken"><img src="img/load_vst.png" alt="LOAD's tabs, SAMPLES, VST / AU, MIDI OUT and CV OUT, with VST / AU lit over the list of instrument plug-ins." width="1440" height="900" loading="lazy"></div><figcaption>LOAD &rarr; VST / AU</figcaption></figure></div>
     <div><figure><div class="frame sunken"><img src="img/synth.png" alt="A plug-in instrument's page with OUTPUT, BEND and ON, four learnable knobs and the track's automation knobs." width="1440" height="900" loading="lazy"></div><figcaption>A plug-in instrument's page</figcaption></figure></div>
@@ -886,7 +886,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
   <h3>The built-in SUB synth</h3>
-  <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; the <span class="b">SYNTHS</span> tab (or right-click the instrument &rarr; <b>LOAD A BUILT-IN SYNTH (SUB, GRANULAR)...</b>) and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later.</p>
+  <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; the <span class="b">SYNTHS</span> tab (or right-click the instrument &rarr; <b>LOAD A BUILT-IN SYNTH (SUB, REESE, GRANULAR)...</b>) and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later.</p>
   <figure>
     <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page: boxes for MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR, OSC 2, 808 DROP, DRIVE, ENVELOPE and OUTPUT (BEAT is in OSCILLATOR), with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
     <figcaption>The SUB page</figcaption>
@@ -900,6 +900,19 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>ENVELOPE</b> (ATTACK, DECAY, SUSTAIN, RELEASE) and <b>OUTPUT</b> (VELOCITY: how much <code>Cxx</code> changes the level; LEVEL).</li>
     <li><b>BEAT</b> (in the OSCILLATOR box): <span class="b">BEAT ON</span> adds a copy of the oscillator slightly higher, so the sub swells and dips on a single note &mdash; the beating of two notes a little out of tune. BEAT RATE is how many times a second (0.1&ndash;10 Hz, the same on every note), BEAT AMT how deep the dips go. Switching it on or off never clicks, even mid-note; right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern.</li>
     <li><b>Right-click</b> any control to make it a knob (<code>L</code> <code>Q</code> <code>H</code> <code>W</code>) or the track's AUTO A / B, so the pattern can move it. Hold <span class="b">HOLD TO PLAY</span> or play the keys to hear it. <span class="b">OUTPUT &amp; KNOBS...</span> opens the plug-in instrument page above &mdash; OUTPUT, BEND, ON, FILTER AND ENVELOPES, EQ / FX and chords all work for SUB.</li>
+  </ul>
+  <h3>The built-in REESE synth</h3>
+  <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; REESE. Its controls are on two tabs, <span class="b">SOUND</span> and <span class="b">HOOVER + FILTER</span>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, SOUND tab: boxes for MODE, OSCILLATORS (TYPE REESE or HOOVER, VOICES, DETUNE, SPREAD, OCTAVE, SUB), MOVEMENT, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The REESE page</figcaption>
+  </figure>
+  <ul>
+    <li><b>MODE</b> and <b>GLIDE</b> as on SUB (POLY plays up to 6 notes).</li>
+    <li><b>OSCILLATORS:</b> TYPE <span class="b">REESE</span> (saws) or <span class="b">HOOVER</span> (pulse-saws, a square sub); VOICES (1&ndash;7), DETUNE (wider and faster phasing), SPREAD (left and right), OCTAVE, SUB (an octave below). <b>MOVEMENT:</b> MOVE breathes the detune wider and narrower at MOVE RATE.</li>
+    <li><b>HOOVER:</b> BEND &mdash; each note swoops up from that many semitones below over BEND TIME; PWM and PWM RATE move the pulse width.</li>
+    <li><b>FILTER:</b> a 24 dB low-pass with CUTOFF, RES, ENV AMT (how far each note opens it) and ENV DECAY; <b>WOBBLE</b> puts an LFO on the cutoff. <b>DRIVE</b> and <b>CHORUS</b> (the hoover's wide swirl).</li>
+    <li><b>ENVELOPE</b> and <b>OUTPUT</b>. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
@@ -1264,7 +1277,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.61</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.62</footer>
 </main>
 </div>
 <script>
