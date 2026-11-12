@@ -6,6 +6,7 @@
 #include "../Prefs.h"
 #include "../engine/BuiltinSynths.h"
 #include "../engine/RaveSynth.h"
+#include "../engine/MorphSynth.h"
 
 namespace prv::ui::synthpresets
 {
@@ -71,6 +72,8 @@ inline std::vector<Preset> factory (const std::string& key)
     std::vector<Preset> out;
     if (key == kRaveKey)
         for (int t = 0; t < rave::Types; ++t) out.push_back ({ raveTypeName (t), key, ravePreset (t) });
+    else if (key == kMorphKey)
+        for (int t = 0; t < kMorphPresets; ++t) out.push_back ({ morphPresetName (t), key, morphPreset (t) });
     else if (! builtinParams (key).empty())
         out.push_back ({ "DEFAULTS", key, builtinDefaults (key) });
     return out;

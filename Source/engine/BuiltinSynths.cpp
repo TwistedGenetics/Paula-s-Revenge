@@ -3,6 +3,7 @@
 #include "ReeseSynth.h"
 #include "RaveSynth.h"
 #include "RomSynth.h"
+#include "MorphSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -123,6 +124,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kReeseKey) return reeseParams();
     if (key == kRaveKey) return raveParams();
     if (key == kRomKey) return romParams();
+    if (key == kMorphKey) return morphSynthParams();
     return none;
 }
 
@@ -168,7 +170,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     writeBuiltinState (in, builtinDefaults (key));
@@ -188,6 +190,7 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     if (in.pluginKey == kReeseKey) s = std::make_unique<ReeseSynth>();
     if (in.pluginKey == kRaveKey) s = std::make_unique<RaveSynth>();
     if (in.pluginKey == kRomKey) s = std::make_unique<RomSynth>();
+    if (in.pluginKey == kMorphKey) s = std::make_unique<MorphSynth>();
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;

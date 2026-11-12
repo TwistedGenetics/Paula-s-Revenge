@@ -369,7 +369,8 @@ void EnginePage::build()
             const bool second = (grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER"))
                              || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"))
                              || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"))   // (when SUB needs two pages)
-                             || (shownKey == kRomKey && ! sec.startsWith ("TONE "));   // (ROM: its TONES, then the rest)
+                             || (shownKey == kRomKey && ! sec.startsWith ("TONE "))   // (ROM: its TONES, then the rest)
+                             || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"));
             boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
@@ -635,15 +636,15 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || (shownKey == kSubKey && subPages);
+    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged);
     loadSampleBtn.setVisible (shownKey == kGrainKey);
-    if (shownKey == kReeseKey || shownKey == kRomKey || (shownKey == kSubKey && subPages))
+    if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages))
     {
         // REESE, ROM (and SUB when it needs them): the two pages' tabs on a line of their own
-        const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey;
-        pageBtn[0].setButtonText (romP ? "TONES" : "SOUND");
-        pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : "HOOVER + FILTER");
+        const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey, mp = shownKey == kMorphKey;
+        pageBtn[0].setButtonText (romP ? "TONES" : mp ? "MORPH" : "SOUND");
+        pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : mp ? "AMP + SPACE" : "HOOVER + FILTER");
         auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
         pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
         pageBtn[1].setBounds (tabs.removeFromLeft (charsW (sub ? 15 : 17)));
@@ -775,7 +776,9 @@ void EnginePage::paint (juce::Graphics& g)
     const juce::String name = juce::String (inst().pluginName);
     const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH"
                             : inst().pluginKey == kReeseKey ? " - REESE / HOOVER BASS"
-                            : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS" : "";
+                            : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS"
+                            : inst().pluginKey == kRomKey ? " - ROMPLER"
+                            : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }

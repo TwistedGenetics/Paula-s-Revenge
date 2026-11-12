@@ -1,6 +1,7 @@
 // Paula's Revenge - the studio effects, part 2 (v0.35): ROOMS, SPRING, DUB DELAY, BBD DELAY,
 // GRAIN DELAY, MULTI-TAP, FLANGER, PHASER, ROTARY, TREMOLO, FREQ SHIFTER, AUTO-FILTER, DIMENSION.
 // Our own designs; parameters glide (no zipper noise), saturation runs at twice the rate.
+#include "MorphFilter.h"
 #include "StudioFx.h"
 #include "FxKit.h"
 #include <array>
@@ -847,6 +848,47 @@ private:
     Lfo lfo;
     Smooths<3> sm;
 };
+// ================================================================ MORPH FILTER
+// (MorphFilter.h): a model's two shapes, MORPH between them - moved by an LFO and by how loud the sound is
+class MorphFx : public Effect
+{
+public:
+    void prepare (double s) override { sr = s; sm.setTime (0.03, sr); reset(); }
+    void reset() override { f[0].reset(); f[1].reset(); env = 0; lfo.phase = 0; sm.unprime(); upd = 0; }
+    void process (float* L, float* R, int n, const float* p, double bpm) override
+    {
+        const int model = fxChoice (p[0], morph::kModels);
+        lfo.setRate (p[5] > 0.5f ? syncedHz (p[4], bpm) : lfoHz (p[4]), sr);
+        sm[0].set (p[1]); sm[1].set (8.0f * p[2] - 4.0f); sm[2].set (p[3]); sm[3].set (p[6]); sm[4].set (2.0f * p[7] - 1.0f); sm[5].set (p[9]); sm[6].set (p[10]);
+        const double att = (1.0 + 49.0 * p[8]) * 0.001, rel = (20.0 + 980.0 * p[8]) * 0.001;
+        const float ac = (float) std::exp (-1.0 / (att * sr)), rc = (float) std::exp (-1.0 / (rel * sr));
+        for (int k = 0; k < n; ++k)
+        {
+            const float m0 = sm[0].next(), oct = sm[1].next(), emph = sm[2].next(), depth = sm[3].next(), envAmt = sm[4].next(), drive = sm[5].next(), mix = sm[6].next();
+            const float level = std::max (std::abs (L[k]), std::abs (R[k]));
+            env = level > env ? level + (env - level) * ac : level + (env - level) * rc;
+            const double lv = lfo.sine();
+            if (upd-- <= 0)
+            {
+                // (worked out every 16 samples: smooth enough for the ear, and cheap)
+                const float m = std::clamp (m0 + depth * 0.5f * (float) lv + envAmt * std::min (1.0f, env * 3.0f), 0.0f, 1.0f);
+                f[0].set (model, m, oct, emph, sr); f[1].set (model, m, oct, emph, sr);
+                upd = 15;
+            }
+            const float kd = 1.0f + 4.0f * drive;
+            const float yl = f[0].process (satK (L[k], kd)), yr = f[1].process (satK (R[k], kd));
+            L[k] = L[k] * (1.0f - mix) + yl * mix;
+            R[k] = R[k] * (1.0f - mix) + yr * mix;
+        }
+    }
+private:
+    double sr = 48000;
+    MorphFilter f[2];
+    float env = 0;
+    int upd = 0;
+    Lfo lfo;
+    Smooths<7> sm;
+};
 } // namespace
 
 std::unique_ptr<Effect> makeStudioEffect2 (FxType t)
@@ -866,6 +908,7 @@ std::unique_ptr<Effect> makeStudioEffect2 (FxType t)
         case FxType::FreqShift:  return std::make_unique<FreqShiftFx>();
         case FxType::AutoFilter: return std::make_unique<AutoFilterFx>();
         case FxType::Dimension:  return std::make_unique<DimensionFx>();
+        case FxType::Morph:      return std::make_unique<MorphFx>();
         default:                 return nullptr;
     }
 }

@@ -7,6 +7,8 @@
 #include "engine/RaveSynth.h"
 #include "engine/RomSynth.h"
 #include "engine/RomBank.h"
+#include "engine/MorphFilter.h"
+#include "engine/MorphSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
@@ -4755,6 +4757,118 @@ static void testSubBeat()
     }
 }
 
+// ---- MORPH FILTER (v0.78)
+static void testMorphFilter()
+{
+    std::printf ("\n== MORPH FILTER\n");
+    const double sr = 48000;
+    // white noise through a model at a MORPH: the energy in a band (a 2-pole band-pass around hz)
+    auto bandAt = [&] (int model, float m, double hz, float oct = 0)
+    {
+        MorphFilter f; f.set (model, m, oct, 0.5f, sr);
+        uint32_t seed = 9;
+        double e = 0, total = 0;
+        float s1 = 0, s2 = 0;
+        const float g = (float) std::tan (3.14159265 * hz / sr), k = 1.0f / 12.0f;
+        const float a1 = 1.0f / (1.0f + g * (g + k)), a2 = g * a1, a3 = g * a2;
+        for (int i = 0; i < 96000; ++i)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            const float x = ((int) (seed >> 9) - 4194304) / 4194304.0f * 0.3f;
+            const float y = f.process (x);
+            const float v3 = y - s2, v1 = a1 * s1 + a2 * v3, v2 = s2 + a2 * s1 + a3 * v3;
+            s1 = 2 * v1 - s1; s2 = 2 * v2 - s2;
+            if (i > 4800) { e += (double) v1 * v1; total += (double) y * y; }
+        }
+        return std::make_pair (10.0 * std::log10 (e + 1e-12), 10.0 * std::log10 (total / 91200.0 + 1e-12) - 10.0 * std::log10 (0.03));
+    };
+    // AH > EE: the first formant moves from 730 Hz (AH) down to 270 (EE), the second from 1090 up to 2290
+    const auto ah730 = bandAt (0, 0.0f, 730).first, ah270 = bandAt (0, 0.0f, 270).first, ee730 = bandAt (0, 1.0f, 730).first, ee270 = bandAt (0, 1.0f, 270).first;
+    const auto ah2290 = bandAt (0, 0.0f, 2290).first, ee2290 = bandAt (0, 1.0f, 2290).first;
+    std::printf ("AH > EE: at AH 730 Hz %.1f / 270 Hz %.1f dB; at EE 730 %.1f / 270 %.1f; 2290 Hz AH %.1f, EE %.1f\n", ah730, ah270, ee730, ee270, ah2290, ee2290);
+    CHECK (ah730 > ah270 + 6 && ee270 > ee730 + 6 && ee2290 > ah2290 + 4);
+    // FREQ moves the whole shape: an octave up, AH's 730 peak is at 1460
+    const auto up1460 = bandAt (0, 0.0f, 1460, 1.0f).first, up730 = bandAt (0, 0.0f, 730, 1.0f).first;
+    CHECK (up1460 > up730 + 3);
+    // PHASER: its notch at 480 Hz moves up to 2000
+    const auto n0 = bandAt (4, 0.0f, 480).first, n1 = bandAt (4, 1.0f, 480).first;
+    std::printf ("PHASER: 480 Hz with the notch there %.1f dB, moved away %.1f dB\n", n0, n1);
+    CHECK (n1 > n0 + 10);
+    // every model, at every MORPH: about as loud as what goes in (within 9 dB), and never runaway
+    double lo = 99, hi = -99;
+    for (int mdl = 0; mdl < morph::kModels; ++mdl)
+        for (float m : { 0.0f, 0.5f, 1.0f })
+        {
+            const double lev = bandAt (mdl, m, 1000).second;
+            // (the peak models: about the dry level; a low-pass's level is however much it lets through)
+            const bool peaks = mdl <= 5 || mdl == 9 || mdl == 10;
+            if (peaks) lo = std::min (lo, lev);
+            hi = std::max (hi, lev);
+            if ((peaks && lev < -9.0) || lev > 9.0) std::printf ("  %s at %.1f: %.1f dB\n", morph::modelName (mdl), m, lev);
+        }
+    std::printf ("all 12 models: the peak ones from %.1f dB, none above %.1f dB, against the dry sound\n", lo, hi);
+    CHECK (lo > -9.0 && hi < 9.0);
+    // the effect: a model swept by the LFO, nothing broken
+    {
+        auto fx = makeEffect (FxType::Morph);
+        CHECK (fx != nullptr);
+        fx->prepare (sr);
+        FxSlot sl; initFxSlot (sl, FxType::Morph);
+        std::vector<float> L (48000), R (48000);
+        uint32_t seed = 3;
+        for (size_t i = 0; i < L.size(); ++i) { seed = seed * 1664525u + 1013904223u; L[i] = R[i] = ((int) (seed >> 9) - 4194304) / 4194304.0f * 0.3f; }
+        for (int a = 0; a < 48000; a += 512) fx->process (L.data() + a, R.data() + a, std::min (512, 48000 - a), sl.p, 125.0);
+        bool ok = true; float pk = 0;
+        for (float x : L) { ok = ok && std::isfinite (x); pk = std::max (pk, std::abs (x)); }
+        std::printf ("MORPH FILTER effect on noise: peak %.3f, presets %d\n", pk, (int) fxFactoryPresets (FxType::Morph).size());
+        CHECK (ok && pk > 0.05f && pk < 2.0f && fxFactoryPresets (FxType::Morph).size() == 6);
+        CHECK (fxName (FxType::Morph) == "MORPH FILTER" && fxParamText (FxType::Morph, 0, sl.p) == "AH > EE");
+    }
+}
+
+// ---- MORPH (v0.78): the morphing-filter synth
+static void testMorphSynth()
+{
+    std::printf ("\n== MORPH SYNTH\n");
+    const double sr = 48000;
+    for (int i = 0; i < kMorphPresets; ++i)
+    {
+        MorphSynth s; s.prepare (sr, 512); s.setValues (morphPreset (i));
+        std::vector<float> L ((size_t) sr * 6), R (L.size());
+        s.noteOn (48, 110, 0);
+        s.render (L.data(), R.data(), 48000);
+        s.noteOff (48, 0);
+        s.render (L.data() + 48000, R.data() + 48000, (int) L.size() - 48000);
+        float pk = 0, tail = 0, first = 0; bool ok = true;
+        for (size_t k = 0; k < L.size(); ++k) { ok = ok && std::isfinite (L[k]); pk = std::max (pk, std::abs (L[k])); }
+        for (size_t k = 0; k < 4; ++k) first = std::max (first, std::abs (L[k]));
+        for (size_t k = L.size() - 4800; k < L.size(); ++k) tail = std::max (tail, std::abs (L[k]));
+        std::printf ("%-13s peak %.3f, first samples %.4f, after release %.4f, voices %d\n", morphPresetName (i), pk, first, tail, s.voicesPlaying());
+        CHECK (ok && pk > 0.03f && pk < 1.5f && first < 0.05f && tail < 0.01f);
+    }
+    // the MORPH envelope moves the filter: VOWEL PAD's MORPH opens over its attack
+    {
+        MorphSynth s; s.prepare (sr, 512); s.setValues (morphPreset (0));
+        std::vector<float> L (480), R (480);
+        s.noteOn (60, 64, 0); s.render (L.data(), R.data(), 480);
+        const float early = s.morphOf (0);
+        for (int k = 0; k < 60; ++k) s.render (L.data(), R.data(), 480);
+        const float later = s.morphOf (0);
+        std::printf ("MORPH ENV: at 10 ms %.2f, at 0.6 s %.2f\n", early, later);
+        CHECK (early < 0.1f && later > 0.5f);
+    }
+    // CHORD and POLY
+    {
+        auto v = morphPreset (0); v[msyn::Chord] = 3;
+        MorphSynth s; s.prepare (sr, 512); s.setValues (v);
+        std::vector<float> L (480), R (480);
+        s.noteOn (60, 100, 0); s.noteOn (67, 100, 0); s.render (L.data(), R.data(), 480);
+        CHECK (s.voicesPlaying() == 8);
+    }
+    Instrument in; makeBuiltin (in, kMorphKey);
+    CHECK (in.pluginName == "MORPH" && readBuiltinState (in).size() == (size_t) msyn::Count);
+}
+
 // ---- ROM (v0.77): multisamples from WAVs (with their smpl root and loop), four tones
 namespace
 {
@@ -6237,6 +6351,8 @@ int main()
     testRaveSynth();
     testReeseSub();
     testRom();
+    testMorphFilter();
+    testMorphSynth();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

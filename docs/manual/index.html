@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.77</span>
+  <span class="ver">MANUAL &middot; V0.78</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -853,6 +853,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><span class="b">TREMOLO</span></td><td>TREMOLO, AUTO-PAN or HARMONIC; <b>RATE</b> or <b>SYNC</b>; <b>SHAPE</b> sine to square; <b>STEREO</b>.</td></tr>
       <tr><td><span class="b">FREQ SHIFTER</span></td><td>SHIFT moves every frequency by the same Hz (spirals with <b>FEEDBACK</b>); RING MOD for metallic, robotic tones.</td></tr>
       <tr><td><span class="b">AUTO-FILTER</span></td><td>Low-, band- or high-pass moved by an LFO (synced or free) and by the sound's own level (<b>ENV AMOUNT</b> &plusmn;, <b>ENV SPEED</b>): envelope funk, wah, sweeps.</td></tr>
+      <tr><td><span class="b">MORPH FILTER</span></td><td>In the spirit of E-mu's Z-plane: a <b>MODEL</b> is two filter shapes and <b>MORPH</b> glides between them &mdash; AH &gt; EE, OH &gt; AH, OO &gt; EE, TALK, PHASER, COMB, WAH, ACID, LOW &gt; HIGH, BELLS, SCREAM, DARK &gt; BRIGHT. <b>FREQ</b> moves the shape, <b>EMPHASIS</b> sharpens it; an LFO and the sound's level move MORPH: a break that talks.</td></tr>
       <tr><td>The originals</td><td>FILTER, DRIVE, COMP, DELAY, REVERB and CHORUS are still there, in their groups.</td></tr>
     </tbody>
   </table></div>
@@ -973,6 +974,17 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>The samples are stored in the song (and in a saved instrument), so anyone you send it to has them. PRESETS keep ROM's settings, not its samples.</li>
   </ul>
   <p>Loading an ordinary WAV also uses its own loop points, and for a looped sample its root note, so C-3 plays a C.</p>
+  <h3>The built-in MORPH synth</h3>
+  <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; MORPH; <b>PRESETS...</b> has six sounds to start from.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab: OSCILLATORS (WAVE 1 SUPERSAW, WAVE 2 PULSE, OSC 2, DETUNE, OSC2 TUNE, PW), MORPH FILTER (MODEL AH &gt; EE, MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH), MORPH ENV and MORPH LFO." width="1440" height="900" loading="lazy"></div>
+    <figcaption>MORPH: two oscillators into a morphing filter per note</figcaption>
+  </figure>
+  <ul>
+    <li><b>OSCILLATORS:</b> WAVE 1 and 2 (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), OSC 2's level, DETUNE, OSC2 TUNE, PW.</li>
+    <li><b>MORPH FILTER:</b> MODEL (the effect's 12), MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH. <b>MORPH ENV:</b> AMOUNT &plusmn; and its ADSR. <b>MORPH LFO:</b> RATE, DEPTH.</li>
+    <li>On <span class="b">AMP + SPACE</span>: the amp ENVELOPE, CHORD, OCTAVE, CHORUS, ECHO, VELOCITY and LEVEL. Up to 16 notes.</li>
+  </ul>
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
@@ -1415,7 +1427,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.77</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.78</footer>
 </main>
 </div>
 <script>

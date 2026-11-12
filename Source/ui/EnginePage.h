@@ -8,6 +8,7 @@
 #include "../engine/ReeseSynth.h"
 #include "../engine/RaveSynth.h"
 #include "../engine/RomSynth.h"
+#include "../engine/MorphSynth.h"
 #include <map>
 #include "Widgets.h"
 

@@ -36,7 +36,7 @@ inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < 
 enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin,
                               Vast, Space, TapeEcho, Ensemble,
                               Rooms, Spring, DubDelay, BbdDelay, Grain, MultiTap, Flanger, Phaser, Rotary, Tremolo,
-                              FreqShift, AutoFilter, Dimension, Count };
+                              FreqShift, AutoFilter, Dimension, Morph, Count };
 inline bool isBuiltinFx (FxType t) { return t != FxType::None && t != FxType::Plugin && t < FxType::Count; }
 
 // the EFFECT menu's groups

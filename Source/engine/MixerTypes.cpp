@@ -1,5 +1,6 @@
 // Paula's Revenge - mixer settings, effect descriptions
 #include "MixerTypes.h"
+#include "MorphFilter.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -184,6 +185,7 @@ std::string fxName (FxType t)
         case FxType::FreqShift:  return "FREQ SHIFTER";
         case FxType::AutoFilter: return "AUTO-FILTER";
         case FxType::Dimension:  return "DIMENSION";
+        case FxType::Morph:      return "MORPH FILTER";
         default:                 return "EMPTY";
     }
 }
@@ -216,6 +218,7 @@ std::string fxShortName (FxType t)
         case FxType::FreqShift:  return "SHFT";
         case FxType::AutoFilter: return "AFLT";
         case FxType::Dimension:  return "DIM";
+        case FxType::Morph:      return "MRPH";
         default:                 return "---";
     }
 }
@@ -262,6 +265,8 @@ const std::vector<FxParamInfo>& fxParams (FxType t)
     static const std::vector<FxParamInfo> autofilter { { "MODE", 0.0f }, { "CUTOFF", 0.45f }, { "RESO", 0.4f }, { "LFO RATE", 0.5f }, { "SYNC", 1.0f, true },
                                                        { "LFO DEPTH", 0.4f }, { "ENV AMOUNT", 0.5f }, { "ENV SPEED", 0.4f }, { "DRIVE", 0.1f }, { "MIX", 1.0f } };
     static const std::vector<FxParamInfo> dimension { { "MODE", 0.0f }, { "WIDTH", 1.0f }, { "MIX", 1.0f } };
+    static const std::vector<FxParamInfo> morphf { { "MODEL", 0.0f }, { "MORPH", 0.3f }, { "FREQ", 0.5f }, { "EMPHASIS", 0.5f }, { "LFO RATE", 0.4f }, { "SYNC", 1.0f, true },
+                                                   { "LFO DEPTH", 0.3f }, { "ENV AMOUNT", 0.5f }, { "ENV SPEED", 0.4f }, { "DRIVE", 0.0f }, { "MIX", 1.0f } };
     switch (t)
     {
         case FxType::Vast:       return vast;
@@ -281,6 +286,7 @@ const std::vector<FxParamInfo>& fxParams (FxType t)
         case FxType::FreqShift:  return shifter;
         case FxType::AutoFilter: return autofilter;
         case FxType::Dimension:  return dimension;
+        case FxType::Morph:      return morphf;
         case FxType::Filter:     return filter;
         case FxType::Drive:      return drive;
         case FxType::Compressor: return comp;
@@ -330,7 +336,7 @@ std::vector<FxType> fxTypesIn (FxCategory c)
         case FxCategory::Modulation:     return { FxType::Ensemble, FxType::Dimension, FxType::Flanger, FxType::Phaser, FxType::Rotary,
                                                   FxType::Tremolo, FxType::FreqShift, FxType::Chorus };
         case FxCategory::DriveCrush:     return { FxType::Drive };
-        case FxCategory::FilterDynamics: return { FxType::Filter, FxType::AutoFilter, FxType::Compressor };
+        case FxCategory::FilterDynamics: return { FxType::Filter, FxType::AutoFilter, FxType::Morph, FxType::Compressor };
         default:                         return {};
     }
 }
@@ -505,6 +511,13 @@ const std::vector<FxPreset>& fxFactoryPresets (FxType t)
                          { "MODE 2",           FxType::Dimension, { 0.34f, 1.0f, 1.0f } },
                          { "MODE 3",           FxType::Dimension, { 0.67f, 1.0f, 1.0f } },
                          { "MODE 4",           FxType::Dimension, { 1.00f, 1.0f, 1.0f } } };
+    // MORPH FILTER: MODEL (12 models: 0 = AH > EE ... ), MORPH, FREQ, EMPHASIS, LFO RATE, SYNC, LFO DEPTH, ENV AMOUNT, ENV SPEED, DRIVE, MIX
+    static const P mrph { { "TALKING BREAK",   FxType::Morph, { 3 / 11.0f, 0.5f, 0.5f, 0.55f, 0.375f, 1, 0.80f, 0.50f, 0.4f, 0.1f, 1.0f } },
+                          { "VOWEL ENVELOPE",  FxType::Morph, { 0 / 11.0f, 0.1f, 0.5f, 0.50f, 0.40f, 1, 0.00f, 0.85f, 0.3f, 0.0f, 1.0f } },
+                          { "PHASE SLIDE",     FxType::Morph, { 4 / 11.0f, 0.5f, 0.5f, 0.60f, 0.50f, 1, 1.00f, 0.50f, 0.4f, 0.0f, 0.7f } },
+                          { "COMB SWEEP",      FxType::Morph, { 5 / 11.0f, 0.3f, 0.5f, 0.50f, 0.25f, 1, 0.70f, 0.50f, 0.4f, 0.0f, 0.8f } },
+                          { "ACID MORPH",      FxType::Morph, { 7 / 11.0f, 0.2f, 0.5f, 0.70f, 0.40f, 1, 0.20f, 0.80f, 0.2f, 0.3f, 1.0f } },
+                          { "SCREAMER",        FxType::Morph, { 10 / 11.0f, 0.4f, 0.5f, 0.60f, 0.50f, 1, 0.50f, 0.70f, 0.3f, 0.4f, 1.0f } } };
     static const P none;
     switch (t)
     {
@@ -521,6 +534,7 @@ const std::vector<FxPreset>& fxFactoryPresets (FxType t)
         case FxType::FreqShift:  return shift;
         case FxType::AutoFilter: return afilt;
         case FxType::Dimension:  return dim;
+        case FxType::Morph:      return mrph;
         case FxType::Vast:       return vast;
         case FxType::Space:      return space;
         case FxType::TapeEcho:   return tape;
@@ -675,6 +689,13 @@ std::string fxParamText (FxType t, int i, const float* params)
             return pct (v);
         case FxType::Dimension:
             if (i == 0) return fmt ("%.0f", 1.0 + choiceOf (v, 4));
+            return pct (v);
+        case FxType::Morph:
+            if (i == 0) return morph::modelName (choiceOf (v, morph::kModels));
+            if (i == 2) return fmt (v >= 0.5f ? "+%.1f OCT" : "%.1f OCT", 8.0 * v - 4.0);
+            if (i == 4) return params[5] > 0.5f ? divisionName (v) : fmt ("%.2f HZ", lfoHz (v));
+            if (i == 7) return fmt (v >= 0.5f ? "+%.0f%%" : "%.0f%%", 200.0 * v - 100.0);
+            if (i == 8) return ms (20.0 + 980.0 * v);
             return pct (v);
         case FxType::Ensemble:
             if (i == 0) return kEnsembleModes[choiceOf (v, 4)];

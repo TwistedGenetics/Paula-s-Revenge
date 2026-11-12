@@ -1741,6 +1741,7 @@ juce::String MixerPage::effectInfo (FxType t)
         case FxType::FreqShift:  return "FREQ SHIFTER - SHIFT EVERY PITCH, OR RING MOD";
         case FxType::AutoFilter: return "AUTO-FILTER - SWEPT BY AN LFO AND THE SOUND";
         case FxType::Dimension:  return "DIMENSION - WIDE, CLEAN STEREO SPACE (4 MODES)";
+        case FxType::Morph:      return "MORPH FILTER - VOWELS, COMBS, PHASES: ONE SHAPE INTO ANOTHER";
         case FxType::Plugin:     return "VST3 / AU PLUG-IN - ITS OWN WINDOW HAS THE CONTROLS";
         default:                 return "EMPTY SLOT - PICK ONE WITH EFFECT ABOVE";
     }
