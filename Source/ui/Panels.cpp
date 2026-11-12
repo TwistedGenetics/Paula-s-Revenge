@@ -1285,6 +1285,69 @@ void InstrumentPanel::resized()
     list.setBounds (r);
 }
 
+// ---- MY INSTRUMENTS
+juce::String InstrumentPanel::fileNameFor (const juce::String& name)
+{
+    auto n = juce::File::createLegalFileName (name.toUpperCase().trim()).trim();
+    if (n.isEmpty()) n = "INSTRUMENT";
+    return n + kInstrumentExt;
+}
+
+bool InstrumentPanel::saveInstrument (int r, const juce::String& name)
+{
+    if (r < 0 || r >= kMaxInstruments) return false;
+    const auto& in = proc.song.instruments[(size_t) r];
+    if (! in.hasData() && ! in.isPlugin()) { status ("NOTHING IN THIS INSTRUMENT TO SAVE"); return false; }
+    const auto file = instrumentFolder().getChildFile (fileNameFor (name));
+    const bool had = file.existsAsFile();
+    juce::String err;
+    if (! saveInstrumentFile (proc.song, r, file, err)) { status ("COULDN'T SAVE IT: " + err); return false; }
+    status ("SAVED " + file.getFileNameWithoutExtension() + (had ? " (REPLACING THE OLD ONE)" : "")
+            + " - LOAD INSTRUMENT... BRINGS IT INTO ANY SONG");
+    return true;
+}
+
+bool InstrumentPanel::loadInstrument (int r, const juce::File& f)
+{
+    if (r < 0 || r >= kMaxInstruments) return false;
+    InstrumentFile inf;
+    juce::String err;
+    if (! loadInstrumentFile (f, inf, err)) { status ("COULDN'T LOAD " + f.getFileNameWithoutExtension().toUpperCase() + ": " + err); return false; }
+    proc.history.instrument (r, "LOAD INSTRUMENT " + f.getFileNameWithoutExtension().toUpperCase());
+    proc.withLock ([&]
+    {
+        proc.player.jamAllOff();
+        placeInstrument (proc.song, r, std::move (inf));
+    });
+    proc.updateMixerEffects();   // (a VST / AU instrument: its plug-in loads)
+    proc.editorState.instrument = r;
+    changed();
+    status ("LOADED " + f.getFileNameWithoutExtension().toUpperCase() + " INTO INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2) + " - UNDO TO GO BACK");
+    return true;
+}
+
+void InstrumentPanel::showLoadInstrument (int r)
+{
+    juce::Component::SafePointer<InstrumentPanel> safe (this);
+    auto files = instrumentFolder().findChildFiles (juce::File::findFiles, false, juce::String ("*") + kInstrumentExt);
+    std::sort (files.begin(), files.end(), [] (const juce::File& a, const juce::File& b) { return a.getFileName().compareIgnoreCase (b.getFileName()) < 0; });
+    std::vector<MenuItem> items;
+    for (const auto& f : files)
+        items.push_back ({ f.getFileNameWithoutExtension().toUpperCase(), [safe, r, f] { if (safe != nullptr) safe->loadInstrument (r, f); } });
+    items.push_back ({ "ANOTHER FILE...", [safe, r]
+    {
+        if (safe == nullptr) return;
+        safe->chooser = std::make_unique<juce::FileChooser> ("Load an instrument", instrumentFolder(), juce::String ("*") + kInstrumentExt);
+        safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe, r] (const juce::FileChooser& fc)
+        {
+            if (safe != nullptr && fc.getResult().existsAsFile()) safe->loadInstrument (r, fc.getResult());
+        });
+    } });
+    items.push_back ({ "SHOW THE INSTRUMENTS FOLDER", [] { auto d = instrumentFolder(); d.createDirectory(); d.revealToUser(); } });
+    showMenu ("LOAD INTO INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2)
+              + (files.isEmpty() ? juce::String (" (NONE SAVED YET)") : juce::String()), std::move (items));
+}
+
 // ---- right-click on an instrument
 namespace { Instrument instrumentClip; FxSlot instrumentFxClip[kInserts]; bool haveInstrumentClip = false; }
 
@@ -1336,6 +1399,21 @@ void InstrumentPanel::showInstrumentMenu (int r)
             } },
         { "CLEAR", [safe] { if (safe != nullptr) safe->clearBtn.onClick(); } },
         { "RENAME...", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
+        { "SAVE INSTRUMENT...", [safe, r]
+            {
+                if (safe == nullptr) return;
+                const auto& in = safe->proc.song.instruments[(size_t) r];
+                if (! in.hasData() && ! in.isPlugin()) { safe->status ("NOTHING IN THIS INSTRUMENT TO SAVE"); return; }
+                auto* w = new juce::AlertWindow ("Save instrument", "A name for it (it goes in your instruments folder)", juce::MessageBoxIconType::NoIcon);
+                w->addTextEditor ("name", juce::String (in.name).toUpperCase());
+                w->addButton ("SAVE", 1, juce::KeyPress (juce::KeyPress::returnKey));
+                w->addButton ("CANCEL", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+                w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w, r] (int result)
+                {
+                    if (result == 1 && safe != nullptr) safe->saveInstrument (r, w->getTextEditorContents ("name"));
+                }), true);
+            } },
+        { "LOAD INSTRUMENT...", [safe, r] { if (safe != nullptr) safe->showLoadInstrument (r); } },
         { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
         { "LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
         { "LOAD A VST / AU SYNTH...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (1); } } },

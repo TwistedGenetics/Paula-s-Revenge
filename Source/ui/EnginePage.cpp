@@ -2,6 +2,7 @@
 #include "EnginePage.h"
 #include <limits>
 #include "ChoiceBox.h"
+#include "SynthPresets.h"
 
 namespace prv::ui
 {
@@ -31,7 +32,8 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     };
     optionsBtn.onClick = [this] { if (onOptions) onOptions(); };
     closeBtn.onClick = [this] { if (onClose) onClose(); };
-    for (auto* c : { &playBtn, &optionsBtn, &closeBtn }) addAndMakeVisible (c);
+    presetsBtn.onClick = [this] { showPresets(); };
+    for (auto* c : { &playBtn, &optionsBtn, &closeBtn, &presetsBtn }) addAndMakeVisible (c);
     loadSampleBtn.onClick = [this] { if (onLoadSample) onLoadSample(); };
     addChildComponent (loadSampleBtn);
     for (int k = 0; k < 2; ++k)
@@ -73,11 +75,72 @@ void EnginePage::edit (int param, float value, bool merge)
     });
     if (onStatus) onStatus (juce::String (inst().pluginName) + " " + q.name + ": " + juce::String (q.text (value)));
     sync();
-    if (inst().pluginKey == kSubKey && param == sub::BeatOn) resized();   // (BEAT's rows come and go)
+    if ((inst().pluginKey == kSubKey && param == sub::BeatOn) || (inst().pluginKey == kGrainKey && param == grain::Source)) resized();   // (rows come and go)
     if (onChanged) onChanged();
 }
 
 void EnginePage::setValue (int param, float value) { edit (param, value, false); }
+
+// ---- presets
+void EnginePage::loadPreset (const std::string& name, const std::vector<float>& values)
+{
+    const auto key = inst().pluginKey;
+    if (builtinParams (key).empty() || values.empty()) return;
+    proc.history.instrument (proc.editorState.instrument, juce::String (inst().pluginName) + " PRESET: " + juce::String (name));
+    proc.withLock ([&] { writeBuiltinState (inst(), values); });
+    sync();
+    resized();
+    if (onStatus) onStatus (juce::String (inst().pluginName) + " PRESET: " + juce::String (name) + " - UNDO TO GO BACK");
+    if (onChanged) onChanged();
+}
+
+void EnginePage::savePreset (const juce::String& name)
+{
+    const auto nm = name.toUpperCase().trim().substring (0, 24);
+    if (nm.isEmpty() || builtinParams (inst().pluginKey).empty()) return;
+    bool had = false;
+    for (const auto& p : synthpresets::mine (inst().pluginKey)) had |= p.name == nm.toStdString();
+    synthpresets::save ({ nm.toStdString(), inst().pluginKey, readBuiltinState (inst()) });
+    if (onStatus) onStatus ("SAVED AS MY PRESET " + nm + (had ? " (REPLACING THE OLD ONE)" : "") + " - IN PRESETS... FOR ANY " + juce::String (inst().pluginName) + " IN ANY SONG");
+}
+
+void EnginePage::showPresets()
+{
+    const auto key = inst().pluginKey;
+    if (builtinParams (key).empty()) return;
+    juce::Component::SafePointer<EnginePage> safe (this);
+    std::vector<MenuItem> items;
+    items.push_back ({ "SAVE THESE SETTINGS AS MY PRESET...", [safe]
+    {
+        if (safe == nullptr) return;
+        auto* w = new juce::AlertWindow ("Save preset", "A name for your " + juce::String (safe->inst().pluginName) + " preset", juce::MessageBoxIconType::NoIcon);
+        w->addTextEditor ("name", juce::String (safe->inst().name).toUpperCase().substring (0, 24));
+        w->addButton ("SAVE", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        w->addButton ("CANCEL", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+        w->enterModalState (true, juce::ModalCallbackFunction::create ([safe, w] (int result)
+        {
+            if (result == 1 && safe != nullptr) safe->savePreset (w->getTextEditorContents ("name"));
+        }), true);
+    } });
+    for (const auto& p : synthpresets::factory (key))
+        items.push_back ({ juce::String (p.name), [safe, p] { if (safe != nullptr) safe->loadPreset (p.name, p.values); } });
+    const auto my = synthpresets::mine (key);
+    for (const auto& p : my)
+        items.push_back ({ "MY " + juce::String (p.name), [safe, p] { if (safe != nullptr) safe->loadPreset (p.name, p.values); } });
+    if (! my.empty())
+        items.push_back ({ "DELETE ONE OF MY PRESETS...", [safe, my, key]
+        {
+            std::vector<MenuItem> del;
+            for (const auto& p : my)
+                del.push_back ({ "MY " + juce::String (p.name), [safe, p, key]
+                {
+                    synthpresets::remove (key, p.name);
+                    if (safe != nullptr && safe->onStatus) safe->onStatus ("DELETED MY PRESET " + juce::String (p.name));
+                } });
+            showMenu ("DELETE WHICH OF MY PRESETS?", std::move (del));
+        } });
+    showMenu (juce::String (inst().pluginName) + " PRESETS" + (my.empty() ? " (NONE OF YOURS YET)" : ""), std::move (items));
+}
 
 juce::Component* EnginePage::controlFor (int param) const
 {
@@ -290,10 +353,29 @@ void EnginePage::resized()
     auto r = getLocalBounds().reduced (gap);
     auto top = r.removeFromTop (rowH);
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+    // the title row: as much as fits on one line - the title goes first, then PRESETS... gets shorter; only when even
+    // that won't fit do HOLD TO PLAY and OUTPUT & KNOBS go on a line of their own
+    const int buttons = charsW (5) + charsW (17) + charsW (14) + gap * 4;
+    const int title0 = charsW (12);
+    const bool full = top.getWidth() >= buttons + charsW (10) + title0, noTitle = top.getWidth() >= buttons + charsW (10),
+               shortPresets = top.getWidth() >= buttons + charsW (7);
+    presetsBtn.setButtonText (full || noTitle || ! shortPresets ? "PRESETS..." : "PRESETS");
     closeBtn.setBounds (top.removeFromRight (charsW (5))); top.removeFromRight (gap);
-    optionsBtn.setBounds (top.removeFromRight (charsW (17))); top.removeFromRight (gap);
-    playBtn.setBounds (top.removeFromRight (charsW (14))); top.removeFromRight (gap * 2);
-    titleArea = top.toFloat();
+    presetsBtn.setBounds (top.removeFromRight (charsW (presetsBtn.getButtonText().length()))); top.removeFromRight (gap);
+    if (full || noTitle || shortPresets)
+    {
+        optionsBtn.setBounds (top.removeFromRight (charsW (17))); top.removeFromRight (gap);
+        playBtn.setBounds (top.removeFromRight (charsW (14))); top.removeFromRight (gap * 2);
+        titleArea = full ? top.toFloat() : juce::Rectangle<float>();
+    }
+    else
+    {
+        titleArea = top.toFloat();
+        r.removeFromTop (gap);
+        auto second = r.removeFromTop (rowH);
+        playBtn.setBounds (second.removeFromLeft (charsW (14))); second.removeFromLeft (gap);
+        optionsBtn.setBounds (second.removeFromLeft (std::min (second.getWidth(), charsW (17))));
+    }
     r.removeFromTop (gap * 2);
 
     // a row of choice buttons too narrow for its words takes more lines (fewer buttons on each): no word is ever cut
@@ -319,10 +401,18 @@ void EnginePage::resized()
     };
     // (SUB's BEAT: only what's in use - RATE for BEAT HZ, ST for BEAT ST, nothing more when it's OFF)
     std::vector<float> vals;
-    if (inst().pluginKey == kSubKey) vals = readBuiltinState (inst());
+    if (inst().pluginKey == kSubKey || inst().pluginKey == kGrainKey) vals = readBuiltinState (inst());
     auto hidden = [&] (const Row& rw)
     {
-        if (vals.size() <= (size_t) sub::BeatSemis) return false;
+        // (GRANULAR, v0.75: TABLE only for a table, SAMPLE only for a sample - room for PRESETS' line)
+        if (shownKey == kGrainKey && vals.size() > (size_t) grain::SampleSlot)
+        {
+            const int source = (int) std::lround (vals[(size_t) grain::Source]);
+            if (rw.param == grain::Table) return source != 0;
+            if (rw.param == grain::SampleSlot) return source != 1;
+            return false;
+        }
+        if (shownKey != kSubKey || vals.size() <= (size_t) sub::BeatSemis) return false;
         const int beat = (int) std::lround (vals[(size_t) sub::BeatOn]);
         switch (rw.param)
         {
@@ -412,8 +502,8 @@ void EnginePage::resized()
         const Row* slotRow = nullptr;
         for (const auto& rw : rows) if (rw.param == grain::SampleSlot) slotRow = &rw;
         const int numW = slotRow != nullptr && slotRow->number ? slotRow->number->preferredWidth (px) : 0;
-        const bool beside = numW + gap * 2 + charsW (14) <= srcW - gap * 4;
-        auto band = r.removeFromTop (std::max (title + rowH * 5 + gap * 6, src != nullptr ? boxHeight (*src, srcW) + (beside ? 0 : rowH + gap) : 0));
+        const bool beside = slotRow != nullptr && ! hidden (*slotRow) && numW + gap * 2 + charsW (14) <= srcW - gap * 4;
+        auto band = r.removeFromTop (std::max (title + rowH * 4 + gap * 5, src != nullptr ? boxHeight (*src, srcW) + (beside ? 0 : rowH + gap) : 0));
         r.removeFromTop (gap * 2);
         if (src != nullptr)
         {
@@ -445,8 +535,9 @@ void EnginePage::resized()
         for (int ri : b.rowIndex)
         {
             auto& rw = rows[(size_t) ri];
-            for (juce::Component* c : { (juce::Component*) rw.slider.get(), (juce::Component*) rw.number.get(), (juce::Component*) rw.cycle.get() }) if (c) c->setVisible (on);
-            for (auto& c : rw.choices) c->setVisible (on);
+            const bool show = on && ! hidden (rw);
+            for (juce::Component* c : { (juce::Component*) rw.slider.get(), (juce::Component*) rw.number.get(), (juce::Component*) rw.cycle.get() }) if (c) c->setVisible (show);
+            for (auto& c : rw.choices) c->setVisible (show);
         }
     }
     // the boxes in columns: as few as fit (but never so narrow that a slider has no room), each filled top to bottom
@@ -529,7 +620,7 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
-        if (PixelFont::textWidth (t, px) <= titleArea.getWidth() || t == name) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
+        if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
     for (const auto& b : boxes) if (! b.area.isEmpty()) Theme::panelBox (g, b.area, b.title, pal);
     if (! waveArea.isEmpty())
     {

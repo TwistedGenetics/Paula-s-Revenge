@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.74</span>
+  <span class="ver">MANUAL &middot; V0.75</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -903,6 +903,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>Letting go of a key while recording writes a note-off (see <a href="#pattern">Recording and note-offs</a>).</li>
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
+  <h3>Presets for the built-in synths</h3>
+  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine sounds; for the others, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/synth_presets.png" alt="RAVE's PRESETS menu: SAVE THESE SETTINGS AS MY PRESET..., the nine sounds STAB to BELGIAN, MY DARK SCREAM, DELETE ONE OF MY PRESETS... and CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>RAVE's presets, with one of yours</figcaption>
+  </figure>
   <h3>The built-in SUB synth</h3>
   <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; the <span class="b">SYNTHS</span> tab (or right-click the instrument &rarr; <b>LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...</b>) and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later.</p>
   <figure>
@@ -1317,6 +1323,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Autosave:</b> every two minutes, when something changed, a copy of the song goes into the app's own folder (in the background). If the app doesn't close properly &mdash; a crash, a plug-in taking it down &mdash; next time it offers <span class="b">RECOVER</span> (the song as it was, still pointing at its own file, marked unsaved) or <span class="b">START AS NORMAL</span>. A normal quit never asks.</li>
     <li>The window's title shows the song, <code>*</code> for unsaved changes, and the block you're editing.</li>
   </ul>
+  <h3>Saving instruments</h3>
+  <p>Right-click an instrument &rarr; <b>SAVE INSTRUMENT...</b> and name it: it's saved whole as a <code>.prvi</code> file in <b>Documents / Paula's Revenge / Instruments</b> &mdash; its sample or synth (a VST / AU's own state too), loop, slices, phrases, chords, EQ, its three inserts and its MACRO knobs. Right-click any slot &rarr; <b>LOAD INSTRUMENT...</b> lists the ones you've saved; the one you pick goes into that slot (one undo step). <b>ANOTHER FILE...</b> opens one from anywhere, and <b>SHOW THE INSTRUMENTS FOLDER</b> opens the folder to back up or share. A VST / AU instrument needs its plug-in on the computer that loads it.</p>
   <h3>Sharing songs between your Mac and PC</h3>
   <ul>
     <li><b>File &rarr; Shared Folder&hellip;</b> lists the synced folders on this computer (Dropbox, iCloud Drive, OneDrive, Google Drive) or lets you choose one. Pick the same one on each computer; songs go in <code>Paula's Revenge/Songs</code> inside it.</li>
@@ -1393,7 +1401,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.74</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.75</footer>
 </main>
 </div>
 <script>

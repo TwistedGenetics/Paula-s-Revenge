@@ -11,6 +11,25 @@ namespace prv
 juce::MemoryBlock writeSong (const Song& song);
 bool readSong (const void* data, size_t size, Song& out, juce::String& error);
 
+// ---- instrument files (.prvi, v0.74): one instrument with everything that goes with it - its sample or synth
+// (a VST / AU's state too), EQ, its three inserts, its MACRO knobs, phrases, slices, chords - written as a song
+// that has only that instrument (in slot 01), so it reads with all the song format's care.
+struct InstrumentFile
+{
+    Instrument instrument;
+    FxSlot fx[kInserts];
+    InstMacro macros[kInstMacros];
+};
+juce::MemoryBlock writeInstrument (const Song& song, int index);
+bool readInstrument (const void* data, size_t size, InstrumentFile& out, juce::String& error);
+bool saveInstrumentFile (const Song& song, int index, const juce::File& file, juce::String& error);
+bool loadInstrumentFile (const juce::File& file, InstrumentFile& out, juce::String& error);
+void placeInstrument (Song& song, int index, InstrumentFile&& in);   // (into a slot: its own references follow it)
+// MY INSTRUMENTS: Documents/Paula's Revenge/Instruments (made when first used); tests can point it elsewhere
+juce::File instrumentFolder();
+void setInstrumentFolder (const juce::File&);
+constexpr const char* kInstrumentExt = ".prvi";
+
 // Load a song from disk: .prv, .mod, MED (MMD0/MMD1). Warnings go into `notes`.
 bool loadSongFile (const juce::File& file, Song& out, juce::String& error, juce::StringArray& notes);
 

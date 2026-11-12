@@ -218,6 +218,11 @@ public:
     std::function<void()> openEqFx;    // EQ/FX: the instrument's own EQ and effects
     bool keyPressed (const juce::KeyPress&) override;   // Delete / Backspace: clear the instrument; up / down: the next one
     void clearInstrument();            // (the right-click's CLEAR, the Delete key; tests)
+    // MY INSTRUMENTS (v0.74): an instrument saved whole to a file (.prvi) in the instruments folder, and back
+    bool saveInstrument (int instrument, const juce::String& name);   // (the name prompt's answer; tests)
+    bool loadInstrument (int instrument, const juce::File&);
+    void showLoadInstrument (int instrument);                          // the folder's instruments, a menu
+    static juce::String fileNameFor (const juce::String& name);       // "REESE HIT" -> "REESE HIT.prvi" (safe for files)
 
 private:
     PaulaProcessor& proc;

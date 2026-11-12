@@ -74,6 +74,7 @@ private:
         std::shared_ptr<Structure> structure;
         std::shared_ptr<prv::Instrument> inst;
         std::shared_ptr<std::array<prv::FxSlot, prv::kInserts>> instFx;   // (the instrument's own inserts go with it)
+        std::shared_ptr<std::array<prv::InstMacro, prv::kInstMacros>> instMacro;   // (and its MACRO knobs: v0.74)
         std::shared_ptr<Settings> settings;
         std::shared_ptr<prv::MixerSettings> mix;
         size_t bytes = 0;

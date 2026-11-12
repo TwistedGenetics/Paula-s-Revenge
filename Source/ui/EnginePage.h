@@ -52,6 +52,13 @@ private:
     struct Box { juce::String title; std::vector<int> rowIndex; juce::Rectangle<float> area; int page = 0; };
     std::vector<Box> boxes;
     PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, optionsBtn { "OUTPUT & KNOBS..." }, closeBtn { "CLOSE" };
+  public:
+    // PRESETS (v0.74): the synth's own and yours (kept on this computer, for any song)
+    PixButton presetsBtn { "PRESETS..." };
+    void showPresets();
+    void savePreset (const juce::String& name);          // (the prompt's answer; also tests)
+    void loadPreset (const std::string& name, const std::vector<float>& values);
+  private:
     juce::Rectangle<float> titleArea;
     std::map<int, int> heldKeys;
     // GRANULAR: the sound its grains come from, where it's reading, how many grains are playing

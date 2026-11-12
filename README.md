@@ -66,7 +66,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -294,6 +294,14 @@ The window's title shows the song, a `*` for unsaved changes, and the block you'
 v0.6 also fixes LOAD for `.prv` songs: earlier versions mistook a saved song for an old SoundTracker module and loaded rubbish. Songs inside Live sets were never affected, and old `.prv` files load correctly now.
 
 Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
+
+## Saving instruments (MY INSTRUMENTS)
+
+An instrument can be kept on its own, to bring into any song:
+
+* Right-click it → **SAVE INSTRUMENT...**, and give it a name. It's saved whole, as a `.prvi` file in your instruments folder (**Documents / Paula's Revenge / Instruments**): its sample or its synth (a built-in synth's settings, a VST / AU's own state), loop, slices, phrases, chords, its EQ, its three insert effects and its MACRO knobs. A name you've used before replaces that one.
+* Right-click any slot → **LOAD INSTRUMENT...** lists the instruments you've saved, by name; pick one and it goes into that slot (one undo step). **ANOTHER FILE...** opens one from anywhere else (one a friend sent you, say), and **SHOW THE INSTRUMENTS FOLDER** opens the folder, to back it up or share it.
+* A VST / AU instrument needs that plug-in on the computer that loads it. A GRANULAR that plays its own sample keeps playing it in its new slot.
 
 ## Sharing songs between computers (Mac and PC)
 
@@ -773,6 +781,8 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 ## Built-in synths: SUB, REESE, RAVE and GRANULAR
 
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+
 ### SUB
 
 **SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → the **SYNTHS** tab (or right-click the instrument → **LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...**) and pick SUB. The instrument becomes SUB and its page opens; **EDIT** opens the page again later.
@@ -836,7 +846,7 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 **GRANULAR** plays a sound as a cloud of tiny overlapping pieces ("grains"), so it can hold one moment of a sound for ever, smear it into a pad, stretch it, or scatter it into glitter. Load it like SUB (LOAD → **SYNTHS** → GRANULAR). Notes play it at their pitch (`C-3` plays the sound at its own pitch), up to 6 at once.
 
-* **SOURCE** — what the grains are cut from. **TABLE**: one of 8 built-in sounds that change from start to end (**SINE**, **SAW** dark to bright, **SQUARE** to thin pulse, **VOCAL** through the vowels A E I O U, **BELL** ringing away, **GLASS**, **NOISE** dark to bright, **CHOIR**). **SAMPLE**: a sample of its own — press **LOAD SAMPLE...** (under the SOURCE box) and pick one in the sample browser just as you load any sample (or press LOAD on the instruments panel → SAMPLES with GRANULAR picked); it stays GRANULAR, takes its grains from that sample and keeps it in the song — or any other instrument's sample: set **SAMPLE** to its number. **RECORDING**: the audio input, live — it keeps the last 8 seconds of what comes in (set the input in the audio settings, as for SAMPLE recording).
+* **SOURCE** — what the grains are cut from. **TABLE**: one of 8 built-in sounds that change from start to end (**SINE**, **SAW** dark to bright, **SQUARE** to thin pulse, **VOCAL** through the vowels A E I O U, **BELL** ringing away, **GLASS**, **NOISE** dark to bright, **CHOIR**). **SAMPLE**: a sample of its own — press **LOAD SAMPLE...** (under the SOURCE box) and pick one in the sample browser just as you load any sample (or press LOAD on the instruments panel → SAMPLES with GRANULAR picked); it stays GRANULAR, takes its grains from that sample and keeps it in the song — or any other instrument's sample: set **SAMPLE** to its number. (Only what the SOURCE uses is shown: the table's name for TABLE, the SAMPLE number for SAMPLE.) **RECORDING**: the audio input, live — it keeps the last 8 seconds of what comes in (set the input in the audio settings, as for SAMPLE recording).
 * Across the top, next to the SOURCE box, is the sound itself, with a line at **POSITION** and a thin line where the grains are reading now. **Click or drag on it** to set POSITION. Under it, two tabs show the rest of the controls: **GRAINS** (GRAINS, PITCH, ENVELOPE, OUTPUT) and **LFOS + FILTER** (LFO 1, LFO 2, ENV MOD, FILTER).
 * **GRAINS**: **POSITION** — where in the sound they come from. **SCAN** — moves the position on as the note plays (100% = at the sound's own speed, so it plays through it; less stretches it; minus goes backwards). **SIZE** — how long each grain is. **DENSITY** — how many grains a second. **SPRAY** — scatters where (and when) each grain starts. **FREEZE** — holds the position where it is (and, on RECORDING, stops taking in new sound, so you can play what was caught).
 * **PITCH**: **PITCH** (semitones), **SPREAD** (each grain a random amount out of tune — shimmer and clusters), **REVERSE** (how many grains play backwards), **STEREO** (how far apart left and right the grains are spread).

@@ -7,6 +7,7 @@
 #include "engine/CvOut.h"
 #include "engine/Groove.h"
 #include "engine/GearMaps.h"
+#include "engine/BuiltinSynths.h"
 
 namespace prv
 {
@@ -515,6 +516,81 @@ juce::MemoryBlock writeSong (const Song& songIn)
         gz.flush();
     }
     return packed.getMemoryBlock();
+}
+
+// ---- instrument files
+namespace
+{
+    juce::File& instrumentFolderOverride() { static juce::File f; return f; }
+    // (GRANULAR playing its own sample: SAMPLE is its own number, which changes with the slot)
+    void moveOwnSampleSlot (Instrument& in, int from, int to)
+    {
+        if (in.pluginKey != kGrainKey) return;
+        auto v = readBuiltinState (in);
+        if ((int) v.size() > grain::SampleSlot && (int) std::lround (v[(size_t) grain::SampleSlot]) == from + 1)
+        { v[(size_t) grain::SampleSlot] = (float) (to + 1); writeBuiltinState (in, v); }
+    }
+}
+
+juce::File instrumentFolder()
+{
+    if (instrumentFolderOverride() != juce::File()) return instrumentFolderOverride();
+    return juce::File::getSpecialLocation (juce::File::userDocumentsDirectory).getChildFile ("Paula's Revenge").getChildFile ("Instruments");
+}
+void setInstrumentFolder (const juce::File& f) { instrumentFolderOverride() = f; }
+
+juce::MemoryBlock writeInstrument (const Song& song, int index)
+{
+    Song t;
+    index = juce::jlimit (0, kMaxInstruments - 1, index);
+    t.name = "INSTRUMENT";
+    t.instruments[0] = song.instruments[(size_t) index];
+    moveOwnSampleSlot (t.instruments[0], index, 0);
+    if (index < kMixInstruments)
+    {
+        for (int k = 0; k < kInserts; ++k) t.mixer.inst[0][k] = song.mixer.inst[index][k];
+        for (int k = 0; k < kInstMacros; ++k) t.mixer.instMacro[0][k] = song.mixer.instMacro[index][k];
+    }
+    return writeSong (t);
+}
+
+bool readInstrument (const void* data, size_t size, InstrumentFile& out, juce::String& error)
+{
+    Song t;
+    if (! readSong (data, size, t, error)) return false;
+    const auto& in = t.instruments[0];
+    if (! in.hasData() && ! in.isPlugin() && in.name.empty()) { error = "THERE'S NO INSTRUMENT IN IT"; return false; }
+    out.instrument = in;
+    for (int k = 0; k < kInserts; ++k) out.fx[k] = t.mixer.inst[0][k];
+    for (int k = 0; k < kInstMacros; ++k) out.macros[k] = t.mixer.instMacro[0][k];
+    return true;
+}
+
+bool saveInstrumentFile (const Song& song, int index, const juce::File& file, juce::String& error)
+{
+    const auto mb = writeInstrument (song, index);
+    file.getParentDirectory().createDirectory();
+    if (! file.replaceWithData (mb.getData(), mb.getSize())) { error = "COULDN'T WRITE " + file.getFileName().toUpperCase(); return false; }
+    return true;
+}
+
+bool loadInstrumentFile (const juce::File& file, InstrumentFile& out, juce::String& error)
+{
+    juce::MemoryBlock mb;
+    if (! file.loadFileAsData (mb)) { error = "COULDN'T READ " + file.getFileName().toUpperCase(); return false; }
+    return readInstrument (mb.getData(), mb.getSize(), out, error);
+}
+
+void placeInstrument (Song& song, int index, InstrumentFile&& f)
+{
+    if (index < 0 || index >= kMaxInstruments) return;
+    moveOwnSampleSlot (f.instrument, 0, index);
+    song.instruments[(size_t) index] = std::move (f.instrument);
+    if (index < kMixInstruments)
+    {
+        for (int k = 0; k < kInserts; ++k) song.mixer.inst[index][k] = f.fx[k];
+        for (int k = 0; k < kInstMacros; ++k) song.mixer.instMacro[index][k] = f.macros[k];
+    }
 }
 
 bool readSong (const void* data, size_t size, Song& out, juce::String& error)
