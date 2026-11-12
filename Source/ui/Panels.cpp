@@ -388,7 +388,7 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
                 { "COMBINE INTO ONE BLOCK", act ([] (SequencePanel& s) { s.combineSelection(); }) },
                 { proc.editorState.selectionLoop ? "LOOP SELECTION: OFF" : "LOOP SELECTION", act ([] (SequencePanel& s) { s.setLoopSelection (! s.proc.editorState.selectionLoop); }) },
                 { "SECTION NAME...", act ([r] (SequencePanel& s) { s.list.onTagClick (r); }) },
-                { "BLOCK NAME...", act ([r] (SequencePanel& s) { s.nameBlockAt (r); }) },
+                { "BLOCK NAME... (CMD+R)", act ([r] (SequencePanel& s) { s.nameBlockAt (r); }) },
             });
             return;
         }
@@ -429,7 +429,12 @@ SequencePanel::SequencePanel (PaulaProcessor& p, std::function<void()> c) : proc
         if (r < 0 || r >= (int) proc.song.sequence.size()) return juce::String();
         return juce::String (proc.song.sequence[(size_t) r]).paddedLeft ('0', 3);
     };
-    list.onDoubleClick = [this] (int r) { nameBlockAt (r); };
+    // (v0.79) a double-click goes to that block - its pattern; BLOCK NAME... is the right-click's, or Cmd+R
+    list.onDoubleClick = [this] (int r)
+    {
+        selectPosition (r);
+        if (openBlock) openBlock();
+    };
     list.onTagClick = [this] (int r)
     {
         juce::Component::SafePointer<SequencePanel> safe (this);
@@ -540,6 +545,7 @@ bool SequencePanel::keyPressed (const juce::KeyPress& k)
         if (ch == 'v') { ops.paste(); return true; }
         if (ch == 'd') { ops.duplicate(); return true; }
         if (ch == 'a') { ops.select (0, (int) proc.song.sequence.size() - 1); changed(); return true; }
+        if (ch == 'r') { nameBlockAt (proc.editorState.seqPos); return true; }   // (v0.79) Cmd+R: BLOCK NAME...
     }
     if (! m.isAnyModifierKeyDown() && (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey)) { ops.remove(); return true; }
     // anything else (notes, space, undo ...) goes on to the pattern, which gets the keyboard back
@@ -1085,10 +1091,16 @@ InstrumentPanel::InstrumentPanel (PaulaProcessor& p, std::function<void()> c, st
         if (e.mods.isAltDown()) proc.withLock ([&] { proc.player.jamNoteOn (37, r); });
         changed();
     };
-    list.onDoubleClick = [this] (int) { nameBtn.triggerClick(); };
+    // (v0.79) a double-click opens it - its EDIT page (an empty one: LOAD's kinds); RENAME is the right-click's, or Cmd+R
+    list.onDoubleClick = [this] (int)
+    {
+        const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+        if (! in.hasData() && ! in.isPlugin()) loadBtn.onClick();
+        else editBtn.onClick();
+    };
     addAndMakeVisible (list);
 
-    loadBtn.onClick = [this] { if (openBrowser) openBrowser(); else loadSample(); };
+    loadBtn.onClick = [this] { if (openLoadMenu) openLoadMenu(); else if (openBrowser) openBrowser(); else loadSample(); };
     editBtn.onClick = [this] { if (openSampleEditor) openSampleEditor(); };
     paramsBtn.onClick = [this] { if (openParams) openParams(); };
     fxBtn.onClick = [this] { if (openEqFx) openEqFx(); };
@@ -1118,6 +1130,12 @@ void InstrumentPanel::clearInstrument()
 bool InstrumentPanel::keyPressed (const juce::KeyPress& k)
 {
     const int code = k.getKeyCode();
+    // (v0.79) Cmd+R: RENAME the instrument
+    if (k.getModifiers().isCommandDown() && ! k.getModifiers().isShiftDown() && juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) code) == 'r')
+    {
+        nameBtn.onClick();
+        return true;
+    }
     if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown() || k.getModifiers().isAltDown()) return false;
     auto& st = proc.editorState;
     if (code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey)
@@ -1398,7 +1416,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
                 safe->status ("NO FREE INSTRUMENT SLOT");
             } },
         { "CLEAR", [safe] { if (safe != nullptr) safe->clearBtn.onClick(); } },
-        { "RENAME...", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
+        { "RENAME... (CMD+R)", [safe] { if (safe != nullptr) safe->nameBtn.onClick(); } },
         { "SAVE INSTRUMENT...", [safe, r]
             {
                 if (safe == nullptr) return;
@@ -1414,7 +1432,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
                 }), true);
             } },
         { "LOAD INSTRUMENT...", [safe, r] { if (safe != nullptr) safe->showLoadInstrument (r); } },
-        { "LOAD SAMPLE...", [safe] { if (safe != nullptr) safe->loadBtn.onClick(); } },
+        { "LOAD SAMPLE...", [safe] { if (safe != nullptr) { if (safe->openBrowser) safe->openBrowser(); else safe->loadSample(); } } },
         { "LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
         { "LOAD A VST / AU SYNTH...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (1); } } },
         { "MIDI OUT TO HARDWARE...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (2); } } },

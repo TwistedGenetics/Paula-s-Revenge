@@ -8,6 +8,7 @@
 
 #include "PluginSynth.h"
 #include "RomBank.h"
+#include "MorphFilter.h"
 #include <array>
 #include <memory>
 #include <vector>
@@ -21,7 +22,12 @@ namespace rom
 {
     enum P { Level1, Pan1, Tune1, Fine1, Level2, Pan2, Tune2, Fine2, Level3, Pan3, Tune3, Fine3, Level4, Pan4, Tune4, Fine4,
              Chord, Octave, Vibrato, VibRate, Cutoff, Resonance, EnvAmount, FilterDecay,
-             Attack, Decay, Sustain, Release, Chorus, Echo, EchoTime, VelSens, Level, Count };
+             Attack, Decay, Sustain, Release, Chorus, Echo, EchoTime, VelSens, Level,
+             // (v0.79) the MORPH FILTER in place of the low-pass: its MODEL, where it sits, moved by the filter
+             // envelope, an LFO and how hard the note is played; FREQ and KEY TRACK move the whole shape
+             FilterType, MorphModel, Morph, MorphEnv, MorphLfo, MorphRate, MorphVel, MorphFreq, MorphKey, Emphasis,
+             Count };
+    enum FilterKind { LowPass = 0, MorphKind };
     constexpr int kPerTone = 4;   // (LEVEL, PAN, TUNE, FINE)
 }
 const std::vector<SynthParam>& romParams();
@@ -42,6 +48,7 @@ public:
     void setValues (const std::vector<float>& v);      // (tests)
     void setBank (std::shared_ptr<const RomBank> b);   // (tests; update() does it from the instrument)
     int  voicesPlaying() const;                        // (tests)
+    float morphOf (int voice) const;                   // (tests: where a voice's MORPH is)
 
 private:
     struct Event { int offset; int type; int note; int vel; };
@@ -65,10 +72,13 @@ private:
         int   upd = 0, order = 0;
         float fade = 1; bool fading = false;
         double vibPh = 0;
+        MorphFilter morphL, morphR;   // (FILTER: MORPH)
+        float morphNow = 0;
     };
     static constexpr int kVoices = 16;
     Voice voices[kVoices];
     float bend = 0; int bendRange = 2;
+    double morphLfoPh = 0;
     int orderCount = 0;
     std::vector<float> chBuf[2]; int chPos = 0; double chPh = 0;
     std::vector<float> echoBuf[2]; int echoPos = 0; float echoLp[2] {};

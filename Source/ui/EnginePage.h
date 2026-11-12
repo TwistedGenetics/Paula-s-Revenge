@@ -14,6 +14,7 @@
 
 namespace prv::ui
 {
+class PixList;
 class EnginePage : public juce::Component
 {
 public:
@@ -63,8 +64,22 @@ private:
     void loadPreset (const std::string& name, const std::vector<float>& values);
     // ROM (v0.77): each TONE's samples - from the ROM FOLDER (by category and name), or WAV files picked
     PixButton toneBtn[kRomTones] { PixButton ("TONE 1"), PixButton ("TONE 2"), PixButton ("TONE 3"), PixButton ("TONE 4") };
-    void showToneMenu (int tone);
-    bool loadTone (int tone, const juce::Array<juce::File>& wavs, const juce::String& name);   // (also tests)
+    bool loadTone (int tone, const juce::Array<juce::File>& wavs, const juce::String& name, bool undoable = true);   // (also tests)
+    // (v0.79) each TONE's header: ROM (its sound from the ROM FOLDER, in the browser) and SAMPLE... (WAV files picked)
+    PixButton sampleBtn[kRomTones] { PixButton ("SAMPLE..."), PixButton ("SAMPLE..."), PixButton ("SAMPLE..."), PixButton ("SAMPLE...") };
+    PixButton romFolderBtn { "ROM FOLDER..." };   // (beside ROM's page tabs: where its sounds are)
+    void showRomFolderMenu();
+    void pickWavs (int tone);
+    // the ROM browser (v0.79): the folder's CATEGORIES and their SOUNDS in two scrolling lists - every one of them, a
+    // click (or up / down) loads a sound into the tone so the keys play it; KEEP, or CANCEL to put the old one back
+    void openRomBrowser (int tone);
+    void closeRomBrowser (bool keep);
+    bool romBrowserOpen() const { return browsingTone >= 0; }
+    void romPickCategory (int c);
+    void romPickSound (int s);
+    int  romCategoryCount() const { return (int) romCatNames.size(); }
+    int  romSoundCount() const { return (int) romSoundsNow.size(); }
+    PixList* romSoundList() { return romSounds.get(); }
     void emptyTone (int tone);
     static juce::File romFolder();
     static void setRomFolder (const juce::File&);
@@ -72,6 +87,14 @@ private:
     using RomLibrary = std::map<juce::String, std::map<juce::String, juce::Array<juce::File>>>;
     static const RomLibrary& romLibrary (bool rescan = false);
   private:
+    int browsingTone = -1, romCat = 0, romSound = -1;
+    bool browseRecorded = false;
+    std::shared_ptr<const RomBank> browseBefore;
+    std::vector<juce::String> romCatNames;
+    std::vector<std::pair<juce::String, juce::Array<juce::File>>> romSoundsNow;
+    std::unique_ptr<PixList> romCats, romSounds;
+    PixButton romKeepBtn { "KEEP" }, romCancelBtn { "CANCEL" }, romEmptyBtn { "EMPTY TONE" }, romAgainBtn { "LOOK AGAIN" };
+    juce::Rectangle<float> romHeadArea;
     juce::Rectangle<float> titleArea;
     std::map<int, int> heldKeys;
     // GRANULAR: the sound its grains come from, where it's reading, how many grains are playing
@@ -80,7 +103,7 @@ private:
     PixButton loadSampleBtn { "LOAD SAMPLE..." };
     std::unique_ptr<juce::FileChooser> chooser;
     void updateToneButtons();
-    PixButton pageBtn[2] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true) };
+    PixButton pageBtn[3] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true), PixButton ("MORPH", true) };   // (the third: ROM's MORPH FILTER, page 3)
     int pageShown = 0;
     bool subPages = false, relayout = false;   // (SUB: on two pages only when it doesn't all fit - BEAT's rows on)
   public:

@@ -1,5 +1,6 @@
 // Paula's Revenge - a built-in synth's page
 #include "EnginePage.h"
+#include "Panels.h"
 #include <limits>
 #include "ChoiceBox.h"
 #include "SynthPresets.h"
@@ -38,15 +39,54 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     addChildComponent (loadSampleBtn);
     for (int t = 0; t < kRomTones; ++t)
     {
-        toneBtn[t].onClick = [this, t] { showToneMenu (t); };
+        toneBtn[t].onClick = [this, t] { openRomBrowser (t); };
+        sampleBtn[t].onClick = [this, t] { pickWavs (t); };
         addChildComponent (toneBtn[t]);
+        addChildComponent (sampleBtn[t]);
     }
-    for (int k = 0; k < 2; ++k)
+    for (int k = 0; k < 3; ++k)
     {
         pageBtn[k].setClickingTogglesState (false);
-        pageBtn[k].onClick = [this, k] { showPage (k); };
+        pageBtn[k].onClick = [this, k] { closeRomBrowser (true); showPage (k == 2 ? 3 : k); };
         addChildComponent (pageBtn[k]);
     }
+    romFolderBtn.onClick = [this] { showRomFolderMenu(); };
+    addChildComponent (romFolderBtn);
+    // the ROM browser: categories, then the sounds in the one picked
+    romCats = std::make_unique<PixList>();
+    romSounds = std::make_unique<PixList>();
+    romCats->getNumRows = [this] { return (int) romCatNames.size(); };
+    romCats->getRowText = [this] (int r)
+    {
+        if (r < 0 || r >= (int) romCatNames.size()) return juce::String();
+        const auto& lib = romLibrary();
+        const auto it = lib.find (romCatNames[(size_t) r]);
+        return romCatNames[(size_t) r] + " (" + juce::String (it == lib.end() ? 0 : (int) it->second.size()) + ")";
+    };
+    romCats->onClick = [this] (int r, const juce::MouseEvent&) { romPickCategory (r); };
+    romSounds->getNumRows = [this] { return (int) romSoundsNow.size(); };
+    romSounds->getRowText = [this] (int r)
+    {
+        if (r < 0 || r >= (int) romSoundsNow.size()) return juce::String();
+        const auto& s = romSoundsNow[(size_t) r];
+        return s.first + (s.second.size() > 1 ? " (" + juce::String (s.second.size()) + ")" : juce::String());
+    };
+    romSounds->onClick = [this] (int r, const juce::MouseEvent&) { romPickSound (r); };
+    romSounds->onDoubleClick = [this] (int r) { romPickSound (r); closeRomBrowser (true); };
+    romKeepBtn.onClick = [this] { closeRomBrowser (true); };
+    romCancelBtn.onClick = [this] { closeRomBrowser (false); };
+    romEmptyBtn.onClick = [this] { const int t = browsingTone; closeRomBrowser (true); emptyTone (t); };
+    romAgainBtn.onClick = [this]
+    {
+        romLibrary (true);
+        const int t = browsingTone;
+        browsingTone = -1;
+        openRomBrowser (t);
+        if (onStatus) onStatus ("ROM FOLDER LOOKED THROUGH AGAIN");
+    };
+    for (juce::Component* c : { (juce::Component*) romCats.get(), (juce::Component*) romSounds.get(), (juce::Component*) &romKeepBtn,
+                                (juce::Component*) &romCancelBtn, (juce::Component*) &romEmptyBtn, (juce::Component*) &romAgainBtn })
+        addChildComponent (c);
 }
 
 EnginePage::~EnginePage()
@@ -126,12 +166,13 @@ void EnginePage::updateToneButtons()
     for (int t = 0; t < kRomTones; ++t)
     {
         const int n = rb != nullptr ? rb->zonesOf (t) : 0;
-        toneBtn[t].setButtonText (n == 0 ? juce::String ("EMPTY - LOAD...")
-                                         : juce::String (rb->toneName[(size_t) t]).toUpperCase().substring (0, 14) + " (" + juce::String (n) + ")...");
+        // (v0.79: ROM... - a sound from the folder, the browser; the tone's sound is named in its box's title)
+        juce::ignoreUnused (n);
+        toneBtn[t].setButtonText ("ROM...");
     }
 }
 
-bool EnginePage::loadTone (int t, const juce::Array<juce::File>& wavs, const juce::String& name)
+bool EnginePage::loadTone (int t, const juce::Array<juce::File>& wavs, const juce::String& name, bool undoable)
 {
     if (t < 0 || t >= kRomTones || inst().pluginKey != kRomKey) return false;
     std::vector<RomZone> zones;
@@ -149,7 +190,7 @@ bool EnginePage::loadTone (int t, const juce::Array<juce::File>& wavs, const juc
     const int count = (int) zones.size();
     int looped = 0;
     for (const auto& z : zones) looped += z.loops() ? 1 : 0;
-    proc.history.instrument (proc.editorState.instrument, "ROM TONE " + juce::String (t + 1) + ": " + name);
+    if (undoable) proc.history.instrument (proc.editorState.instrument, "ROM TONE " + juce::String (t + 1) + ": " + name);
     proc.withLock ([&] { inst().rom = romWithTone (inst().rom, t, std::move (zones), name.toUpperCase().toStdString()); });
     resized();
     if (onStatus) onStatus ("TONE " + juce::String (t + 1) + ": " + name.toUpperCase() + " - " + juce::String (count) + (count == 1 ? " SAMPLE" : " SAMPLES")
@@ -168,63 +209,136 @@ void EnginePage::emptyTone (int t)
     if (onChanged) onChanged();
 }
 
-void EnginePage::showToneMenu (int t)
+// ROM's SAMPLE...: one sound's WAV files, picked
+void EnginePage::pickWavs (int t)
 {
     juce::Component::SafePointer<EnginePage> safe (this);
-    std::vector<MenuItem> items;
+    closeRomBrowser (true);
+    chooser = std::make_unique<juce::FileChooser> ("TONE " + juce::String (t + 1) + ": pick one sound's WAV files (its multisamples)", romFolder().isDirectory() ? romFolder() : juce::File(), "*.wav");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                          [safe, t] (const juce::FileChooser& fc)
+    {
+        const auto res = fc.getResults();
+        if (safe != nullptr && ! res.isEmpty())
+            safe->loadTone (t, res, juce::String (romGroupOf (res[0].getFileNameWithoutExtension().toStdString())));
+    });
+}
+
+// ROM FOLDER... (beside the page tabs): set it, look through it again
+void EnginePage::showRomFolderMenu()
+{
+    juce::Component::SafePointer<EnginePage> safe (this);
     const auto dir = romFolder();
-    const auto& lib = romLibrary();
-    // the ROM FOLDER's categories: each opens its sounds
-    for (const auto& [cat, groups] : lib)
-    {
-        int files = 0;
-        for (const auto& g : groups) files += g.second.size();
-        const juce::String catName = cat;
-        items.push_back ({ catName + " (" + juce::String ((int) groups.size()) + " SOUNDS)...", [safe, t, catName]
-        {
-            if (safe == nullptr) return;
-            const auto& l = romLibrary();
-            const auto it = l.find (catName);
-            if (it == l.end()) return;
-            std::vector<MenuItem> sounds;
-            for (const auto& [grp, files] : it->second)
-            {
-                const juce::String g = grp; const auto fs = files;
-                sounds.push_back ({ g + (fs.size() > 1 ? " (" + juce::String (fs.size()) + ")" : juce::String()), [safe, t, g, fs] { if (safe != nullptr) safe->loadTone (t, fs, g); } });
-            }
-            showMenu ("TONE " + juce::String (t + 1) + ": " + catName, std::move (sounds));
-        } });
-        juce::ignoreUnused (files);
-    }
-    items.push_back ({ "LOAD WAV FILES (ONE SOUND'S SAMPLES)...", [safe, t]
-    {
-        if (safe == nullptr) return;
-        safe->chooser = std::make_unique<juce::FileChooser> ("Pick one sound's WAV files", romFolder().isDirectory() ? romFolder() : juce::File(), "*.wav");
-        safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
-                                    [safe, t] (const juce::FileChooser& fc)
-        {
-            const auto res = fc.getResults();
-            if (safe != nullptr && ! res.isEmpty())
-                safe->loadTone (t, res, juce::String (romGroupOf (res[0].getFileNameWithoutExtension().toStdString())));
-        });
-    } });
-    items.push_back ({ dir.isDirectory() ? "THE ROM FOLDER: " + dir.getFileName().toUpperCase() + " (CHANGE...)" : juce::String ("SET THE ROM FOLDER (YOUR SAMPLES)..."), [safe]
+    std::vector<MenuItem> items;
+    items.push_back ({ dir.isDirectory() ? "CHANGE THE ROM FOLDER..." : "SET THE ROM FOLDER (YOUR SAMPLES)...", [safe]
     {
         if (safe == nullptr) return;
         safe->chooser = std::make_unique<juce::FileChooser> ("Your samples' folder (ROM lists its WAVs by category and name)", romFolder());
         safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe] (const juce::FileChooser& fc)
         {
-            if (fc.getResult().isDirectory())
-            {
-                setRomFolder (fc.getResult());
-                int n = 0; for (const auto& c : romLibrary()) n += (int) c.second.size();
-                if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER: " + fc.getResult().getFileName().toUpperCase() + " - " + juce::String (n) + " SOUNDS IN " + juce::String ((int) romLibrary().size()) + " CATEGORIES");
-            }
+            if (! fc.getResult().isDirectory()) return;
+            setRomFolder (fc.getResult());
+            int n = 0; for (const auto& c : romLibrary()) n += (int) c.second.size();
+            if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER: " + fc.getResult().getFileName().toUpperCase() + " - " + juce::String (n) + " SOUNDS IN " + juce::String ((int) romLibrary().size()) + " CATEGORIES");
+            if (safe != nullptr && safe->romBrowserOpen()) { const int t = safe->browsingTone; safe->browsingTone = -1; safe->openRomBrowser (t); }
         });
     } });
-    if (dir.isDirectory()) items.push_back ({ "LOOK THROUGH THE ROM FOLDER AGAIN", [safe] { romLibrary (true); if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER LOOKED THROUGH AGAIN"); } });
-    if (inst().rom != nullptr && inst().rom->zonesOf (t) > 0) items.push_back ({ "EMPTY THIS TONE", [safe, t] { if (safe != nullptr) safe->emptyTone (t); } });
-    showMenu ("TONE " + juce::String (t + 1) + (lib.empty() ? juce::String (dir.isDirectory() ? ": NO WAVS IN THE ROM FOLDER" : ": SET THE ROM FOLDER TO PICK BY NAME") : juce::String (": WHICH SOUND?")), std::move (items));
+    if (dir.isDirectory())
+        items.push_back ({ "LOOK THROUGH IT AGAIN (NEW FILES)", [safe] { romLibrary (true); if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER LOOKED THROUGH AGAIN"); } });
+    int n = 0; for (const auto& c : romLibrary()) n += (int) c.second.size();
+    showMenu (dir.isDirectory() ? "ROM FOLDER: " + dir.getFileName().toUpperCase() + " (" + juce::String (n) + " SOUNDS)" : juce::String ("NO ROM FOLDER YET"), std::move (items));
+}
+
+// the ROM browser
+void EnginePage::openRomBrowser (int t)
+{
+    if (t < 0 || t >= kRomTones || shownKey != kRomKey) return;
+    if (browsingTone >= 0 && browsingTone != t) closeRomBrowser (true);
+    const bool fresh = browsingTone < 0;
+    browsingTone = t;
+    if (fresh) { browseBefore = inst().rom; browseRecorded = false; }
+    const auto& lib = romLibrary();
+    romCatNames.clear();
+    for (const auto& kv : lib) romCatNames.push_back (kv.first);
+    if (romCatNames.empty())
+    {
+        browsingTone = -1;
+        if (! romFolder().isDirectory()) { if (onStatus) onStatus ("ROM: SET THE ROM FOLDER FIRST (ROM FOLDER... AT THE TOP) - OR SAMPLE... FOR WAV FILES"); showRomFolderMenu(); }
+        else if (onStatus) onStatus ("ROM: NO WAVS IN THE ROM FOLDER - SAMPLE... PICKS WAV FILES");
+        return;
+    }
+    // start where the tone's sound is (its category and name), else the first
+    int cat = 0, snd = -1;
+    const juce::String now = inst().rom != nullptr ? juce::String (inst().rom->toneName[(size_t) t]).toUpperCase() : juce::String();
+    for (int c = 0; c < (int) romCatNames.size() && snd < 0; ++c)
+    {
+        int k = 0;
+        for (const auto& g : lib.at (romCatNames[(size_t) c]))
+        {
+            if (now.isNotEmpty() && g.first.toUpperCase() == now) { cat = c; snd = k; break; }
+            ++k;
+        }
+    }
+    romCat = -1;
+    romPickCategory (cat);
+    romSound = snd;
+    romSounds->selected = snd;
+    if (snd >= 0) romSounds->ensureVisible (snd);
+    resized();
+    repaint();
+    if (onStatus) onStatus ("TONE " + juce::String (t + 1) + ": CLICK A SOUND, PLAY THE KEYS TO HEAR IT - UP / DOWN: THE NEXT ONE, LEFT / RIGHT: CATEGORY, ENTER: KEEP, ESC: CANCEL");
+}
+
+void EnginePage::romPickCategory (int c)
+{
+    if (romCatNames.empty()) return;
+    c = juce::jlimit (0, (int) romCatNames.size() - 1, c);
+    if (c == romCat) return;
+    romCat = c;
+    romCats->selected = c;
+    romCats->ensureVisible (c);
+    romSoundsNow.clear();
+    const auto& lib = romLibrary();
+    const auto it = lib.find (romCatNames[(size_t) c]);
+    if (it != lib.end()) for (const auto& g : it->second) romSoundsNow.push_back ({ g.first, g.second });
+    romSound = -1;
+    romSounds->selected = -1;
+    romSounds->scrollBy (-100000);
+    romCats->repaint(); romSounds->repaint();
+}
+
+void EnginePage::romPickSound (int s)
+{
+    if (browsingTone < 0 || romSoundsNow.empty()) return;
+    s = juce::jlimit (0, (int) romSoundsNow.size() - 1, s);
+    romSound = s;
+    romSounds->selected = s;
+    romSounds->ensureVisible (s);
+    const auto& snd = romSoundsNow[(size_t) s];
+    // (one undo for the whole browse: the first sound tried)
+    if (loadTone (browsingTone, snd.second, snd.first, ! browseRecorded)) browseRecorded = true;
+    romSounds->repaint();
+}
+
+void EnginePage::closeRomBrowser (bool keep)
+{
+    if (browsingTone < 0) return;
+    const int t = browsingTone;
+    browsingTone = -1;
+    if (! keep && browseRecorded)
+    {
+        auto before = browseBefore;
+        proc.withLock ([&] { inst().rom = before; });
+        if (onStatus) onStatus ("TONE " + juce::String (t + 1) + ": AS IT WAS");
+        if (onChanged) onChanged();
+    }
+    browseBefore = nullptr;
+    for (juce::Component* c : { (juce::Component*) romCats.get(), (juce::Component*) romSounds.get(), (juce::Component*) &romKeepBtn,
+                                (juce::Component*) &romCancelBtn, (juce::Component*) &romEmptyBtn, (juce::Component*) &romAgainBtn })
+        c->setVisible (false);
+    romHeadArea = {};
+    resized();
+    repaint();
 }
 
 // ---- presets
@@ -369,9 +483,9 @@ void EnginePage::build()
             const bool second = (grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER"))
                              || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"))
                              || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"))   // (when SUB needs two pages)
-                             || (shownKey == kRomKey && ! sec.startsWith ("TONE "))   // (ROM: its TONES, then the rest)
+                             || (shownKey == kRomKey && ! sec.startsWith ("TONE ") && sec != "MORPH FILTER")   // (ROM: its TONES, then the rest; MORPH FILTER a page of its own)
                              || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"));
-            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
+            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : shownKey == kRomKey && sec == "MORPH FILTER" ? 3 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
         box->rowIndex.push_back ((int) rows.size());
@@ -397,6 +511,7 @@ void EnginePage::sync()
 
 void EnginePage::refresh()
 {
+    if (browsingTone >= 0 && (shownInstrument != proc.editorState.instrument || inst().pluginKey != shownKey)) { browsingTone = -1; browseBefore = nullptr; closeRomBrowser (true); }
     if (inst().pluginKey != shownKey || rows.empty()) { build(); resized(); }
     shownInstrument = proc.editorState.instrument;
     sync();
@@ -410,7 +525,7 @@ void EnginePage::tick()
 
 void EnginePage::showPage (int k)
 {
-    pageShown = juce::jlimit (0, 1, k);
+    pageShown = k == 3 && shownKey == kRomKey ? 3 : juce::jlimit (0, 1, k);   // (3: ROM's MORPH FILTER)
     resized();
     repaint();
 }
@@ -500,6 +615,8 @@ void EnginePage::resized()
     const int title = (int) (px * 11);
     if (! relayout) subPages = false;
     for (auto& tb : toneBtn) tb.setVisible (false);
+    for (auto& sb : sampleBtn) sb.setVisible (false);
+    romFolderBtn.setVisible (false);
     updateToneButtons();
     auto r = getLocalBounds().reduced (gap);
     auto top = r.removeFromTop (rowH);
@@ -588,8 +705,14 @@ void EnginePage::resized()
         if (shownKey == kRomKey && b.title.startsWith ("TONE "))
         {
             const int t = juce::jlimit (0, kRomTones - 1, b.title.getTrailingIntValue() - 1);
-            toneBtn[t].setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap);
+            // (v0.79) two ways to fill it: ROM... (the folder's sounds) and SAMPLE... (WAV files), side by side
+            auto head = in.removeFromTop (rowH); in.removeFromTop (gap);
+            const int half = (head.getWidth() - gap) / 2;
+            sampleBtn[t].setButtonText (half >= charsW (9) ? "SAMPLE..." : "WAV...");
+            toneBtn[t].setBounds (head.removeFromLeft (half)); head.removeFromLeft (gap);
+            sampleBtn[t].setBounds (head);
             toneBtn[t].setVisible (true);
+            sampleBtn[t].setVisible (true);
         }
         for (int ri : b.rowIndex)
         {
@@ -638,6 +761,7 @@ void EnginePage::resized()
     waveArea = {};
     const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged);
+    pageBtn[2].setVisible (paged && shownKey == kRomKey);
     loadSampleBtn.setVisible (shownKey == kGrainKey);
     if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages))
     {
@@ -646,9 +770,27 @@ void EnginePage::resized()
         pageBtn[0].setButtonText (romP ? "TONES" : mp ? "MORPH" : "SOUND");
         pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : mp ? "AMP + SPACE" : "HOOVER + FILTER");
         auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
-        pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
-        pageBtn[1].setBounds (tabs.removeFromLeft (charsW (sub ? 15 : 17)));
-        for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+        if (romP)
+        {
+            // (v0.79) ROM: TONES, SOUND + FILTER, MORPH - and where its sounds are, ROM FOLDER..., at the right
+            const bool roomy = tabs.getWidth() >= charsW (8) + charsW (17) + charsW (7) + charsW (13) + gap * 6;
+            romFolderBtn.setButtonText (roomy ? "ROM FOLDER..." : "FOLDER...");
+            romFolderBtn.setBounds (tabs.removeFromRight (charsW (romFolderBtn.getButtonText().length()))); tabs.removeFromRight (gap * 3);
+            romFolderBtn.setVisible (true);
+            const bool shortTabs = ! roomy && tabs.getWidth() < charsW (8) + charsW (17) + charsW (7) + gap * 2;
+            pageBtn[1].setButtonText (shortTabs ? "SOUND" : "SOUND + FILTER");
+            pageBtn[2].setButtonText ("MORPH");
+            pageBtn[0].setBounds (tabs.removeFromLeft (charsW (5 + (shortTabs ? 0 : 3)))); tabs.removeFromLeft (gap);
+            pageBtn[1].setBounds (tabs.removeFromLeft (charsW (pageBtn[1].getButtonText().length()))); tabs.removeFromLeft (gap);
+            pageBtn[2].setBounds (tabs.removeFromLeft (charsW (5)));
+            for (int k = 0; k < 3; ++k) pageBtn[k].setToggleState (browsingTone < 0 && pageShown == (k == 2 ? 3 : k), juce::dontSendNotification);
+        }
+        else
+        {
+            pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
+            pageBtn[1].setBounds (tabs.removeFromLeft (charsW (sub ? 15 : 17)));
+            for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+        }
     }
     else if (paged)
     {
@@ -683,6 +825,31 @@ void EnginePage::resized()
         pageBtn[0].setBounds (tabs.removeFromLeft (tw)); tabs.removeFromLeft (gap);
         pageBtn[1].setBounds (tabs);
         for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+    }
+    // (v0.79) the ROM browser: in place of the boxes
+    if (browsingTone >= 0)
+    {
+        for (auto& b : boxes)
+        {
+            b.area = {};
+            for (int ri : b.rowIndex)
+            {
+                auto& rw = rows[(size_t) ri];
+                for (juce::Component* c : { (juce::Component*) rw.slider.get(), (juce::Component*) rw.number.get(), (juce::Component*) rw.cycle.get() }) if (c) c->setVisible (false);
+                for (auto& c : rw.choices) c->setVisible (false);
+            }
+        }
+        for (auto& tb : toneBtn) tb.setVisible (false);
+        for (auto& sb : sampleBtn) sb.setVisible (false);
+        romHeadArea = r.removeFromTop (rowH).toFloat(); r.removeFromTop (gap);
+        auto btns = r.removeFromBottom (rowH); r.removeFromBottom (gap * 2);
+        const int bw = (btns.getWidth() - gap * 3) / 4;
+        for (auto* b : { &romKeepBtn, &romCancelBtn, &romEmptyBtn, &romAgainBtn }) { b->setBounds (btns.removeFromLeft (bw)); btns.removeFromLeft (gap); b->setVisible (true); }
+        const int catW = juce::jlimit (charsW (10), std::max (charsW (10), r.getWidth() / 2), std::max (charsW (16), r.getWidth() * 2 / 5));
+        romCats->setBounds (r.removeFromLeft (catW)); r.removeFromLeft (gap * 3);
+        romSounds->setBounds (r);
+        romCats->setVisible (true); romSounds->setVisible (true);
+        return;
     }
     // the boxes not on the page shown: hidden
     std::vector<Box*> shownBoxes;
@@ -782,7 +949,32 @@ void EnginePage::paint (juce::Graphics& g)
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
-    for (const auto& b : boxes) if (! b.area.isEmpty()) Theme::panelBox (g, b.area, b.title, pal);
+    for (const auto& b : boxes)
+    {
+        if (b.area.isEmpty()) continue;
+        juce::String head = b.title;
+        // (ROM: a TONE's box says what's in it - "TONE 1: WND ACORD (3)", as much as fits)
+        if (shownKey == kRomKey && b.title.startsWith ("TONE "))
+        {
+            const int t = juce::jlimit (0, kRomTones - 1, b.title.getTrailingIntValue() - 1);
+            const auto& rb = inst().rom;
+            const int n = rb != nullptr ? rb->zonesOf (t) : 0;
+            const juce::String nm = n == 0 ? juce::String ("EMPTY") : juce::String (rb->toneName[(size_t) t]).toUpperCase();
+            const float room = b.area.getWidth() - px * 30;
+            for (const auto& c : { b.title + ": " + nm + (n > 0 ? " (" + juce::String (n) + ")" : juce::String()), b.title + ": " + nm, nm })
+                if (PixelFont::textWidth (c, px) <= room) { head = c; break; }
+        }
+        Theme::panelBox (g, b.area, head, pal);
+    }
+    if (browsingTone >= 0 && ! romHeadArea.isEmpty())
+    {
+        // the ROM browser's line: which tone, and what's in it now
+        const auto nm = inst().rom != nullptr ? juce::String (inst().rom->toneName[(size_t) browsingTone]).toUpperCase() : juce::String();
+        const auto t = "TONE " + juce::String (browsingTone + 1);
+        for (const auto& line : { t + ": " + (nm.isEmpty() ? juce::String ("PICK A SOUND") : nm) + " - PLAY THE KEYS TO HEAR IT",
+                                  t + ": " + (nm.isEmpty() ? juce::String ("PICK A SOUND") : nm), t })
+            if (PixelFont::textWidth (line, px) <= romHeadArea.getWidth()) { PixelFont::drawLeft (g, line, romHeadArea, px, pal.ink); break; }
+    }
     if (! waveArea.isEmpty())
     {
         // GRANULAR: the sound, POSITION (and where SCAN has taken it), the grains playing
@@ -827,6 +1019,17 @@ void EnginePage::paint (juce::Graphics& g)
 // play it from the computer keyboard (as the pattern's keys)
 bool EnginePage::keyPressed (const juce::KeyPress& k)
 {
+    if (browsingTone >= 0)
+    {
+        // (the ROM browser: step through the sounds and categories - the note keys still play)
+        const int code = k.getKeyCode();
+        if (code == juce::KeyPress::escapeKey) { closeRomBrowser (false); return true; }
+        if (code == juce::KeyPress::returnKey) { closeRomBrowser (true); return true; }
+        if (code == juce::KeyPress::upKey)     { romPickSound (romSound < 0 ? 0 : romSound - 1); return true; }
+        if (code == juce::KeyPress::downKey)   { romPickSound (romSound < 0 ? 0 : romSound + 1); return true; }
+        if (code == juce::KeyPress::leftKey)   { romPickCategory (romCat - 1); return true; }
+        if (code == juce::KeyPress::rightKey)  { romPickCategory (romCat + 1); return true; }
+    }
     if (k.getKeyCode() == juce::KeyPress::escapeKey) { if (onClose) onClose(); return true; }
     if (k.getModifiers().isCommandDown() || k.getModifiers().isCtrlDown()) return false;
     static const char* lower = "zsxdcvgbhnjm,l.;/";

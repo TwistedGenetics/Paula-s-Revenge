@@ -113,6 +113,10 @@ public:
     LiveFx& liveFx() { return live; }
     // While playing a block: move to block `b` at the same line and tick (no restart). False if not in block play.
     bool switchBlock (int b);
+    // (v0.79) GO TO A BLOCK while playing, in time: block play (or the song) plays to the end of the block playing,
+    // then `b` takes over from its top and loops - nothing restarts. The block already playing: the song stays on it
+    // (block play from here, from the same line); in block play, a block waiting is called off. False if stopped
+    bool cueBlock (int b);
     int  playingBlock() const { return block; }
     // where playback is heard (the block, and the line with the part of it done) - for the AUTOMATION panel
     std::atomic<int> uiEnvBlock { -1 };

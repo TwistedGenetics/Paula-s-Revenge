@@ -498,6 +498,21 @@ bool Player::switchBlock (int b)
     return true;
 }
 
+bool Player::cueBlock (int b)
+{
+    if (mode == Mode::Stopped || song == nullptr || song->blocks.empty()) return false;
+    b = song->safeBlock (b);
+    if (b == block)
+    {
+        queued = -1;
+        if (mode == Mode::Song) { mode = Mode::Block; uiBlock = block; }   // (it loops from here: same line, same tick)
+        return true;
+    }
+    queueQuant = 1 << 30;   // (only the block's end)
+    queued = b;
+    return true;
+}
+
 void Player::stop()
 {
     if (mode != Mode::Stopped && ! clockStartPending) sendClock (2, chunkPos);

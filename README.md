@@ -33,9 +33,9 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 |---|---|
 | Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, **FULL VEL**, **NOTE-OFFS**, **CAPTURE**, text size `A-` / `A+`. SAVE MOD, RENDER WAV and EXPORT SAMPLES are in the **File** menu |
 | Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
-| Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
+| Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it, **double-click** it to open that block's pattern (from any page); **right-click > BLOCK NAME...** or `Cmd+R` names the block; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **SYNTHS** (the built-in SUB, REESE, RAVE, ROM, MORPH and GRANULAR synths), **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -220,6 +220,8 @@ Drag across the pattern to select notes and effects: the selection snaps to whol
 * Without a selection, `Cmd+C/X/V` still copy a whole track (add `Shift` for the whole block).
 * A plain click moves the cursor and drops the selection. It's all undoable.
 
+**Moving notes with the mouse:** hold **Alt** and drag a note - or the highlighted part, dragged from inside it - to another line or track; it lands where you let go, whole lines and whole tracks, kept inside the block (the highlight shows where while you drag). **Alt+Shift** and drag copies instead. A single note moves with its effects. One undo puts it all back.
+
 ## Bouncing highlighted notes to a sample
 
 Highlight some notes (drag over them; it can cover several tracks), then right-click inside the highlight — or press `Cmd+B` — and pick:
@@ -247,7 +249,9 @@ Straight after a bounce it asks what to do with the new sample (each choice is o
 
 ## Playing a block
 
-While a block plays (▶ BLOCK, `Space`), picking another block — in the sequence, the BLOCK box, or the BLK corner — carries playback straight over to it **on the same line**, without stopping, so you can audition blocks against each other in time. (A shorter block wraps the line round.)
+While a block plays (▶ BLOCK, `Space`), picking another block — in the sequence, the BLOCK box, or the BLK corner — plays it **next, in time**: the block playing carries on to its end, then the new one starts from its top and loops, without a stop or a restart. The pattern shows the block that's waiting, and the status line says so (`BLOCK 005 PLAYS NEXT`). Pick the block that's playing to call it off.
+
+**▶ BLOCK** while anything plays does the same: the block playing just loops from where it is (the song stays on it - nothing restarts), and another block waits for this one to end.
 
 ## Looping part of a block
 
@@ -417,6 +421,8 @@ The controls follow Akaizer (CLASSIC/REVISED, time factor, cycle length, transpo
 
 EDIT in the instrument panel (or double-click the little waveform) opens a full-size editor. Stereo samples show left and right separately.
 
+* **LOAD...** (beside TOOLS...): another sample into this instrument - the sample browser, and back here when it's loaded.
+
 * **Select:** drag in the waveform, Shift-click to extend, double-click or SEL ALL for everything. Click once to place the cursor (where PASTE inserts). **Grab either end of a selection** (the pointer changes to ↔) to move just that end; clicking inside a selection keeps it.
 * **Play it from the keyboard:** the computer keys (same layout as the pattern, `[` `]` for octave) and a MIDI keyboard play the sample at the key's pitch through the full instrument sound, several notes at once, with a playhead for each. **SEL KEYS** makes them play only the selection (looped when LOOP is on).
 * **Zoom:** mouse wheel or ZOOM +/-, FIT SEL, FIT ALL. Click or drag the overview strip to move around. Zoomed right in, you see each sample as a step, the way Paula plays it.
@@ -535,7 +541,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `Esc` or `\` | Edit mode on/off (`\` is the key next to Return on a UK Mac keyboard) |
 | `Return` | **Play / stop** without touching EDIT: the block · `Shift+Return` the song · `Cmd+Return` the block from the cursor line |
 | Arrows | Move · `Shift+↑/↓` 4 lines · `Shift+←/→` track |
-| `Tab` / `Shift+Tab` | Next / previous track |
+| `Tab` / `Shift+Tab` | Next / previous track (in the pattern). On an instrument's pages: **EDIT → EQ/FX → PARAMS → the pattern**, and round again (`Shift+Tab` back) |
 | `PgUp` / `PgDn`, `Home` / `End` | Jump |
 | `[` `]` | Octave down / up — on every page (PARAMS, plug-in, MIDI out, sample editor, CHORDS, SAMPLE, mixer), also with a plug-in's own window in front |
 | `-` `=` | Previous / next instrument |
@@ -559,7 +565,7 @@ Every song has **8 tracks** (a 4-channel MOD or an older 4-track song fills trac
 | `F2` (hold) / `Shift+F2` | FILL while held / latched on or off |
 | `F4` | **HOLD KEYS** on / off: notes stay on after their keys come up (play one again to stop it) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
-| `Cmd+R` | CAPTURE: what you just played goes into the pattern |
+| `Cmd+R` | CAPTURE: what you just played goes into the pattern · with the instrument list (or the sequence) clicked last, it **renames** the instrument (or the block) instead |
 | `Cmd+O` | Load a song |
 | `F1` / `Cmd+/` | HELP: this manual, inside the app |
 
@@ -807,7 +813,7 @@ Click a control and drag, or use the buttons. **Right-click** a control to make 
 
 ### REESE
 
-**REESE** is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB (the oscillators never restart, the envelope carries on from where it is), so it pairs with SUB for a mid bass over a clean sub. Load it from LOAD → **SYNTHS** → REESE. Its controls are on two tabs: **SOUND** and **HOOVER + FILTER**.
+**REESE** is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB (the oscillators never restart, the envelope carries on from where it is), so it pairs with SUB for a mid bass over a clean sub. Load it from LOAD → **BUILT-IN SYNTH** → REESE. Its controls are on two tabs: **SOUND** and **HOOVER + FILTER**.
 
 * **MODE** and **GLIDE**: as on SUB (LEGATO, ALWAYS, OFF, POLY - up to 6 notes).
 * **OSCILLATORS**: **TYPE** **REESE** (saws) or **HOOVER** (pulse-saws, a square sub). **VOICES** (1-7 oscillators), **DETUNE** (cents between the outermost two - more is wider and faster phasing), **SPREAD** (how far they're spread left and right), **OCTAVE**, **SUB** (its level), then **SUB -1 OCT / SUB -2 OCT** (one or two octaves below) and its shape: **AUTO** (a sine on REESE, a square on HOOVER), **SINE**, **TRI** or **SQUARE**. A sine or triangle sub is added after the filter, so the resonance, the filter sweep and the wobble never touch it - a steady low end under moving saws, with no need for a second track of SUB; a square goes through the filter with the rest.
@@ -821,7 +827,7 @@ Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Kn
 
 ### RAVE
 
-**RAVE** is the jungle and hardcore keys — the sounds over the breaks rather than under them. Load it from LOAD → **SYNTHS** → RAVE and pick a sound; every control is set for it, and you can change any of them afterwards (TYPE too).
+**RAVE** is the jungle and hardcore keys — the sounds over the breaks rather than under them. Load it from LOAD → **BUILT-IN SYNTH** → RAVE and pick a sound; every control is set for it, and you can change any of them afterwards (TYPE too).
 
 * **STAB** — the rave chord stab: three detuned saws over a square an octave down, the filter snapping shut. CHORD starts on MINOR, so one key plays the whole chord.
 * **PAD** — five wide saws drifting against each other, slow in and slow out: the rolling, atmospheric side of jungle.
@@ -845,22 +851,23 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 ### ROM
 
-**ROM** is a ROMpler in the spirit of the JV-1080 and the M1: small looped samples spread across the keys, layered up to four deep - from **your own** samples (a sample library, a sampler's disks, a ROM dump of your synth). Load it from LOAD → **SYNTHS** → ROM. Its page has two tabs: **TONES** and **SOUND + FILTER**.
+**ROM** is a ROMpler in the spirit of the JV-1080 and the M1: small looped samples spread across the keys, layered up to four deep - from **your own** samples (a sample library, a sampler's disks, a ROM dump of your synth). Load it from LOAD → **BUILT-IN SYNTH** → ROM. Its page has three tabs - **TONES**, **SOUND + FILTER** and **MORPH** - and, at the right of them, **ROM FOLDER...**.
 
-* **TONES 1-4**: each tone is one sound's multisample. Its button (**EMPTY - LOAD...** to start with) picks the samples:
-  * **SET THE ROM FOLDER (YOUR SAMPLES)...**: point it once at the folder your WAVs are in (sub-folders too). From then on the menu lists them **by category and name** - WND, VOX, PNO... then the sounds in each, with how many samples each has (`WND ACORD (3)`) - and picking one loads all its samples. Names like Roland's (`WND_XACORD0A.wav`: the category, then X and the sound's name, then two for which sample) are grouped that way; other libraries by the name without its numbers or notes at the end. **LOOK THROUGH THE ROM FOLDER AGAIN** after you add some.
-  * **LOAD WAV FILES (ONE SOUND'S SAMPLES)...**: pick one sound's WAV files yourself.
-  * **EMPTY THIS TONE**.
+* **ROM FOLDER...** (beside the tabs): point it once at the folder your WAVs are in (sub-folders too); **LOOK THROUGH IT AGAIN** after you add some. Names like Roland's (`WND_XACORD0A.wav`: the category, then X and the sound's name, then two for which sample) are grouped by category and sound; other libraries by the name without its numbers or notes at the end.
+* **TONES 1-4**: each tone is one sound's multisample; its box's title says what's in it (`TONE 1: WND ACORD (3)` - the sound and how many samples). Two buttons along its top:
+  * **ROM...**: the **ROM browser** - every category in your ROM folder on the left (`WND (52)`), every sound in the one picked on the right, both scrolling (the wheel, the scroll bar, or the arrow keys), however many there are. **Click a sound and play the keys to hear it**; `↑` / `↓` step to the next sound (loaded as you go - just keep playing), `←` / `→` the next category. **KEEP** (or `Enter`, or a double-click) keeps it; **CANCEL** (or `Esc`) puts back what was there. **EMPTY TONE** empties it; **LOOK AGAIN** looks through the folder again. The whole browse is one undo.
+  * **SAMPLE...**: pick one sound's WAV files yourself, from anywhere.
   * Each WAV's own **root note and loop** (its 'smpl' chunk) are used: each sample plays the keys nearest its root, and its loop plays for as long as the note (and through the release) - a sample without a loop plays once. Stereo samples are mixed to mono.
   * Each tone has **LEVEL**, **PAN**, **TUNE** (semitones: +12 layers it an octave up) and **FINE**. Every tone with samples plays on every note - layer a pad with a choir, a bass with an organ.
 * **SOUND**: **CHORD** (one key plays the chord, like RAVE), **OCTAVE**, **VIBRATO** and **VIB RATE**.
 * **FILTER**: a 12 dB low-pass - **CUTOFF**, **RES**, **ENV AMT**, **ENV DECAY** (wide open, as it starts, the samples play as they are).
+* **MORPH** (the third tab): the **MORPH FILTER** on every note in place of the low-pass. **FILTER: LOW-PASS / MORPH** picks which one plays. **MODEL** (the same 12 as the MORPH FILTER effect: AH > EE, TALK, PHASER, COMB, ACID...), **MORPH**, **ENV>MORPH** (± - moved by the filter envelope, its ENV DECAY on SOUND + FILTER), **LFO>MORPH** and **LFO RATE**, **VEL>MORPH** (harder notes further along, or back), **FREQ** (semitones), **KEY TRACK**, **EMPHASIS**. A choir that says "OO" to "AH" as it opens, a string pad whose phaser notches slide.
 * **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE. **SPACE**: CHORUS, ECHO, ECHO TIME. **OUTPUT**: VELOCITY, LEVEL.
 * Up to 16 notes at once. The samples are stored in the song (and in a saved instrument), so a song with ROM plays anywhere - which also means anyone you send it to has those samples. PRESETS keep ROM's settings, not its samples: to keep a whole ROM sound, use SAVE INSTRUMENT...
 
 ### MORPH
 
-**MORPH** is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has a morphing filter of its own, moved by its own envelope - so a pad can open from "OO" to "AH" as it swells, a bass can talk, a phaser's notches can slide as a chord rings. Load it from LOAD → **SYNTHS** → MORPH; **PRESETS...** has six sounds to start from (VOWEL PAD, TALKING BASS, PHASE STRINGS, COMB BELLS, ACID MORPH, SCREAM LEAD). Two tabs: **MORPH** and **AMP + SPACE**.
+**MORPH** is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has a morphing filter of its own, moved by its own envelope - so a pad can open from "OO" to "AH" as it swells, a bass can talk, a phaser's notches can slide as a chord rings. Load it from LOAD → **BUILT-IN SYNTH** → MORPH; **PRESETS...** has six sounds to start from (VOWEL PAD, TALKING BASS, PHASE STRINGS, COMB BELLS, ACID MORPH, SCREAM LEAD). Two tabs: **MORPH** and **AMP + SPACE**.
 
 * **OSCILLATORS**: **WAVE 1** and **WAVE 2** (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), **OSC 2** (its level), **DETUNE** (OSC 2 against OSC 1, and the SUPERSAW's spread), **OSC2 TUNE** (semitones), **PW** (the PULSE's width).
 * **MORPH FILTER**: **MODEL** (the same 12 as the effect), **MORPH**, **FREQ** (semitones), **EMPHASIS**, **KEY TRACK** (the filter follows the notes: 100% = all the way), **VEL>MORPH** (harder notes further along, or back).
@@ -869,7 +876,7 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 ### GRANULAR
 
-**GRANULAR** plays a sound as a cloud of tiny overlapping pieces ("grains"), so it can hold one moment of a sound for ever, smear it into a pad, stretch it, or scatter it into glitter. Load it like SUB (LOAD → **SYNTHS** → GRANULAR). Notes play it at their pitch (`C-3` plays the sound at its own pitch), up to 6 at once.
+**GRANULAR** plays a sound as a cloud of tiny overlapping pieces ("grains"), so it can hold one moment of a sound for ever, smear it into a pad, stretch it, or scatter it into glitter. Load it like SUB (LOAD → **BUILT-IN SYNTH** → GRANULAR). Notes play it at their pitch (`C-3` plays the sound at its own pitch), up to 6 at once.
 
 * **SOURCE** — what the grains are cut from. **TABLE**: one of 8 built-in sounds that change from start to end (**SINE**, **SAW** dark to bright, **SQUARE** to thin pulse, **VOCAL** through the vowels A E I O U, **BELL** ringing away, **GLASS**, **NOISE** dark to bright, **CHOIR**). **SAMPLE**: a sample of its own — press **LOAD SAMPLE...** (under the SOURCE box) and pick one in the sample browser just as you load any sample (or press LOAD on the instruments panel → SAMPLES with GRANULAR picked); it stays GRANULAR, takes its grains from that sample and keeps it in the song — or any other instrument's sample: set **SAMPLE** to its number. (Only what the SOURCE uses is shown: the table's name for TABLE, the SAMPLE number for SAMPLE.) **RECORDING**: the audio input, live — it keeps the last 8 seconds of what comes in (set the input in the audio settings, as for SAMPLE recording).
 * Across the top, next to the SOURCE box, is the sound itself, with a line at **POSITION** and a thin line where the grains are reading now. **Click or drag on it** to set POSITION. Under it, two tabs show the rest of the controls: **GRAINS** (GRAINS, PITCH, ENVELOPE, OUTPUT) and **LFOS + FILTER** (LFO 1, LFO 2, ENV MOD, FILTER).

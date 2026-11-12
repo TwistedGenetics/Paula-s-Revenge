@@ -2,6 +2,7 @@
 #include "MorphFilter.h"
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace prv
 {
@@ -40,6 +41,16 @@ namespace
 }
 const Model& model (int i) { return all()[(size_t) std::clamp (i, 0, kModels - 1)]; }
 const char* modelName (int i) { return model (i).name; }
+const char* modelChoices()
+{
+    static const std::string s = []
+    {
+        std::string r;
+        for (int i = 0; i < kModels; ++i) { if (i) r += "|"; r += modelName (i); }
+        return r;
+    }();
+    return s.c_str();
+}
 } // namespace morph
 
 void MorphFilter::reset() { for (auto& s : sec) s.ic1 = s.ic2 = 0; }

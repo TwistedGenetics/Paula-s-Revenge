@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.78</span>
+  <span class="ver">MANUAL &middot; V0.79</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -422,10 +422,17 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><kbd>Cmd</kbd><kbd>&uarr;</kbd> / <kbd>Cmd</kbd><kbd>&darr;</kbd> transpose the track a semitone, with <kbd>Shift</kbd> an octave.</li>
     <li>Right-click inside a highlight to <a href="#bounce">bounce it to a new sample</a>.</li>
   </ul>
+  <h3>Moving notes with the mouse</h3>
+  <p>Hold <kbd>Alt</kbd> and drag a note &mdash; or a highlight, dragged from inside it &mdash; to another line or track. It lands where you let go, in whole lines and whole tracks, and stays inside the block; the highlight shows where it will go while you drag. <kbd>Alt</kbd><kbd>Shift</kbd> and drag copies instead. A single note moves with its effects, and one undo puts it all back.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/alt_drag.png" alt="The pattern with a note being dragged with Alt held: the highlight shows where it will land, a C-2 on line 004 of track 1, with the highlight showing it landing on line 009 of track 3." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Alt+drag: the highlight shows where the note will land</figcaption>
+  </figure>
   <h3>Looping some lines</h3>
   <p>Drag down the line numbers to mark lines; they turn red and playback goes round them. <kbd>Cmd</kbd><kbd>[</kbd> and <kbd>Cmd</kbd><kbd>]</kbd> set the start and end at the cursor. <span class="b">LOOP</span> on the transport row turns the loop off and on again.</p>
   <h3>Playing a block</h3>
-  <p>While a block plays, picking another block (in the sequence, the BLOCK box or the <span class="b">BLK</span> corner) carries playback over to it on the same line, without stopping, so you can try blocks against each other in time.</p>
+  <p>While a block plays, picking another block (in the sequence, the BLOCK box or the <span class="b">BLK</span> corner) plays it <b>next, in time</b>: the block playing carries on to its end, then the new one starts from its top and loops &mdash; no stop, no restart. The pattern shows the block that's waiting and the status line says <code>BLOCK 005 PLAYS NEXT</code>; pick the playing block again to call it off.</p>
+  <p><span class="b">&#9654; BLOCK</span> while anything plays does the same: the block playing just loops on from where it is (from the song too &mdash; nothing restarts), and another block waits for this one to end.</p>
   <h3>Undo</h3>
   <p>One history covers everything: notes, blocks, the sequence, instruments, samples, the mixer and song settings. <kbd>Cmd</kbd><kbd>Z</kbd> and <kbd>Cmd</kbd><kbd>Shift</kbd><kbd>Z</kbd> work on every page, and the status line says what was undone. It keeps the last 200 steps.</p>
 </section>
@@ -527,7 +534,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">LOOP SELECTION</span> (or right-click) loops the highlighted positions while the song plays. The list follows the position playing.</li>
     <li><span class="b">CLONE IN PLACE</span> gives a position its own copy of its block, in the next free block, so you can change it without touching the other places it plays.</li>
     <li>Click the label at the right of a row (or <code>+ SECTION</code>) to start a named <b>section</b> there (INTRO, DROP…). <span class="b">LOOP SECTION</span> loops the section you're in; pick a position in another section and playback goes there when the current block ends.</li>
-    <li><b>Block names:</b> double-click a position (or right-click &rarr; <span class="b">BLOCK NAME...</span>) to name its block (AMEN, REESE…). The name takes the place of the word BLOCK &mdash; <code>000  AMEN  003  DROP</code> &mdash; with a gap before the block number (which never changes) and before the section name. A name too long for its space scrolls along on the playing, highlighted or pointed-at row. The BLOCK panel's title shows it too.</li>
+    <li><b>Double-click</b> a position to open its block's pattern, from whatever page you're on.</li>
+    <li><b>Block names:</b> right-click &rarr; <span class="b">BLOCK NAME...</span> (or <kbd>Cmd</kbd><kbd>R</kbd> with the sequence clicked last) names its block (AMEN, REESE…). The name takes the place of the word BLOCK &mdash; <code>000  AMEN  003  DROP</code> &mdash; with a gap before the block number (which never changes) and before the section name. A name too long for its space scrolls along on the playing, highlighted or pointed-at row. The BLOCK panel's title shows it too.</li>
   </ul>
   <h3>The arrange page</h3>
   <p><span class="b">ARRANGE</span> shows the song order full size, with a picture of each block's notes. It shares the highlight and clipboard with the sequence panel. <span class="b">INSERT</span> adds the BLOCK number after the cursor, <span class="b">SET</span> makes the highlighted positions play it.</p>
@@ -542,10 +550,21 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <section class="ch raised" id="samples">
   <h2>INSTRUMENTS &amp; SAMPLES</h2>
   <div class="accent t2"></div>
+  <h3>Loading, opening and naming an instrument</h3>
+  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/load_kinds.png" alt="LOAD's question over the main screen: LOAD INTO INSTRUMENT 04: WHAT KIND? with SAMPLE, BUILT-IN SYNTH, VST3 / AU SYNTH, SAVED INSTRUMENT, MIDI OUT, CV OUT, RECORD AUDIO and CANCEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>LOAD asks what kind of instrument first</figcaption>
+  </figure>
+  <ul>
+    <li><b>Double-click</b> an instrument to open it: its EDIT page (the sample editor, or the synth's own page). An empty one asks what to LOAD.</li>
+    <li><b>Rename</b> it with right-click &rarr; <span class="b">RENAME...</span>, or <kbd>Cmd</kbd><kbd>R</kbd> with the instrument list clicked last.</li>
+    <li><kbd>Tab</kbd> on an instrument's pages goes <b>EDIT &rarr; EQ/FX &rarr; PARAMS &rarr; the pattern</b> and round again; <kbd>Shift</kbd><kbd>Tab</kbd> goes back.</li>
+  </ul>
   <h3>The sample browser</h3>
-  <p><span class="b">LOAD</span> opens the browser in place of the pattern, with four tabs along the top for what the instrument plays: <span class="b">SAMPLES</span>, <span class="b">VST / AU</span> (your instrument plug-ins), <span class="b">MIDI OUT</span> (hardware) and <span class="b">CV OUT</span> (a modular; it asks first). Right-clicking an instrument offers the same. Every sample you highlight plays straight away, and the note keys or a MIDI keyboard play it at other pitches. Shortcut buttons go to Home, Music, Desktop, Downloads, Documents and Drives, and four <span class="b">FAV</span> buttons hold your own folders (click an empty one to set it; <kbd>Shift</kbd>-click changes it, <kbd>Alt</kbd>-click clears it). <kbd>Enter</kbd> or a double-click loads the sample.</p>
+  <p><b>SAMPLE</b> opens the browser in place of the pattern, with tabs along the top for what the instrument plays: <span class="b">SAMPLES</span>, <span class="b">VST / AU</span> (your instrument plug-ins), <span class="b">MIDI OUT</span> (hardware) and <span class="b">CV OUT</span> (a modular; it asks first). Right-clicking an instrument offers the same. Every sample you highlight plays straight away, and the note keys or a MIDI keyboard play it at other pitches. Shortcut buttons go to Home, Music, Desktop, Downloads, Documents and Drives, and four <span class="b">FAV</span> buttons hold your own folders (click an empty one to set it; <kbd>Shift</kbd>-click changes it, <kbd>Alt</kbd>-click clears it). <kbd>Enter</kbd> or a double-click loads the sample.</p>
   <h3>The sample editor</h3>
-  <p><span class="b">EDIT</span> (or a double-click on the little waveform) opens the editor.</p>
+  <p><span class="b">EDIT</span> (or a double-click on the instrument or its little waveform) opens the editor. <span class="b">LOAD...</span> (beside TOOLS...) puts another sample into this instrument, through the sample browser, and brings you back.</p>
   <figure>
     <div class="frame sunken"><img src="img/sample_editor.png" alt="The sample editor showing a break's waveform, its slice tabs, and the edit buttons." width="1440" height="900" loading="lazy"></div>
     <figcaption>The sample editor, with slices</figcaption>
@@ -927,7 +946,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Right-click</b> any control to make it a knob (<code>L</code> <code>Q</code> <code>H</code> <code>W</code>) or the track's AUTO A / B, so the pattern can move it. Hold <span class="b">HOLD TO PLAY</span> or play the keys to hear it. <span class="b">OUTPUT &amp; KNOBS...</span> opens the plug-in instrument page above &mdash; OUTPUT, BEND, ON, FILTER AND ENVELOPES, EQ / FX and chords all work for SUB.</li>
   </ul>
   <h3>The built-in REESE synth</h3>
-  <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; REESE. Its controls are on two tabs, <span class="b">SOUND</span> and <span class="b">HOOVER + FILTER</span>.</p>
+  <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; REESE. Its controls are on two tabs, <span class="b">SOUND</span> and <span class="b">HOOVER + FILTER</span>.</p>
   <figure>
     <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, SOUND tab: boxes for MODE, OSCILLATORS (TYPE REESE or HOOVER, VOICES, DETUNE, SPREAD, OCTAVE, SUB), MOVEMENT, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>The REESE page</figcaption>
@@ -940,7 +959,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>ENVELOPE</b> and <b>OUTPUT</b>. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
   <h3>The built-in RAVE synth</h3>
-  <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE).</p>
+  <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE).</p>
   <figure>
     <div class="frame sunken"><img src="img/rave_page.png" alt="The RAVE page: boxes for SOUND (TYPE STAB, CHORD MINOR, DETUNE, OCTAVE), FILTER, ENVELOPE, SPACE (CHORUS, ECHO, ECHO TIME) and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>The RAVE page, set up as a STAB</figcaption>
@@ -961,21 +980,32 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>Up to 16 notes at once; when it's full the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
   <h3>The built-in ROM synth</h3>
-  <p><b>ROM</b> is a ROMpler in the spirit of the JV-1080 and M1: small looped samples spread across the keys, layered up to four deep, from <b>your own</b> samples. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; ROM; its page has two tabs, <span class="b">TONES</span> and <span class="b">SOUND + FILTER</span>.</p>
+  <p><b>ROM</b> is a ROMpler in the spirit of the JV-1080 and M1: small looped samples spread across the keys, layered up to four deep, from <b>your own</b> samples. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ROM; its page has three tabs &mdash; <span class="b">TONES</span>, <span class="b">SOUND + FILTER</span> and <span class="b">MORPH</span> &mdash; with <span class="b">ROM FOLDER...</span> at the right of them: point it once at the folder your WAVs are in (sub-folders too), and <b>LOOK THROUGH IT AGAIN</b> after you add some.</p>
   <figure>
-    <div class="frame sunken"><img src="img/rom_tones.png" alt="ROM's TONES tab: TONE 1 WND ACORD (3), TONE 2 VOX DO_BH (1) an octave up and panned right, TONES 3 and 4 EMPTY - LOAD..., each with LEVEL, PAN, TUNE and FINE." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/rom_tones.png" alt="ROM's TONES tab: TONE 1: WND ACORD (3), TONE 2: VOX DO_BH (1) an octave up and panned right, TONES 3 and 4 EMPTY, each with ROM... and SAMPLE... buttons and LEVEL, PAN, TUNE and FINE." width="1440" height="900" loading="lazy"></div>
     <figcaption>Two tones layered: an accordion and a voice an octave up</figcaption>
   </figure>
   <ul>
-    <li><b>Each tone's button</b> picks its samples. <b>SET THE ROM FOLDER...</b> once, and the menu lists your WAVs <b>by category and name</b> (WND, VOX&hellip; then <code>WND ACORD (3)</code>); picking a sound loads all its samples. Roland-style names (<code>WND_XACORD0A.wav</code>) are grouped by their sound; other libraries by the name without its numbers or notes. <b>LOAD WAV FILES...</b> picks files yourself; <b>EMPTY THIS TONE</b> clears it.</li>
+    <li>Each tone's box says what's in it (<code>TONE 1: WND ACORD (3)</code>), and has two buttons along its top: <span class="b">ROM...</span> and <span class="b">SAMPLE...</span>.</li>
+    <li><span class="b">ROM...</span> opens the <b>ROM browser</b>: every category in your ROM folder on the left, every sound in the one picked on the right, both scrolling, however many there are. <b>Click a sound and play the keys to hear it</b>; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> step to the next sound (loaded as you go, so keep playing), <kbd>&larr;</kbd> <kbd>&rarr;</kbd> the next category. <span class="b">KEEP</span> (or <kbd>Enter</kbd>, or a double-click) keeps it; <span class="b">CANCEL</span> (or <kbd>Esc</kbd>) puts back what was there; <span class="b">EMPTY TONE</span> clears it. The whole browse is one undo. Roland-style names (<code>WND_XACORD0A.wav</code>) are grouped by their sound; other libraries by the name without its numbers or notes.</li>
+    <li><span class="b">SAMPLE...</span> picks one sound's WAV files yourself, from anywhere.</li>
     <li>Each WAV's own <b>root note and loop</b> are used: a sample plays the keys nearest its root, its loop plays as long as the note, and one without a loop plays once.</li>
     <li>Each tone has LEVEL, PAN, TUNE (+12: an octave up) and FINE; every tone with samples plays on every note.</li>
     <li>SOUND: CHORD, OCTAVE, VIBRATO, VIB RATE. FILTER: CUTOFF, RES, ENV AMT, ENV DECAY. ENVELOPE, SPACE (chorus, echo) and OUTPUT as on RAVE.</li>
+    <li><b>MORPH</b> tab: the <b>MORPH FILTER</b> on every note instead of the low-pass &mdash; <b>FILTER: LOW-PASS / MORPH</b> picks which. MODEL (the 12 of the MORPH FILTER effect), MORPH, <b>ENV&gt;MORPH</b> (&plusmn;, by the filter envelope), LFO&gt;MORPH and LFO RATE, VEL&gt;MORPH, FREQ, KEY TRACK, EMPHASIS: a choir that opens from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, strings with sliding phaser notches.</li>
     <li>The samples are stored in the song (and in a saved instrument), so anyone you send it to has them. PRESETS keep ROM's settings, not its samples.</li>
   </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/rom_browser.png" alt="The ROM browser on ROM's page: TONE 1: WND ACORD - PLAY THE KEYS TO HEAR IT, the categories VOX (1) and WND (2) on the left, the sounds WND ACORD (3) and WND PICLO on the right, and KEEP, CANCEL, EMPTY TONE, LOOK AGAIN underneath." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The ROM browser: click a sound, play the keys, arrow to the next</figcaption>
+  </figure>
+  <figure>
+    <div class="frame sunken"><img src="img/rom_morph.png" alt="ROM's MORPH tab: the MORPH FILTER box with FILTER LOW-PASS / MORPH, MODEL TALK, MORPH, ENV>MORPH, LFO>MORPH, LFO RATE, VEL>MORPH, FREQ, KEY TRACK and EMPHASIS." width="1440" height="900" loading="lazy"></div>
+    <figcaption>ROM's MORPH tab: the morph filter on every note</figcaption>
+  </figure>
   <p>Loading an ordinary WAV also uses its own loop points, and for a looped sample its root note, so C-3 plays a C.</p>
   <h3>The built-in MORPH synth</h3>
-  <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; MORPH; <b>PRESETS...</b> has six sounds to start from.</p>
+  <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; MORPH; <b>PRESETS...</b> has six sounds to start from.</p>
   <figure>
     <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab: OSCILLATORS (WAVE 1 SUPERSAW, WAVE 2 PULSE, OSC 2, DETUNE, OSC2 TUNE, PW), MORPH FILTER (MODEL AH &gt; EE, MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH), MORPH ENV and MORPH LFO." width="1440" height="900" loading="lazy"></div>
     <figcaption>MORPH: two oscillators into a morphing filter per note</figcaption>
@@ -986,7 +1016,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li>On <span class="b">AMP + SPACE</span>: the amp ENVELOPE, CHORD, OCTAVE, CHORUS, ECHO, VELOCITY and LEVEL. Up to 16 notes.</li>
   </ul>
   <h3>The built-in GRANULAR synth</h3>
-  <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
+  <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
     <div class="frame sunken"><img src="img/grain_page.png" alt="The GRANULAR page: the sound across the top with a line at POSITION and the SOURCE box beside it, the GRAINS and LFOS + FILTER tabs, then boxes for GRAINS, PITCH, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>The GRANULAR page: click the sound to set where the grains come from</figcaption>
@@ -1399,7 +1429,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>Shift</kbd><kbd>3</kbd></td><td>In a command column: <code>#</code>, the chord command</td></tr>
       <tr><td><kbd>Return</kbd></td><td>Play / stop, EDIT left as it is · <kbd>Shift</kbd> song · <kbd>Cmd</kbd> block from the cursor</td></tr>
       <tr><td>Arrows</td><td>Move · <kbd>Shift</kbd> <kbd>&uarr;</kbd><kbd>&darr;</kbd> 4 lines · <kbd>Shift</kbd> <kbd>&larr;</kbd><kbd>&rarr;</kbd> track</td></tr>
-      <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>Next track · with <kbd>Shift</kbd>, previous. On an instrument's pages: EDIT &rarr; EQ/FX &rarr; PARAMS &rarr; the pattern</td></tr>
       <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up, on every page (also with a plug-in's window in front)</td></tr>
       <tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Previous / next instrument</td></tr>
       <tr><td><kbd>Delete</kbd></td><td>Clear the highlight or the field · <kbd>Shift</kbd> removes the line · <kbd>Alt</kbd> inserts one</td></tr>
@@ -1420,14 +1450,15 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
       <tr><td><kbd>F2</kbd> (hold) / <kbd>Shift</kbd><kbd>F2</kbd></td><td>FILL while held / latched on or off</td></tr>
       <tr><td><kbd>F4</kbd></td><td>HOLD KEYS on / off: notes stay on after their keys come up</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>F</kbd></td><td>FOLLOW on / off</td></tr>
-      <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>R</kbd></td><td>CAPTURE: write what you just played into the pattern · with the instrument list or sequence clicked last: rename the instrument or block</td></tr>
+      <tr><td><kbd>Alt</kbd>-drag</td><td>Move a note or a highlight (with <kbd>Shift</kbd>: copy it)</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>O</kbd></td><td>Load a song</td></tr>
       <tr><td><kbd>Alt</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd></td><td>Move the selected song positions</td></tr>
     </tbody>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.78</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.79</footer>
 </main>
 </div>
 <script>

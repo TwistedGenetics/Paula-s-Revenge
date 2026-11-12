@@ -24,6 +24,7 @@ namespace morph
     constexpr int kModels = 12;
     const Model& model (int i);
     const char* modelName (int i);
+const char* modelChoices();   // "AH > EE|OH > AH|..." (a synth's MODEL control)
 }
 
 // one channel of it

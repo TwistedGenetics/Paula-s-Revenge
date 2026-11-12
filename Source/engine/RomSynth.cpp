@@ -48,6 +48,17 @@ const std::vector<SynthParam>& romParams()
             { "ECHO TIME", "SPACE",    20, 1500, 375,  1, "MS", "" },
             { "VELOCITY",  "OUTPUT",   0, 100, 50,     0, "%",  "" },
             { "LEVEL",     "OUTPUT",   0, 100, 75,     0, "%",  "" },
+            // (v0.79) the MORPH FILTER
+            { "FILTER",    "MORPH FILTER", 0, 1, 0,    3, "",   "LOW-PASS|MORPH" },   // (the first of the MORPH page: which filter plays)
+            { "MODEL",     "MORPH FILTER", 0, (float) (morph::kModels - 1), 0, 3, "", morph::modelChoices() },
+            { "MORPH",     "MORPH FILTER", 0, 100, 30,  0, "%",  "" },
+            { "ENV>MORPH", "MORPH FILTER", -100, 100, 0, 0, "%", "" },
+            { "LFO>MORPH", "MORPH FILTER", 0, 100, 0,   0, "%",  "" },
+            { "LFO RATE",  "MORPH FILTER", 0.05f, 12, 0.5f, 1, "HZ", "" },
+            { "VEL>MORPH", "MORPH FILTER", -100, 100, 0, 0, "%", "" },
+            { "FREQ",      "MORPH FILTER", -36, 36, 0,  2, "ST", "" },
+            { "KEY TRACK", "MORPH FILTER", 0, 100, 0,   0, "%",  "" },
+            { "EMPHASIS",  "MORPH FILTER", 0, 100, 55,  0, "%",  "" },
         };
         v.insert (v.end(), rest.begin(), rest.end());
         return v;
@@ -97,6 +108,8 @@ void RomSynth::noteOn (int note, int vel, int offset) { if (events.size() < 1024
 void RomSynth::noteOff (int note, int offset)         { if (events.size() < 1024) events.push_back ({ offset, 1, note, 0 }); }
 void RomSynth::allNotesOff (int offset)               { if (events.size() < 1024) events.push_back ({ offset, 2, 0, 0 }); }
 void RomSynth::pitchBend (int v, int offset)          { if (events.size() < 1024) events.push_back ({ offset, 3, v, 0 }); }
+
+float RomSynth::morphOf (int i) const { return i >= 0 && i < kVoices ? voices[i].morphNow : 0.0f; }
 
 int RomSynth::voicesPlaying() const
 {
@@ -194,8 +207,26 @@ void RomSynth::renderVoice (Voice& v, float& outL, float& outR)
     }
     v.fenv *= (float) std::exp (-1.0 / std::max (1.0, p[rom::FilterDecay] * 0.001 * sr * 0.3));
 
+    // (v0.79) FILTER: MORPH - the MORPH FILTER, its own for every note (worked out every 32 samples)
+    if (std::lround (p[rom::FilterType]) == rom::MorphKind)
+    {
+        if (v.upd-- <= 0)
+        {
+            const float lfo = (float) std::sin (kTwoPi * morphLfoPh);
+            const float m = p[rom::Morph] * 0.01f + p[rom::MorphEnv] * 0.01f * v.fenv + p[rom::MorphLfo] * 0.01f * 0.5f * lfo
+                            + p[rom::MorphVel] * 0.01f * (v.vel - 0.5f);
+            v.morphNow = std::clamp (m, 0.0f, 1.0f);
+            const float oct = p[rom::MorphFreq] / 12.0f + p[rom::MorphKey] * 0.01f * (v.pitch - 60.0f) / 12.0f;
+            const int model = (int) std::lround (p[rom::MorphModel]);
+            v.morphL.set (model, v.morphNow, oct, p[rom::Emphasis] * 0.01f, sr);
+            v.morphR.set (model, v.morphNow, oct, p[rom::Emphasis] * 0.01f, sr);
+            v.upd = 31;
+        }
+        l = v.morphL.process (l); r = v.morphR.process (r);
+    }
     // the 12 dB low-pass (worked out every 16 samples; wide open it's left out)
-    const bool open = p[rom::Cutoff] >= 17999.0f && std::abs (p[rom::EnvAmount]) < 0.5f && p[rom::Resonance] < 0.5f;
+    const bool open = std::lround (p[rom::FilterType]) == rom::MorphKind
+                      || (p[rom::Cutoff] >= 17999.0f && std::abs (p[rom::EnvAmount]) < 0.5f && p[rom::Resonance] < 0.5f);
     if (! open)
     {
         if (v.upd-- <= 0)
@@ -238,6 +269,7 @@ void RomSynth::render (float* left, float* right, int n)
     for (int i = 0; i < n; ++i)
     {
         while (ev < events.size() && events[ev].offset <= i) handle (events[ev++]);
+        morphLfoPh += p[rom::MorphRate] / sr; morphLfoPh -= std::floor (morphLfoPh);
         float l = 0, r = 0;
         for (auto& v : voices) renderVoice (v, l, r);
         if (chorus > 0 && chLen > 8)

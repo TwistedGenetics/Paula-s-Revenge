@@ -42,6 +42,9 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    bool keyStateChanged (bool isKeyDown) override;   // (every page lets go of notes whose keys are up)
+    int keyPoll = 0;
+    int lastPickedBlock = -1;   // (the block last picked: picking another while a block plays cues it)
     void keyStateFromElsewhere (bool isDown);   // key releases while a plug-in window is in front
     void refreshMeters() { frame |= 1; timerCallback(); }   // (a whole frame: the 30-a-second part too) also used by the screenshot test
     void setView (PaulaProcessor::EditorState::View);
@@ -53,6 +56,8 @@ public:
     prv::ui::RadioPage& getRadio() { return radioPage; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::EnginePage& getEnginePage() { return enginePage; }
+    bool cycleInstrumentPages (int dir);              // (v0.79) Tab: EDIT > EQ/FX > PARAMS > the pattern
+    void showLoadMenu();                              // (v0.79) LOAD: SAMPLE, BUILT-IN SYNTH, VST3 / AU, SAVED, MIDI OUT, CV OUT, RECORD
     void makeBuiltinSynth (const std::string& key, int raveType = 0);   // the current instrument becomes SUB / REESE / GRANULAR / RAVE (that sound) - its page opens
     prv::ui::MidiOutPage& getMidiPage() { return midiPage; }
     prv::ui::ChoiceBox& getChoice() { return choice; }

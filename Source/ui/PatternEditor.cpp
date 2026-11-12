@@ -677,7 +677,9 @@ void PatternEditor::tick()
         vu[t] = nv < 0.002f ? 0.0f : nv;
     }
 
-    if (proc.player.isPlaying() && st.follow)
+    // (a block waiting to play - picked while another plays - stays on screen till it starts)
+    const int waiting = proc.player.queuedBlock();
+    if (proc.player.isPlaying() && st.follow && ! (waiting >= 0 && waiting == st.block))
     {
         const int b = proc.player.uiBlock.load(), l = proc.player.uiLine.load();
         if (b != st.block || l != st.line)
@@ -1116,6 +1118,27 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
     // FOLLOW INSTRUMENT: clicking a note (or its commands) picks its instrument in the list
     if (followInstrument() && onFollowInstrument)
         if (const int ins = followInstrumentAt (line, track); ins >= 0) onFollowInstrument (ins);
+    // (v0.79) ALT+DRAG: move the highlighted notes - or just the note clicked - somewhere else; ALT+SHIFT+DRAG copies
+    if (e.mods.isAltDown() && ! e.mods.isCommandDown())
+    {
+        const int gpt = groupsPerTrack(), c = track * gpt + std::min (groupOfColumn (column), gpt - 1);
+        if (! (hasSelection() && line >= sel.l0 && line <= sel.l1 && c >= sel.c0 && c <= sel.c1))
+        {
+            const auto& cell = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (line, track);
+            if (cell.note == 0 && cell.instr == 0 && cell.cmd == 0 && cell.param == 0 && cell.cmd2 == 0 && cell.param2 == 0)
+            {
+                if (onStatus) onStatus ("ALT+DRAG MOVES NOTES: CLICK ON ONE (OR INSIDE A HIGHLIGHT) - ALT+SHIFT+DRAG COPIES");
+                return;
+            }
+            selectRange (line, line, track, 0, track, gpt - 1);   // (the whole of that track's line: note and effects)
+        }
+        moveFrom = sel;
+        moveDragging = true; moveCopy = e.mods.isShiftDown();
+        moveDL = moveDT = 0;
+        downLine = line; downTrack = track;
+        setMouseCursor (moveCopy ? juce::MouseCursor::CopyingCursor : juce::MouseCursor::DraggingHandCursor);
+        return;
+    }
     if (e.mods.isShiftDown())
     {
         // shift+click: select from the cursor to here
@@ -1144,6 +1167,7 @@ bool PatternEditor::cellAt (juce::Point<float> p, int& line, int& track, int& co
 void PatternEditor::mouseUp (const juce::MouseEvent&)
 {
     edgeScroll.stop();
+    if (moveDragging) { finishMove(); return; }
     if (downInGrid && ! selDragging)
     {
         // plain click: move the cursor there and drop any selection
@@ -1159,6 +1183,25 @@ void PatternEditor::mouseUp (const juce::MouseEvent&)
 void PatternEditor::mouseDrag (const juce::MouseEvent& e)
 {
     if (panDragTrack >= 0) { setPanFromX (panDragTrack, e.position.x); return; }
+    if (moveDragging)
+    {
+        // where the notes would land: whole lines, whole tracks, kept inside the block
+        auto p = e.position;
+        p.x = juce::jlimit (lineNumW(), lineNumW() + trackW() * visibleTracks() - 1.0f, p.x);
+        p.y = juce::jlimit (headerH() + 1.0f, (float) getHeight() - helpHeight() - 1.0f, p.y);
+        int line = 0, track = 0, column = 0;
+        if (! cellAt (p, line, track, column)) return;
+        const int gpt = groupsPerTrack();
+        moveDL = juce::jlimit (-moveFrom.l0, blockLines() - 1 - moveFrom.l1, line - downLine);
+        moveDT = juce::jlimit (-(moveFrom.c0 / gpt), proc.song.numTracks - 1 - moveFrom.c1 / gpt, track - downTrack);
+        sel = moveFrom;
+        sel.l0 += moveDL; sel.l1 += moveDL; sel.c0 += moveDT * gpt; sel.c1 += moveDT * gpt;
+        if (onStatus) onStatus (juce::String (moveCopy ? "COPY" : "MOVE") + " BY " + juce::String (moveDL) + (std::abs (moveDL) == 1 ? " LINE" : " LINES")
+                                + (moveDT != 0 ? ", " + juce::String (moveDT) + (std::abs (moveDT) == 1 ? " TRACK" : " TRACKS") : juce::String())
+                                + " - LET GO TO PUT THEM THERE");
+        repaint();
+        return;
+    }
     if (e.getDistanceFromDragStart() <= 3 && ! selDragging) return;
     if (downInGrid) selDragging = true;
     if (! selDragging && loopDragFrom < 0) return;
@@ -1242,6 +1285,41 @@ namespace
         else if (g == 1) { to.cmd = from.cmd; to.param = from.param; }
         else { to.cmd2 = from.cmd2; to.param2 = from.param2; }
     }
+}
+
+// (v0.79) ALT+DRAG let go: the notes go (or are copied) where they were dropped - one undo
+void PatternEditor::finishMove()
+{
+    moveDragging = false;
+    setMouseCursor (juce::MouseCursor::NormalCursor);
+    if (moveDL == 0 && moveDT == 0) { sel = moveFrom; repaint(); return; }
+    const int gpt = groupsPerTrack();
+    const int blk = moveFrom.block;
+    if (blk < 0 || blk >= (int) proc.song.blocks.size()) return;
+    pushUndo (blk, moveCopy ? "COPY NOTES (ALT+SHIFT+DRAG)" : "MOVE NOTES (ALT+DRAG)");
+    const int dl = moveDL, dt = moveDT;
+    const auto from = moveFrom;
+    const bool copy = moveCopy;
+    int count = 0;
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        std::vector<ClipCell> cells;
+        for (int l = from.l0; l <= from.l1; ++l)
+            for (int c = from.c0; c <= from.c1; ++c) cells.push_back ({ l, c / gpt, c % gpt, b.at (l, c / gpt) });
+        if (! copy) for (const auto& cc : cells) clearGroup (b.at (cc.line, cc.track), cc.group);
+        for (const auto& cc : cells)
+        {
+            const int l = cc.line + dl, t = cc.track + dt;
+            if (l < 0 || l >= b.lines || t < 0 || t >= kMaxTracks) continue;
+            copyGroup (b.at (l, t), cc.cell, cc.group);
+            if (cc.group == 0 && cc.cell.note != 0) ++count;
+        }
+    });
+    sel = from;
+    sel.l0 += dl; sel.l1 += dl; sel.c0 += dt * gpt; sel.c1 += dt * gpt;
+    if (onStatus) onStatus (juce::String (copy ? "COPIED " : "MOVED ") + juce::String (count) + (count == 1 ? " NOTE" : " NOTES") + " (UNDO TO PUT THEM BACK)");
+    changed();
 }
 
 void PatternEditor::copySelection (bool cut)

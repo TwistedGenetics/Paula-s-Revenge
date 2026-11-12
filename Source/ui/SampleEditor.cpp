@@ -137,6 +137,7 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     pingBtn.onClick = [this] { setPingPong (pingBtn.getToggleState()); };
     toolsBtn.onClick = [this] { showTools(); };
     saveBtn.onClick = [this] { saveSample(); };
+    loadBtn.onClick = [this] { stop(); if (onLoadSample) onLoadSample(); };
     loopStartBox.labelChars = 5; loopEndBox.labelChars = 3;
     for (auto* nb : { &loopStartBox, &loopEndBox }) nb->valueChars = 6;
     loopStartBox.onChange = [this] (int v) { const auto& in = inst(); if (in.isLooped()) setLoop (v, in.loopStart + in.loopLength, true); };
@@ -201,7 +202,7 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     for (auto* b : { &playBtn, &playSelBtn, &loopBtn, &stopBtn, &zoomInBtn, &zoomOutBtn, &showAllBtn, &zoomSelBtn, &selAllBtn, &drawBtn,
                      &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn, &silenceBtn, &reverseBtn, &normBtn, &fadeInBtn, &fadeOutBtn,
                      &gainDownBtn, &gainUpBtn, &loopSelBtn, &monoBtn, &undoBtn, &redoBtn, &closeBtn,
-                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn, &loopOnBtn, &pingBtn, &sliceBtn, &toolsBtn, &saveBtn })
+                     &selKeysBtn, &stretchBtn, &presetBtn, &rawBtn, &resampleBtn, &loopOnBtn, &pingBtn, &sliceBtn, &toolsBtn, &saveBtn, &loadBtn })
         addAndMakeVisible (b);
     addAndMakeVisible (rateBox);
     addAndMakeVisible (toBox);
@@ -520,7 +521,7 @@ std::vector<juce::Component*> SampleEditor::mainControls()
              &fadeInBtn, &fadeOutBtn, &loopSelBtn, &monoBtn, &drawBtn,
              &stretchBtn, &undoBtn, &redoBtn, &closeBtn,
              &rateBox, &presetBtn, &toBox, &rawBtn, &resampleBtn,
-             &loopOnBtn, &pingBtn, &loopStartBox, &loopEndBox, &sliceBtn, &toolsBtn, &saveBtn };
+             &loopOnBtn, &pingBtn, &loopStartBox, &loopEndBox, &sliceBtn, &toolsBtn, &saveBtn, &loadBtn };
 }
 
 std::vector<juce::Component*> SampleEditor::slicerControls()
@@ -588,7 +589,7 @@ void SampleEditor::resized()
     layoutRow (rows[2], { &cutBtn, &copyBtn, &pasteBtn, &deleteBtn, &cropBtn });
     layoutRow (rows[3], { &silenceBtn, &reverseBtn, &normBtn, &gainDownBtn, &gainUpBtn });
     layoutRow (rows[4], { &fadeInBtn, &fadeOutBtn, &monoBtn, &drawBtn, &sliceBtn });
-    layoutRow (rows[5], { &loopOnBtn, &pingBtn, &loopSelBtn, &toolsBtn });   // loop: on/off, mode, from selection; more tools
+    layoutRow (rows[5], { &loopOnBtn, &pingBtn, &loopSelBtn, &toolsBtn, &loadBtn });   // loop: on/off, mode, from selection; more tools; LOAD... another sample
     layoutRow (rows[6], { &loopStartBox, &loopEndBox });                  // loop points
     layoutRow (rows[7], { &stretchBtn, &saveBtn, &undoBtn, &redoBtn, &closeBtn });
     {

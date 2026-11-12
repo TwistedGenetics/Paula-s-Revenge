@@ -1927,6 +1927,28 @@ static void testBlockSwitchAndSections()
     p.playBlock (0, 40); CHECK (p.switchBlock (1) && p.uiLine.load() == 8);
     p.playSong (0); CHECK (! p.switchBlock (0));  // only in block play
 
+    // (v0.79) GO TO A BLOCK in time: block 0 (64 lines) plays to its end, then block 1 from its top
+    {
+        p.playBlock (0);
+        for (int k = 0; k < 10; ++k) p.render (L.data(), R.data(), 5760);
+        CHECK (p.cueBlock (1) && p.queuedBlock() == 1);
+        for (int k = 0; k < 40; ++k) p.render (L.data(), R.data(), 5760);
+        const bool stillOld = p.uiBlock.load() == 0 && p.uiLine.load() >= 49;
+        int lines = 0;
+        while (p.uiBlock.load() == 0 && lines < 64) { p.render (L.data(), R.data(), 5760); ++lines; }
+        std::printf ("cued block 1: block 0 played on %d more lines, then block %d line %d\n", 50 + lines, p.uiBlock.load(), p.uiLine.load());
+        CHECK (stillOld && p.uiBlock.load() == 1 && p.uiLine.load() <= 1 && 50 + lines >= 63 && p.queuedBlock() < 0);
+        // the block playing: the waiting one is called off
+        CHECK (p.cueBlock (0) && p.queuedBlock() == 0);
+        CHECK (p.cueBlock (1) && p.queuedBlock() < 0);
+        // the song: on its block, it just stays there (block play, nothing restarts)
+        p.playSong (0);
+        for (int k = 0; k < 5; ++k) p.render (L.data(), R.data(), 5760);
+        const int ln = p.uiLine.load();
+        CHECK (p.cueBlock (0) && p.getMode() == Player::Mode::Block && p.uiLine.load() == ln);
+        p.stop(); CHECK (! p.cueBlock (1));
+    }
+
     // sections
     Song t;
     t.blocks.assign (1, Block{}); t.blocks[0].lines = 4;
@@ -4827,6 +4849,52 @@ static void testMorphFilter()
 }
 
 // ---- MORPH (v0.78): the morphing-filter synth
+// (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
+// every key is up, it goes quiet - no envelope left hanging
+static void testNoStuckNotes()
+{
+    std::printf ("\n== NO STUCK NOTES\n");
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey };
+    std::mt19937 rng (79);
+    std::uniform_real_distribution<float> u (0, 1);
+    int stuck = 0;
+    for (auto* key : keys)
+        for (int trial = 0; trial < 4; ++trial)
+        {
+            Instrument in; makeBuiltin (in, key);
+            auto vals = builtinDefaults (key);
+            const auto& ps = builtinParams (key);
+            for (size_t i = 0; i < ps.size(); ++i)
+            {
+                const std::string n = ps[i].name;
+                const bool tail = n == "RELEASE" || n.find ("ECHO") != std::string::npos;
+                if (! tail && u (rng) < 0.5f) vals[i] = ps[i].toValue (u (rng));
+            }
+            writeBuiltinState (in, vals);
+            auto s = createBuiltinSynth (in, 48000);
+            std::vector<float> L (512), R (512);
+            std::vector<int> down;
+            for (int blk = 0; blk < 200; ++blk)
+            {
+                int last = 0;
+                for (int e = (int) (u (rng) * 4); e > 0; --e)
+                {
+                    const int off = last + (int) (u (rng) * (float) (511 - last)); last = off;
+                    if (down.empty() || u (rng) < 0.5f) { const int n = 36 + (int) (u (rng) * 36); s->noteOn (n, 1 + (int) (u (rng) * 126), off); down.push_back (n); }
+                    else { const size_t k = (size_t) (u (rng) * (float) down.size()) % down.size(); s->noteOff (down[k], off); down.erase (down.begin() + (long) k); }
+                }
+                s->render (L.data(), R.data(), 512);
+            }
+            for (int n : down) s->noteOff (n, 0);
+            for (int blk = 0; blk < 48000 * 15 / 512; ++blk) s->render (L.data(), R.data(), 512);
+            float tail = 0;
+            for (int blk = 0; blk < 10; ++blk) { std::fill (L.begin(), L.end(), 0.0f); s->render (L.data(), R.data(), 512); for (float x : L) tail = std::max (tail, std::abs (x)); }
+            if (! (tail < 0.001f)) { ++stuck; std::printf ("%s (try %d): still sounding %.4f\n", key, trial, tail); }
+        }
+    std::printf ("stuck: %d of 24\n", stuck);
+    CHECK (stuck == 0);
+}
+
 static void testMorphSynth()
 {
     std::printf ("\n== MORPH SYNTH\n");
@@ -4966,6 +5034,21 @@ static void testRom()
         const auto [Lr, Rr] = play (v, 69, 96000, 24000);
         float tail = 0; for (size_t i = 80000; i < 96000; ++i) tail = std::max (tail, std::abs (Lr[i]));
         CHECK (tail < 0.001f);
+    }
+    // (v0.79) FILTER: MORPH - the MORPH FILTER on every note, its MORPH moved by the filter envelope
+    {
+        auto m = v; m[rom::FilterType] = rom::MorphKind; m[rom::MorphModel] = 7; m[rom::Morph] = 0; m[rom::MorphEnv] = 100; m[rom::FilterDecay] = 400;
+        RomSynth s; s.prepare (sr, 512); s.setValues (m); s.setBank (bank);
+        std::vector<float> L (480), R (480);
+        s.noteOn (69, 127, 0); s.render (L.data(), R.data(), 480);
+        const float early = s.morphOf (0);
+        for (int k = 0; k < 100; ++k) s.render (L.data(), R.data(), 480);
+        const float later = s.morphOf (0);
+        float pk = 0; bool ok = true; for (float x : L) { ok = ok && std::isfinite (x); pk = std::max (pk, std::abs (x)); }
+        std::printf ("ROM MORPH (ACID, ENV>MORPH 100): morph %.2f at 10 ms, %.2f at 1 s; level %.3f\n", early, later, pk);
+        CHECK (ok && early > 0.9f && later < 0.2f && pk > 0.01f && pk < 2.0f);
+        // and the low-pass - the old songs' sound - is still the default
+        CHECK (builtinDefaults (kRomKey)[rom::FilterType] == rom::LowPass && builtinDefaults (kRomKey).size() == (size_t) rom::Count);
     }
     // a sample without a loop plays once and stops
     {
@@ -6353,6 +6436,7 @@ int main()
     testRom();
     testMorphFilter();
     testMorphSynth();
+    testNoStuckNotes();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

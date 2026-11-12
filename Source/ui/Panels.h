@@ -130,6 +130,7 @@ private:
 public:
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> openArrange;
+    std::function<void()> openBlock;   // (v0.79) a double-click: that block, on the pattern page
 public:
     // SHOW ALL (in the title bar): the sequence gets the whole sidebar, the other panels fold to their titles
     PixButton wholeBtn { "SHOW ALL", true };
@@ -214,6 +215,7 @@ public:
     std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
     std::function<void (int kind)> openSource;   // the right-click's VST / AU (1), MIDI OUT (2), CV OUT (3)
     std::function<void()> openBreak;   // the BREAK page
+    std::function<void()> openLoadMenu;   // (v0.79) LOAD: what kind of instrument - a sample, a built-in synth, a plug-in...
 
     std::function<void()> openEqFx;    // EQ/FX: the instrument's own EQ and effects
     bool keyPressed (const juce::KeyPress&) override;   // Delete / Backspace: clear the instrument; up / down: the next one
@@ -230,7 +232,7 @@ private:
     std::function<void (const juce::String&)> status;
     PixList list;
     PixButton loadBtn { "LOAD" }, editBtn { "EDIT" }, fxBtn { "EQ/FX" }, paramsBtn { "PARAMS" };
-    PixButton clearBtn { "CLEAR" }, nameBtn { "NAME" };   // (not on the panel: the right-click's CLEAR and RENAME, a double-click renames)
+    PixButton clearBtn { "CLEAR" }, nameBtn { "NAME" };   // (not on the panel: the right-click's CLEAR and RENAME (Cmd+R); a double-click opens the instrument)
     int shownInstrument = -1;
     PixButton loopBtn { "LOOP", true };
     NumberBox vol { "VOL", 0, 64, 64 }, fine { "FINE", -8, 7, 0 }, trans { "TRNS", -24, 24, 0 };

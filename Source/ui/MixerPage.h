@@ -104,6 +104,7 @@ public:
     void updateLowEnd();     // (tick, every half second; tests)
     void openChannel (int track);
     void openInstrument (int ins);   // an instrument's own EQ and its 3 insert effects (BACK: its page)
+    bool showsInstrument() const;    // (v0.79: that page is up - Tab goes on to PARAMS)
     int  channelInstrument() const { return chInstrument; }   // (-1: a mixer track)
     void openEffect (int slot);
     void showMods (int mod = -1);    // the MODULATION page (on that modulator)

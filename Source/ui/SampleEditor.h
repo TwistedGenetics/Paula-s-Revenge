@@ -15,6 +15,7 @@ public:
 
     std::function<void()> onChanged;   // instrument data changed
     std::function<void()> onClose;
+    std::function<void()> onLoadSample;   // (v0.79) LOAD...: another sample into this instrument (the sample browser)
     std::function<void()> onStems;     // TOOLS > SPLIT INTO STEMS...
     std::function<void()> onStopSong;   // Space while the song plays: stop it (and the preview)
     std::function<void (const juce::String&)> onStatus;
@@ -128,7 +129,7 @@ private:
               selKeysBtn { "SEL KEYS", true }, stretchBtn { "STRETCH" },
               presetBtn { "PRESET" }, rawBtn { "RAW", true }, resampleBtn { "RESAMPLE" },
               loopOnBtn { "LOOP", true }, pingBtn { "PING-PONG", true }, sliceBtn { "SLICE" },
-              toolsBtn { "TOOLS..." }, saveBtn { "SAVE..." };
+              toolsBtn { "TOOLS..." }, saveBtn { "SAVE..." }, loadBtn { "LOAD..." };
     std::unique_ptr<juce::FileChooser> chooser;
     NumberBox rateBox { "RATE", 500, 96000, 16574 }, toBox { "TO", 500, 96000, 11025 };
     NumberBox loopStartBox { "LOOP", 0, 1, 0 }, loopEndBox { "TO", 0, 1, 0 };   // (the loop: START / END are the play range)

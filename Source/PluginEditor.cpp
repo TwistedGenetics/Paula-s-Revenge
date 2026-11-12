@@ -170,7 +170,18 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     // ---- transport
     // SONG / BLOCK: play - and back to the main page (the pattern) from whatever page is open
     playSongBtn.onClick  = [this, &st] { if (st.view != View::Pattern) setView (View::Pattern); proc.withLock ([&] { proc.player.playSong (st.seqPos, 0); }); refreshAll(); };
-    playBlockBtn.onClick = [this, &st] { if (st.view != View::Pattern) setView (View::Pattern); proc.withLock ([&] { proc.player.playBlock (st.block, 0); }); refreshAll(); };
+    playBlockBtn.onClick = [this, &st]
+    {
+        if (st.view != View::Pattern) setView (View::Pattern);
+        // (v0.79) while playing: the block goes on in time (the one playing loops from where it is; another plays
+        // when this one ends) - nothing restarts
+        bool inTime = false, waits = false;
+        proc.withLock ([&] { inTime = proc.player.cueBlock (st.block); waits = proc.player.queuedBlock() >= 0; if (! inTime) proc.player.playBlock (st.block, 0); });
+        lastPickedBlock = st.block;
+        refreshAll();
+        if (inTime) setStatus (waits ? "BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " PLAYS NEXT - WHEN THIS BLOCK ENDS (IN TIME)"
+                                     : "BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " LOOPS FROM HERE (IN TIME)");
+    };
     stopBtn.onClick      = [this]
     {
         // STOP while already stopped: panic (all notes off on every MIDI output)
@@ -325,6 +336,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         setView (in.isMidiOut() ? View::MidiOut : in.isCvOut() ? View::CvOut : in.isPlugin() ? View::Synth : View::Params);
     };
     sequence.openArrange = [this] { setView (View::Arrange); };
+    sequence.openBlock = [this] { if (proc.editorState.view != View::Pattern) setView (View::Pattern); pattern.grabKeyboardFocus(); };
+    instruments.openLoadMenu = [this] { showLoadMenu(); };
     sequence.onStatus = [this] (const juce::String& m) { setStatus (m); };
     sequence.returnFocus = [this]
     {
@@ -411,6 +424,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     };
     sampleEditor.onChanged = [this] { instruments.refresh(); };
     sampleEditor.onClose = [this] { setView (View::Pattern); };
+    sampleEditor.onLoadSample = [this] { setView (View::Browser); };   // (it comes back here)
     sampleEditor.onStatus = [this] (const juce::String& m) { setStatus (m); };
     sampleEditor.onStems = [this] { splitStems(); };
     prv::ui::Theme::markDarkPage (stemsPanel);
@@ -471,18 +485,26 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
 void PaulaEditor::keyStateFromElsewhere (bool down)
 {
-    switch (proc.editorState.view)
-    {
-        case View::SampleEdit: sampleEditor.keyStateChanged (down); break;
-        case View::Browser:    browser.keyStateChanged (down); break;
-        case View::Engine:     enginePage.keyStateChanged (down); break;
-        case View::Params:     params.keyStateChanged (down); break;
-        case View::Synth:      synthPage.keyStateChanged (down); break;
-        case View::MidiOut:    midiPage.keyStateChanged (down); break;
-        case View::Mixer:      mixer.keyStateChanged (down); break;
-        case View::Arrange:    break;
-        default:               pattern.keyStateChanged (down); break;
-    }
+    // (v0.79) a key coming up goes to EVERY page that plays notes from the keys - each lets go of the notes whose
+    // keys are up. Before, only the page on screen heard it, and only when it had the focus: after a click on a
+    // knob or button (the window had the focus) or a change of page, the note never stopped
+    sampleEditor.keyStateChanged (down);
+    browser.keyStateChanged (down);
+    enginePage.keyStateChanged (down);
+    params.keyStateChanged (down);
+    synthPage.keyStateChanged (down);
+    midiPage.keyStateChanged (down);
+    mixer.keyStateChanged (down);
+    chords.keyStateChanged (down);
+    cvPage.keyStateChanged (down);
+    livePage.keyStateChanged (down);
+    pattern.keyStateChanged (down);
+}
+
+bool PaulaEditor::keyStateChanged (bool down)
+{
+    keyStateFromElsewhere (down);
+    return false;
 }
 
 PaulaEditor::~PaulaEditor()
@@ -523,6 +545,7 @@ void PaulaEditor::setView (View v)
     if (st.view == View::Synth && v != View::Synth) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::MidiOut && v != View::MidiOut) proc.withLock ([&] { proc.player.jamAllOff(); });
     if (st.view == View::CvOut && v != View::CvOut) proc.withLock ([&] { proc.player.jamAllOff(); });
+    if (st.view == View::Engine && v != View::Engine) proc.withLock ([&] { proc.player.jamAllOff(); });   // (v0.79)
     auto wide = [] (View w) { return w == View::Mixer || w == View::Help || w == View::Chords || w == View::CvSources || w == View::Radio || w == View::Break || w == View::Live; };
     if (st.view == View::Visuals && v != View::Visuals) visualsPage.closed();
     const bool layoutChange = wide (st.view) != wide (v);
@@ -599,8 +622,16 @@ void PaulaEditor::refreshAll()
     st.block = song.safeBlock (st.block);
     st.line = juce::jlimit (0, song.blocks[(size_t) st.block].lines - 1, st.line);
     st.track = juce::jlimit (0, song.numTracks - 1, st.track);
-    // block play: picking another block carries playback over to it, in time
-    proc.withLock ([&] { proc.player.switchBlock (st.block); });
+    // block play: picking another block plays it next, in time - the block playing plays to its end first (v0.79)
+    if (st.block != lastPickedBlock)
+    {
+        lastPickedBlock = st.block;
+        bool cued = false; int was = -1;
+        if (st.view != View::Live)
+            proc.withLock ([&] { if (proc.player.getMode() == prv::Player::Mode::Block) { was = proc.player.queuedBlock(); cued = proc.player.cueBlock (st.block) && proc.player.queuedBlock() >= 0; } });
+        if (cued) setStatus ("BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " PLAYS NEXT - WHEN THIS BLOCK ENDS (IN TIME)");
+        else if (was >= 0) setStatus ("BLOCK " + juce::String (st.block).paddedLeft ('0', 3) + " PLAYS ON");
+    }
     if (chords.isVisible()) chords.refresh();
 
     const auto& o = proc.player.options;
@@ -668,6 +699,8 @@ void PaulaEditor::setStatus (const juce::String& s)
 
 void PaulaEditor::timerCallback()
 {
+    // (v0.79) a key that came up while a menu or another window had the keys: its note stops anyway
+    if (++keyPoll >= 6) { keyPoll = 0; keyStateFromElsewhere (false); }
     // FILL: while F2 is held (or latched with Shift+F2, or the BREAK page's FILL)
     {
         const bool held = hasKeyboardFocus (true) && juce::KeyPress::isKeyCurrentlyDown (juce::KeyPress::F2Key);
@@ -1111,6 +1144,81 @@ int PaulaEditor::loadTabShown() const
     return -1;
 }
 
+// (v0.79) Tab: EDIT > EQ/FX > PARAMS > the pattern, round again. False when not on one of them
+bool PaulaEditor::cycleInstrumentPages (int dir)
+{
+    const auto v = proc.editorState.view;
+    const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
+    // each stage's page for this instrument
+    auto viewOf = [&] (int stage) -> View
+    {
+        switch (stage)
+        {
+            case 0:  return in.isMidiOut() ? View::MidiOut : in.isCvOut() ? View::CvOut : in.isBuiltin() ? View::Engine : in.isPlugin() ? View::Synth : View::SampleEdit;
+            case 1:  return View::Mixer;
+            case 2:  return in.isMidiOut() ? View::MidiOut : in.isCvOut() ? View::CvOut : in.isPlugin() && ! in.isBuiltin() ? View::Synth : View::Params;
+            default: return View::Pattern;
+        }
+    };
+    int stage = -1;
+    if (v == View::Mixer) { if (mixer.showsInstrument()) stage = 1; }
+    else if (v == View::Params) stage = 2;
+    else if (v == viewOf (0)) stage = 0;
+    else if (v == viewOf (2)) stage = 2;
+    if (stage < 0) return false;
+    for (int n = 1; n <= 4; ++n)
+    {
+        const int s = ((stage + dir * n) % 4 + 4) % 4;
+        const View to = viewOf (s);
+        if (to == v && s != 1) continue;   // (the same page twice - a plug-in's EDIT and PARAMS)
+        if (s == 1)
+        {
+            fxReturn = v;
+            setView (View::Mixer);
+            mixer.openInstrument (proc.editorState.instrument);
+        }
+        else
+        {
+            setView (to);
+            if (to == View::Pattern) pattern.grabKeyboardFocus();
+        }
+        static const char* names[4] = { "EDIT", "EQ/FX", "PARAMS", "THE PATTERN" };
+        setStatus (juce::String (names[s]) + " (TAB: NEXT, SHIFT+TAB: BACK)");
+        return true;
+    }
+    return false;
+}
+
+// (v0.79) LOAD: first, what kind of instrument
+void PaulaEditor::showLoadMenu()
+{
+    const int i = proc.editorState.instrument;
+    const auto hex = juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2);
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "LOAD INTO INSTRUMENT " + hex + ": WHAT KIND?",
+                 { "SAMPLE - A WAV / AIFF / MP3 FROM YOUR FILES (THE SAMPLE BROWSER)",
+                   "BUILT-IN SYNTH - SUB, REESE, RAVE, ROM, MORPH, GRANULAR",
+                   "VST3 / AU SYNTH - A PLUG-IN INSTRUMENT",
+                   "SAVED INSTRUMENT - ONE OF YOURS (.PRVI)",
+                   "MIDI OUT - PLAY YOUR HARDWARE",
+                   "CV OUT - PLAY A MODULAR (ES-9)",
+                   "RECORD AUDIO - SAMPLE FROM AN INPUT" }, [safe, i] (int a)
+    {
+        if (safe == nullptr) return;
+        switch (a)
+        {
+            case 0: safe->openLoad (0); break;
+            case 1: safe->openLoad (4); break;
+            case 2: safe->openLoad (1); break;
+            case 3: safe->instruments.showLoadInstrument (i); break;
+            case 4: safe->openLoad (2); break;
+            case 5: safe->openLoad (3); break;
+            case 6: safe->openSample(); break;
+            default: break;
+        }
+    });
+}
+
 void PaulaEditor::openLoad (int kind)
 {
     const int i = proc.editorState.instrument;
@@ -1127,7 +1235,7 @@ void PaulaEditor::openLoad (int kind)
                        "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)",
                        "RAVE - JUNGLE KEYS: STAB, PAD, ORGAN, BLEEP, BELL, HOOVER, MENTASM, PIANO...",
                        "ROM - A ROMPLER: FOUR TONES OF YOUR OWN LOOPED MULTISAMPLES (JV / M1 STYLE)",
-                       "MORPH - A MORPHING-FILTER SYNTH: VOWELS, PHASES, COMBS ON EVERY NOTE (MORPHEUS STYLE)", "CANCEL" }, [safe, hex] (int a)
+                       "MORPH - A MORPHING-FILTER SYNTH: VOWELS, PHASES, COMBS ON EVERY NOTE (MORPHEUS STYLE)" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1144,7 +1252,7 @@ void PaulaEditor::openLoad (int kind)
                                      "HOOVER - THE HOOVER STAB: CHORUSED PULSE-SAWS SWOOPING UP",
                                      "MENTASM - THE SCREAM: FALLING INTO EACH NOTE, RACING PULSE WIDTH",
                                      "PIANO - THE RAVE / HOUSE PIANO STAB",
-                                     "BELGIAN - THE BELGIAN TECHNO STAB: DRIVEN, ONE KEY PLAYS A 5TH", "CANCEL" }, [safe] (int t)
+                                     "BELGIAN - THE BELGIAN TECHNO STAB: DRIVEN, ONE KEY PLAYS A 5TH" }, [safe] (int t)
                 {
                     if (safe != nullptr && t >= 0 && t < prv::rave::Types) safe->makeBuiltinSynth (prv::kRaveKey, t);
                 });
@@ -1389,6 +1497,11 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         if (k.getModifiers().isShiftDown()) setFillLatch (! fillLatched);
         return true;
     }
+    // (v0.79) Tab on an instrument's pages: EDIT > EQ/FX > PARAMS > the pattern (Shift+Tab back); on the pattern, Tab
+    // moves track as ever
+    if (k.getKeyCode() == juce::KeyPress::tabKey && ! k.getModifiers().isCommandDown() && ! k.getModifiers().isAltDown()
+        && cycleInstrumentPages (k.getModifiers().isShiftDown() ? -1 : 1))
+        return true;
     // F4: HOLD KEYS - notes from the computer keys (and MIDI) stay on until played again
     if (k.getKeyCode() == juce::KeyPress::F4Key)
     {

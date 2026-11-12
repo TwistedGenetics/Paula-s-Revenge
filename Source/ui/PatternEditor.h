@@ -106,6 +106,7 @@ public:
     void pasteSelection();     // at the cursor line / track
     void deleteSelection();
     void selectAll();
+    bool isMovingNotes() const { return moveDragging; }   // (tests)
 
     // marked loop (lines of the current block)
     void setLoopRange (int from, int to);   // also turns the loop on
@@ -138,6 +139,11 @@ private:
     struct SelClip { std::vector<ClipCell> cells; int lines = 0; } selClip;
     enum class LastCopy { None, Track, Block, Selection } lastCopy = LastCopy::None;
     bool downInGrid = false, selDragging = false;
+    // (v0.79) ALT+DRAG moves the highlighted notes (or the one clicked) to other lines / tracks; ALT+SHIFT+DRAG copies them
+    bool moveDragging = false, moveCopy = false;
+    int moveDL = 0, moveDT = 0;
+    Selection moveFrom;
+    void finishMove();
     int downLine = 0, downTrack = 0, downColumn = 0;
     int groupsPerTrack() const { return st.showFx2 ? 3 : 2; }
     static int groupOfColumn (int column) { return column <= 2 ? 0 : column <= 5 ? 1 : 2; }

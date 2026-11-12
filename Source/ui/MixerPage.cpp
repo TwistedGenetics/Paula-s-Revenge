@@ -1194,6 +1194,8 @@ void MixerPage::openInstrument (int ins)
     refresh();
 }
 
+bool MixerPage::showsInstrument() const { return currentPage == Page::Channel && chInstrument >= 0; }
+
 void MixerPage::openChannel (int track)
 {
     chInstrument = -1;
