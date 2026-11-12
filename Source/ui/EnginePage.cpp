@@ -36,6 +36,11 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     for (auto* c : { &playBtn, &optionsBtn, &closeBtn, &presetsBtn }) addAndMakeVisible (c);
     loadSampleBtn.onClick = [this] { if (onLoadSample) onLoadSample(); };
     addChildComponent (loadSampleBtn);
+    for (int t = 0; t < kRomTones; ++t)
+    {
+        toneBtn[t].onClick = [this, t] { showToneMenu (t); };
+        addChildComponent (toneBtn[t]);
+    }
     for (int k = 0; k < 2; ++k)
     {
         pageBtn[k].setClickingTogglesState (false);
@@ -80,6 +85,147 @@ void EnginePage::edit (int param, float value, bool merge)
 }
 
 void EnginePage::setValue (int param, float value) { edit (param, value, false); }
+
+// ---- ROM's tones
+juce::File EnginePage::romFolder()
+{
+    const auto p = prefs().getValue ("romFolder");
+    return p.isEmpty() ? juce::File() : juce::File (p);
+}
+
+void EnginePage::setRomFolder (const juce::File& f)
+{
+    prefs().setValue ("romFolder", f.getFullPathName());
+    prefs().saveIfNeeded();
+    romLibrary (true);
+}
+
+const EnginePage::RomLibrary& EnginePage::romLibrary (bool rescan)
+{
+    static RomLibrary lib;
+    static juce::String scanned;
+    const auto dir = romFolder();
+    if (rescan || scanned != dir.getFullPathName())
+    {
+        lib.clear();
+        scanned = dir.getFullPathName();
+        if (dir.isDirectory())
+            for (const auto& f : dir.findChildFiles (juce::File::findFiles, true, "*.wav;*.WAV"))
+            {
+                const auto stem = f.getFileNameWithoutExtension().toStdString();
+                const juce::String cat (romCategoryOf (stem)), grp (romGroupOf (stem));
+                lib[cat][grp].add (f);
+            }
+    }
+    return lib;
+}
+
+void EnginePage::updateToneButtons()
+{
+    const auto& rb = inst().rom;
+    for (int t = 0; t < kRomTones; ++t)
+    {
+        const int n = rb != nullptr ? rb->zonesOf (t) : 0;
+        toneBtn[t].setButtonText (n == 0 ? juce::String ("EMPTY - LOAD...")
+                                         : juce::String (rb->toneName[(size_t) t]).toUpperCase().substring (0, 14) + " (" + juce::String (n) + ")...");
+    }
+}
+
+bool EnginePage::loadTone (int t, const juce::Array<juce::File>& wavs, const juce::String& name)
+{
+    if (t < 0 || t >= kRomTones || inst().pluginKey != kRomKey) return false;
+    std::vector<RomZone> zones;
+    juce::String firstError;
+    for (const auto& f : wavs)
+    {
+        juce::MemoryBlock mb;
+        RomZone z; std::string err;
+        if (! f.loadFileAsData (mb) || ! romReadWav ((const uint8_t*) mb.getData(), mb.getSize(), z, err))
+        { if (firstError.isEmpty()) firstError = f.getFileName().toUpperCase() + ": " + juce::String (err.empty() ? "COULDN'T READ IT" : err); continue; }
+        z.name = f.getFileNameWithoutExtension().toUpperCase().toStdString();
+        zones.push_back (std::move (z));
+    }
+    if (zones.empty()) { if (onStatus) onStatus ("NOTHING LOADED - " + firstError); return false; }
+    const int count = (int) zones.size();
+    int looped = 0;
+    for (const auto& z : zones) looped += z.loops() ? 1 : 0;
+    proc.history.instrument (proc.editorState.instrument, "ROM TONE " + juce::String (t + 1) + ": " + name);
+    proc.withLock ([&] { inst().rom = romWithTone (inst().rom, t, std::move (zones), name.toUpperCase().toStdString()); });
+    resized();
+    if (onStatus) onStatus ("TONE " + juce::String (t + 1) + ": " + name.toUpperCase() + " - " + juce::String (count) + (count == 1 ? " SAMPLE" : " SAMPLES")
+                            + ", " + juce::String (looped) + " LOOPED" + (firstError.isNotEmpty() ? " (SOME COULDN'T BE READ: " + firstError + ")" : juce::String()));
+    if (onChanged) onChanged();
+    return true;
+}
+
+void EnginePage::emptyTone (int t)
+{
+    if (inst().rom == nullptr || inst().rom->zonesOf (t) == 0) return;
+    proc.history.instrument (proc.editorState.instrument, "ROM TONE " + juce::String (t + 1) + ": EMPTY");
+    proc.withLock ([&] { inst().rom = romWithTone (inst().rom, t, {}, ""); });
+    resized();
+    if (onStatus) onStatus ("TONE " + juce::String (t + 1) + " EMPTIED");
+    if (onChanged) onChanged();
+}
+
+void EnginePage::showToneMenu (int t)
+{
+    juce::Component::SafePointer<EnginePage> safe (this);
+    std::vector<MenuItem> items;
+    const auto dir = romFolder();
+    const auto& lib = romLibrary();
+    // the ROM FOLDER's categories: each opens its sounds
+    for (const auto& [cat, groups] : lib)
+    {
+        int files = 0;
+        for (const auto& g : groups) files += g.second.size();
+        const juce::String catName = cat;
+        items.push_back ({ catName + " (" + juce::String ((int) groups.size()) + " SOUNDS)...", [safe, t, catName]
+        {
+            if (safe == nullptr) return;
+            const auto& l = romLibrary();
+            const auto it = l.find (catName);
+            if (it == l.end()) return;
+            std::vector<MenuItem> sounds;
+            for (const auto& [grp, files] : it->second)
+            {
+                const juce::String g = grp; const auto fs = files;
+                sounds.push_back ({ g + (fs.size() > 1 ? " (" + juce::String (fs.size()) + ")" : juce::String()), [safe, t, g, fs] { if (safe != nullptr) safe->loadTone (t, fs, g); } });
+            }
+            showMenu ("TONE " + juce::String (t + 1) + ": " + catName, std::move (sounds));
+        } });
+        juce::ignoreUnused (files);
+    }
+    items.push_back ({ "LOAD WAV FILES (ONE SOUND'S SAMPLES)...", [safe, t]
+    {
+        if (safe == nullptr) return;
+        safe->chooser = std::make_unique<juce::FileChooser> ("Pick one sound's WAV files", romFolder().isDirectory() ? romFolder() : juce::File(), "*.wav");
+        safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::canSelectMultipleItems,
+                                    [safe, t] (const juce::FileChooser& fc)
+        {
+            const auto res = fc.getResults();
+            if (safe != nullptr && ! res.isEmpty())
+                safe->loadTone (t, res, juce::String (romGroupOf (res[0].getFileNameWithoutExtension().toStdString())));
+        });
+    } });
+    items.push_back ({ dir.isDirectory() ? "THE ROM FOLDER: " + dir.getFileName().toUpperCase() + " (CHANGE...)" : juce::String ("SET THE ROM FOLDER (YOUR SAMPLES)..."), [safe]
+    {
+        if (safe == nullptr) return;
+        safe->chooser = std::make_unique<juce::FileChooser> ("Your samples' folder (ROM lists its WAVs by category and name)", romFolder());
+        safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe] (const juce::FileChooser& fc)
+        {
+            if (fc.getResult().isDirectory())
+            {
+                setRomFolder (fc.getResult());
+                int n = 0; for (const auto& c : romLibrary()) n += (int) c.second.size();
+                if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER: " + fc.getResult().getFileName().toUpperCase() + " - " + juce::String (n) + " SOUNDS IN " + juce::String ((int) romLibrary().size()) + " CATEGORIES");
+            }
+        });
+    } });
+    if (dir.isDirectory()) items.push_back ({ "LOOK THROUGH THE ROM FOLDER AGAIN", [safe] { romLibrary (true); if (safe != nullptr && safe->onStatus) safe->onStatus ("ROM FOLDER LOOKED THROUGH AGAIN"); } });
+    if (inst().rom != nullptr && inst().rom->zonesOf (t) > 0) items.push_back ({ "EMPTY THIS TONE", [safe, t] { if (safe != nullptr) safe->emptyTone (t); } });
+    showMenu ("TONE " + juce::String (t + 1) + (lib.empty() ? juce::String (dir.isDirectory() ? ": NO WAVS IN THE ROM FOLDER" : ": SET THE ROM FOLDER TO PICK BY NAME") : juce::String (": WHICH SOUND?")), std::move (items));
+}
 
 // ---- presets
 void EnginePage::loadPreset (const std::string& name, const std::vector<float>& values)
@@ -197,7 +343,8 @@ void EnginePage::build()
         else if (q.kind == 2)
         {
             r.number = std::make_unique<NumberBox> (q.name, (int) q.min, (int) q.max, (int) q.def);
-            r.number->compact = true; r.number->labelChars = 9; r.number->valueChars = 3;
+            r.number->compact = true; r.number->labelChars = 9;
+            r.number->valueChars = (int) std::max<size_t> (3, std::max (q.text (q.min).size(), q.text (q.max).size()));   // ("+12ST" whole)
             r.number->format = [q] (int v) { return juce::String (q.text ((float) v)); };
             r.number->onChange = [this, i] (int v) { edit (i, (float) v, true); };
             addAndMakeVisible (*r.number);
@@ -221,7 +368,8 @@ void EnginePage::build()
             const bool grainPage = shownKey == kGrainKey, reesePage = shownKey == kReeseKey;
             const bool second = (grainPage && (sec == "LFO 1" || sec == "LFO 2" || sec == "ENV MOD" || sec == "FILTER"))
                              || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"))
-                             || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"));   // (when SUB needs two pages)
+                             || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"))   // (when SUB needs two pages)
+                             || (shownKey == kRomKey && ! sec.startsWith ("TONE "));   // (ROM: its TONES, then the rest)
             boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
@@ -350,6 +498,8 @@ void EnginePage::resized()
     const int gap = (int) std::max (2.0f, px);
     const int title = (int) (px * 11);
     if (! relayout) subPages = false;
+    for (auto& tb : toneBtn) tb.setVisible (false);
+    updateToneButtons();
     auto r = getLocalBounds().reduced (gap);
     auto top = r.removeFromTop (rowH);
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
@@ -427,12 +577,19 @@ void EnginePage::resized()
     {
         int lines = 0;
         for (int ri : b.rowIndex) if (! hidden (rows[(size_t) ri])) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
+        if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;   // (its samples' button)
         return gap * 4 + title + lines * (rowH + gap);
     };
     auto place = [&] (Box& b, juce::Rectangle<int> area)
     {
         b.area = area.toFloat();
         auto in = area.reduced (gap * 2).withTrimmedTop (title);
+        if (shownKey == kRomKey && b.title.startsWith ("TONE "))
+        {
+            const int t = juce::jlimit (0, kRomTones - 1, b.title.getTrailingIntValue() - 1);
+            toneBtn[t].setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap);
+            toneBtn[t].setVisible (true);
+        }
         for (int ri : b.rowIndex)
         {
             auto& rw = rows[(size_t) ri];
@@ -478,14 +635,15 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || (shownKey == kSubKey && subPages);
+    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged);
     loadSampleBtn.setVisible (shownKey == kGrainKey);
-    if (shownKey == kReeseKey || (shownKey == kSubKey && subPages))
+    if (shownKey == kReeseKey || shownKey == kRomKey || (shownKey == kSubKey && subPages))
     {
-        // REESE (and SUB when it needs them): its two pages' tabs on a line of their own
-        const bool sub = shownKey == kSubKey;
-        pageBtn[0].setButtonText ("SOUND"); pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : "HOOVER + FILTER");
+        // REESE, ROM (and SUB when it needs them): the two pages' tabs on a line of their own
+        const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey;
+        pageBtn[0].setButtonText (romP ? "TONES" : "SOUND");
+        pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : "HOOVER + FILTER");
         auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
         pageBtn[0].setBounds (tabs.removeFromLeft (charsW (8))); tabs.removeFromLeft (gap);
         pageBtn[1].setBounds (tabs.removeFromLeft (charsW (sub ? 15 : 17)));

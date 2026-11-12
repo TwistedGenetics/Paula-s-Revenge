@@ -1125,11 +1125,13 @@ void PaulaEditor::openLoad (int kind)
                      { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)",
                        "REESE - DETUNED SAWS THAT PHASE, OR A HOOVER (FILTER, WOBBLE)",
                        "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)",
-                       "RAVE - JUNGLE KEYS: STAB, PAD, ORGAN, BLEEP, BELL, HOOVER, MENTASM, PIANO...", "CANCEL" }, [safe, hex] (int a)
+                       "RAVE - JUNGLE KEYS: STAB, PAD, ORGAN, BLEEP, BELL, HOOVER, MENTASM, PIANO...",
+                       "ROM - A ROMPLER: FOUR TONES OF YOUR OWN LOOPED MULTISAMPLES (JV / M1 STYLE)", "CANCEL" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
             if (safe != nullptr && a == 2) safe->makeBuiltinSynth (prv::kGrainKey);
+            if (safe != nullptr && a == 4) safe->makeBuiltinSynth (prv::kRomKey);
             if (safe != nullptr && a == 3)
                 safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
                                    { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
@@ -1166,7 +1168,7 @@ void PaulaEditor::openLoad (int kind)
 void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
         if (key == prv::kRaveKey) prv::makeRave (proc.song.instruments[(size_t) i], raveType);
@@ -1176,7 +1178,7 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 

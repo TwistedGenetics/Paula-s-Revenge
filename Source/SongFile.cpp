@@ -8,13 +8,14 @@
 #include "engine/Groove.h"
 #include "engine/GearMaps.h"
 #include "engine/BuiltinSynths.h"
+#include "engine/RomBank.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 31;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR)
+    constexpr int kVersion = 32;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -507,6 +508,30 @@ juce::MemoryBlock writeSong (const Song& songIn)
         raw.writeByte ((char) used);
         for (int i = 0; i < kMaxInstruments; ++i)
             if (song.instruments[(size_t) i].midiGear != 0) { raw.writeByte ((char) i); raw.writeByte ((char) song.instruments[(size_t) i].midiGear); }
+    }
+    // v32: ROM's samples (its tones' multisamples)
+    {
+        int used = 0;
+        for (const auto& in : song.instruments) if (in.rom != nullptr && ! in.rom->zones.empty()) ++used;
+        raw.writeByte ((char) used);
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& rb = song.instruments[(size_t) i].rom;
+            if (rb == nullptr || rb->zones.empty()) continue;
+            raw.writeByte ((char) i);
+            for (const auto& nm : rb->toneName) writeStr (raw, nm);
+            raw.writeIntBigEndian ((int) rb->zones.size());
+            for (const auto& z : rb->zones)
+            {
+                writeStr (raw, z.name);
+                raw.writeByte ((char) z.tone); raw.writeByte ((char) z.root); raw.writeFloatBigEndian (z.rootCents);
+                raw.writeByte ((char) z.lo); raw.writeByte ((char) z.hi);
+                raw.writeDoubleBigEndian (z.rate);
+                raw.writeIntBigEndian (z.loopStart); raw.writeIntBigEndian (z.loopEnd);
+                raw.writeIntBigEndian ((int) z.data.size());
+                for (auto x : z.data) raw.writeShortBigEndian (x);
+            }
+        }
     }
 
     juce::MemoryOutputStream packed;
@@ -1127,6 +1152,37 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
                 if (i < kMaxInstruments) s.instruments[(size_t) i].midiGear = g <= gearCount() ? g : 0;
             }
         }
+        if (version >= 32 && ! in.isExhausted())
+        {
+            // v32: ROM's samples
+            const int used = (int) (uint8_t) in.readByte();
+            for (int n = 0; n < used && ! in.isExhausted(); ++n)
+            {
+                const int i = (int) (uint8_t) in.readByte();
+                auto b = std::make_shared<RomBank>();
+                for (auto& nm : b->toneName) nm = readStr (in);
+                const int zones = in.readIntBigEndian();
+                if (zones < 0 || zones > 100000) { error = "This song's ROM samples are damaged."; return false; }
+                for (int k = 0; k < zones && ! in.isExhausted(); ++k)
+                {
+                    RomZone z;
+                    z.name = readStr (in);
+                    z.tone = juce::jlimit (0, kRomTones - 1, (int) (uint8_t) in.readByte());
+                    z.root = juce::jlimit (0, 127, (int) (uint8_t) in.readByte());
+                    z.rootCents = in.readFloatBigEndian();
+                    z.lo = (int) (uint8_t) in.readByte(); z.hi = (int) (uint8_t) in.readByte();
+                    z.rate = in.readDoubleBigEndian();
+                    z.loopStart = in.readIntBigEndian(); z.loopEnd = in.readIntBigEndian();
+                    const int len = in.readIntBigEndian();
+                    if (len < 0 || len > (1 << 26)) { error = "This song's ROM samples are damaged."; return false; }
+                    z.data.resize ((size_t) len);
+                    for (auto& x : z.data) x = in.readShortBigEndian();
+                    if (! (z.rate > 100 && z.rate < 1.0e6)) z.rate = 44100;
+                    b->zones.push_back (std::move (z));
+                }
+                if (i < kMaxInstruments) s.instruments[(size_t) i].rom = b;
+            }
+        }
     }
     else if (version == 11)
     {
@@ -1215,6 +1271,15 @@ bool decodeAudioFile (const juce::File& file, std::vector<float>& left, std::vec
     }
     meta.name = file.getFileNameWithoutExtension().toStdString();
     meta.volume = 64;
+    // (v0.77) a WAV's smpl chunk: its loop - and, for a looped (melodic) sample, its root note, so C-3 plays a C
+    {
+        int root = 60, ls = -1, le = -1;
+        if (romReadSmpl (bytes.data(), bytes.size(), root, ls, le) && ls >= 0 && le > ls && le < len)
+        {
+            meta.loopStart = ls; meta.loopLength = le - ls + 1;
+            if (root != 60) rate *= std::pow (2.0, (60 - root) / 12.0);
+        }
+    }
     return true;
 }
 
@@ -1271,6 +1336,7 @@ bool importSample (const juce::File& file, Instrument& out, juce::String& error,
     out.natRate = out.rate;
     out.loopStart = (int) std::lround (meta.loopStart / ratio);
     out.loopLength = (int) std::lround (meta.loopLength / ratio);
+    if (out.loopLength > 0) out.loopLength = std::min (out.loopLength, (int) out.data.size() - out.loopStart);   // (a loop to the end stays inside it)
     if (! out.isLooped()) { out.loopStart = 0; out.loopLength = 0; }
     return true;
 }

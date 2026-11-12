@@ -10,6 +10,8 @@
 #include <algorithm>
 #include "MixerTypes.h"
 #include "Chords.h"
+#include "RomBank.h"
+#include <memory>
 
 namespace prv
 {
@@ -263,6 +265,7 @@ struct Instrument
     int  midiDelayMs = 0;                   // -50..+200: later MIDI, or (negative) later audio
     int  midiCC[kInstrumentKnobs] { 74, 71, 73, 10 };   // the CCs knobs L, Q, H, W send (128 + n: the GEAR's parameter n)
     int  midiGear = 0;                      // GEAR (GearMaps.h): the synth on the other end, its controls by name; 0 = NONE
+    std::shared_ptr<const RomBank> rom;     // ROM (v0.77): its tones' samples - shared, never changed in place (a change makes a new bank)
     bool midiClock = false;                 // send MIDI clock and start / stop to the device
     bool isMidiOut() const { return plugin && midiOut; }
 

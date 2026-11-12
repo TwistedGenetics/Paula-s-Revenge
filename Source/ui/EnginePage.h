@@ -7,6 +7,8 @@
 #include "../engine/BuiltinSynths.h"
 #include "../engine/ReeseSynth.h"
 #include "../engine/RaveSynth.h"
+#include "../engine/RomSynth.h"
+#include <map>
 #include "Widgets.h"
 
 namespace prv::ui
@@ -58,6 +60,16 @@ private:
     void showPresets();
     void savePreset (const juce::String& name);          // (the prompt's answer; also tests)
     void loadPreset (const std::string& name, const std::vector<float>& values);
+    // ROM (v0.77): each TONE's samples - from the ROM FOLDER (by category and name), or WAV files picked
+    PixButton toneBtn[kRomTones] { PixButton ("TONE 1"), PixButton ("TONE 2"), PixButton ("TONE 3"), PixButton ("TONE 4") };
+    void showToneMenu (int tone);
+    bool loadTone (int tone, const juce::Array<juce::File>& wavs, const juce::String& name);   // (also tests)
+    void emptyTone (int tone);
+    static juce::File romFolder();
+    static void setRomFolder (const juce::File&);
+    // the folder's samples: category -> group -> its files (scanned once, or again when asked)
+    using RomLibrary = std::map<juce::String, std::map<juce::String, juce::Array<juce::File>>>;
+    static const RomLibrary& romLibrary (bool rescan = false);
   private:
     juce::Rectangle<float> titleArea;
     std::map<int, int> heldKeys;
@@ -65,6 +77,8 @@ private:
     juce::Rectangle<float> waveArea;
     // (GRANULAR has more than fits at once: its controls on two pages)
     PixButton loadSampleBtn { "LOAD SAMPLE..." };
+    std::unique_ptr<juce::FileChooser> chooser;
+    void updateToneButtons();
     PixButton pageBtn[2] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true) };
     int pageShown = 0;
     bool subPages = false, relayout = false;   // (SUB: on two pages only when it doesn't all fit - BEAT's rows on)

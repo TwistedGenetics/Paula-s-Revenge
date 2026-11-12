@@ -2,6 +2,7 @@
 #include "BuiltinSynths.h"
 #include "ReeseSynth.h"
 #include "RaveSynth.h"
+#include "RomSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -49,6 +50,7 @@ std::string SynthParam::text (float v) const
     else if (u == "HZ") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.1fK", v / 1000.0f); else if (v < 10.0f) std::snprintf (buf, sizeof (buf), "%.2fHZ", v); else std::snprintf (buf, sizeof (buf), "%dHZ", (int) std::lround (v)); }
     else if (u == "ST" || u == "C") std::snprintf (buf, sizeof (buf), "%+d%s", (int) std::lround (v), u.c_str());
     else if (u == "#") std::snprintf (buf, sizeof (buf), "%02X", (int) std::lround (v));   // (an instrument, as the instruments list shows it)
+    else if (u == "LR") { const int x = (int) std::lround (v); if (x == 0) std::snprintf (buf, sizeof (buf), "CENTRE"); else std::snprintf (buf, sizeof (buf), "%s%d", x < 0 ? "L" : "R", std::abs (x)); }   // (a pan)
     else if (kind == 2) std::snprintf (buf, sizeof (buf), "%+d", (int) std::lround (v));
     else std::snprintf (buf, sizeof (buf), "%.2f", v);
     return buf;
@@ -120,6 +122,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kGrainKey) return grainP;
     if (key == kReeseKey) return reeseParams();
     if (key == kRaveKey) return raveParams();
+    if (key == kRomKey) return romParams();
     return none;
 }
 
@@ -165,7 +168,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     writeBuiltinState (in, builtinDefaults (key));
@@ -184,6 +187,7 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     if (in.pluginKey == kSubKey) s = std::make_unique<SubSynth>();
     if (in.pluginKey == kReeseKey) s = std::make_unique<ReeseSynth>();
     if (in.pluginKey == kRaveKey) s = std::make_unique<RaveSynth>();
+    if (in.pluginKey == kRomKey) s = std::make_unique<RomSynth>();
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;

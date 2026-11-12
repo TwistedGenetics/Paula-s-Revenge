@@ -35,7 +35,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **SYNTHS** (the built-in SUB, REESE, RAVE and GRANULAR synths), **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. LOAD opens the browser, with tabs along the top for what the instrument plays: **SAMPLES**, **SYNTHS** (the built-in SUB, REESE, RAVE, ROM and GRANULAR synths), **VST / AU** (your instrument plug-ins), **MIDI OUT** (hardware) and **CV OUT** (a modular); EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). Double-click a name to rename. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -66,7 +66,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -293,7 +293,7 @@ The window's title shows the song, a `*` for unsaved changes, and the block you'
 
 v0.6 also fixes LOAD for `.prv` songs: earlier versions mistook a saved song for an old SoundTracker module and loaded rubbish. Songs inside Live sets were never affected, and old `.prv` files load correctly now.
 
-Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
+A WAV that has its own loop points (a 'smpl' chunk, as sample libraries and samplers save them) loads with that loop, and a looped one with its root note too, so C-3 plays a C. Songs are self-contained: SAVE (`.prv`) stores every sample inside the song, stereo included, and a Live set stores the whole song with its samples. You can delete or move the original WAVs. **EXPORT SAMPLES** writes every instrument that has a sample to a folder you choose as `01 NAME.wav`, `02 NAME.wav`… (16-bit, stereo kept, at the rate that plays them at C-3).
 
 ## Saving instruments (MY INSTRUMENTS)
 
@@ -779,7 +779,7 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
 
-## Built-in synths: SUB, REESE, RAVE and GRANULAR
+## Built-in synths: SUB, REESE, RAVE, ROM and GRANULAR
 
 **Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
@@ -841,6 +841,21 @@ The controls:
 * **OUTPUT**: VELOCITY, LEVEL.
 
 Up to 16 notes at once; when it's full, the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB.
+
+### ROM
+
+**ROM** is a ROMpler in the spirit of the JV-1080 and the M1: small looped samples spread across the keys, layered up to four deep - from **your own** samples (a sample library, a sampler's disks, a ROM dump of your synth). Load it from LOAD → **SYNTHS** → ROM. Its page has two tabs: **TONES** and **SOUND + FILTER**.
+
+* **TONES 1-4**: each tone is one sound's multisample. Its button (**EMPTY - LOAD...** to start with) picks the samples:
+  * **SET THE ROM FOLDER (YOUR SAMPLES)...**: point it once at the folder your WAVs are in (sub-folders too). From then on the menu lists them **by category and name** - WND, VOX, PNO... then the sounds in each, with how many samples each has (`WND ACORD (3)`) - and picking one loads all its samples. Names like Roland's (`WND_XACORD0A.wav`: the category, then X and the sound's name, then two for which sample) are grouped that way; other libraries by the name without its numbers or notes at the end. **LOOK THROUGH THE ROM FOLDER AGAIN** after you add some.
+  * **LOAD WAV FILES (ONE SOUND'S SAMPLES)...**: pick one sound's WAV files yourself.
+  * **EMPTY THIS TONE**.
+  * Each WAV's own **root note and loop** (its 'smpl' chunk) are used: each sample plays the keys nearest its root, and its loop plays for as long as the note (and through the release) - a sample without a loop plays once. Stereo samples are mixed to mono.
+  * Each tone has **LEVEL**, **PAN**, **TUNE** (semitones: +12 layers it an octave up) and **FINE**. Every tone with samples plays on every note - layer a pad with a choir, a bass with an organ.
+* **SOUND**: **CHORD** (one key plays the chord, like RAVE), **OCTAVE**, **VIBRATO** and **VIB RATE**.
+* **FILTER**: a 12 dB low-pass - **CUTOFF**, **RES**, **ENV AMT**, **ENV DECAY** (wide open, as it starts, the samples play as they are).
+* **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE. **SPACE**: CHORUS, ECHO, ECHO TIME. **OUTPUT**: VELOCITY, LEVEL.
+* Up to 16 notes at once. The samples are stored in the song (and in a saved instrument), so a song with ROM plays anywhere - which also means anyone you send it to has those samples. PRESETS keep ROM's settings, not its samples: to keep a whole ROM sound, use SAVE INSTRUMENT...
 
 ### GRANULAR
 

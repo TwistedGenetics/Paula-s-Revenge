@@ -5,6 +5,8 @@
 #include "engine/BuiltinSynths.h"
 #include "engine/ReeseSynth.h"
 #include "engine/RaveSynth.h"
+#include "engine/RomSynth.h"
+#include "engine/RomBank.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
@@ -4753,6 +4755,139 @@ static void testSubBeat()
     }
 }
 
+// ---- ROM (v0.77): multisamples from WAVs (with their smpl root and loop), four tones
+namespace
+{
+    // a WAV in memory: 16-bit mono, with a smpl chunk (root, one loop) if root >= 0
+    std::vector<uint8_t> makeWav (const std::vector<int16_t>& d, int rate, int root, int ls, int le, int bits = 16, int ch = 1)
+    {
+        std::vector<uint8_t> w;
+        auto u32 = [&] (uint32_t v) { for (int i = 0; i < 4; ++i) w.push_back ((uint8_t) (v >> (8 * i))); };
+        auto u16 = [&] (uint16_t v) { w.push_back ((uint8_t) v); w.push_back ((uint8_t) (v >> 8)); };
+        auto tag = [&] (const char* t) { for (int i = 0; i < 4; ++i) w.push_back ((uint8_t) t[i]); };
+        tag ("RIFF"); u32 (0); tag ("WAVE");
+        tag ("fmt "); u32 (16); u16 (1); u16 ((uint16_t) ch); u32 ((uint32_t) rate); u32 ((uint32_t) (rate * ch * bits / 8)); u16 ((uint16_t) (ch * bits / 8)); u16 ((uint16_t) bits);
+        if (root >= 0)
+        {
+            tag ("smpl"); u32 (60);
+            u32 (0); u32 (0); u32 (1000000000u / (uint32_t) rate); u32 ((uint32_t) root); u32 (0); u32 (0); u32 (0); u32 (ls >= 0 ? 1 : 0); u32 (0);
+            u32 (0); u32 (0); u32 ((uint32_t) std::max (0, ls)); u32 ((uint32_t) std::max (0, le)); u32 (0); u32 (0);
+        }
+        tag ("data"); u32 ((uint32_t) (d.size() * (size_t) ch * (size_t) bits / 8));
+        for (int16_t x : d)
+            for (int c = 0; c < ch; ++c)
+            {
+                if (bits == 16) u16 ((uint16_t) x);
+                else { w.push_back (0); w.push_back ((uint8_t) x); w.push_back ((uint8_t) (x >> 8)); }   // (24-bit)
+            }
+        const uint32_t sz = (uint32_t) w.size() - 8;
+        for (int i = 0; i < 4; ++i) w[(size_t) (4 + i)] = (uint8_t) (sz >> (8 * i));
+        return w;
+    }
+    // a looped sine at `hz` (whole cycles in the loop)
+    RomZone sineZone (double hz, int rate, int root, std::string name)
+    {
+        RomZone z; z.name = name; z.rate = rate; z.root = root;
+        const int per = (int) std::lround (rate / hz), cycles = 40;
+        for (int i = 0; i < per * cycles; ++i) z.data.push_back ((int16_t) (16000 * std::sin (6.283185307179586 * i / per)));
+        z.loopStart = per * 10; z.loopEnd = per * cycles - 1;
+        return z;
+    }
+}
+
+static void testRom()
+{
+    std::printf ("\n== ROM\n");
+    const double sr = 48000;
+    // a WAV with its root note and loop
+    {
+        std::vector<int16_t> d (5000); for (int i = 0; i < 5000; ++i) d[(size_t) i] = (int16_t) (i * 7 - 16000);
+        const auto w = makeWav (d, 30000, 69, 1200, 4800);
+        RomZone z; std::string err;
+        CHECK (romReadWav (w.data(), w.size(), z, err) && z.root == 69 && z.loopStart == 1200 && z.loopEnd == 4800 && z.rate == 30000 && z.data == d);
+        const auto w24 = makeWav (d, 44100, -1, -1, -1, 24, 2);
+        RomZone z2;
+        CHECK (romReadWav (w24.data(), w24.size(), z2, err) && z2.root == 60 && ! z2.loops() && z2.data.size() == 5000 && std::abs (z2.data[100] - d[100]) <= 1);
+        int root = 0, ls = 0, le = 0;
+        CHECK (romReadSmpl (w.data(), w.size(), root, ls, le) && root == 69 && ls == 1200 && ! romReadSmpl (w24.data(), w24.size(), root, ls, le));
+        std::vector<uint8_t> junk { 'h', 'e', 'l', 'l', 'o' };
+        CHECK (! romReadWav (junk.data(), junk.size(), z, err));
+        std::printf ("WAV: root %d, loop %d-%d, %.0f Hz; 24-bit stereo read as mono\n", z.root, z.loopStart, z.loopEnd, z.rate);
+    }
+    // names: the library's groups
+    CHECK (romGroupOf ("WND_XACORD0A") == "WND ACORD" && romGroupOf ("WND_XBIRDY_4") == "WND BIRDY" && romGroupOf ("VOX_XDO_BH0U") == "VOX DO_BH");
+    CHECK (romCategoryOf ("WND_XPICLO02") == "WND" && romGroupOf ("Piano C3") == "PIANO" && romGroupOf ("strings_048") == "STRINGS");
+    // a multisample: three roots, spread across the keys
+    std::vector<RomZone> zones { sineZone (220.0, 44100, 57, "A2"), sineZone (440.0, 44100, 69, "A3"), sineZone (880.0, 44100, 81, "A4") };
+    auto bank = romWithTone (nullptr, 0, zones, "SINES");
+    std::printf ("zones: %d-%d, %d-%d, %d-%d\n", bank->zones[0].lo, bank->zones[0].hi, bank->zones[1].lo, bank->zones[1].hi, bank->zones[2].lo, bank->zones[2].hi);
+    CHECK (bank->zones[0].lo == 0 && bank->zones[0].hi == 63 && bank->zones[1].lo == 64 && bank->zones[1].hi == 75 && bank->zones[2].lo == 76 && bank->zones[2].hi == 127);
+    CHECK (romZoneFor (*bank, 0, 69)->name == "A3" && romZoneFor (*bank, 0, 30)->name == "A2" && romZoneFor (*bank, 1, 60) == nullptr);
+    auto play = [&] (const std::vector<float>& vals, int note, int len, int offAt = -1)
+    {
+        RomSynth s; s.prepare (sr, 512); s.setValues (vals); s.setBank (bank);
+        std::vector<float> L ((size_t) len), R ((size_t) len);
+        s.noteOn (note, 127, 0);
+        if (offAt < 0) s.render (L.data(), R.data(), len);
+        else { s.render (L.data(), R.data(), offAt); s.noteOff (note, 0); s.render (L.data() + offAt, R.data() + offAt, len - offAt); }
+        return std::make_pair (L, R);
+    };
+    auto v = builtinDefaults (kRomKey);
+    v[rom::Chorus] = 0;
+    for (int t = 1; t < kRomTones; ++t) v[(size_t) (t * rom::kPerTone)] = 100;
+    // pitch: A-4 (69) from the A3 sample, C-5 (72) from it a little faster, E-4 (64) from the A3 zone too
+    {
+        const auto [L, R] = play (v, 69, 48000);
+        const auto [L2, R2] = play (v, 72, 48000);
+        const auto [L3, R3] = play (v, 45, 48000);
+        const double h1 = crossingsHz (L, 4800, 47000, 48000), h2 = crossingsHz (L2, 4800, 47000, 48000), h3 = crossingsHz (L3, 4800, 47000, 48000);
+        std::printf ("ROM pitches: note 69 %.1f Hz, 72 %.1f Hz, 45 %.1f Hz\n", h1, h2, h3);
+        CHECK (std::abs (h1 - 440) < 2 && std::abs (h2 - 523.25) < 3 && std::abs (h3 - 110) < 1.5);
+        // the loop keeps it going (2 s on, from a sample of 0.09 s)
+        const auto [Lh, Rh] = play (v, 69, 96000);
+        float late = 0; for (size_t i = 90000; i < 96000; ++i) late = std::max (late, std::abs (Lh[i]));
+        std::printf ("  held 2 s on a 0.09 s looped sample: %.3f\n", late);
+        CHECK (late > 0.1f);
+        // released: gone after RELEASE
+        const auto [Lr, Rr] = play (v, 69, 96000, 24000);
+        float tail = 0; for (size_t i = 80000; i < 96000; ++i) tail = std::max (tail, std::abs (Lr[i]));
+        CHECK (tail < 0.001f);
+    }
+    // a sample without a loop plays once and stops
+    {
+        auto z = sineZone (440.0, 44100, 69, "ONCE"); z.loopStart = z.loopEnd = -1;
+        bank = romWithTone (nullptr, 0, { z }, "ONCE");
+        RomSynth s; s.prepare (sr, 512); s.setValues (v); s.setBank (bank);
+        std::vector<float> L (48000), R (48000);
+        s.noteOn (69, 127, 0); s.render (L.data(), R.data(), 48000);
+        float late = 0; for (size_t i = 20000; i < 48000; ++i) late = std::max (late, std::abs (L[i]));
+        std::printf ("  no loop: after the sample %.4f, voices %d\n", late, s.voicesPlaying());
+        CHECK (late < 0.0001f && s.voicesPlaying() == 0);
+    }
+    // two tones: TONE 2 an octave up and panned right; TONE 1 left
+    {
+        bank = romWithTone (nullptr, 0, zones, "SINES");
+        bank = romWithTone (bank, 1, { sineZone (440.0, 44100, 69, "B") }, "B");
+        CHECK (bank->zonesOf (0) == 3 && bank->zonesOf (1) == 1 && bank->toneName[1] == "B");
+        auto w = v; w[rom::Pan1] = -100; w[rom::Pan2] = 100; w[rom::Tune2] = 12;
+        const auto [L, R] = play (w, 57, 48000);
+        const double hl = crossingsHz (L, 4800, 47000, 48000), hr = crossingsHz (R, 4800, 47000, 48000);
+        std::printf ("TONE 1 left %.1f Hz, TONE 2 (+12, right) %.1f Hz\n", hl, hr);
+        CHECK (std::abs (hl - 220) < 2 && std::abs (hr - 440) < 3);
+        // emptied: back to one tone
+        auto b2 = romWithTone (bank, 1, {}, "");
+        CHECK (b2->zonesOf (1) == 0 && b2->toneName[1].empty() && b2->zonesOf (0) == 3 && bank->zonesOf (1) == 1);
+    }
+    // CHORD: three voices from one key
+    {
+        auto w = v; w[rom::Chord] = 1;
+        RomSynth s; s.prepare (sr, 512); s.setValues (w); s.setBank (bank);
+        std::vector<float> L (4800), R (4800);
+        s.noteOn (60, 100, 0); s.render (L.data(), R.data(), 4800);
+        CHECK (s.voicesPlaying() == 3);
+    }
+}
+
 // ---- REESE's SUB: one or two octaves down, its shape (v0.76)
 static void testReeseSub()
 {
@@ -6101,6 +6236,7 @@ int main()
     testSubBeat();
     testRaveSynth();
     testReeseSub();
+    testRom();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

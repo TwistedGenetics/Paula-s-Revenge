@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.76</span>
+  <span class="ver">MANUAL &middot; V0.77</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -959,6 +959,20 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>SPACE:</b> CHORUS, and ECHO &mdash; a stereo ping-pong echo, each repeat a little darker &mdash; with ECHO TIME. <b>OUTPUT</b>: VELOCITY and LEVEL.</li>
     <li>Up to 16 notes at once; when it's full the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
+  <h3>The built-in ROM synth</h3>
+  <p><b>ROM</b> is a ROMpler in the spirit of the JV-1080 and M1: small looped samples spread across the keys, layered up to four deep, from <b>your own</b> samples. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; ROM; its page has two tabs, <span class="b">TONES</span> and <span class="b">SOUND + FILTER</span>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/rom_tones.png" alt="ROM's TONES tab: TONE 1 WND ACORD (3), TONE 2 VOX DO_BH (1) an octave up and panned right, TONES 3 and 4 EMPTY - LOAD..., each with LEVEL, PAN, TUNE and FINE." width="1440" height="900" loading="lazy"></div>
+    <figcaption>Two tones layered: an accordion and a voice an octave up</figcaption>
+  </figure>
+  <ul>
+    <li><b>Each tone's button</b> picks its samples. <b>SET THE ROM FOLDER...</b> once, and the menu lists your WAVs <b>by category and name</b> (WND, VOX&hellip; then <code>WND ACORD (3)</code>); picking a sound loads all its samples. Roland-style names (<code>WND_XACORD0A.wav</code>) are grouped by their sound; other libraries by the name without its numbers or notes. <b>LOAD WAV FILES...</b> picks files yourself; <b>EMPTY THIS TONE</b> clears it.</li>
+    <li>Each WAV's own <b>root note and loop</b> are used: a sample plays the keys nearest its root, its loop plays as long as the note, and one without a loop plays once.</li>
+    <li>Each tone has LEVEL, PAN, TUNE (+12: an octave up) and FINE; every tone with samples plays on every note.</li>
+    <li>SOUND: CHORD, OCTAVE, VIBRATO, VIB RATE. FILTER: CUTOFF, RES, ENV AMT, ENV DECAY. ENVELOPE, SPACE (chorus, echo) and OUTPUT as on RAVE.</li>
+    <li>The samples are stored in the song (and in a saved instrument), so anyone you send it to has them. PRESETS keep ROM's settings, not its samples.</li>
+  </ul>
+  <p>Loading an ordinary WAV also uses its own loop points, and for a looped sample its root note, so C-3 plays a C.</p>
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">SYNTHS</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
@@ -1401,7 +1415,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.76</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.77</footer>
 </main>
 </div>
 <script>
