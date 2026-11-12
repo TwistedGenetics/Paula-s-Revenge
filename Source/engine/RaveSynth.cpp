@@ -29,7 +29,7 @@ namespace
 const std::vector<SynthParam>& raveParams()
 {
     static const std::vector<SynthParam> ps {
-        { "TYPE",      "SOUND",    0, 4, 0,        3, "",   "STAB|PAD|ORGAN|BLEEP|BELL" },
+        { "TYPE",      "SOUND",    0, 8, 0,        3, "",   "STAB|PAD|ORGAN|BLEEP|BELL|HOOVER|MENTASM|PIANO|BELGIAN" },
         { "CHORD",     "SOUND",    0, 7, 1,        3, "",   "OFF|MINOR|MAJOR|MIN 7|MAJ 7|5TH|SUS 4|OCT" },
         { "DETUNE",    "SOUND",    0, 50, 14,      0, "C",  "" },
         { "OCTAVE",    "SOUND",    -3, 2, 0,       2, "",   "" },
@@ -52,8 +52,8 @@ const std::vector<SynthParam>& raveParams()
 
 const char* raveTypeName (int t)
 {
-    static const char* n[] = { "STAB", "PAD", "ORGAN", "BLEEP", "BELL" };
-    return n[std::clamp (t, 0, 4)];
+    static const char* n[] = { "STAB", "PAD", "ORGAN", "BLEEP", "BELL", "HOOVER", "MENTASM", "PIANO", "BELGIAN" };
+    return n[std::clamp (t, 0, rave::Types - 1)];
 }
 
 std::vector<float> ravePreset (int type)
@@ -62,7 +62,7 @@ std::vector<float> ravePreset (int type)
     std::vector<float> v;
     for (const auto& q : raveParams()) v.push_back (q.def);   // (STAB's)
     auto set = [&] (std::initializer_list<std::pair<int, float>> l) { for (auto& [i, x] : l) v[(size_t) i] = x; };
-    v[Type] = (float) std::clamp (type, 0, 4);
+    v[Type] = (float) std::clamp (type, 0, Types - 1);
     switch (type)
     {
         case Pad:   set ({ { Chord, 0 }, { Detune, 22 }, { Cutoff, 1400 }, { Resonance, 10 }, { EnvAmount, 20 }, { FilterDecay, 1500 },
@@ -73,6 +73,14 @@ std::vector<float> ravePreset (int type)
                            { Attack, 1 }, { Decay, 180 }, { Sustain, 0 }, { Release, 120 }, { Chorus, 0 }, { Echo, 35 }, { EchoTime, 250 } }); break;
         case Bell:  set ({ { Chord, 0 }, { Detune, 4 }, { Cutoff, 9000 }, { Resonance, 0 }, { EnvAmount, 0 }, { FilterDecay, 300 },
                            { Attack, 1 }, { Decay, 1800 }, { Sustain, 20 }, { Release, 1200 }, { Chorus, 35 }, { Echo, 25 }, { EchoTime, 430 } }); break;
+        case Hoover:  set ({ { Chord, 0 }, { Detune, 25 }, { Octave, -1 }, { Cutoff, 5000 }, { Resonance, 10 }, { EnvAmount, 20 }, { FilterDecay, 400 },
+                             { Attack, 2 }, { Decay, 900 }, { Sustain, 60 }, { Release, 350 }, { Chorus, 80 }, { Echo, 15 }, { EchoTime, 375 } }); break;
+        case Mentasm: set ({ { Chord, 0 }, { Detune, 30 }, { Octave, 0 }, { Cutoff, 7000 }, { Resonance, 15 }, { EnvAmount, 15 }, { FilterDecay, 600 },
+                             { Attack, 1 }, { Decay, 1200 }, { Sustain, 50 }, { Release, 400 }, { Chorus, 70 }, { Echo, 20 }, { EchoTime, 375 } }); break;
+        case Piano:   set ({ { Chord, 0 }, { Detune, 6 }, { Octave, 0 }, { Cutoff, 9000 }, { Resonance, 0 }, { EnvAmount, 10 }, { FilterDecay, 300 },
+                             { Attack, 1 }, { Decay, 2500 }, { Sustain, 0 }, { Release, 400 }, { Chorus, 15 }, { Echo, 15 }, { EchoTime, 375 } }); break;
+        case Belgian: set ({ { Chord, 5 }, { Detune, 10 }, { Octave, 0 }, { Cutoff, 1200 }, { Resonance, 45 }, { EnvAmount, 70 }, { FilterDecay, 160 },
+                             { Attack, 1 }, { Decay, 300 }, { Sustain, 0 }, { Release, 150 }, { Chorus, 10 }, { Echo, 20 }, { EchoTime, 250 } }); break;
         default: break;
     }
     return v;
@@ -142,7 +150,8 @@ void RaveSynth::startVoice (int key, float pitch, int vel)
         v.drift[o] = 0;
     }
     const int type = (int) std::lround (p[rave::Type]);
-    if (type == rave::Organ || type == rave::Bleep || type == rave::Bell) for (auto& ph : v.ph) ph = 0;   // (sines: from zero)
+    if (type == rave::Organ || type == rave::Bleep || type == rave::Bell || type == rave::Piano) for (auto& ph : v.ph) ph = 0;   // (sines: from zero)
+    v.pitchEnv = 1.0f;
     v.order = ++orderCount;
 }
 
@@ -174,8 +183,11 @@ void RaveSynth::handle (const Event& e)
 float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
 {
     if (v.stage == 0 && ! v.fading) return 0.0f;
-    const int type = std::clamp ((int) std::lround (p[rave::Type]), 0, 4);
-    const double semis = v.pitch + bend + p[rave::Octave] * 12.0f;
+    const int type = std::clamp ((int) std::lround (p[rave::Type]), 0, rave::Types - 1);
+    double semis = v.pitch + bend + p[rave::Octave] * 12.0f;
+    // HOOVER swoops up into the note (from 7 below, over about 80 ms); MENTASM falls into it (from 7 above, slower)
+    if (type == rave::Hoover)  { semis -= 7.0 * v.pitchEnv; v.pitchEnv *= (float) std::exp (-1.0 / (0.03 * sr)); }
+    if (type == rave::Mentasm) { semis += 7.0 * v.pitchEnv; v.pitchEnv *= (float) std::exp (-1.0 / (0.12 * sr)); }
     const double hz = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
     const float det = p[rave::Detune];
     float l = 0, r = 0;
@@ -242,6 +254,70 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
             step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
             const float y = (float) std::sin (kTwoPi * v.ph[1]) * std::min (1.0f, det / 10.0f);
             l = (x + y * 0.5f) * 0.7f; r = (x + y * 0.5f) * 0.7f;
+            break;
+        }
+        case rave::Hoover: case rave::Mentasm:
+        {
+            // pulse-saws: a saw less a shifted saw, the shift (pulse width) moving - three of them spread wide
+            const bool scream = type == rave::Mentasm;
+            v.pwmPh += (scream ? 6.0 : 1.3) / sr; v.pwmPh -= std::floor (v.pwmPh);
+            const double pw = 0.5 + (scream ? 0.4 : 0.3) * std::sin (kTwoPi * v.pwmPh);
+            static const float pos[3] = { -1.0f, 0.0f, 1.0f };
+            for (int o = 0; o < 3; ++o)
+            {
+                const double f = hz * std::pow (2.0, pos[o] * det / 1200.0) * (scream && o == 1 ? 2.0 : 1.0);   // (MENTASM: the middle one an octave up)
+                const double dt = std::min (0.45, f / sr);
+                step (v.ph[o], dt);
+                double t2 = v.ph[o] + pw; t2 -= std::floor (t2);
+                const float x = saw (v.ph[o], dt) - 0.8f * saw (t2, dt);
+                l += x * (1.0f - 0.7f * std::max (0.0f, pos[o])); r += x * (1.0f + 0.7f * std::min (0.0f, pos[o]));
+            }
+            // (a square an octave down under the hoover)
+            const double dl = std::min (0.45, hz * 0.5 / sr);
+            step (v.phLow, dl);
+            double t3 = v.phLow + 0.5; t3 -= std::floor (t3);
+            const float sq = scream ? 0.0f : 0.5f * (saw (v.phLow, dl) - saw (t3, dl)) * 0.5f;
+            l = l * 0.32f + sq; r = r * 0.32f + sq;
+            break;
+        }
+        case rave::Piano:
+        {
+            // two strings a few cents apart; eight partials, the higher ones dying sooner (so it mellows as it
+            // rings); a little thump of the hammer at the front
+            static const float amp[8] = { 1.0f, 0.55f, 0.35f, 0.25f, 0.16f, 0.1f, 0.07f, 0.05f };
+            const double age = v.phMod;   // (seconds since the hammer)
+            v.phMod += 1.0 / sr;
+            float a = 0, b = 0;
+            step (v.ph[0], hz / sr);
+            step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
+            for (int k = 1; k <= 8; ++k)
+            {
+                if (hz * k > sr * 0.45) break;
+                const float fall = (float) std::exp (-age * (0.6 + 0.9 * k));
+                a += amp[k - 1] * fall * (float) std::sin (kTwoPi * v.ph[0] * k);
+                b += amp[k - 1] * fall * (float) std::sin (kTwoPi * v.ph[1] * k);
+            }
+            seed = seed * 1664525u + 1013904223u;
+            const float thump = ((float) (seed >> 9) / 4194304.0f - 1.0f) * 0.25f * v.click * v.click;
+            v.click *= (float) std::exp (-1.0 / (0.02 * sr));
+            l = (a * 0.6f + b * 0.4f) * 0.4f + thump; r = (a * 0.4f + b * 0.6f) * 0.4f + thump;
+            break;
+        }
+        case rave::Belgian:
+        {
+            // a saw and a square an octave up, two of each a little apart, driven hard (and its offset taken out)
+            for (int o = 0; o < 2; ++o)
+            {
+                const double d = (o == 0 ? -0.5 : 0.5) * det;
+                const double dt = std::min (0.45, hz * std::pow (2.0, d / 1200.0) / sr), dt2 = std::min (0.45, dt * 2.0);
+                step (v.ph[o], dt); step (v.ph[o + 2], dt2);
+                double t2 = v.ph[o + 2] + 0.5; t2 -= std::floor (t2);
+                const float x = saw (v.ph[o], dt) + 0.6f * (saw (v.ph[o + 2], dt2) - saw (t2, dt2)) * 0.5f;
+                (o == 0 ? l : r) += x;
+            }
+            l = std::tanh (l * 1.6f) * 0.55f; r = std::tanh (r * 1.6f) * 0.55f;
+            v.dc += 0.0005f * (0.5f * (l + r) - v.dc);
+            l -= v.dc; r -= v.dc;
             break;
         }
         default:   // BELL

@@ -241,8 +241,8 @@ private:
     bool prevLoop = false, prevPlaying = false;
     void renderPreview (float* l, float* r, int n);
     juce::AbstractFifo scopeFifo { 8192 };
-    juce::AbstractFifo sysexFifo { 65536 };
-    std::vector<uint8_t> sysexBuf = std::vector<uint8_t> (65536);
+    juce::AbstractFifo sysexFifo { 1 << 22 };   // (4 MB: an S950 sample dump comes as one message)
+    std::vector<uint8_t> sysexBuf = std::vector<uint8_t> (1 << 22);
     float scopeBuf[8192] {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PaulaProcessor)

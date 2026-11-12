@@ -1125,7 +1125,7 @@ void PaulaEditor::openLoad (int kind)
                      { "SUB - A CLICK-FREE SUB BASS (MONO, GLIDE, 808 DROP, DRIVE)",
                        "REESE - DETUNED SAWS THAT PHASE, OR A HOOVER (FILTER, WOBBLE)",
                        "GRANULAR - GRAINS OF WAVETABLES, A SAMPLE OR THE INPUT (FREEZE, LFOS)",
-                       "RAVE - JUNGLE KEYS: CHORD STAB, PAD, ORGAN, BLEEP, BELL...", "CANCEL" }, [safe, hex] (int a)
+                       "RAVE - JUNGLE KEYS: STAB, PAD, ORGAN, BLEEP, BELL, HOOVER, MENTASM, PIANO...", "CANCEL" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1136,9 +1136,13 @@ void PaulaEditor::openLoad (int kind)
                                      "PAD - WIDE, SLOW, DRIFTING: THE ROLLING-JUNGLE ATMOSPHERE",
                                      "ORGAN - THE HOUSE / HARDCORE ORGAN (DRAWBARS AND A CLICK)",
                                      "BLEEP - BLEEP-AND-BASS TONES (A SINE WITH ECHO)",
-                                     "BELL - FM ELECTRIC PIANO / BELL, BRIGHT THEN MELLOW", "CANCEL" }, [safe] (int t)
+                                     "BELL - FM ELECTRIC PIANO / BELL, BRIGHT THEN MELLOW",
+                                     "HOOVER - THE HOOVER STAB: CHORUSED PULSE-SAWS SWOOPING UP",
+                                     "MENTASM - THE SCREAM: FALLING INTO EACH NOTE, RACING PULSE WIDTH",
+                                     "PIANO - THE RAVE / HOUSE PIANO STAB",
+                                     "BELGIAN - THE BELGIAN TECHNO STAB: DRIVEN, ONE KEY PLAYS A 5TH", "CANCEL" }, [safe] (int t)
                 {
-                    if (safe != nullptr && t >= 0 && t < 5) safe->makeBuiltinSynth (prv::kRaveKey, t);
+                    if (safe != nullptr && t >= 0 && t < prv::rave::Types) safe->makeBuiltinSynth (prv::kRaveKey, t);
                 });
         });
         return;

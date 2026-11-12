@@ -29,7 +29,7 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     setOpaque (true);
     for (auto* b : { &closeBtn, &insDown, &insUp, &autoBtn, &evenBtn, &sensDown, &sensUp, &barsDown, &barsUp, &trackDown, &trackUp,
                      &makeBtn, &chopBtn, &playBtn, &stopBtn, &fitBtn, &keepBtn, &shuffleBtn, &ghostBtn, &halfBtn, &doubleBtn, &variationsBtn, &fillBtn,
-                     &styleBtn, &wildDown, &wildUp, &editMeBtn, &mutateBtn })
+                     &styleBtn, &wildDown, &wildUp, &editMeBtn, &mutateBtn, &rerollBtn })
         addAndMakeVisible (*b);
     for (auto& b : rebuildBtns) addAndMakeVisible (b);
     closeBtn.onClick = [this] { if (onClose) onClose(); };
@@ -63,6 +63,7 @@ BreakPage::BreakPage (PaulaProcessor& p) : proc (p)
     wildUp.onClick   = [this] { labWild = std::min (100, labWild + 10); repaint(); };
     editMeBtn.onClick = [this] { editMe(); };
     mutateBtn.onClick = [this] { mutate(); };
+    rerollBtn.onClick = [this] { rerollBar(); };
     variationsBtn.onClick = [this] { variations(); };
 }
 
@@ -336,6 +337,35 @@ LabReport BreakPage::mutate()
     return rep;
 }
 
+void BreakPage::pickBar (int bar)
+{
+    pickedBar = bar;
+    status ("BAR " + juce::String (bar + 1) + " PICKED - RE-ROLL BAR WRITES IT AGAIN (" + juce::String (labStyleName (labStyle)) + ")");
+    repaint();
+}
+
+LabReport BreakPage::rerollBar()
+{
+    LabReport rep;
+    const int ins = instrument();
+    if (! ensureSlices (ins)) return rep;
+    auto& st = proc.editorState;
+    const int blk = proc.song.safeBlock (st.block);
+    const auto& k = kinds();
+    const int bars = std::max (1, proc.song.blocks[(size_t) blk].lines / 16);
+    const int bar = pickedBar >= 0 && pickedBar < bars ? pickedBar : bars - 1;
+    proc.history.block (blk, "BREAK LAB: RE-ROLL BAR " + juce::String (bar + 1));
+    const uint32_t seed = labSeed++ * 15485863u + (uint32_t) juce::Time::getMillisecondCounter();
+    proc.withLock ([&]
+    {
+        auto& b = proc.song.blocks[(size_t) blk];
+        rep = prv::rerollBar (b, st.track, ins, k, b.lines, bars, bar, labStyle, labWild, seed);
+    });
+    status ("BAR " + juce::String (bar + 1) + " RE-ROLLED (" + juce::String (labStyleName (labStyle)) + "): " + juce::String (rep.text()) + " - AGAIN FOR ANOTHER, CLICK THE GRID FOR ANOTHER BAR");
+    changed();
+    return rep;
+}
+
 int BreakPage::variations()
 {
     const int ins = instrument();
@@ -491,6 +521,16 @@ void BreakPage::mouseDown (const juce::MouseEvent& e)
 {
     grabKeyboardFocus();
     dragMarker = -1; dragMoved = false;
+    if (gridArea.contains (e.position))
+    {
+        // a row of the grid is a bar: pick it for RE-ROLL BAR
+        const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)];
+        const int rows = (b.lines + 15) / 16;
+        const float ch = std::min (Theme::px * 12, (gridArea.getHeight() - Theme::px * 2) / std::max (1, rows));
+        const int row = (int) ((e.position.y - gridArea.getY() - Theme::px) / std::max (1.0f, ch));
+        if (row >= 0 && row < rows) pickBar (row);
+        return;
+    }
     if (! waveArea.contains (e.position)) return;
     const int m = markerAt (e.position.x);
     const int s = sliceAt (e.position.x);
@@ -638,7 +678,8 @@ void BreakPage::resized()
     wildArea = row.removeFromLeft (charsW (9)).toFloat();
     wildUp.setBounds (row.removeFromLeft (charsW (1))); row.removeFromLeft (gap * 3);
     editMeBtn.setBounds (row.removeFromLeft (charsW (7))); row.removeFromLeft (gap);
-    mutateBtn.setBounds (row.removeFromLeft (charsW (6)));
+    mutateBtn.setBounds (row.removeFromLeft (charsW (6))); row.removeFromLeft (gap);
+    rerollBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (11))));
     rows.removeFromTop (gap * 2);
     gridTitle = rows.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2)).toFloat();
     gridArea = rows.toFloat();
@@ -752,6 +793,12 @@ void BreakPage::paintGrid (juce::Graphics& g)
             g.fillRect (cell.reduced (cell.getWidth() * 0.3f, cell.getHeight() * 0.3f));
         }
         if (l == playLine) { g.setColour (sk.text); g.drawRect (cell, std::max (1.0f, px * 0.5f)); }
+    }
+    // the bar RE-ROLL BAR works on (picked, or the last)
+    {
+        const int bar = pickedBar >= 0 && pickedBar < rows ? pickedBar : rows - 1;
+        const auto r = juce::Rectangle<float> (in.getX(), in.getY() + bar * ch, in.getWidth(), ch);
+        if (r.getBottom() <= in.getBottom() + 1) { g.setColour (sk.text); g.drawRect (r, std::max (1.0f, px * 0.75f)); }
     }
     Theme::bevel (g, gridArea, false, std::max (1.0f, px * 0.5f), pal);
 }

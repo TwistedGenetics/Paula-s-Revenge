@@ -31,6 +31,7 @@
 #include "engine/Commands.h"
 #include "AkaizerGolden.h"
 #include <cstdio>
+#include <cstring>
 #include <set>
 #include <functional>
 #include <random>
@@ -4773,7 +4774,7 @@ static void testRaveSynth()
         std::printf ("%-5s: %d voices for one key, peak %.3f, first 4 samples %.3f, biggest step %.3f, last 0.1 s of 5 %.4f\n", raveTypeName (t), playing, peak, early, step, tail);
         CHECK (peak > 0.05f && peak < 0.95f);
         CHECK (early < 0.05f);                        // (no click at the front)
-        CHECK (playing == (t == rave::Stab ? 3 : 1)); // (STAB's MINOR chord: three notes)
+        CHECK (playing == (t == rave::Stab || t == rave::Belgian ? 3 : 1));   // (STAB's MINOR chord, BELGIAN's 5TH: three notes)
         CHECK (tail < 0.01f);                          // (it ends - the echo too)
         Instrument in; makeRave (in, t);
         CHECK (in.pluginKey == kRaveKey && in.name == std::string ("RAVE ") + raveTypeName (t) && (int) readBuiltinState (in)[rave::Type] == t);
@@ -5227,6 +5228,108 @@ static void testAkaiS1000()
     }
 }
 
+// ---- samples over MIDI to / from the S1000 and S950 (v0.74)
+static void testAkaiSamples()
+{
+    std::printf ("\n== AKAI SAMPLES OVER MIDI\n");
+    using namespace prv::akai;
+    // SDS packets: 16-bit words, there and back exactly (the ends of the range too)
+    {
+        std::vector<int16_t> w { -32768, -1, 0, 1, 32767, 12345, -12345 };
+        auto pk = sds::packet (0, 5, w.data(), (int) w.size());
+        std::vector<int16_t> back; int num = -1;
+        CHECK (pk.size() == 127 && sds::parsePacket (pk.data(), (int) pk.size(), 16, num, back) && num == 5);
+        CHECK (back.size() == 40 && std::equal (w.begin(), w.end(), back.begin()) && back[39] == 0);
+        pk[20] ^= 1;
+        CHECK (! sds::parsePacket (pk.data(), (int) pk.size(), 16, num, back));   // (a damaged one is turned down)
+    }
+    Sample smp;
+    smp.name = "amen loop"; smp.rate = 32000;
+    for (int i = 0; i < 1234; ++i) smp.data.push_back ((int16_t) (20000 * std::sin (i * 0.05) + (i % 7) * 30));
+    smp.loopStart = 300; smp.loopLength = 600;
+    // run a transfer against a fake sampler: what it sends goes in, what it answers comes back
+    auto run = [] (Transfer& t, auto& fake, double& now, int& sent, bool deaf = false)
+    {
+        for (int step = 0; step < 200000 && t.state == Transfer::State::Working; ++step)
+        {
+            for (auto& m : t.poll (now))
+            {
+                ++sent;
+                if (deaf) continue;
+                for (auto& a : fake.receive (m.data(), (int) m.size())) t.received (a.data(), (int) a.size(), now);
+            }
+            now += 5;
+        }
+    };
+    // S1000: send (SLIST, SDATA, ASPACK, packets each ACKed - the first NAKed once and sent again)
+    {
+        FakeS1000 fake; Sample other; other.name = "AMEN LOOP"; other.data.assign (100, 0); fake.samples.push_back (other);
+        fake.nakNext = 1;
+        Transfer t; double now = 0; int sent = 0;
+        t.sendS1000 (0, smp, now);
+        run (t, fake, now, sent);
+        std::printf ("S1000 send: %s | %d messages, %d sent again, %.1f s\n", t.status.c_str(), sent, t.resent, now / 1000.0);
+        CHECK (t.state == Transfer::State::Done && fake.samples.size() == 2 && t.handshaking && t.resent == 1);
+        const auto& got = fake.samples[1];
+        std::printf ("  in the S1000: %s, %d words at %d Hz, loop %d + %d\n", got.name.c_str(), (int) got.data.size(), got.rate, got.loopStart, got.loopLength);
+        CHECK (got.name == "AMEN LOOP-2" && got.data == smp.data && got.rate == 32000 && got.loopStart == 300 && got.loopLength == 600);
+        // and back: RSDATA, RSPACK, every packet ACKed
+        Transfer g; int sent2 = 0;
+        g.getS1000 (0, 1, now);
+        run (g, fake, now, sent2);
+        std::printf ("S1000 get: %s | %d words, loop %d + %d\n", g.status.c_str(), (int) g.result.data.size(), g.result.loopStart, g.result.loopLength);
+        CHECK (g.state == Transfer::State::Done && g.result.data == smp.data && g.result.rate == 32000 && g.result.loopStart == 300 && g.result.name == "AMEN LOOP-2");
+        // a sample it doesn't have
+        Transfer bad; int sent3 = 0;
+        bad.getS1000 (0, 9, now);
+        run (bad, fake, now, sent3);
+        CHECK (bad.state == Transfer::State::Failed);
+    }
+    // an S1000 that never answers: no list, so it stops and says why
+    {
+        FakeS1000 fake; Transfer t; double now = 0; int sent = 0;
+        t.sendS1000 (0, smp, now);
+        run (t, fake, now, sent, true);
+        std::printf ("S1000 deaf: %s\n", t.status.c_str());
+        CHECK (t.state == Transfer::State::Failed && t.status.find ("NO ANSWER") != std::string::npos);
+    }
+    // S950: SECRE, the catalogue, the dump (one message), SPRM, the catalogue again
+    {
+        s900::FakeS950 fake; fake.addProgram (0, "BREAKS", 1);
+        Sample hat; hat.name = "HAT"; hat.data.assign (300, 0); fake.sampleData.push_back (hat); fake.samples.push_back ("HAT");
+        Transfer t; double now = 0; int sent = 0;
+        t.sendS950 (0, smp, now);
+        run (t, fake, now, sent);
+        std::printf ("S950 send: %s | %d messages, %.1f s (about %.1f s on the wire)\n", t.status.c_str(), sent, now / 1000.0, secondsOnTheWire (true, 1234));
+        CHECK (t.state == Transfer::State::Done && t.status.find ("IS IN THE S950") != std::string::npos);
+        CHECK (fake.sampleData.size() == 2);
+        const auto& got = fake.sampleData[1];
+        int worst = 0;
+        for (size_t i = 0; i < smp.data.size(); ++i) worst = std::max (worst, std::abs ((smp.data[i] >> 4 << 4) - got.data[i]));
+        std::printf ("  in the S950: %s, %d words at %d Hz, loop %d + %d, worst 12-bit error %d\n", got.name.c_str(), (int) got.data.size(), got.rate, got.loopStart, got.loopLength, worst);
+        CHECK (got.name == "AMEN LOOP" && got.data.size() == smp.data.size() && worst == 0 && std::abs (got.rate - 32000) <= 1);
+        CHECK (got.loopStart == 300 && got.loopLength == 600);
+        // the dump itself: header and loop as the spec has them
+        const auto d = s900::sampleDump (1, smp);
+        CHECK (d[0] == 0xF0 && d[1] == 0x7E && d[2] == 0x01 && d[3] == 1 && d[5] == 12 && d.back() == 0xF7);
+        CHECK (d.size() == 19 + (size_t) ((1234 + 59) / 60) * 122 + 1);
+        // and back: RSD (with ACKs going out while it waits)
+        Transfer g; int sent2 = 0;
+        g.getS950 (0, 1, "AMEN LOOP", now);
+        run (g, fake, now, sent2);
+        std::printf ("S950 get: %s | %d words, loop %d + %d\n", g.status.c_str(), (int) g.result.data.size(), g.result.loopStart, g.result.loopLength);
+        CHECK (g.state == Transfer::State::Done && g.result.data == got.data && g.result.loopStart == 300 && g.result.name == "AMEN LOOP");
+        // a damaged dump: counted
+        auto broken = s900::sampleDump (1, smp); broken[40] ^= 1;
+        Sample x; int k = 0, badBlocks = 0;
+        CHECK (s900::parseDump (broken.data(), (int) broken.size(), x, k, badBlocks) && badBlocks == 1);
+        // one-shot: no loop comes back
+        Sample shot = smp; shot.loopLength = 0;
+        const auto d2 = s900::sampleDump (2, shot);
+        CHECK (s900::parseDump (d2.data(), (int) d2.size(), x, k, badBlocks) && x.loopLength == 0 && k == 2);
+    }
+}
+
 static void testAkaiS950()
 {
     std::printf ("\n== AKAI S900 / S950 SYSEX\n");
@@ -5652,11 +5755,49 @@ static void testBreakLab()
             if (seed == 1) std::printf ("%-13s WILD 100: %s\n", labStyleName (style), r.text().c_str());
         }
         std::printf ("  12 edits: %d rolls, %d reverses, %d drops, %d ghosts, %d stutters\n", rolls, revs, drops, ghosts, stut);
-        CHECK (rolls > 0 && revs > 0 && drops > 0 && rolls + revs + drops + ghosts + stut >= 30);
+        if (style == 6) CHECK (rolls + revs + drops > 0 && rolls + revs + drops + ghosts + stut >= 10);   // (LIQUID: smooth, few edits)
+        else CHECK (rolls > 0 && revs > 0 && drops > 0 && rolls + revs + drops + ghosts + stut >= 30);
         // WILD 0: the groove alone, no frills
         Block z; z.lines = 64;
         const auto r0 = breakLab (z, 1, 2, kinds, 64, 2, style, 0, 5);
         CHECK (r0.rolls == 0 && r0.reverses == 0 && r0.drops == 0 && r0.ghosts == 0 && r0.stutters == 0 && r0.halfBars == 0 && r0.notes >= 6);
+    }
+    // (v0.74) '93 HARDCORE pitches hits UP more often than down; LIQUID hardly touches them
+    {
+        int up = 0, down = 0, liquidEdits = 0, rollersEdits = 0;
+        for (uint32_t seed = 1; seed <= 30; ++seed)
+        {
+            Block b; b.lines = 64;
+            breakLab (b, 0, 0, kinds, 64, 4, 4, 100, seed);
+            for (int l = 0; l < 64; ++l) { uint8_t pv = 0; if (b.at (l, 0).has (cmdLetter ('I'), pv)) (pv > 0x80 ? up : down)++; }
+            Block q; q.lines = 64; const auto rq = breakLab (q, 0, 0, kinds, 64, 4, 6, 100, seed);
+            Block o; o.lines = 64; const auto ro = breakLab (o, 0, 0, kinds, 64, 4, 0, 100, seed);
+            liquidEdits += rq.rolls + rq.reverses + rq.drops + rq.stutters; rollersEdits += ro.rolls + ro.reverses + ro.drops + ro.stutters;
+        }
+        std::printf ("'93 HARDCORE: %d pitched up, %d down; edits LIQUID %d vs '94 ROLLERS %d\n", up, down, liquidEdits, rollersEdits);
+        CHECK (up > down * 2 && liquidEdits * 3 < rollersEdits);
+    }
+    // RE-ROLL BAR: that bar written again, the others untouched
+    {
+        Block b; b.lines = 64;
+        breakLab (b, 1, 2, kinds, 64, 4, 0, 60, 3);
+        const Block before = b;
+        int changed = 0, others = 0;
+        for (uint32_t seed = 1; seed <= 8; ++seed)
+        {
+            Block x = before;
+            const auto r = rerollBar (x, 1, 2, kinds, 64, 4, 2, 2, 80, seed);
+            CHECK (valid (x, 1, 64, 2) && r.notes >= 3);
+            bool diff = false;
+            for (int l = 0; l < 64; ++l)
+            {
+                const bool same = std::memcmp (&x.at (l, 1), &before.at (l, 1), sizeof (Cell)) == 0;
+                if (l >= 32 && l < 48) diff |= ! same; else others += same ? 0 : 1;
+            }
+            changed += diff ? 1 : 0;
+        }
+        std::printf ("RE-ROLL BAR 3: changed %d of 8 times, other bars touched %d\n", changed, others);
+        CHECK (changed >= 7 && others == 0);
     }
     // the same seed, the same edit; another seed, another edit
     {
@@ -5934,6 +6075,7 @@ int main()
     testGear();
     testAkaiS1000();
     testAkaiS950();
+    testAkaiSamples();
     testInstMacros();
     testBlepSteps();
     testVolumeGrid();

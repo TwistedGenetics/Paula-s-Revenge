@@ -1,6 +1,7 @@
 // Paula's Revenge - the AKAI S1000 editor (see AkaiPanel.h)
 #include "AkaiPanel.h"
 #include "ChoiceBox.h"
+#include "../engine/Recorder.h"
 
 namespace prv::ui
 {
@@ -21,7 +22,35 @@ AkaiPanel::AkaiPanel (PaulaProcessor& p) : proc (p)
     kgBox.labelChars = 3; kgBox.valueChars = 5;
     kgBox.format = [this] (int v) { return juce::String (v) + "/" + juce::String (std::max (1, keygroupCount())); };
     kgBox.onChange = [this] (int v) { setKeygroup (v - 1); };
-    for (auto* c : std::initializer_list<juce::Component*> { &getBtn, &programBtn, &progModeBtn, &kgModeBtn, &kgBox }) addAndMakeVisible (c);
+    sendSampleBtn.onClick = [this]
+    {
+        if (transferring) { transfer.cancel(); transferDone(); return; }
+        // which of this song's samples?
+        juce::StringArray items; std::vector<int> which;
+        for (int i = 0; i < kMaxInstruments; ++i)
+        {
+            const auto& in = proc.song.instruments[(size_t) i];
+            if (! in.hasData() || in.isPlugin()) continue;
+            const double secs = (double) in.data.size() / std::max (1.0, in.rate);
+            const int words = (int) std::min<double> ((double) in.data.size(), in.data.size() * std::min (1.0, 48000.0 / std::max (1.0, in.rate)));
+            items.add (juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " " + juce::String (in.name).toUpperCase().substring (0, 16)
+                       + " (" + juce::String (secs, 1) + " S - ABOUT " + juce::String ((int) std::ceil (akai::secondsOnTheWire (s950, words))) + " S OVER MIDI)");
+            which.push_back (i);
+        }
+        if (items.isEmpty()) { setStatus ("NO SAMPLES IN THIS SONG TO SEND"); return; }
+        if (! menuHook()) return;
+        juce::Component::SafePointer<AkaiPanel> safe (this);
+        menuHook() ("SEND WHICH SAMPLE TO THE " + model() + "? (IT GOES IN AS A NEW SAMPLE)", items, [safe, which] (int a)
+        {
+            if (safe != nullptr && a >= 0 && a < (int) which.size()) safe->sendSample (which[(size_t) a]);
+        });
+    };
+    getSampleBtn.onClick = [this]
+    {
+        if (transferring) { transfer.cancel(); transferDone(); return; }
+        getSampleList();
+    };
+    for (auto* c : std::initializer_list<juce::Component*> { &getBtn, &programBtn, &progModeBtn, &kgModeBtn, &kgBox, &sendSampleBtn, &getSampleBtn }) addAndMakeVisible (c);
     build();
 }
 
@@ -32,6 +61,9 @@ void AkaiPanel::setModel (bool isS950)
     names.clear(); numbers.clear(); progBlock.clear(); kgBlocks.clear();
     program = -1; keygroup = 0; part = 0; pending.clear(); waiting = false;
     programBtn.setButtonText ("PROGRAM: -");
+    transfer = akai::Transfer {}; transferring = false; pickAfterList = false;
+    sampleNames.clear(); sampleNumbers.clear();
+    updateSampleButtons();
     build();
 }
 
@@ -83,7 +115,7 @@ void AkaiPanel::opened()
 
 void AkaiPanel::getPrograms()
 {
-    pending.clear(); waiting = false;
+    pending.clear(); waiting = false; pickAfterList = false;
     setStatus ("ASKING THE " + model() + " FOR ITS PROGRAMS...");
     ask (s950 ? akai::s900::requestCatalog (cc()) : akai::requestPrograms (cc()));
 }
@@ -100,13 +132,148 @@ void AkaiPanel::pickProgram (int index)
               : akai::requestProgram (cc(), index));
 }
 
+// ---- samples over MIDI
+void AkaiPanel::sendSample (int i)
+{
+    if (i < 0 || i >= kMaxInstruments) return;
+    const auto& in = proc.song.instruments[(size_t) i];
+    if (! in.hasData() || in.isPlugin()) return;
+    akai::Sample smp;
+    smp.name = in.name.empty() ? "SAMPLE " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2).toStdString() : in.name;
+    // mono (a stereo sample: both sides mixed), at its own rate - above 48 kHz it's brought down to 44.1
+    std::vector<float> f (in.data.size());
+    const bool stereo = in.dataR.size() == in.data.size();
+    for (size_t k = 0; k < f.size(); ++k) f[k] = stereo ? 0.5f * ((float) in.data[k] + (float) in.dataR[k]) : (float) in.data[k];
+    double rate = std::max (1000.0, in.rate);
+    double scale = 1.0;
+    if (rate > 48000.0) { f = prv::resample (f, rate, 44100.0); scale = 44100.0 / rate; rate = 44100.0; }
+    smp.rate = (int) std::lround (rate);
+    smp.data.resize (f.size());
+    for (size_t k = 0; k < f.size(); ++k) smp.data[k] = (int16_t) juce::jlimit (-32768.0f, 32767.0f, std::round (f[k]));
+    if (in.loopLength >= 4)
+    {
+        smp.loopStart = (int) std::lround (in.loopStart * scale); smp.loopLength = (int) std::lround (in.loopLength * scale);
+        smp.loopLength = std::min (smp.loopLength, (int) smp.data.size() - smp.loopStart);
+        smp.pingPong = in.pingPong;
+    }
+    if (s950)
+    {
+        if ((int) smp.data.size() > akai::s900::kMaxWords) { setStatus ("TOO LONG FOR THE S950 (" + juce::String (akai::s900::kMaxWords / std::max (1, smp.rate)) + " S AT MOST AT THIS RATE)"); return; }
+        if ((int) smp.data.size() < akai::s900::kMinWords) smp.data.resize ((size_t) akai::s900::kMinWords, 0);
+    }
+    pending.clear(); waiting = false;
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    if (s950) transfer.sendS950 (cc(), smp, now); else transfer.sendS1000 (cc(), smp, now);
+    transferring = true; gotInto = -1;
+    setStatus (juce::String (transfer.status));
+    updateSampleButtons();
+    transferTick (now);
+}
+
+void AkaiPanel::getSampleList()
+{
+    pending.clear(); waiting = false;
+    pickAfterList = true;
+    setStatus ("ASKING THE " + model() + " FOR ITS SAMPLES...");
+    ask (s950 ? akai::s900::requestCatalog (cc()) : akai::requestSamples (cc()));
+}
+
+void AkaiPanel::getSample (int index)
+{
+    if (index < 0 || index >= sampleNames.size()) return;
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    pending.clear(); waiting = false;
+    if (s950) transfer.getS950 (cc(), index < (int) sampleNumbers.size() ? sampleNumbers[(size_t) index] : index, sampleNames[index].toStdString(), now);
+    else transfer.getS1000 (cc(), index, now);
+    transferring = true; gotInto = -1;
+    setStatus (juce::String (transfer.status));
+    updateSampleButtons();
+    transferTick (now);
+}
+
+void AkaiPanel::updateSampleButtons()
+{
+    sendSampleBtn.setButtonText (transferring ? "STOP" : "SEND A SAMPLE...");
+    getSampleBtn.setButtonText (transferring ? "STOP" : "GET A SAMPLE...");
+    getSampleBtn.setVisible (! transferring);
+}
+
+void AkaiPanel::transferTick (double now)
+{
+    for (auto& m : transfer.poll (now)) send (m);
+    if (transfer.state == akai::Transfer::State::Working)
+    {
+        if (now - lastProgress > 250.0)
+        {
+            lastProgress = now;
+            setStatus (juce::String (transfer.status) + (transfer.progress > 0 ? " " + juce::String ((int) (transfer.progress * 100.0f)) + "%" : juce::String()));
+        }
+        return;
+    }
+    transferDone();
+}
+
+void AkaiPanel::transferDone()
+{
+    if (! transferring) return;
+    transferring = false;
+    juce::String msg (transfer.status);
+    if (transfer.state == akai::Transfer::State::Done && ! transfer.result.data.empty() && msg.startsWith ("GOT "))
+    {
+        // into the first free instrument (no sample, not a synth or MIDI out)
+        int slot = -1;
+        for (int i = 0; i < kMaxInstruments && slot < 0; ++i)
+        {
+            const auto& in = proc.song.instruments[(size_t) i];
+            if (! in.hasData() && ! in.isPlugin()) slot = i;
+        }
+        if (slot < 0) msg = "GOT IT, BUT EVERY INSTRUMENT IS IN USE - FREE ONE AND GET IT AGAIN";
+        else
+        {
+            const auto& smp = transfer.result;
+            proc.history.instrument (slot, "GET SAMPLE FROM THE " + model());
+            proc.withLock ([&]
+            {
+                auto& in = proc.song.instruments[(size_t) slot];
+                in.name = juce::String (smp.name).substring (0, 22).toStdString();
+                in.data = smp.data; in.dataR.clear();
+                in.rate = smp.rate; in.natRate = 0;
+                in.loopStart = smp.loopLength >= 4 ? smp.loopStart : 0;
+                in.loopLength = smp.loopLength >= 4 ? smp.loopLength : 0;
+                in.pingPong = smp.pingPong;
+                in.playStart = in.playEnd = 0;
+            });
+            gotInto = slot;
+            msg += " - IT'S INSTRUMENT " + juce::String::toHexString (slot + 1).toUpperCase().paddedLeft ('0', 2);
+        }
+    }
+    setStatus (msg);
+    updateSampleButtons();
+}
+
 void AkaiPanel::received (const uint8_t* msg, int n)
 {
+    if (transferring) { transfer.received (msg, n, juce::Time::getMillisecondCounterHiRes()); return; }
     akai::Reply r;
     if (s950)
     {
         // the S950 (S900): the catalogue, or a whole program with its keygroups
         if (! akai::s900::parse (msg, n, r)) return;
+        if (r.op == akai::s900::CAT && pickAfterList)
+        {
+            pickAfterList = false;
+            sampleNames.clear(); sampleNumbers = r.sampleNumbers;
+            for (const auto& x : r.sampleNames) sampleNames.add (juce::String (x));
+            askNext();
+            if (sampleNames.isEmpty()) { setStatus ("THE S950 HAS NO SAMPLES"); return; }
+            setStatus (juce::String (sampleNames.size()) + " SAMPLES IN THE S950");
+            if (menuHook())
+            {
+                juce::Component::SafePointer<AkaiPanel> safe (this);
+                menuHook() ("GET WHICH SAMPLE FROM THE S950? (IT GOES INTO THE FIRST FREE INSTRUMENT)", sampleNames, [safe] (int a) { if (safe != nullptr && a >= 0) safe->getSample (a); });
+            }
+            return;
+        }
         if (r.op == akai::s900::CAT)
         {
             names.clear(); numbers = r.numbers;
@@ -129,6 +296,21 @@ void AkaiPanel::received (const uint8_t* msg, int n)
         return;
     }
     if (! akai::parse (msg, n, r)) return;
+    if (r.op == akai::SLIST && pickAfterList)
+    {
+        pickAfterList = false;
+        sampleNames.clear();
+        for (const auto& x : r.sampleNames) sampleNames.add (juce::String (x));
+        askNext();
+        if (sampleNames.isEmpty()) { setStatus ("THE S1000 HAS NO SAMPLES"); return; }
+        setStatus (juce::String (sampleNames.size()) + " SAMPLES IN THE S1000");
+        if (menuHook())
+        {
+            juce::Component::SafePointer<AkaiPanel> safe (this);
+            menuHook() ("GET WHICH SAMPLE FROM THE S1000? (IT GOES INTO THE FIRST FREE INSTRUMENT)", sampleNames, [safe] (int a) { if (safe != nullptr && a >= 0) safe->getSample (a); });
+        }
+        return;
+    }
     if (r.op == akai::PLIST)
     {
         names.clear();
@@ -171,9 +353,10 @@ void AkaiPanel::tick()
     std::vector<uint8_t> msg;
     while (proc.readSysex (msg)) received (msg.data(), (int) msg.size());
     const double now = juce::Time::getMillisecondCounterHiRes();
+    if (transferring) { transferTick (now); return; }
     if (waiting && now - askedAt > 2500.0)
     {
-        waiting = false; pending.clear();
+        waiting = false; pending.clear(); pickAfterList = false;
         setStatus ("NO ANSWER - SEE HELP: " + model() + " EDITOR");
     }
     if (s950 && (dirtyProg || dirtyKg) && ! waiting && now - lastSend >= 150.0)
@@ -310,6 +493,12 @@ void AkaiPanel::resized()
         auto row = r.removeFromTop (rowH);
         getBtn.setBounds (row.removeFromLeft (charsW (13))); row.removeFromLeft (gap);
         programBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (22))));
+    }
+    r.removeFromTop (gap);
+    {
+        auto row = r.removeFromTop (rowH);
+        sendSampleBtn.setBounds (row.removeFromLeft (charsW (16))); row.removeFromLeft (gap);
+        getSampleBtn.setBounds (row.removeFromLeft (std::min (row.getWidth(), charsW (15))));
     }
     r.removeFromTop (gap);
     {

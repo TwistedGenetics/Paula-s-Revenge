@@ -472,10 +472,11 @@ A short block can play differently each time round, like the conditional steps o
 * **REBUILD** it from its own kicks, snares and hats, 16 steps a bar: **CLASSIC '94** (the cut-up amen: the kick pushed, a ghost snare before the second half, a snare on the last 16th), **ROLLER**, **TWO-STEP**, **HALF-STEP**. Ghost snares go in quiet (`C14`).
 * **4 VARIATIONS**: four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll - the makings of an arrangement in one click.
 * **BREAK LAB** (the **LAB** row): jungle edits written for you, on the track the break is on.
-  * **STYLE** (click it for the next one): **'94 ROLLERS** (busy and rolling, lots of ghost snares, hats pushed a touch late), **'96 TECHSTEP** (tight and sparse, the kick skipping, hats cut short), **AMEN CHOPS** (the amen cut up: reversed snares, pitched-down hits, stutters), **DRILL'N'BASS** (chaos: buzzing rolls, stutters, pitch everywhere).
+  * **STYLE** (click it for the next one): **'94 ROLLERS** (busy and rolling, lots of ghost snares, hats pushed a touch late), **'96 TECHSTEP** (tight and sparse, the kick skipping, hats cut short), **AMEN CHOPS** (the amen cut up: reversed snares, pitched-down hits, stutters), **DRILL'N'BASS** (chaos: buzzing rolls, stutters, pitch everywhere), **'93 HARDCORE** (busy breakbeats under the stabs: snare rolls into every drop, hits pitched UP), **RAGGA** (the amen doubled up under the MC: double kicks, lots of ghosts, snare rolls, swung hats), **LIQUID** (a smooth two-step: few edits, the hats flowing and swung, nothing to jar).
   * **WILD** `-` / `+`: how many edits (0 = just the groove, 100 = everything).
   * **EDIT ME**: a whole new edit of the break - a groove from the STYLE, then ghost snares, rolls (`Rxy`), reversed hits (`U01`), pitch drops (`Ixx`), stutters (the hit again, cut short with `ECx`), hats cut short, a gap before the drop, now and then a half-time bar. Every 2nd bar (and the last) is a fill, so it gets busier going into the next phrase. Press it again for another; each is different.
   * **MUTATE**: changes a few things about what's there (more the wilder) - a ghost added, a roll, a reverse, a hit swapped for another of its kind, moved a step, or taken out - and keeps the rest. Press it a few times to let the edit evolve.
+  * **RE-ROLL BAR**: writes just one bar again - a new groove from the STYLE and its own edits - and leaves the other bars exactly as they are. **Click a row of the grid** (a row is a bar) to pick the bar; it's outlined (the last bar until you pick one). Keep pressing until that bar's right; each press is one undo step.
   * In the grid at the bottom, an edited hit shows its edits after it: **R** a roll, **<** reversed, **P** pitched, **X** cut short.
   * It's all ordinary notes and commands in the pattern, so every hit can be changed afterwards, and each press is one undo step.
 * The grid at the bottom is the block's track, 16 lines a row (a bar), each note tinted by kind with its slice number. Everything is one undo step.
@@ -816,10 +817,14 @@ Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Kn
 * **ORGAN** — drawbar organ with a click at the front: house and hardcore organ stabs and basslines.
 * **BLEEP** — a sine with a touch of its third harmonic, and an echo: bleep-and-bass tones.
 * **BELL** — FM electric piano / bell, bright at the start and mellowing as it rings: the soulful, Rhodes-y side.
+* **HOOVER** — the hoover stab: three chorused pulse-saws swooping up into each note, a square under them.
+* **MENTASM** — the scream: pulse-saws an octave apart falling into each note, the pulse width racing.
+* **PIANO** — the rave / house piano stab: two strings a note, the brightness dying away as it rings, a thump of the hammer.
+* **BELGIAN** — the Belgian techno stab: a saw and a square an octave up, driven hard, CHORD on 5TH so one key plays the fifth.
 
 The controls:
 
-* **SOUND**: **TYPE**; **CHORD** (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) — one key plays the chord, the old rave chord-memory trick, at the level of one note; **DETUNE**; **OCTAVE**.
+* **SOUND**: **TYPE** (any of the nine); **CHORD** (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) — one key plays the chord, the old rave chord-memory trick, at the level of one note; **DETUNE**; **OCTAVE**.
 * **FILTER**: a 12 dB low-pass — **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it) and **ENV DECAY**.
 * **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE.
 * **SPACE**: **CHORUS**, and **ECHO** — a stereo ping-pong echo, each repeat a little darker — with **ECHO TIME**.
@@ -931,9 +936,20 @@ An instrument slot can play your hardware — the MPC, a microKORG, an NTS-1 —
 
 **GEAR: AKAI S950**, then **S950 EDITOR...**, does the same for an S950 (or an S900: the S950 speaks its protocol, from Akai's "MIDI System Exclusive Data Format for S900"):
 * Connect both ways, as for the S1000. Its MIDI channel (the S950's MIDI page) must match this instrument's **CHANNEL**.
-* **GET PROGRAMS** reads the S950's catalogue (its programs; the samples aren't listed); **PROGRAM:** reads that program and all its keygroups in one go.
+* **GET PROGRAMS** reads the S950's catalogue (its programs; GET A SAMPLE... lists its samples); **PROGRAM:** reads that program and all its keygroups in one go.
 * **PROGRAM** has the program's own settings (KEY TILT, POSITIONAL XFADE). **KEYGROUP** (with **KG**) has KEYS (range, velocity switch, MIDI channel offset, transpose on/off, one shot), AMP ENV, VELOCITY (to attack, release, loudness, filter; release velocity from note-off or note-on), FILTER (key track, envelope amount and its ADSR), PITCH WARP, LFO (rate, depth, delay, aftertouch, mod wheel, desync), CROSSFADE, and the SOFT and LOUD samples' tune, filter and loudness. The line at the top names the keygroup's soft and loud samples.
 * The S950 only takes a program whole, so every change sends the program and all its keygroups (at most every 150 ms while you drag) - and, as Akai's document says, the program it receives becomes the selected one. Save on the S950 as usual.
+
+### Samples over MIDI (S950 and S1000)
+
+Both editors have **SEND A SAMPLE...** and **GET A SAMPLE...** (under GET PROGRAMS), to move sounds between this song and the sampler without re-sampling the audio:
+
+* **SEND A SAMPLE...** lists this song's samples, each with how long it'll take, and sends the one you pick to the sampler as a **new** sample, with its name, rate and loop (a ping-pong loop as alternating on the S950). Stereo samples are mixed to mono; above 48 kHz a sample is brought down to 44.1 kHz first. If the sampler already has a sample with that name, the new one gets `-2` (and so on) on the end, so nothing is replaced.
+* **GET A SAMPLE...** lists the sampler's samples; the one you pick comes into **the first free instrument** here (no sample, not a synth or MIDI out) with its name, rate and loop. Undo takes it out again.
+* **It's slow - that's MIDI.** MIDI moves about 3,000 bytes a second, so a second of 44.1 kHz sound takes roughly 45 seconds to the S1000 and 30 to the S950. The info line counts it up; **STOP** stops it.
+* **The S950** (and S900) speaks Akai's sample dump from before the MIDI standard, in 12 bits: the whole sample goes as one message, then its name and loop. Its reception of that is switched on for you first (Akai's 'SECRE' message). While a sample comes from the S950, answers (ACKs) go back every 40 ms in case it waits for them.
+* **The S1000** takes the sample's header first (it makes the sample), then the sound as standard MIDI sample dump packets in 16 bits; each packet waits for the S1000's answer, and one it says was damaged is sent again. If no answers come at all, it carries on without them, at MIDI's pace.
+* Connect both ways, as for the editors. The formats come from Akai's own documents (the S900's System Exclusive format, and the S1000's as transcribed for lakai) and the MIDI Sample Dump Standard; this hasn't been tried on a real S950 or S1000 yet, so if a transfer goes wrong, say what the sampler showed.
 
 ## CV out to a modular (ES-9)
 

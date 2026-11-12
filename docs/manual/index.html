@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.73</span>
+  <span class="ver">MANUAL &middot; V0.74</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -572,7 +572,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>RE-EDIT</b>: <span class="b">SHUFFLE</span> (the rhythm stays, which slice plays changes &mdash; again for another), <span class="b">GHOST ROLL</span> (the last quarter becomes a snare roll, quiet to loud), <span class="b">HALF-TIME</span>, <span class="b">DOUBLE-TIME</span>. <span class="b">TO PHRASE</span>: the slices into a new phrase (see CHOP TO PHRASE).</li>
     <li><b>REBUILD</b> it from its own kicks, snares and hats, 16 steps a bar: <span class="b">CLASSIC '94</span> (the cut-up amen &mdash; kick pushed, a ghost snare before the second half, a snare on the last 16th), <span class="b">ROLLER</span>, <span class="b">TWO-STEP</span>, <span class="b">HALF-STEP</span>. Ghost snares go in quiet, as <code>C14</code>.</li>
     <li><span class="b">4 VARIATIONS</span> makes four new blocks after the current one, each a different rebuild with different hits, the last ending in a ghost roll.</li>
-    <li><b>BREAK LAB</b> (the <b>LAB</b> row) writes jungle edits for you on the break's track. <b>STYLE</b> (click for the next): <span class="b">'94 ROLLERS</span> (busy, rolling, ghost snares, hats a touch late), <span class="b">'96 TECHSTEP</span> (tight and sparse, the kick skipping, hats cut short), <span class="b">AMEN CHOPS</span> (reversed snares, pitched-down hits, stutters), <span class="b">DRILL'N'BASS</span> (buzzing rolls, stutters, pitch everywhere). <b>WILD</b> &minus; / + sets how many edits (0 = just the groove). <span class="b">EDIT ME</span> writes a whole new edit &mdash; a groove from the style, then ghost snares, rolls (<code>Rxy</code>), reversed hits (<code>U01</code>), pitch drops (<code>Ixx</code>), stutters cut short (<code>ECx</code>), a gap before the drop, now and then a half-time bar, with every second bar a fill. Press it again for another. <span class="b">MUTATE</span> changes a few things and keeps the rest, so an edit can evolve. In the grid an edited hit shows its edits: <b>R</b> roll, <b>&lt;</b> reversed, <b>P</b> pitched, <b>X</b> cut short. It's all ordinary notes and commands, every press one undo step.</li>
+    <li><b>BREAK LAB</b> (the <b>LAB</b> row) writes jungle edits for you on the break's track. <b>STYLE</b> (click for the next): <span class="b">'94 ROLLERS</span> (busy, rolling, ghost snares, hats a touch late), <span class="b">'96 TECHSTEP</span> (tight and sparse, the kick skipping, hats cut short), <span class="b">AMEN CHOPS</span> (reversed snares, pitched-down hits, stutters), <span class="b">DRILL'N'BASS</span> (buzzing rolls, stutters, pitch everywhere), <span class="b">'93 HARDCORE</span> (busy breakbeats under the stabs, snare rolls into every drop, hits pitched up), <span class="b">RAGGA</span> (the amen doubled up under the MC: double kicks, ghosts, rolls, swung hats), <span class="b">LIQUID</span> (a smooth two-step with few edits). <b>WILD</b> &minus; / + sets how many edits (0 = just the groove). <span class="b">EDIT ME</span> writes a whole new edit &mdash; a groove from the style, then ghost snares, rolls (<code>Rxy</code>), reversed hits (<code>U01</code>), pitch drops (<code>Ixx</code>), stutters cut short (<code>ECx</code>), a gap before the drop, now and then a half-time bar, with every second bar a fill. Press it again for another. <span class="b">MUTATE</span> changes a few things and keeps the rest, so an edit can evolve. <span class="b">RE-ROLL BAR</span> writes just one bar again and leaves the others alone: click a row of the grid (a row is a bar) to pick it &mdash; it's outlined &mdash; and press until that bar is right. In the grid an edited hit shows its edits: <b>R</b> roll, <b>&lt;</b> reversed, <b>P</b> pitched, <b>X</b> cut short. It's all ordinary notes and commands, every press one undo step.</li>
     <li>The grid at the bottom is the block's track, a bar (16 lines) a row, each note tinted by kind with its slice number; it lights the line that's playing. Every change is one undo step.</li>
   </ul>
   <figure>
@@ -944,6 +944,10 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">ORGAN</span> &mdash; drawbar organ with a click at the front, for house and hardcore organ stabs and basslines.</li>
     <li><span class="b">BLEEP</span> &mdash; a sine with a touch of its third harmonic and an echo: bleep-and-bass tones.</li>
     <li><span class="b">BELL</span> &mdash; FM electric piano and bell, bright on the attack and mellowing as it rings: the soulful, Rhodes-y side.</li>
+    <li><span class="b">HOOVER</span> &mdash; the hoover stab: three chorused pulse-saws swooping up into each note, a square under them.</li>
+    <li><span class="b">MENTASM</span> &mdash; the scream: pulse-saws an octave apart falling into each note, the pulse width racing.</li>
+    <li><span class="b">PIANO</span> &mdash; the rave and house piano stab: two strings a note, the brightness dying away as it rings, a thump of the hammer.</li>
+    <li><span class="b">BELGIAN</span> &mdash; the Belgian techno stab: a saw and a square an octave up, driven hard, with CHORD on 5TH.</li>
     <li><b>SOUND:</b> TYPE; <b>CHORD</b> (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) &mdash; one key plays the chord, the old rave chord-memory trick, at the level of one note; DETUNE; OCTAVE.</li>
     <li><b>FILTER:</b> a 12 dB low-pass with CUTOFF, RES, ENV AMT (how far each note opens it) and ENV DECAY. <b>ENVELOPE</b>: ATTACK, DECAY, SUSTAIN, RELEASE.</li>
     <li><b>SPACE:</b> CHORUS, and ECHO &mdash; a stereo ping-pong echo, each repeat a little darker &mdash; with ECHO TIME. <b>OUTPUT</b>: VELOCITY and LEVEL.</li>
@@ -1096,6 +1100,19 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>The S950 editor: a keygroup's filter</figcaption>
   </figure>
   <p>Keygroups have their keys and velocity switch, amp envelope, velocity modulation, filter and its envelope, pitch warp, LFO, crossfade, and the soft and loud samples' tune, filter and loudness. The S950 only takes a program whole, so each change sends it all (at most every 150&nbsp;ms), and that program becomes the selected one.</p>
+  <h3>Samples over MIDI</h3>
+  <p>Both editors have <span class="b">SEND A SAMPLE...</span> and <span class="b">GET A SAMPLE...</span>, to move sounds between the song and the sampler without re-sampling the audio.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/akai_samples.png" alt="The S950 editor with SEND A SAMPLE... and GET A SAMPLE... under GET PROGRAMS; the info line says REESE HIT IS IN THE S950 (SAMPLE 2)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A sample sent to the S950</figcaption>
+  </figure>
+  <ul>
+    <li><b>SEND A SAMPLE...</b> lists the song's samples with how long each will take, and sends the one you pick as a <b>new</b> sample with its name, rate and loop. Stereo is mixed to mono; above 48&nbsp;kHz it's brought down to 44.1&nbsp;kHz. A name the sampler already has gets <code>-2</code> on the end, so nothing is replaced.</li>
+    <li><b>GET A SAMPLE...</b> lists the sampler's samples; the one you pick comes into the first free instrument (no sample, not a synth or MIDI out). Undo takes it out again.</li>
+    <li><b>It's slow &mdash; that's MIDI:</b> about 3,000 bytes a second, so a second of 44.1&nbsp;kHz sound takes roughly 45 seconds to the S1000 and 30 to the S950. The info line counts it up, and <b>STOP</b> stops it.</li>
+    <li>The S950 (and S900) uses Akai's pre-standard sample dump in 12 bits: the whole sample as one message, then its name and loop (its reception is switched on for you first). The S1000 takes the header, then standard MIDI sample dump packets in 16 bits, each waiting for its answer; a damaged one is sent again. If no answers come at all, it carries on at MIDI's pace.</li>
+    <li>Connect both ways. The formats come from Akai's own documents and the MIDI Sample Dump Standard; this hasn't been tried on real hardware yet.</li>
+  </ul>
 </section>
 
 <!-- ============================================================ 011b -->
@@ -1376,7 +1393,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.73</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.74</footer>
 </main>
 </div>
 <script>

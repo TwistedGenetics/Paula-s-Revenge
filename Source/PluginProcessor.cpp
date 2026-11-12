@@ -388,23 +388,23 @@ void PaulaProcessor::renderPreview (float* l, float* r, int n)
 
 void PaulaProcessor::pushSysex (const uint8_t* d, int n)
 {
-    // [length lo, length hi, bytes...]; a message that doesn't fit is dropped
-    if (d == nullptr || n <= 0 || n > 60000 || sysexFifo.getFreeSpace() < n + 2) return;
+    // [length: 3 bytes, low first; bytes...]; a message that doesn't fit is dropped
+    if (d == nullptr || n <= 0 || n > (1 << 22) - 16 || sysexFifo.getFreeSpace() < n + 3) return;
     int k = 0;
-    sysexFifo.write (n + 2).forEach ([&] (int idx) { sysexBuf[(size_t) idx] = k == 0 ? (uint8_t) (n & 255) : k == 1 ? (uint8_t) (n >> 8) : d[k - 2]; ++k; });
+    sysexFifo.write (n + 3).forEach ([&] (int idx) { sysexBuf[(size_t) idx] = k < 3 ? (uint8_t) ((n >> (8 * k)) & 255) : d[k - 3]; ++k; });
 }
 
 bool PaulaProcessor::readSysex (std::vector<uint8_t>& msg)
 {
-    if (sysexFifo.getNumReady() < 2) return false;
+    if (sysexFifo.getNumReady() < 3) return false;
     int len = 0, k = 0;
     // the length (peeked), then the bytes
     int s1, n1, s2, n2;
-    sysexFifo.prepareToRead (2, s1, n1, s2, n2);
-    len = sysexBuf[(size_t) s1] | ((n1 > 1 ? sysexBuf[(size_t) s1 + 1] : sysexBuf[(size_t) s2]) << 8);
-    if (sysexFifo.getNumReady() < len + 2) return false;
+    sysexFifo.prepareToRead (3, s1, n1, s2, n2);
+    for (int i = 0; i < 3; ++i) len |= sysexBuf[(size_t) (i < n1 ? s1 + i : s2 + (i - n1))] << (8 * i);
+    if (sysexFifo.getNumReady() < len + 3) return false;
     msg.resize ((size_t) len);
-    sysexFifo.read (len + 2).forEach ([&] (int idx) { if (k >= 2) msg[(size_t) (k - 2)] = sysexBuf[(size_t) idx]; ++k; });
+    sysexFifo.read (len + 3).forEach ([&] (int idx) { if (k >= 3) msg[(size_t) (k - 3)] = sysexBuf[(size_t) idx]; ++k; });
     return true;
 }
 

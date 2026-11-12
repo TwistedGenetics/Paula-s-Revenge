@@ -247,6 +247,7 @@ namespace
         std::vector<const char*> grooves;
         float ghost, roll, reverse, drop, stutter, cut, gap, half, swing;
         int   rollSpeed[2];   // Rxy x: the retrigger ticks it picks from (at speed 6: 3 = 32nds, 2 = triplet 32nds, 1 = a buzz)
+        float up = 0;         // (how often a pitch change goes UP instead: '93 hardcore's sped-up hits)
     };
     const LabStyle& labStyle (int style)
     {
@@ -263,7 +264,16 @@ namespace
               0.6f, 0.45f, 0.6f, 0.5f, 0.5f, 0.2f, 0.35f, 0.15f, 0.3f, { 3, 2 } },
             // DRILL'N'BASS: chaos - buzzing rolls, stutters, pitch everywhere, hits moved about
             { { "KSHKSGHSKKSHGSKS", "K.SSHKGSKSHHSKGS", "KKSGSHSKGKSSHKSG", "SKHGKSSKHGSKKSHS" },
-              0.7f, 1.0f, 0.6f, 0.8f, 0.9f, 0.4f, 0.3f, 0.2f, 0.4f, { 2, 1 } } };
+              0.7f, 1.0f, 0.6f, 0.8f, 0.9f, 0.4f, 0.3f, 0.2f, 0.4f, { 2, 1 } },
+            // '93 HARDCORE: busy breakbeats under the stabs - snare rolls into every drop, hits pitched UP
+            { { "K.HKS.HKK.HKS.HK", "K.K.S.HKK.K.S.HG", "KKHKS.HKK.HKSKHS", "K.HKS.HKK.K.SSSS" },
+              0.5f, 0.7f, 0.2f, 0.6f, 0.4f, 0.2f, 0.4f, 0.05f, 0.1f, { 3, 2 }, 0.8f },
+            // RAGGA: the amen doubled up under the MC - double kicks, ghost-heavy, snare rolls, swung hats
+            { { "K.HKS.HGK.KHS.HG", "K.H.S.HKK.KHS.HS", "KK.HS.HGK.HKS.HS", "K.HGS.HKK.KGS.HG" },
+              0.8f, 0.6f, 0.35f, 0.3f, 0.3f, 0.15f, 0.5f, 0.1f, 0.4f, { 3, 2 }, 0.1f },
+            // LIQUID: a smooth two-step - few edits, hats flowing and swung, nothing to jar
+            { { "K.H.S.H..KH.S.H.", "K.H.S.HK..H.S.HG", "K.H.S.H..K.HS.H.", "K.HGS.H..KH.S.HG" },
+              0.5f, 0.15f, 0.1f, 0.05f, 0.05f, 0.3f, 0.2f, 0.05f, 0.7f, { 3, 3 }, 0.0f } };
         return st[std::clamp (style, 0, kLabStyles - 1)];
     }
 
@@ -309,11 +319,13 @@ namespace
         if (! isHit (c) || hasCmd (c, kU)) return false;
         return addCmd (c, kU, 0x01);
     }
-    bool edDrop (Block& b, int track, int line, LabRng& r)
+    bool edDrop (Block& b, int track, int line, LabRng& r, float up = 0.0f)
     {
         auto& c = b.at (line, track);
         if (! isHit (c) || hasCmd (c, kI)) return false;
         static const int semis[] = { -12, -7, -5, -3, -2, 5, 7 };
+        static const int ups[] = { 2, 3, 5, 7, 12 };
+        if (up > 0.0f && r.chance (up)) return addCmd (c, kI, (uint8_t) (0x80 + ups[r.pick (5)]));
         return addCmd (c, kI, (uint8_t) (0x80 + semis[r.pick (r.chance (0.8f) ? 5 : 7)]));
     }
     // the hit again on the lines after it, cut short (ECx), quieter each time
@@ -389,7 +401,7 @@ namespace
             }
             if (k == HitKind::Snare && s >= 8 && r.chance (st.roll * w * 0.3f * boost) && edRoll (b, track, st, line, r)) ++rep.rolls;
             else if (k != HitKind::Kick && r.chance (st.reverse * w * 0.15f * boost) && edReverse (b, track, line)) ++rep.reverses;
-            if (r.chance (st.drop * w * 0.12f * boost) && edDrop (b, track, line, r)) ++rep.drops;
+            if (r.chance (st.drop * w * 0.12f * boost) && edDrop (b, track, line, r, st.up)) ++rep.drops;
             if (k == HitKind::Hat && r.chance (st.cut * 0.6f) && edCut (b, track, line, r)) ++rep.cuts;
             if (k == HitKind::Hat && off && r.chance (st.swing * 0.5f) && edSwing (b, track, line, r)) { /* (feel, not counted) */ }
             if (s >= 10 && r.chance (st.stutter * w * 0.12f * boost))
@@ -429,7 +441,7 @@ namespace
 
 const char* labStyleName (int style)
 {
-    static const char* n[kLabStyles] = { "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS" };
+    static const char* n[kLabStyles] = { "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS", "'93 HARDCORE", "RAGGA", "LIQUID" };
     return n[std::clamp (style, 0, kLabStyles - 1)];
 }
 
@@ -438,7 +450,7 @@ std::string LabReport::text() const
     std::string t;
     auto add = [&] (int n, const char* one, const char* many) { if (n <= 0) return; if (! t.empty()) t += ", "; t += std::to_string (n) + " " + (n == 1 ? one : many); };
     add (ghosts, "GHOST", "GHOSTS"); add (rolls, "ROLL", "ROLLS"); add (reverses, "REVERSE", "REVERSES");
-    add (drops, "PITCH DROP", "PITCH DROPS"); add (stutters, "STUTTER", "STUTTERS"); add (cuts, "CUT", "CUTS");
+    add (drops, "PITCH CHANGE", "PITCH CHANGES"); add (stutters, "STUTTER", "STUTTERS"); add (cuts, "CUT", "CUTS");
     add (gaps, "GAP", "GAPS"); add (halfBars, "HALF-TIME BAR", "HALF-TIME BARS");
     const std::string head = changes > 0 ? std::to_string (changes) + (changes == 1 ? " CHANGE" : " CHANGES")
                                          : std::to_string (notes) + " HITS";
@@ -482,6 +494,26 @@ LabReport breakLab (Block& b, int track, int ins, const std::vector<HitKind>& ki
     return rep;
 }
 
+LabReport rerollBar (Block& b, int track, int ins, const std::vector<HitKind>& kinds, int lines, int bars, int bar, int style, int wild, uint32_t seed)
+{
+    LabReport rep;
+    if (track < 0 || track >= kMaxTracks) return rep;
+    lines = std::clamp (lines, 1, b.lines);
+    bars = std::max (1, bars);
+    bar = std::clamp (bar, 0, bars - 1);
+    const int steps = 16 * bars;
+    const auto& st = labStyle (style);
+    const float w = std::clamp (wild, 0, 100) / 100.0f;
+    LabRng r (seed);
+    const int from = lineOf (bar * 16, steps, lines), to = std::min (lines, lineOf ((bar + 1) * 16, steps, lines));
+    for (int l = from; l < to; ++l) b.at (l, track) = Cell {};
+    writeGroove (b, track, ins, kinds, st.grooves[(size_t) r.pick ((int) st.grooves.size())], bar, steps, lines, r.pick (4));
+    if (bar > 0 && r.chance (st.half * w * 0.5f)) { halfBar (b, track, bar, steps, lines); ++rep.halfBars; }
+    editBar (b, track, ins, kinds, st, w, bar, steps, lines, bar == bars - 1 || (bar % 2) == 1, r, rep);
+    for (int l = from; l < to; ++l) rep.notes += isHit (b.at (l, track)) ? 1 : 0;
+    return rep;
+}
+
 LabReport mutateBreak (Block& b, int track, int ins, const std::vector<HitKind>& kinds, int lines, int bars, int style, int wild, uint32_t seed)
 {
     LabReport rep;
@@ -507,7 +539,7 @@ LabReport mutateBreak (Block& b, int track, int ins, const std::vector<HitKind>&
             case 0: done = edGhost (b, track, ins, kinds, line, r); if (done) ++rep.ghosts; break;
             case 1: done = edRoll (b, track, st, line, r); if (done) ++rep.rolls; break;
             case 2: done = edReverse (b, track, line); if (done) ++rep.reverses; break;
-            case 3: done = edDrop (b, track, line, r); if (done) ++rep.drops; break;
+            case 3: done = edDrop (b, track, line, r, st.up); if (done) ++rep.drops; break;
             case 4: { const int to = std::min (lines, lineOf ((bar + 1) * 16, steps, lines));
                       done = edStutter (b, track, line, std::max (1, lines / steps), to, r) > 0; if (done) ++rep.stutters; } break;
             case 5:   // another hit of the same kind

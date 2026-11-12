@@ -42,6 +42,15 @@ public:
     bool ready() const { return progBlock.size() == (size_t) (s950 ? akai::s900::kProgramBytes : akai::kProgramBytes) && pending.empty(); }
     juce::String status() const { return statusText; }
     PixButton getBtn { "GET PROGRAMS" }, programBtn { "PROGRAM: -" }, progModeBtn { "PROGRAM", true }, kgModeBtn { "KEYGROUP", true };
+    // SAMPLES OVER MIDI (v0.74): one of this song's samples into the sampler, or one of the sampler's into a free
+    // instrument here
+    PixButton sendSampleBtn { "SEND A SAMPLE..." }, getSampleBtn { "GET A SAMPLE..." };
+    void sendSample (int songInstrument);      // (also for tests)
+    void getSampleList();                      // then the menu of its samples
+    void getSample (int index);                // (an index into sampleList())
+    const juce::StringArray& sampleList() const { return sampleNames; }
+    const akai::Transfer& transferState() const { return transfer; }
+    int gotInto = -1;                          // (the instrument the last sample went into)
     NumberBox kgBox { "KG", 1, 1, 1 };
 
 private:
@@ -65,6 +74,14 @@ private:
     bool dirtyProg = false, dirtyKg = false;
     double lastSend = 0;
     juce::String statusText;
+    akai::Transfer transfer;
+    bool transferring = false, pickAfterList = false;
+    double lastProgress = 0;
+    juce::StringArray sampleNames;
+    std::vector<int> sampleNumbers;
+    void transferTick (double now);
+    void transferDone();
+    void updateSampleButtons();
 
     const std::vector<akai::Field>& fields() const
     {

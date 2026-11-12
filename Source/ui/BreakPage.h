@@ -47,6 +47,10 @@ public:
     int  labStyle = 0, labWild = 50;
     LabReport editMe();
     LabReport mutate();
+    // RE-ROLL BAR (v0.74): click a bar (a row of the grid) to pick it, then RE-ROLL BAR writes just that bar again
+    int  pickedBar = -1;                  // (-1: the last bar)
+    LabReport rerollBar();
+    void pickBar (int bar);
     void setLabStyle (int s);
     juce::Rectangle<float> waveRect() const { return waveArea; }
     int  sliceAt (float x) const;
@@ -67,7 +71,7 @@ public:
     PixButton shuffleBtn { "SHUFFLE" }, ghostBtn { "GHOST ROLL" }, halfBtn { "HALF-TIME" }, doubleBtn { "DOUBLE-TIME" };
     PixButton rebuildBtns[kRebuilds] { PixButton { "CLASSIC '94" }, PixButton { "ROLLER" }, PixButton { "TWO-STEP" }, PixButton { "HALF-STEP" } };
     PixButton variationsBtn { "4 VARIATIONS" }, fillBtn { "FILL", true };
-    PixButton styleBtn { "'94 ROLLERS" }, wildDown { "-" }, wildUp { "+" }, editMeBtn { "EDIT ME" }, mutateBtn { "MUTATE" };
+    PixButton styleBtn { "'94 ROLLERS" }, wildDown { "-" }, wildUp { "+" }, editMeBtn { "EDIT ME" }, mutateBtn { "MUTATE" }, rerollBtn { "RE-ROLL BAR" };
 
 private:
     PaulaProcessor& proc;

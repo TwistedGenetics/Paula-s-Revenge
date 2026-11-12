@@ -1,9 +1,14 @@
-// Paula's Revenge - RAVE: the built-in jungle / hardcore keys. Five sounds from the early 90s:
+// Paula's Revenge - RAVE: the built-in jungle / hardcore keys. Nine sounds from the early 90s:
 //   STAB  - detuned saws over a square an octave down, the filter snapping shut: the rave chord stab
 //   PAD   - five wide saws drifting against each other, slow in and out: the rolling-jungle atmosphere
 //   ORGAN - drawbar sines with a click at the front: the house / hardcore organ (bass or stabs)
 //   BLEEP - a sine with a touch of its third: bleep-and-bass tones and sub bleeps
 //   BELL  - two-operator FM, bright then mellow: the electric-piano / bell of the soulful side
+//   HOOVER  - (v0.74) chorused pulse-saws swooping up into each note, a square under them: the hoover stab
+//   MENTASM - pulse-saws an octave apart, falling into the note with the pulse width racing: the scream
+//   PIANO   - a hammered piano (partials dying away faster the higher they are, two strings a note): the rave /
+//             house piano stab
+//   BELGIAN - a saw and a square an octave up, driven hard, CHORD on 5TH: the Belgian techno stab
 // CHORD plays a whole chord from one key (the rave chord-memory trick: MINOR, MIN 7...); a 12 dB low-pass with its
 // own envelope; CHORUS and a stereo ECHO after it. POLY (16 voices; the oldest fades out in 4 ms when it's full).
 // Plays through the synth rack like SUB (pluginKey "SYN:RAVE"). Plain C++, unit tested.
@@ -23,7 +28,7 @@ namespace rave
 {
     enum P { Type, Chord, Detune, Octave, Cutoff, Resonance, EnvAmount, FilterDecay,
              Attack, Decay, Sustain, Release, Chorus, Echo, EchoTime, VelSens, Level, Count };
-    enum TypeKind { Stab = 0, Pad, Organ, Bleep, Bell, Types };
+    enum TypeKind { Stab = 0, Pad, Organ, Bleep, Bell, Hoover, Mentasm, Piano, Belgian, Types };
 }
 const std::vector<SynthParam>& raveParams();
 const char* raveTypeName (int type);                 // "STAB"
@@ -66,6 +71,9 @@ private:
         int   order = 0, upd = 0;
         float a1 = 0, a2 = 0, a3 = 0;
         float drift[kOsc] {};      // (PAD: each saw's slow wander)
+        float pitchEnv = 0;        // (HOOVER / MENTASM: the swoop into the note, 1 -> 0)
+        double pwmPh = 0;          // (their pulse width's LFO)
+        float dc = 0;              // (BELGIAN: the drive's offset taken out)
     };
     static constexpr int kVoices = 16;
     Voice voices[kVoices];

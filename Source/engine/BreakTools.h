@@ -51,8 +51,9 @@ int chopToPhrase (Song&, int instrument, int division, double lineSec);
 // bar - as many as WILD (0..100) asks for. MUTATE changes a few things about what's there (more the wilder),
 // keeping the rest. Everything is ordinary notes and commands: every hit can be edited afterwards. The same seed
 // gives the same edit.
-constexpr int kLabStyles = 4;
-const char* labStyleName (int style);    // "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS"
+constexpr int kLabStyles = 7;
+const char* labStyleName (int style);    // "'94 ROLLERS", "'96 TECHSTEP", "AMEN CHOPS", "DRILL'N'BASS",
+                                         // (v0.74) "'93 HARDCORE", "RAGGA", "LIQUID"
 struct LabReport
 {
     int notes = 0, ghosts = 0, rolls = 0, reverses = 0, drops = 0, stutters = 0, cuts = 0, gaps = 0, halfBars = 0, changes = 0;
@@ -60,4 +61,7 @@ struct LabReport
 };
 LabReport breakLab (Block&, int track, int ins, const std::vector<HitKind>&, int lines, int bars, int style, int wild, uint32_t seed);
 LabReport mutateBreak (Block&, int track, int ins, const std::vector<HitKind>&, int lines, int bars, int style, int wild, uint32_t seed);
+// RE-ROLL BAR (v0.74): one bar (0-based) written again - a new groove from the STYLE and its own edits (a fill if
+// it's the last bar or every 2nd) - the other bars left exactly as they are
+LabReport rerollBar (Block&, int track, int ins, const std::vector<HitKind>&, int lines, int bars, int bar, int style, int wild, uint32_t seed);
 } // namespace prv
