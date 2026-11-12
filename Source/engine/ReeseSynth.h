@@ -18,7 +18,9 @@ namespace reese
 {
     enum P { Mode, Glide, Type, Voices, Detune, Spread, Octave, MoveRate, MoveDepth, Bend, BendTime, Pwm, PwmRate,
              SubLevel, Cutoff, Resonance, EnvAmount, FilterDecay, WobbleRate, WobbleDepth, Drive, Chorus,
-             Attack, Decay, Sustain, Release, VelSens, Level, Count };
+             Attack, Decay, Sustain, Release, VelSens, Level,
+             SubOctave, SubShape,           // (v0.76: the SUB 1 or 2 octaves down; AUTO / SINE / TRIANGLE / SQUARE)
+             Count };
     enum ModeKind { Legato = 0, Always, Retrigger, Poly };
     enum TypeKind { Reese = 0, Hoover };
 }

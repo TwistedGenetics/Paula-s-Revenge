@@ -50,6 +50,8 @@ const std::vector<SynthParam>& reeseParams()
         { "RELEASE",   "ENVELOPE",    5, 5000, 120,  1, "MS", "" },
         { "VELOCITY",  "OUTPUT",      0, 100, 40,    0, "%",  "" },
         { "LEVEL",     "OUTPUT",      0, 100, 75,    0, "%",  "" },
+        { "SUB OCT",   "OSCILLATORS", 0, 1, 0,       3, "",   "SUB -1 OCT|SUB -2 OCT" },
+        { "SUB SHAPE", "OSCILLATORS", 0, 3, 0,       3, "",   "AUTO|SINE|TRI|SQUARE" },
     };
     return ps;
 }
@@ -192,17 +194,21 @@ void ReeseSynth::renderVoice (Voice& v, float& outL, float& outR, float moveNow,
     }
     const float norm = 1.0f / std::sqrt ((float) n);
     l *= norm; r *= norm;
-    // SUB: an octave below (a sine on REESE, a square on HOOVER), in the middle - REESE's sine added after the filter
-    // (v0.73), so the resonance and the filter's sweep never ring on it: the low end stays a plain, steady tone
+    // SUB: one or two octaves below. AUTO: a sine on REESE, a square on HOOVER. A sine or triangle is added after
+    // the filter (v0.73), so the resonance and the filter's sweep never ring on it - the low end stays a plain,
+    // steady tone; a square goes through the filter with the rest (it's part of the buzz)
     float subOut = 0;
     {
-        const double dt = (hz * 0.5) / sr;
+        const double dt = (hz * (std::lround (p[reese::SubOctave]) >= 1 ? 0.25 : 0.5)) / sr;
         v.phSub += dt; if (v.phSub >= 1.0) v.phSub -= 1.0;
+        int shape = (int) std::lround (p[reese::SubShape]);
+        if (shape == 0) shape = hoover ? 3 : 1;
         float s;
-        if (hoover) { double t2 = v.phSub + 0.5; if (t2 >= 1.0) t2 -= 1.0; s = 0.5f * (saw (v.phSub, dt) - saw (t2, dt)); }
+        if (shape == 3) { double t2 = v.phSub + 0.5; if (t2 >= 1.0) t2 -= 1.0; s = 0.5f * (saw (v.phSub, dt) - saw (t2, dt)); }
+        else if (shape == 2) { double q = v.phSub + 0.25; if (q >= 1.0) q -= 1.0; s = (float) (q < 0.5 ? 4.0 * q - 1.0 : 3.0 - 4.0 * q); }   // (from 0, like the sine)
         else s = (float) std::sin (kTwoPiR * v.phSub);
         s *= p[reese::SubLevel] * 0.01f;
-        if (hoover) { l += s; r += s; }   // (HOOVER's square stays in the filter: it's part of the buzz)
+        if (shape == 3) { l += s; r += s; }
         else subOut = s;
     }
     // the amp envelope (from where it is), the filter envelope

@@ -4753,6 +4753,39 @@ static void testSubBeat()
     }
 }
 
+// ---- REESE's SUB: one or two octaves down, its shape (v0.76)
+static void testReeseSub()
+{
+    std::printf ("\n== REESE SUB OCT / SUB SHAPE\n");
+    const double sr = 48000;
+    // the saws filtered right away (CUTOFF 40 Hz, no envelope): what's left is the sub, which comes after the filter
+    auto run = [&] (int oct, int shape, int type = reese::Reese)
+    {
+        auto v = builtinDefaults (kReeseKey);
+        v[reese::Type] = (float) type; v[reese::Octave] = 0; v[reese::Cutoff] = 40; v[reese::EnvAmount] = 0; v[reese::Resonance] = 0;
+        v[reese::Drive] = 0; v[reese::Chorus] = 0; v[reese::SubLevel] = 100; v[reese::SubOctave] = (float) oct; v[reese::SubShape] = (float) shape;
+        v[reese::MoveDepth] = 0; v[reese::Bend] = 0;
+        ReeseSynth s; s.prepare (sr, 512); s.setValues (v);
+        std::vector<float> L ((size_t) sr), R (L.size());
+        s.noteOn (57, 127, 0); s.render (L.data(), R.data(), (int) L.size());
+        double pk = 0, rms = 0;
+        for (size_t i = 12000; i < L.size(); ++i) { pk = std::max (pk, (double) std::abs (L[i])); rms += (double) L[i] * L[i]; }
+        rms = std::sqrt (rms / (L.size() - 12000));
+        return std::array<double, 3> { crossingsHz (L, 12000, 47000, 48000), pk, pk / std::max (1e-9, rms) };
+    };
+    const auto s1 = run (0, 1), s2 = run (1, 1), tri = run (0, 2), sq = run (0, 3), autoR = run (0, 0), autoH = run (0, 0, reese::Hoover);
+    std::printf ("A-3 (220 Hz): SUB -1 OCT %.1f Hz, -2 OCT %.1f Hz; crest sine %.2f, triangle %.2f; level sine %.3f, square (through the 40 Hz filter) %.3f; AUTO on REESE %.3f, on HOOVER %.3f\n",
+                 s1[0], s2[0], s1[2], tri[2], s1[1], sq[1], autoR[1], autoH[1]);
+    CHECK (std::abs (s1[0] - 110) < 2 && std::abs (s2[0] - 55) < 2);
+    CHECK (std::abs (s1[2] - 1.414) < 0.05 && std::abs (tri[2] - 1.732) < 0.06);
+    CHECK (sq[1] < s1[1] * 0.5 && std::abs (autoR[1] - s1[1]) < 0.01 && autoH[1] < s1[1] * 0.5);
+    // a song from before: AUTO, an octave down
+    Instrument in; makeBuiltin (in, kReeseKey);
+    auto old = readBuiltinState (in); old.resize (reese::SubOctave); writeBuiltinState (in, old);
+    const auto back = readBuiltinState (in);
+    CHECK (back[reese::SubOctave] == 0 && back[reese::SubShape] == 0);
+}
+
 // ---- RAVE (v0.73): the jungle keys
 static void testRaveSynth()
 {
@@ -6067,6 +6100,7 @@ int main()
     testGrainSynth();
     testSubBeat();
     testRaveSynth();
+    testReeseSub();
     testReeseSynth();
     testDubThrows();
     testLiveMode();
