@@ -50,6 +50,7 @@ std::string SynthParam::text (float v) const
     const std::string u = unit;
     if (u == "%") std::snprintf (buf, sizeof (buf), "%d%%", (int) std::lround (v));
     else if (u == "MS") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.2fS", v / 1000.0f); else std::snprintf (buf, sizeof (buf), "%dMS", (int) std::lround (v)); }
+    else if (u == "HZ" && min <= 0.0f && v < 0.5f) std::snprintf (buf, sizeof (buf), "OFF");   // (a frequency that can be off: MONO BASS)
     else if (u == "HZ") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.1fK", v / 1000.0f); else if (v < 10.0f) std::snprintf (buf, sizeof (buf), "%.2fHZ", v); else std::snprintf (buf, sizeof (buf), "%dHZ", (int) std::lround (v)); }
     else if (u == "ST" || u == "C") std::snprintf (buf, sizeof (buf), "%+d%s", (int) std::lround (v), u.c_str());
     else if (u == "NOTE") { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" };

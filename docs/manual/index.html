@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.81</span>
+  <span class="ver">MANUAL &middot; V0.82</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -946,18 +946,22 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>Right-click</b> any control to make it a knob (<code>L</code> <code>Q</code> <code>H</code> <code>W</code>) or the track's AUTO A / B, so the pattern can move it. Hold <span class="b">HOLD TO PLAY</span> or play the keys to hear it. <span class="b">OUTPUT &amp; KNOBS...</span> opens the plug-in instrument page above &mdash; OUTPUT, BEND, ON, FILTER AND ENVELOPES, EQ / FX and chords all work for SUB.</li>
   </ul>
   <h3>The built-in REESE synth</h3>
-  <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; REESE. Its controls are on two tabs, <span class="b">SOUND</span> and <span class="b">HOOVER + FILTER</span>.</p>
+  <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; REESE. Five tabs: <span class="b">OSC</span>, <span class="b">MOVEMENT</span>, <span class="b">FILTER</span>, <span class="b">FX</span> and <span class="b">AMP</span>; <b>PRESETS...</b> has ten, from CLASSIC REESE to NEURO GROWL and SUB REESE. An older song's REESE sounds as it did.</p>
   <figure>
-    <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, SOUND tab: boxes for MODE, OSCILLATORS (TYPE REESE or HOOVER, VOICES, DETUNE, SPREAD, OCTAVE, SUB), MOVEMENT, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
-    <figcaption>The REESE page</figcaption>
+    <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, OSC tab: MODE (LEGATO, ALWAYS, OFF, POLY, GLIDE), OSCILLATORS (TYPE REESE or HOOVER, VOICES, DETUNE, SPREAD, OCTAVE, WAVE, SPREAD BY, STACK, NOISE) and SUB (level, -1 OCT / -2 OCT, AUTO / SINE / TRI / SQUARE)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>REESE's OSC tab</figcaption>
   </figure>
   <ul>
-    <li><b>MODE</b> and <b>GLIDE</b> as on SUB (POLY plays up to 6 notes).</li>
-    <li><b>OSCILLATORS:</b> TYPE <span class="b">REESE</span> (saws) or <span class="b">HOOVER</span> (pulse-saws, a square sub); VOICES (1&ndash;7), DETUNE (wider and faster phasing), SPREAD (left and right), OCTAVE, SUB (its level), SUB -1 OCT / -2 OCT, and its shape: AUTO (a sine on REESE, a square on HOOVER), SINE, TRI or SQUARE. A sine or triangle sub comes after the filter, so the resonance, sweep and wobble never touch it &mdash; a steady sub under moving saws without a second track; a square goes through the filter. <b>MOVEMENT:</b> MOVE breathes the detune wider and narrower at MOVE RATE.</li>
-    <li><b>HOOVER:</b> BEND &mdash; each note swoops up from that many semitones below over BEND TIME; PWM and PWM RATE move the pulse width.</li>
-    <li><b>FILTER:</b> a 24 dB low-pass with CUTOFF, RES, ENV AMT (how far each note opens it) and ENV DECAY; <b>WOBBLE</b> puts an LFO on the cutoff. <b>DRIVE</b> and <b>CHORUS</b> (the hoover's wide swirl).</li>
-    <li><b>ENVELOPE</b> and <b>OUTPUT</b>. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
+    <li><b>OSC:</b> MODE and GLIDE as on SUB (POLY plays up to 6 notes). TYPE <span class="b">REESE</span> or <span class="b">HOOVER</span>; VOICES (1&ndash;7), DETUNE, SPREAD, OCTAVE; <b>WAVE</b> (SAW, SQUARE, SAW+SQ, TRI); <b>SPREAD BY</b> &mdash; EVEN, OUTSIDE (a thick middle, a wide shimmer) or RANDOM (the beating never repeats); <b>STACK</b> every other oscillator +OCT, -OCT or +5TH; NOISE. The SUB: level, -1 / -2 OCT, AUTO, SINE, TRI or SQUARE (a sine or triangle comes after the filter, steady under the moving saws).</li>
+    <li><b>MOVEMENT:</b> MOVE and MOVE RATE breathe the detune; <b>DRIFT</b> lets each oscillator wander. HOOVER's BEND, BEND TIME, PWM and PWM RATE. <b>WOBBLE:</b> RATE and amount, <b>SHAPE</b> (SINE, TRI, SAW, RAMP, SQUARE, S&amp;H), <b>SYNC</b> to the song's tempo (1 BAR to 1/16, and triplets), <b>TARGET</b> (CUTOFF, PITCH, LEVEL, DETUNE, PHASER, FLANGER) and <b>RESTART</b> on EACH NOTE.</li>
+    <li><b>FILTER:</b> LOW 24, LOW 12, BAND, HIGH or NOTCH; CUTOFF, RES, KEY TRACK, and DRIVE into it; its envelope's AMT, ATTACK and DECAY.</li>
+    <li><b>FX:</b> DRIVE with its TYPE &mdash; WARM, HARD, FOLD (the metallic neuro edge), RECTIFY, CRUSH &mdash; and SQUASH; a PHASER and a FLANGER (each MIX, RATE, DEPTH, FEEDBACK &mdash; the flanger's below 0 is the hollow one); CHORUS, WIDTH, and <b>MONO BASS</b>: below it both sides are the same, so a wide reese keeps a solid centred low end.</li>
+    <li><b>AMP:</b> ENVELOPE and OUTPUT. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/reese_fx.png" alt="REESE's FX tab: DRIVE (DRIVE, TYPE: WARM, SQUASH), STEREO (CHORUS, WIDTH, MONO BASS), PHASER and FLANGER (MIX, RATE, DEPTH, FEEDBACK each)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>REESE's FX tab: drive types, phaser, flanger, mono bass</figcaption>
+  </figure>
   <h3>The built-in RAVE synth</h3>
   <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE).</p>
   <figure>
@@ -1490,7 +1494,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.81</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.82</footer>
 </main>
 </div>
 <script>

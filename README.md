@@ -788,7 +788,7 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 ## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD and GRANULAR
 
-**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, ACID's ten, PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, REESE's, ACID's and PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
 ### SUB
 
@@ -813,15 +813,33 @@ Click a control and drag, or use the buttons. **Right-click** a control to make 
 
 ### REESE
 
-**REESE** is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB (the oscillators never restart, the envelope carries on from where it is), so it pairs with SUB for a mid bass over a clean sub. Load it from LOAD → **BUILT-IN SYNTH** → REESE. Its controls are on two tabs: **SOUND** and **HOOVER + FILTER**.
+**REESE** is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB (the oscillators never restart, the envelope carries on from where it is), so it pairs with SUB for a mid bass over a clean sub. Load it from LOAD → **BUILT-IN SYNTH** → REESE. Its controls are on five tabs: **OSC**, **MOVEMENT**, **FILTER**, **FX** and **AMP**; **PRESETS...** has ten to start from: CLASSIC REESE, DARK ROLLER, NEURO GROWL, HOOVER, WOBBLE REESE, FOLDED, LIQUID REESE, CRUSHED, TECHSTEP and SUB REESE. (A REESE from an older song sounds as it did: the newer controls start where they change nothing.)
+
+**OSC**:
 
 * **MODE** and **GLIDE**: as on SUB (LEGATO, ALWAYS, OFF, POLY - up to 6 notes).
-* **OSCILLATORS**: **TYPE** **REESE** (saws) or **HOOVER** (pulse-saws, a square sub). **VOICES** (1-7 oscillators), **DETUNE** (cents between the outermost two - more is wider and faster phasing), **SPREAD** (how far they're spread left and right), **OCTAVE**, **SUB** (its level), then **SUB -1 OCT / SUB -2 OCT** (one or two octaves below) and its shape: **AUTO** (a sine on REESE, a square on HOOVER), **SINE**, **TRI** or **SQUARE**. A sine or triangle sub is added after the filter, so the resonance, the filter sweep and the wobble never touch it - a steady low end under moving saws, with no need for a second track of SUB; a square goes through the filter with the rest.
-* **MOVEMENT**: **MOVE** breathes the detune wider and narrower at **MOVE RATE**, so the reese keeps moving.
+* **OSCILLATORS**: **TYPE** **REESE** or **HOOVER** (pulse-saws, a square sub). **VOICES** (1-7 oscillators), **DETUNE** (cents between the outermost two - more is wider and faster phasing), **SPREAD** (left and right), **OCTAVE**. **WAVE**: **SAW**, **SQUARE**, **SAW+SQ** or **TRI** (REESE). **SPREAD BY**: how the detune is shared out - **EVEN**, **OUTSIDE** (the middle ones close, the outer ones far: a thick centre with a wide shimmer) or **RANDOM** (uneven, so the beating never repeats). **STACK**: every other oscillator **+OCT**, **-OCT** or a **+5TH** away - instantly bigger. **NOISE**: a little hiss into the filter.
+* **SUB**: its level, **-1 OCT / -2 OCT**, and its shape: **AUTO** (a sine on REESE, a square on HOOVER), **SINE**, **TRI** or **SQUARE**. A sine or triangle sub is added after the filter, so the resonance, the filter sweep and the wobble never touch it - a steady low end under moving saws; a square goes through the filter with the rest.
+
+**MOVEMENT**:
+
+* **MOVEMENT**: **MOVE** breathes the detune wider and narrower at **MOVE RATE**; **DRIFT** lets each oscillator wander on its own, like an old analog.
 * **HOOVER**: **BEND** - each note swoops up from this many semitones below over **BEND TIME** (works on REESE too). **PWM** and **PWM RATE** move the pulse width (HOOVER).
-* **FILTER**: a 24 dB low-pass - **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it, or closes it below 0) and **ENV DECAY**. **WOBBLE**: an LFO on the cutoff (**WOB RATE**, **WOBBLE** amount) for wobble and growl.
-* **DRIVE**: saturation; **CHORUS**: the wide, swirling chorus the hoover needs.
-* **ENVELOPE** and **OUTPUT** (VELOCITY, LEVEL).
+* **WOBBLE**: **WOB RATE** and **WOBBLE** (amount); **SHAPE** - SINE, TRI, SAW (down), RAMP (up), SQUARE or S&H (random steps); **SYNC** - **FREE** (WOB RATE) or locked to the song's tempo: **1 BAR**, **1/2**, **1/4**, **1/8**, **1/16**, **1/4 T**, **1/8 T**; **TARGET** - what it moves: **CUTOFF**, **PITCH**, **LEVEL**, **DETUNE**, **PHASER** or **FLANGER**; **RESTART** - **FREE**, or **EACH NOTE** (every note's wobble starts in the same place: tight, repeatable wubs).
+
+**FILTER**:
+
+* **FILTER**: **TYPE** - **LOW 24** (as ever), **LOW 12**, **BAND**, **HIGH**, **NOTCH**; **CUTOFF**, **RES**, **KEY TRACK** (higher notes open it), **DRIVE** (into the filter, so the resonance growls).
+* **FILTER ENV**: **ENV AMT** (how far each note opens it, or closes it below 0), **ENV ATK**, **ENV DECAY**.
+
+**FX** (in this order, after the voices):
+
+* **DRIVE**: **DRIVE** and its **TYPE**: **WARM** (as ever), **HARD** (clipped), **FOLD** (wavefolded - the metallic neuro edge), **RECTIFY** (a gritty octave-up), **CRUSH** (fewer bits and a lower rate); **SQUASH** - loud parts down, quiet parts up, everything in your face.
+* **PHASER**: **MIX**, **RATE**, **DEPTH**, **FEEDBACK** - six stages sweeping (or swept by the WOBBLE).
+* **FLANGER**: **MIX**, **RATE**, **DEPTH**, **FEEDBACK** (± - below 0 is the hollow, tubey one): with the phaser, the neuro reese's twist.
+* **STEREO**: **CHORUS** (the wide, swirling hoover chorus), **WIDTH** (0 mono - 150 extra wide), **MONO BASS**: below this frequency both sides are the same, so a wide reese still has a solid, centred low end in a club (OFF, or 20-300 Hz).
+
+**AMP**: **ENVELOPE** and **OUTPUT** (VELOCITY, LEVEL).
 
 Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Knobs and automation make a slow `WOBBLE` or `CUTOFF` ride easy.
 

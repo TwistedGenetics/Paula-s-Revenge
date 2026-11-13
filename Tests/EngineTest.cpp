@@ -5056,6 +5056,98 @@ static void testPadSynth()
     }
 }
 
+// (v0.82) REESE, deeper: presets, the wobble locked to the tempo and restarting with each note, every filter and drive
+// type, the phaser and flanger, MONO BASS
+static void testReeseDeep()
+{
+    std::printf ("\n== REESE (v0.82: MORE TO TWIST)\n");
+    using namespace reese;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<ReeseSynth>(); a->prepare (sr, 512); a->setValues (v); return a; };
+    auto run = [&] (ReeseSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i)
+            {
+                if (peak) *peak = std::max (*peak, std::abs (L[(size_t) i]));
+                if (ok) *ok = *ok && std::isfinite (L[(size_t) i]) && std::isfinite (R[(size_t) i]);
+            }
+        }
+    };
+    // every preset plays, finite, in range
+    {
+        int bad = 0;
+        for (int i = 0; i < kReesePresets; ++i)
+        {
+            auto a = fresh (reesePreset (i)); float pk = 0; bool ok = true;
+            for (int nn : { 36, 41, 43 }) { a->noteOn (nn, 110, 0); run (*a, 40, &pk, &ok); a->noteOff (nn, 0); run (*a, 5, &pk, &ok); }
+            if (! ok || pk < 0.02f || pk > 2.0f) { ++bad; std::printf ("  %s: peak %.3f %s\n", reesePresetName (i), pk, ok ? "" : "NOT FINITE"); }
+        }
+        std::printf ("presets out of range: %d of %d\n", bad, kReesePresets);
+        CHECK (bad == 0 && reeseParams().size() == (size_t) Count);
+    }
+    // the WOBBLE synced: 1/4 at 120 BPM is 2 cycles a second - count the cutoff's peaks over 2 s
+    {
+        auto v = reesePreset (0); v[WobbleDepth] = 80; v[WobSync] = 3; v[EnvAmount] = 0; v[WobShape] = 0;
+        auto a = fresh (v);
+        Song song; song.tempo = 120; song.speed = 6; a->updateSong (song);
+        a->noteOn (36, 100, 0);
+        int peaks = 0; float prev2 = 0, prev1 = 0;
+        for (int b = 0; b < 200; ++b)
+        {
+            a->render (L.data(), R.data(), 480);
+            const float c = a->cutoffNow();
+            if (b > 1 && prev1 > prev2 && prev1 > c) ++peaks;
+            prev2 = prev1; prev1 = c;
+        }
+        std::printf ("wobble 1/4 at 120 BPM: %d peaks in 2 s\n", peaks);
+        CHECK (peaks >= 3 && peaks <= 5);
+    }
+    // RESTART: EACH NOTE - every note's wobble starts at the same place
+    {
+        auto v = reesePreset (0); v[WobbleDepth] = 80; v[WobbleRate] = 1.3f; v[WobRetrig] = 1; v[EnvAmount] = 0; v[Mode] = Retrigger;
+        auto a = fresh (v);
+        a->noteOn (36, 100, 0); a->render (L.data(), R.data(), 32); const float c1 = a->cutoffNow();
+        run (*a, 37); a->noteOff (36, 0); run (*a, 3);
+        a->noteOn (38, 100, 0); a->render (L.data(), R.data(), 32); const float c2 = a->cutoffNow();
+        std::printf ("wobble restarts with each note: cutoff %.0f / %.0f Hz\n", c1, c2);
+        CHECK (std::abs (c1 - c2) < c1 * 0.05f);
+    }
+    // every filter type, drive type, the phaser and flanger: finite and in range
+    {
+        int bad = 0;
+        for (int f = 0; f < 5; ++f)
+            for (int d = 0; d < 5; ++d)
+            {
+                auto v = reesePreset (0); v[FilterMode] = (float) f; v[DriveType] = (float) d; v[Drive] = 80; v[Resonance] = 90; v[FilterDrive] = 80;
+                v[PhaserMix] = d == 1 ? 100.0f : 0.0f; v[FlangeMix] = d == 2 ? 100.0f : 0.0f; v[FlangeFb] = 95; v[PhaserFb] = 95; v[Squash] = 100;
+                auto a = fresh (v); float pk = 0; bool ok = true;
+                a->noteOn (36, 127, 0); run (*a, 60, &pk, &ok);
+                if (! ok || pk > 2.0f || pk < 0.005f) { ++bad; std::printf ("  filter %d drive %d: peak %.3f\n", f, d, pk); }
+            }
+        std::printf ("filter x drive types out of range: %d of 25\n", bad);
+        CHECK (bad == 0);
+    }
+    // MONO BASS: the low end the same in both sides
+    {
+        auto side = [&] (float hz)
+        {
+            auto v = reesePreset (0); v[Spread] = 100; v[Voices] = 7; v[Detune] = 40; v[MonoBass] = hz; v[Cutoff] = 400;
+            auto a = fresh (v);
+            a->noteOn (31, 100, 0); run (*a, 20);
+            float lp = 0, e = 0;
+            for (int b = 0; b < 50; ++b) { a->render (L.data(), R.data(), 480); for (int i = 0; i < 480; ++i) { lp += ((L[(size_t) i] - R[(size_t) i]) - lp) * 0.01f; e += lp * lp; } }
+            return e;
+        };
+        const float off = side (0), on = side (250);
+        std::printf ("low side energy: MONO BASS off %.4f, at 250 Hz %.4f\n", off, on);
+        CHECK (on < off * 0.2f);
+    }
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
@@ -6646,6 +6738,7 @@ int main()
     testNoStuckNotes();
     testAcidSynth();
     testPadSynth();
+    testReeseDeep();
     testReeseSynth();
     testDubThrows();
     testLiveMode();
