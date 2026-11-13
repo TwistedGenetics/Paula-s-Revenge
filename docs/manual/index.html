@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.84</span>
+  <span class="ver">MANUAL &middot; V0.85</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1037,17 +1037,23 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
   <h3>The built-in PAD synth: four layers</h3>
-  <p><b>PAD</b> plays <b>four layers</b> on every note, each a whole sound of its own. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; PAD. Up to 12 notes at once; seven tabs: <span class="b">LAYER A</span>&ndash;<span class="b">D</span>, <span class="b">MIX</span>, <span class="b">MOD</span> and <span class="b">SPACE</span>. <b>PRESETS...</b> has ten pads.</p>
+  <p><b>PAD</b> plays <b>four layers</b> on every note, each a whole sound of its own. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; PAD. Up to 12 notes at once; eight tabs: <span class="b">LAYER A</span>&ndash;<span class="b">D</span>, <span class="b">MIX</span>, <span class="b">MOD</span>, <span class="b">SPACE</span> and <span class="b">SAMPLES</span>. <b>PRESETS...</b> has ten pads.</p>
   <figure>
     <div class="frame sunken"><img src="img/pad_layer.png" alt="PAD's LAYER A tab: SOURCE (OFF / ON, WAVE: SAW, OCTAVE, TUNE, FINE), UNISON (VOICES 05, DETUNE, SPREAD, DRIFT), FILTER (OFF / LOW / BAND / HIGH, CUTOFF, RES, ENV&gt;CUT) and ENVELOPE (ATTACK, DECAY, SUSTAIN, RELEASE, DELAY), with the tabs LAYER A, LAYER B, LAYER C, LAYER D, MIX, MOD and SPACE above." width="1440" height="900" loading="lazy"></div>
     <figcaption>A layer: its wave, unison, filter and envelope</figcaption>
   </figure>
   <ul>
-    <li><b>Each layer:</b> WAVE &mdash; SAW, SQUARE, PWM, TRI, SINE, ORGAN, VOX (a sung &ldquo;ah&rdquo;), GLASS (an FM bell), NOISE, AIR (tuned breath) &mdash; with OCTAVE, TUNE and FINE; up to 7 unison VOICES with DETUNE, stereo SPREAD and analog DRIFT; its own FILTER (LOW, BAND, HIGH) moved by its own ENVELOPE; and a start <b>DELAY</b>, so one layer can swell in after another.</li>
+    <li><b>Each layer:</b> WAVE &mdash; SAW, SQUARE, PWM, TRI, SINE, ORGAN, VOX (a sung &ldquo;ah&rdquo;), GLASS (an FM bell), NOISE, AIR (tuned breath), <b>SAMPLE</b> (one of your own) &mdash; with OCTAVE, TUNE and FINE; up to 7 unison VOICES with DETUNE, stereo SPREAD and analog DRIFT; its own FILTER (LOW, BAND, HIGH) moved by its own ENVELOPE; and a start <b>DELAY</b>, so one layer can swell in after another.</li>
     <li><b>MIX:</b> every layer's LEVEL and PAN side by side, its <b>KEY LOW / KEY HIGH</b> (two layers meeting at a key split the keyboard) and <b>ALL / SOFT / HARD</b> &mdash; velocity layers: playing harder changes the sound.</li>
     <li><b>MOD:</b> the MAIN FILTER (LOW 12, LOW 24, BAND, HIGH) with its own envelope, key tracking and velocity; two LFOs, each to CUTOFF, PITCH, LEVEL, PAN, <b>A&lt;&gt;B</b> or <b>C&lt;&gt;D</b> (a slow fade between two layers) or WIDTH.</li>
     <li><b>SPACE:</b> CHORUS, a ping-pong ECHO, a REVERB with SIZE and TONE; GLIDE, VEL SENS, WIDTH and LEVEL.</li>
+    <li><b>SAMPLES:</b> any layer can play a sample &mdash; a choir, strings, a vocal, a texture from a record &mdash; with everything a layer has (unison, filter, envelope, key split, velocity layer). <span class="b">LOAD SAMPLE...</span> (at the top of each layer's SOURCE box, and on SAMPLES) opens the sample browser as for any instrument: click a sample to hear it, then <b>LOAD INTO</b> or double-click. The layer's WAVE becomes SAMPLE; the instrument stays PAD and keeps the sample. If another layer already plays the PAD's own sample, the new one goes into the next free instrument, so both keep their sound.</li>
+    <li>On SAMPLES, for each layer playing one: <b>SAMPLE</b> (OWN, or any instrument's number), <b>ROOT</b> (the key that plays it at its own pitch, C-3), <b>START</b>, <b>LOOP</b> &mdash; AUTO (its own loop if it has one, else the whole), WHOLE or ONE SHOT &mdash; and <b>XFADE</b>, a crossfade over the loop's join so any sample loops without a click.</li>
   </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/pad_samples.png" alt="PAD's SAMPLES tab: LAYER A playing CHOIR_AAH_C3 with LOAD SAMPLE..., SAMPLE OWN, ROOT C-3, START, LOOP AUTO / WHOLE / ONE SHOT and XFADE; layers B to D not samples, each with LOAD SAMPLE..." width="1440" height="900" loading="lazy"></div>
+    <figcaption>SAMPLES: a sample under the synth layers</figcaption>
+  </figure>
   <figure>
     <div class="frame sunken"><img src="img/pad_mix.png" alt="PAD's MIX tab: a box for each of LAYER A to D with LEVEL, PAN, KEY LOW, KEY HIGH and ALL / SOFT / HARD." width="1440" height="900" loading="lazy"></div>
     <figcaption>MIX: the layers' levels, key splits and velocity layers together</figcaption>
@@ -1496,7 +1502,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.84</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.85</footer>
 </main>
 </div>
 <script>
