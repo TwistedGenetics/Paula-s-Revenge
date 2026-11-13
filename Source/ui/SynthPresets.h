@@ -74,11 +74,16 @@ inline std::vector<Preset> factory (const std::string& key)
 {
     std::vector<Preset> out;
     if (key == kRaveKey)
+    {
         for (int t = 0; t < rave::Types; ++t) out.push_back ({ raveTypeName (t), key, ravePreset (t) });
+        for (int t = 0; t < kRaveLayered; ++t) out.push_back ({ raveLayeredName (t), key, raveLayered (t) });   // (v0.83: layered)
+    }
     else if (key == kMorphKey)
         for (int t = 0; t < kMorphPresets; ++t) out.push_back ({ morphPresetName (t), key, morphPreset (t) });
     else if (key == kAcidKey)
         for (int t = 0; t < kAcidPresets; ++t) out.push_back ({ acidPresetName (t), key, acidPreset (t) });
+    else if (key == kSubKey)
+        for (int t = 0; t < kSubPresets; ++t) out.push_back ({ subPresetName (t), key, subPreset (t) });
     else if (key == kReeseKey)
         for (int t = 0; t < kReesePresets; ++t) out.push_back ({ reesePresetName (t), key, reesePreset (t) });
     else if (key == kPadKey)

@@ -28,26 +28,78 @@ namespace
 
 const std::vector<SynthParam>& raveParams()
 {
+    // (v0.83: three tabs)
+    static const char* sd = "0:SOUND>SOUND";
+    static const char* ly = "0:SOUND>LAYER";
+    static const char* cd = "0:SOUND>CHORD";
+    static const char* fl = "1:SHAPE>FILTER";
+    static const char* en = "1:SHAPE>ENVELOPE";
+    static const char* pt = "1:SHAPE>PITCH";
+    static const char* dr = "2:FX>DRIVE + CRUSH";
+    static const char* sp = "2:FX>SPACE";
+    static const char* ou = "2:FX>OUTPUT";
+    static const char* types = "STAB|PAD|ORGAN|BLEEP|BELL|HOOVER|MENTASM|PIANO|BELGIAN";
     static const std::vector<SynthParam> ps {
-        { "TYPE",      "SOUND",    0, 8, 0,        3, "",   "STAB|PAD|ORGAN|BLEEP|BELL|HOOVER|MENTASM|PIANO|BELGIAN" },
-        { "CHORD",     "SOUND",    0, 7, 1,        3, "",   "OFF|MINOR|MAJOR|MIN 7|MAJ 7|5TH|SUS 4|OCT" },
-        { "DETUNE",    "SOUND",    0, 50, 14,      0, "C",  "" },
-        { "OCTAVE",    "SOUND",    -3, 2, 0,       2, "",   "" },
-        { "CUTOFF",    "FILTER",   40, 18000, 1800, 1, "HZ", "" },
-        { "RES",       "FILTER",   0, 100, 30,     0, "%",  "" },
-        { "ENV AMT",   "FILTER",   -100, 100, 60,  0, "%",  "" },
-        { "ENV DECAY", "FILTER",   5, 3000, 220,   1, "MS", "" },
-        { "ATTACK",    "ENVELOPE", 0.5f, 4000, 1,  1, "MS", "" },
-        { "DECAY",     "ENVELOPE", 5, 5000, 350,   1, "MS", "" },
-        { "SUSTAIN",   "ENVELOPE", 0, 100, 0,      0, "%",  "" },
-        { "RELEASE",   "ENVELOPE", 5, 8000, 200,   1, "MS", "" },
-        { "CHORUS",    "SPACE",    0, 100, 25,     0, "%",  "" },
-        { "ECHO",      "SPACE",    0, 100, 25,     0, "%",  "" },
-        { "ECHO TIME", "SPACE",    20, 1500, 375,  1, "MS", "" },
-        { "VELOCITY",  "OUTPUT",   0, 100, 50,     0, "%",  "" },
-        { "LEVEL",     "OUTPUT",   0, 100, 75,     0, "%",  "" },
+        { "TYPE",      sd, 0, 8, 0,        3, "",   types },
+        { "CHORD",     cd, 0, 7, 1,        3, "",   "OFF|MINOR|MAJOR|MIN 7|MAJ 7|5TH|SUS 4|OCT" },
+        { "DETUNE",    sd, 0, 50, 14,      0, "C",  "" },
+        { "OCTAVE",    sd, -3, 2, 0,       2, "",   "" },
+        { "CUTOFF",    fl, 40, 18000, 1800, 1, "HZ", "" },
+        { "RES",       fl, 0, 100, 30,     0, "%",  "" },
+        { "ENV AMT",   fl, -100, 100, 60,  0, "%",  "" },
+        { "ENV DECAY", fl, 5, 3000, 220,   1, "MS", "" },
+        { "ATTACK",    en, 0.5f, 4000, 1,  1, "MS", "" },
+        { "DECAY",     en, 5, 5000, 350,   1, "MS", "" },
+        { "SUSTAIN",   en, 0, 100, 0,      0, "%",  "" },
+        { "RELEASE",   en, 5, 8000, 200,   1, "MS", "" },
+        { "CHORUS",    sp, 0, 100, 25,     0, "%",  "" },
+        { "ECHO",      sp, 0, 100, 25,     0, "%",  "" },
+        { "ECHO TIME", sp, 20, 1500, 375,  1, "MS", "" },
+        { "VELOCITY",  ou, 0, 100, 50,     0, "%",  "" },
+        { "LEVEL",     ou, 0, 100, 75,     0, "%",  "" },
+        // (v0.83)
+        { "LAYER",     ly, 0, 9, 0,        3, "",   "OFF|STAB|PAD|ORGAN|BLEEP|BELL|HOOVER|MENTASM|PIANO|BELGIAN" },
+        { "LEVEL",     ly, 0, 100, 50,     0, "%",  "" },
+        { "OCTAVE",    ly, -2, 2, 0,       2, "",   "" },
+        { "INVERSION", cd, 0, 3, 0,        2, "",   "" },
+        { "SPREAD",    cd, 0, 100, 0,      0, "%",  "" },
+        { "STRUM",     cd, 0, 200, 0,      0, "MS", "" },
+        { "TYPE",      fl, 0, 2, 0,        3, "",   "LOW|BAND|HIGH" },
+        { "KEY TRACK", fl, 0, 100, 0,      0, "%",  "" },
+        { "PITCH ENV", pt, -24, 24, 0,     0, "ST", "" },
+        { "PITCH TIME", pt, 5, 2000, 80,   1, "MS", "" },
+        { "GLIDE",     pt, 0, 1000, 0,     0, "MS", "" },
+        { "VIB RATE",  pt, 0.5f, 12, 5.5f, 1, "HZ", "" },
+        { "VIB DEPTH", pt, 0, 100, 0,      0, "%",  "" },
+        { "VIB DELAY", pt, 0, 2000, 250,   0, "MS", "" },
+        { "DRIVE",     dr, 0, 100, 0,      0, "%",  "" },
+        { "CRUSH",     dr, 0, 100, 0,      0, "%",  "" },
+        { "FEEDBACK",  sp, 0, 95, 0,       0, "AUTO%", "" },
+        { "WIDTH",     sp, 0, 150, 100,    0, "%",  "" },
     };
     return ps;
+}
+
+const char* raveLayeredName (int i)
+{
+    static const char* n[kRaveLayered] = { "STAB + ORGAN", "PIANO + PAD", "HOOVER STACK", "CRUSHED STAB", "STRUM CHORDS" };
+    return n[std::clamp (i, 0, kRaveLayered - 1)];
+}
+
+std::vector<float> raveLayered (int i)
+{
+    using namespace rave;
+    std::vector<float> v;
+    auto set = [&] (std::initializer_list<std::pair<int, float>> l) { for (auto& [k, x] : l) v[(size_t) k] = x; };
+    switch (std::clamp (i, 0, kRaveLayered - 1))
+    {
+        case 0: v = ravePreset (Stab); set ({ { Layer, 1 + Organ }, { LayerLevel, 45 }, { LayerOctave, 1 } }); break;
+        case 1: v = ravePreset (Piano); set ({ { Layer, 1 + Pad }, { LayerLevel, 40 }, { Sustain, 30 }, { Release, 1500 }, { Chord, 2 }, { ChordSpread, 60 } }); break;
+        case 2: v = ravePreset (Hoover); set ({ { Layer, 1 + Mentasm }, { LayerLevel, 50 }, { LayerOctave, 1 }, { Drive, 30 }, { Width, 130 } }); break;
+        case 3: v = ravePreset (Stab); set ({ { Crush, 65 }, { Drive, 25 }, { Cutoff, 2600 } }); break;
+        default: v = ravePreset (Organ); set ({ { Chord, 3 }, { Strum, 35 }, { ChordSpread, 80 }, { Inversion, 1 }, { Layer, 1 + Bell }, { LayerLevel, 30 } }); break;
+    }
+    return v;
 }
 
 const char* raveTypeName (int t)
@@ -128,6 +180,18 @@ int RaveSynth::voicesPlaying() const
     return n;
 }
 
+void RaveSynth::startOsc (int type, Osc& o)
+{
+    o = Osc {};
+    o.click = 1.0f; o.modEnv = 1.0f; o.pitchEnv = 1.0f;
+    for (int k = 0; k < kOsc; ++k)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        o.ph[k] = (double) (seed >> 8) / 16777216.0;   // (the saws start apart, as free-running ones would be)
+    }
+    if (type == rave::Organ || type == rave::Bleep || type == rave::Bell || type == rave::Piano) for (auto& ph : o.ph) ph = 0;   // (sines: from zero)
+}
+
 void RaveSynth::startVoice (int key, float pitch, int vel)
 {
     Voice* free = nullptr;
@@ -142,16 +206,12 @@ void RaveSynth::startVoice (int key, float pitch, int vel)
     *free = Voice {};
     Voice& v = *free;
     v.key = key; v.pitch = pitch; v.gate = true; v.stage = 1; v.vel = (float) vel / 127.0f;
-    v.fenv = 1.0f; v.click = 1.0f; v.modEnv = 1.0f;
-    for (int o = 0; o < kOsc; ++o)
-    {
-        seed = seed * 1664525u + 1013904223u;
-        v.ph[o] = (double) (seed >> 8) / 16777216.0;   // (the saws start apart, as free-running ones would be)
-        v.drift[o] = 0;
-    }
-    const int type = (int) std::lround (p[rave::Type]);
-    if (type == rave::Organ || type == rave::Bleep || type == rave::Bell || type == rave::Piano) for (auto& ph : v.ph) ph = 0;   // (sines: from zero)
-    v.pitchEnv = 1.0f;
+    v.fenv = 1.0f;
+    startOsc ((int) std::lround (p[rave::Type]), v.osc[0]);
+    startOsc ((int) std::lround (p[rave::Layer]) - 1, v.osc[1]);
+    v.penv = 1.0f;
+    // GLIDE: from the last note played
+    if (p[rave::Glide] > 0.5f && lastNote >= 0) v.glideOff = lastNote - (float) key;
     v.order = ++orderCount;
 }
 
@@ -177,20 +237,30 @@ void RaveSynth::handle (const Event& e)
         if (oldest == nullptr) break;
         oldest->fading = true; ++freeCount;
     }
-    for (int iv : chord) startVoice (e.note, (float) (e.note + iv), e.vel);
+    // INVERSION: the lowest notes up an octave; SPREAD: across the stereo; STRUM: one after another
+    std::vector<int> notes (chord.begin(), chord.end());
+    const int inv = std::clamp ((int) std::lround (p[rave::Inversion]), 0, 3);
+    for (int k = 0; k < inv && k < (int) notes.size() - 1; ++k) notes[(size_t) k] += 12;
+    std::sort (notes.begin(), notes.end());
+    const int n = (int) notes.size();
+    for (int k = 0; k < n; ++k)
+    {
+        startVoice (e.note, (float) (e.note + notes[(size_t) k]), e.vel);
+        Voice* v = nullptr;
+        for (auto& x : voices) if (x.order == orderCount) v = &x;
+        if (v == nullptr) continue;
+        v->pan = n > 1 ? ((float) k / (float) (n - 1) * 2.0f - 1.0f) * p[rave::ChordSpread] * 0.01f : 0.0f;
+        v->wait = (int) (k * p[rave::Strum] * 0.001 * sr);
+    }
+    lastNote = (float) e.note;
 }
 
-float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
+void RaveSynth::oscillate (int type, Osc& os, double semis, float det, float& l, float& r)
 {
-    if (v.stage == 0 && ! v.fading) return 0.0f;
-    const int type = std::clamp ((int) std::lround (p[rave::Type]), 0, rave::Types - 1);
-    double semis = v.pitch + bend + p[rave::Octave] * 12.0f;
     // HOOVER swoops up into the note (from 7 below, over about 80 ms); MENTASM falls into it (from 7 above, slower)
-    if (type == rave::Hoover)  { semis -= 7.0 * v.pitchEnv; v.pitchEnv *= (float) std::exp (-1.0 / (0.03 * sr)); }
-    if (type == rave::Mentasm) { semis += 7.0 * v.pitchEnv; v.pitchEnv *= (float) std::exp (-1.0 / (0.12 * sr)); }
+    if (type == rave::Hoover)  { semis -= 7.0 * os.pitchEnv; os.pitchEnv *= (float) std::exp (-1.0 / (0.03 * sr)); }
+    if (type == rave::Mentasm) { semis += 7.0 * os.pitchEnv; os.pitchEnv *= (float) std::exp (-1.0 / (0.12 * sr)); }
     const double hz = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
-    const float det = p[rave::Detune];
-    float l = 0, r = 0;
     switch (type)
     {
         case rave::Stab:
@@ -200,14 +270,14 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
             for (int o = 0; o < 3; ++o)
             {
                 const double dt = std::min (0.45, hz * std::pow (2.0, pos[o] * det / 1200.0) / sr);
-                step (v.ph[o], dt);
-                const float x = saw (v.ph[o], dt);
+                step (os.ph[o], dt);
+                const float x = saw (os.ph[o], dt);
                 l += x * (1.0f - 0.5f * std::max (0.0f, pos[o])); r += x * (1.0f + 0.5f * std::min (0.0f, pos[o]));
             }
             const double dt = std::min (0.45, hz * 0.5 / sr);
-            step (v.phLow, dt);
-            double t2 = v.phLow + 0.5; t2 -= std::floor (t2);
-            const float sq = 0.5f * (saw (v.phLow, dt) - saw (t2, dt)) * 0.45f;
+            step (os.phLow, dt);
+            double t2 = os.phLow + 0.5; t2 -= std::floor (t2);
+            const float sq = 0.5f * (saw (os.phLow, dt) - saw (t2, dt)) * 0.45f;
             l = l * 0.5f + sq; r = r * 0.5f + sq;
             break;
         }
@@ -218,41 +288,41 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
             {
                 seed = seed * 1664525u + 1013904223u;
                 const float rnd = (float) (seed >> 9) / 4194304.0f - 1.0f;
-                v.drift[o] = std::clamp (v.drift[o] * 0.99995f + rnd * 0.0004f, -1.0f, 1.0f);
+                os.drift[o] = std::clamp (os.drift[o] * 0.99995f + rnd * 0.0004f, -1.0f, 1.0f);
                 const float pos = (float) o / (kOsc - 1) * 2.0f - 1.0f;
-                const double dt = std::min (0.45, hz * std::pow (2.0, (pos * det + v.drift[o] * det * 0.3f) / 1200.0) / sr);
-                step (v.ph[o], dt);
-                const float x = saw (v.ph[o], dt);
+                const double dt = std::min (0.45, hz * std::pow (2.0, (pos * det + os.drift[o] * det * 0.3f) / 1200.0) / sr);
+                step (os.ph[o], dt);
+                const float x = saw (os.ph[o], dt);
                 l += x * (1.0f - std::max (0.0f, pos)); r += x * (1.0f + std::min (0.0f, pos));
             }
-            step (v.phLow, hz * 2.0 / sr);
-            const float up = (float) std::sin (kTwoPi * v.phLow) * 0.15f;
+            step (os.phLow, hz * 2.0 / sr);
+            const float up = (float) std::sin (kTwoPi * os.phLow) * 0.15f;
             l = l * 0.55f + up; r = r * 0.55f + up;
             break;
         }
         case rave::Organ:
         {
             // drawbar sines (16', 8', 5 1/3', 4', 2 2/3', 2'), and a click at the front from the fifth harmonic
-            step (v.ph[0], hz / sr);
+            step (os.ph[0], hz / sr);
             static const float h[6] = { 1, 2, 3, 4, 6, 8 }, a[6] = { 1.0f, 0.7f, 0.45f, 0.35f, 0.2f, 0.12f };
             float x = 0;
-            for (int k = 0; k < 6; ++k) if (hz * h[k] < sr * 0.45) x += a[k] * (float) std::sin (kTwoPi * v.ph[0] * h[k]);
-            if (hz * 5 < sr * 0.45) x += 0.5f * v.click * (float) std::sin (kTwoPi * v.ph[0] * 5);
-            v.click *= (float) std::exp (-1.0 / (0.012 * sr));
+            for (int k = 0; k < 6; ++k) if (hz * h[k] < sr * 0.45) x += a[k] * (float) std::sin (kTwoPi * os.ph[0] * h[k]);
+            if (hz * 5 < sr * 0.45) x += 0.5f * os.click * (float) std::sin (kTwoPi * os.ph[0] * 5);
+            os.click *= (float) std::exp (-1.0 / (0.012 * sr));
             // (DETUNE: a second organ a few cents off, on the other side)
-            step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
-            const float y = (float) std::sin (kTwoPi * v.ph[1]) + 0.7f * (float) std::sin (kTwoPi * v.ph[1] * 2);
+            step (os.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
+            const float y = (float) std::sin (kTwoPi * os.ph[1]) + 0.7f * (float) std::sin (kTwoPi * os.ph[1] * 2);
             const float d = std::min (1.0f, det / 20.0f) * 0.5f;
             l = (x + y * d) * 0.32f; r = (x - y * d * 0.2f) * 0.32f + y * d * 0.32f;
             break;
         }
         case rave::Bleep:
         {
-            step (v.ph[0], hz / sr);
-            float x = (float) std::sin (kTwoPi * v.ph[0]);
-            x += 0.12f * (float) std::sin (kTwoPi * v.ph[0] * 3);
-            step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
-            const float y = (float) std::sin (kTwoPi * v.ph[1]) * std::min (1.0f, det / 10.0f);
+            step (os.ph[0], hz / sr);
+            float x = (float) std::sin (kTwoPi * os.ph[0]);
+            x += 0.12f * (float) std::sin (kTwoPi * os.ph[0] * 3);
+            step (os.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
+            const float y = (float) std::sin (kTwoPi * os.ph[1]) * std::min (1.0f, det / 10.0f);
             l = (x + y * 0.5f) * 0.7f; r = (x + y * 0.5f) * 0.7f;
             break;
         }
@@ -260,23 +330,23 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
         {
             // pulse-saws: a saw less a shifted saw, the shift (pulse width) moving - three of them spread wide
             const bool scream = type == rave::Mentasm;
-            v.pwmPh += (scream ? 6.0 : 1.3) / sr; v.pwmPh -= std::floor (v.pwmPh);
-            const double pw = 0.5 + (scream ? 0.4 : 0.3) * std::sin (kTwoPi * v.pwmPh);
+            os.pwmPh += (scream ? 6.0 : 1.3) / sr; os.pwmPh -= std::floor (os.pwmPh);
+            const double pw = 0.5 + (scream ? 0.4 : 0.3) * std::sin (kTwoPi * os.pwmPh);
             static const float pos[3] = { -1.0f, 0.0f, 1.0f };
             for (int o = 0; o < 3; ++o)
             {
                 const double f = hz * std::pow (2.0, pos[o] * det / 1200.0) * (scream && o == 1 ? 2.0 : 1.0);   // (MENTASM: the middle one an octave up)
                 const double dt = std::min (0.45, f / sr);
-                step (v.ph[o], dt);
-                double t2 = v.ph[o] + pw; t2 -= std::floor (t2);
-                const float x = saw (v.ph[o], dt) - 0.8f * saw (t2, dt);
+                step (os.ph[o], dt);
+                double t2 = os.ph[o] + pw; t2 -= std::floor (t2);
+                const float x = saw (os.ph[o], dt) - 0.8f * saw (t2, dt);
                 l += x * (1.0f - 0.7f * std::max (0.0f, pos[o])); r += x * (1.0f + 0.7f * std::min (0.0f, pos[o]));
             }
             // (a square an octave down under the hoover)
             const double dl = std::min (0.45, hz * 0.5 / sr);
-            step (v.phLow, dl);
-            double t3 = v.phLow + 0.5; t3 -= std::floor (t3);
-            const float sq = scream ? 0.0f : 0.5f * (saw (v.phLow, dl) - saw (t3, dl)) * 0.5f;
+            step (os.phLow, dl);
+            double t3 = os.phLow + 0.5; t3 -= std::floor (t3);
+            const float sq = scream ? 0.0f : 0.5f * (saw (os.phLow, dl) - saw (t3, dl)) * 0.5f;
             l = l * 0.32f + sq; r = r * 0.32f + sq;
             break;
         }
@@ -285,21 +355,21 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
             // two strings a few cents apart; eight partials, the higher ones dying sooner (so it mellows as it
             // rings); a little thump of the hammer at the front
             static const float amp[8] = { 1.0f, 0.55f, 0.35f, 0.25f, 0.16f, 0.1f, 0.07f, 0.05f };
-            const double age = v.phMod;   // (seconds since the hammer)
-            v.phMod += 1.0 / sr;
+            const double age = os.phMod;   // (seconds since the hammer)
+            os.phMod += 1.0 / sr;
             float a = 0, b = 0;
-            step (v.ph[0], hz / sr);
-            step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
+            step (os.ph[0], hz / sr);
+            step (os.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
             for (int k = 1; k <= 8; ++k)
             {
                 if (hz * k > sr * 0.45) break;
                 const float fall = (float) std::exp (-age * (0.6 + 0.9 * k));
-                a += amp[k - 1] * fall * (float) std::sin (kTwoPi * v.ph[0] * k);
-                b += amp[k - 1] * fall * (float) std::sin (kTwoPi * v.ph[1] * k);
+                a += amp[k - 1] * fall * (float) std::sin (kTwoPi * os.ph[0] * k);
+                b += amp[k - 1] * fall * (float) std::sin (kTwoPi * os.ph[1] * k);
             }
             seed = seed * 1664525u + 1013904223u;
-            const float thump = ((float) (seed >> 9) / 4194304.0f - 1.0f) * 0.25f * v.click * v.click;
-            v.click *= (float) std::exp (-1.0 / (0.02 * sr));
+            const float thump = ((float) (seed >> 9) / 4194304.0f - 1.0f) * 0.25f * os.click * os.click;
+            os.click *= (float) std::exp (-1.0 / (0.02 * sr));
             l = (a * 0.6f + b * 0.4f) * 0.4f + thump; r = (a * 0.4f + b * 0.6f) * 0.4f + thump;
             break;
         }
@@ -310,32 +380,64 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
             {
                 const double d = (o == 0 ? -0.5 : 0.5) * det;
                 const double dt = std::min (0.45, hz * std::pow (2.0, d / 1200.0) / sr), dt2 = std::min (0.45, dt * 2.0);
-                step (v.ph[o], dt); step (v.ph[o + 2], dt2);
-                double t2 = v.ph[o + 2] + 0.5; t2 -= std::floor (t2);
-                const float x = saw (v.ph[o], dt) + 0.6f * (saw (v.ph[o + 2], dt2) - saw (t2, dt2)) * 0.5f;
+                step (os.ph[o], dt); step (os.ph[o + 2], dt2);
+                double t2 = os.ph[o + 2] + 0.5; t2 -= std::floor (t2);
+                const float x = saw (os.ph[o], dt) + 0.6f * (saw (os.ph[o + 2], dt2) - saw (t2, dt2)) * 0.5f;
                 (o == 0 ? l : r) += x;
             }
             l = std::tanh (l * 1.6f) * 0.55f; r = std::tanh (r * 1.6f) * 0.55f;
-            v.dc += 0.0005f * (0.5f * (l + r) - v.dc);
-            l -= v.dc; r -= v.dc;
+            os.dc += 0.0005f * (0.5f * (l + r) - os.dc);
+            l -= os.dc; r -= os.dc;
             break;
         }
         default:   // BELL
         {
             // two-operator FM: the modulator at the note (the electric piano's bark) plus a bell partial at 3.5 times,
             // both falling away so it goes from bright to mellow
-            step (v.phMod, hz / sr);
-            step (v.ph[2], hz * 3.5 / sr);
-            const float index = 0.4f + 2.2f * v.modEnv;
-            const float mod = index * (float) std::sin (kTwoPi * v.phMod) + 0.8f * v.modEnv * (float) std::sin (kTwoPi * v.ph[2]);
-            v.modEnv *= (float) std::exp (-1.0 / (0.35 * sr));
-            step (v.ph[0], hz / sr);
-            step (v.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
-            const float a = (float) std::sin (kTwoPi * v.ph[0] + mod), b = (float) std::sin (kTwoPi * v.ph[1] + mod);
+            step (os.phMod, hz / sr);
+            step (os.ph[2], hz * 3.5 / sr);
+            const float index = 0.4f + 2.2f * os.modEnv;
+            const float mod = index * (float) std::sin (kTwoPi * os.phMod) + 0.8f * os.modEnv * (float) std::sin (kTwoPi * os.ph[2]);
+            os.modEnv *= (float) std::exp (-1.0 / (0.35 * sr));
+            step (os.ph[0], hz / sr);
+            step (os.ph[1], hz * std::pow (2.0, det / 1200.0) / sr);
+            const float a = (float) std::sin (kTwoPi * os.ph[0] + mod), b = (float) std::sin (kTwoPi * os.ph[1] + mod);
             l = (a * 0.8f + b * 0.2f) * 0.6f; r = (a * 0.2f + b * 0.8f) * 0.6f;
             break;
         }
     }
+
+}
+
+float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
+{
+    using namespace rave;
+    if (v.stage == 0 && ! v.fading) return 0.0f;
+    if (v.wait > 0) { --v.wait; return 0.0f; }   // (STRUM: not yet)
+    const int type = std::clamp ((int) std::lround (p[Type]), 0, Types - 1);
+    // pitch: the PITCH envelope, GLIDE, VIBRATO (after VIB DELAY, eased in)
+    v.penv *= (float) std::exp (-1.0 / std::max (1.0, p[PitchTime] * 0.001 * sr * 0.3));
+    if (v.glideOff != 0.0f)
+    {
+        v.glideOff *= (float) std::exp (-1.0 / std::max (1.0, p[Glide] * 0.001 * sr * 0.3));
+        if (std::abs (v.glideOff) < 0.002f) v.glideOff = 0;
+    }
+    ++v.age;
+    const float vibIn = std::clamp ((float) (v.age - p[VibDelay] * 0.001 * sr) / (float) (0.3 * sr), 0.0f, 1.0f);
+    const float vib = (float) std::sin (6.283185307179586 * vibPh) * p[VibDepth] * 0.01f * 0.5f * vibIn;
+    const double semis = v.pitch + bend + p[Octave] * 12.0f + p[PitchAmount] * v.penv + v.glideOff + vib;
+    const float det = p[Detune];
+    float l = 0, r = 0;
+    oscillate (type, v.osc[0], semis, det, l, r);
+    const int layer = (int) std::lround (p[Layer]) - 1;
+    if (layer >= 0)
+    {
+        float ll = 0, lr = 0;
+        oscillate (std::clamp (layer, 0, Types - 1), v.osc[1], semis + p[LayerOctave] * 12.0f, det, ll, lr);
+        const float g = p[LayerLevel] * 0.01f;
+        l += ll * g; r += lr * g;
+    }
+    if (v.pan != 0.0f) { l *= std::min (1.0f, 1.0f - v.pan); r *= std::min (1.0f, 1.0f + v.pan); }
 
     // the envelopes
     const float sus = p[rave::Sustain] * 0.01f;
@@ -353,17 +455,19 @@ float RaveSynth::renderVoice (Voice& v, float& outL, float& outR)
     // the 12 dB low-pass (worked out every 16 samples)
     if (v.upd-- <= 0)
     {
-        const float oct = p[rave::EnvAmount] * 0.01f * 5.0f * v.fenv;
+        const float oct = p[rave::EnvAmount] * 0.01f * 5.0f * v.fenv + p[rave::KeyTrack] * 0.01f * (v.pitch - 60.0f) / 12.0f;
         const float cut = std::clamp (p[rave::Cutoff] * std::pow (2.0f, oct), 30.0f, (float) (sr * 0.45));
         const float g = (float) std::tan (3.14159265358979 * cut / sr);
         const float k = 2.0f - 1.9f * std::clamp (p[rave::Resonance] * 0.01f, 0.0f, 1.0f);
-        v.a1 = 1.0f / (1.0f + g * (g + k)); v.a2 = g * v.a1; v.a3 = g * v.a2;
+        v.a1 = 1.0f / (1.0f + g * (g + k)); v.a2 = g * v.a1; v.a3 = g * v.a2; v.k = k;
         v.upd = 15;
     }
+    const int ft = (int) std::lround (p[rave::FilterType]);
     auto svf = [&] (float x, float* ic)
     {
         const float v3 = x - ic[1], v1 = v.a1 * ic[0] + v.a2 * v3, v2 = ic[1] + v.a2 * ic[0] + v.a3 * v3;
-        ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1]; return v2;
+        ic[0] = 2 * v1 - ic[0]; ic[1] = 2 * v2 - ic[1];
+        return ft == 1 ? v1 * (0.5f + 0.5f * v.k) : ft == 2 ? x - v.k * v1 - v2 : v2;   // (LOW, BAND, HIGH)
     };
     l = svf (l, v.s1[0]); r = svf (r, v.s1[1]);
 
@@ -389,12 +493,25 @@ void RaveSynth::render (float* left, float* right, int n)
     const float level = p[rave::Level] * 0.01f * 0.5f;
     const int chLen = (int) chBuf[0].size(), ecLen = (int) echoBuf[0].size();
     const int ecDelay = std::clamp ((int) (p[rave::EchoTime] * 0.001 * sr), 1, std::max (1, ecLen - 2));
-    const float fb = 0.25f + 0.4f * echo;
+    const float fb = p[rave::EchoFeedback] >= 0.5f ? p[rave::EchoFeedback] * 0.01f : 0.25f + 0.4f * echo;   // (0: AUTO, as before v0.83)
+    const float drive = p[rave::Drive] * 0.01f, crush = p[rave::Crush] * 0.01f;
+    const float dg = 1.0f + drive * 8.0f, dn = drive > 0 ? 1.0f / std::tanh (dg * 0.6f) : 1.0f;
+    const int crushEvery = 1 + (int) (crush * 5.0f);
+    const float steps = std::pow (2.0f, 14.0f - crush * 9.0f);
+    const float width = p[rave::Width] * 0.01f;
     for (int i = 0; i < n; ++i)
     {
         while (ev < events.size() && events[ev].offset <= i) handle (events[ev++]);
+        vibPh += p[rave::VibRate] / sr; vibPh -= std::floor (vibPh);
         float l = 0, r = 0;
         for (auto& v : voices) renderVoice (v, l, r);
+        // DRIVE, then CRUSH: an old sampler's fewer bits and lower rate
+        if (drive > 0.0f) { l = std::tanh (l * dg * 0.6f) * dn; r = std::tanh (r * dg * 0.6f) * dn; }
+        if (crush > 0.0f)
+        {
+            if ((crushCount++ % crushEvery) == 0) { crushHold[0] = std::round (l * steps) / steps; crushHold[1] = std::round (r * steps) / steps; }
+            l = crushHold[0]; r = crushHold[1];
+        }
         if (chorus > 0 && chLen > 8)
         {
             chBuf[0][(size_t) chPos] = l; chBuf[1][(size_t) chPos] = r;
@@ -423,7 +540,10 @@ void RaveSynth::render (float* left, float* right, int n)
             if (++echoPos >= ecLen) echoPos = 0;
             l += eL * echo * 0.7f; r += eR * echo * 0.7f;
         }
-        left[i] = l * level; right[i] = r * level;
+        if (std::abs (width - 1.0f) > 0.001f) { const float m = (l + r) * 0.5f, sd = (l - r) * 0.5f * width; l = m + sd; r = m - sd; }
+        float ol = l * level, orr = r * level;
+        auto lim = [] (float x) { const float a = std::abs (x); return a < 1.5f ? x : std::copysign (1.5f + 0.5f * std::tanh ((a - 1.5f) * 2.0f), x); };
+        left[i] = std::isfinite (ol) ? lim (ol) : 0.0f; right[i] = std::isfinite (orr) ? lim (orr) : 0.0f;
     }
     while (ev < events.size()) handle (events[ev++]);
     events.clear();

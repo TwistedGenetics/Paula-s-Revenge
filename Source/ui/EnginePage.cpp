@@ -1000,7 +1000,7 @@ void EnginePage::resized()
         colY[(size_t) c] += h + gap * 2;
     }
     // SUB that doesn't all fit (BEAT's rows on, a small window): OSC 2, 808 DROP and DRIVE go to a second page
-    if (shownKey == kSubKey && ! subPages && best - gap * 2 > r.getHeight())
+    if (shownKey == kSubKey && genTabNames.empty() && ! subPages && best - gap * 2 > r.getHeight())
     {
         subPages = relayout = true;
         resized();

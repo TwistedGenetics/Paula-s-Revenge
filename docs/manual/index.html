@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.82</span>
+  <span class="ver">MANUAL &middot; V0.83</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -930,7 +930,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>RAVE's presets, with one of yours</figcaption>
   </figure>
   <h3>The built-in SUB synth</h3>
-  <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; the <span class="b">SYNTHS</span> tab (or right-click the instrument &rarr; <b>LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...</b>) and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later.</p>
+  <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; <span class="b">BUILT-IN SYNTH</span> and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later. Three tabs: <span class="b">SOUND</span>, <span class="b">SHAPE</span> and <span class="b">LFO + AMP</span>; <b>PRESETS...</b> has ten, from CLEAN SUB and 808 KNOCK to SMALL SPEAKERS. An older song's SUB sounds as it did.</p>
   <figure>
     <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page: boxes for MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR, OSC 2, 808 DROP, DRIVE, ENVELOPE and OUTPUT (BEAT is in OSCILLATOR), with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
     <figcaption>The SUB page</figcaption>
@@ -938,11 +938,12 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <p><b>It never clicks</b> when notes overlap or follow each other. Most mono synths click there because they restart the oscillator or drop the envelope to zero. SUB never restarts its oscillator (a new note only moves its pitch), its envelope carries on from where it is, and anything that has to start afresh starts where the wave crosses zero or fades in.</p>
   <ul>
     <li><b>MODE:</b> <span class="b">LEGATO</span> &mdash; one note at a time; a note played while another is held slides to it without a new attack. <span class="b">ALWAYS</span> &mdash; always slides. <span class="b">OFF</span> &mdash; every note gets a new attack (still no click). <span class="b">POLY</span> &mdash; up to 8 notes. <b>GLIDE</b> sets how long a slide takes.</li>
-    <li><b>OSCILLATOR:</b> SHAPE from a pure sine to a rounder, brighter wave; OCTAVE and FINE. <b>OSC 2:</b> a second sine (an octave up, a fifth up, both, or an octave down) and NOISE, a short burst at the start of each note (NOISE DEC).</li>
-    <li><b>808 DROP:</b> each note starts DROP semitones higher and falls to its pitch over DROP TIME.</li>
-    <li><b>DRIVE:</b> TAPE (soft) or TUBE (warmer) saturation; TONE is a low-pass after it.</li>
-    <li><b>ENVELOPE</b> (ATTACK, DECAY, SUSTAIN, RELEASE) and <b>OUTPUT</b> (VELOCITY: how much <code>Cxx</code> changes the level; LEVEL).</li>
-    <li><b>BEAT</b> (in the OSCILLATOR box) makes one note sound like two held together, so the sub swells and dips. <span class="b">BEAT ST</span> plays the whole sound again BEAT ST semitones up (+1 to start), at the same level &mdash; exactly like holding the second key too, so the wobble follows the note as two keys' would. <span class="b">BEAT HZ</span> adds a copy BEAT RATE Hz higher instead: the same wobble speed on every note. BEAT AMT sets how strong the second one is. <span class="b">BEAT WAIT</span> is a delay before the beat comes in (0&ndash;4 seconds): each note starts as a plain, steady sub and the wobble swells in after that long &mdash; again from each new attack. Only the controls for the BEAT chosen are shown (when they don't all fit, SUB splits onto two tabs, <span class="b">SOUND</span> and <span class="b">OSC 2 + DRIVE</span>); switching never clicks, even mid-note; right-click the BEAT buttons to put them on a knob. (Older songs keep their BEAT as BEAT HZ.)</li>
+    <li><b>OSCILLATOR:</b> SHAPE from a pure sine to a rounder, brighter wave; OCTAVE and FINE. <b>OSC 2 + HARMONICS:</b> a second sine (an octave up, a fifth up, both, or an octave down); <b>HARM 2</b> and <b>HARM 3</b> &mdash; the sub heard on small speakers, still click-free.</li>
+    <li><b>808 DROP + CLICK</b> (SHAPE): each note starts DROP semitones higher and falls to its pitch over DROP TIME, on <b>ATTACKS</b> or <b>EVERY NOTE</b> (808 slides); a <b>CLICK</b> at CLICK HZ on each attack; NOISE, a short burst (NOISE DEC).</li>
+    <li><b>FILTER</b> (SHAPE): TONE with RES, its own envelope (ENV AMT &plusmn;, ENV DECAY) and KEY TRACK &mdash; all at 0, the plain TONE of before.</li>
+    <li><b>DRIVE</b> (SHAPE): TAPE, TUBE, FOLD, CLIP or BITS; <b>HIGH-PASS</b> takes the rumble off (OFF to 80 Hz).</li>
+    <li><b>LFO</b> (LFO + AMP): RATE, DEPTH, TARGET (PITCH, LEVEL, FILTER), SYNC to the song (1 BAR to 1/16), SHAPE. <b>ENVELOPE</b> and <b>OUTPUT</b> (VELOCITY: how much <code>Cxx</code> changes the level; LEVEL).</li>
+    <li><b>BEAT</b> (in the OSCILLATOR box) makes one note sound like two held together, so the sub swells and dips. <span class="b">BEAT ST</span> plays the whole sound again BEAT ST semitones up (+1 to start), at the same level &mdash; exactly like holding the second key too, so the wobble follows the note as two keys' would. <span class="b">BEAT HZ</span> adds a copy BEAT RATE Hz higher instead: the same wobble speed on every note. BEAT AMT sets how strong the second one is. <span class="b">BEAT WAIT</span> is a delay before the beat comes in (0&ndash;4 seconds): each note starts as a plain, steady sub and the wobble swells in after that long &mdash; again from each new attack. Only the controls for the BEAT chosen are shown; switching never clicks, even mid-note; right-click the BEAT buttons to put them on a knob. (Older songs keep their BEAT as BEAT HZ.)</li>
     <li><b>Right-click</b> any control to make it a knob (<code>L</code> <code>Q</code> <code>H</code> <code>W</code>) or the track's AUTO A / B, so the pattern can move it. Hold <span class="b">HOLD TO PLAY</span> or play the keys to hear it. <span class="b">OUTPUT &amp; KNOBS...</span> opens the plug-in instrument page above &mdash; OUTPUT, BEND, ON, FILTER AND ENVELOPES, EQ / FX and chords all work for SUB.</li>
   </ul>
   <h3>The built-in REESE synth</h3>
@@ -963,7 +964,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <figcaption>REESE's FX tab: drive types, phaser, flanger, mono bass</figcaption>
   </figure>
   <h3>The built-in RAVE synth</h3>
-  <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE).</p>
+  <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE). Three tabs: <span class="b">SOUND</span>, <span class="b">SHAPE</span>, <span class="b">FX</span>; <b>PRESETS...</b> adds five layered sounds: STAB + ORGAN, PIANO + PAD, HOOVER STACK, CRUSHED STAB, STRUM CHORDS.</p>
   <figure>
     <div class="frame sunken"><img src="img/rave_page.png" alt="The RAVE page: boxes for SOUND (TYPE STAB, CHORD MINOR, DETUNE, OCTAVE), FILTER, ENVELOPE, SPACE (CHORUS, ECHO, ECHO TIME) and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>The RAVE page, set up as a STAB</figcaption>
@@ -978,9 +979,9 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">MENTASM</span> &mdash; the scream: pulse-saws an octave apart falling into each note, the pulse width racing.</li>
     <li><span class="b">PIANO</span> &mdash; the rave and house piano stab: two strings a note, the brightness dying away as it rings, a thump of the hammer.</li>
     <li><span class="b">BELGIAN</span> &mdash; the Belgian techno stab: a saw and a square an octave up, driven hard, with CHORD on 5TH.</li>
-    <li><b>SOUND:</b> TYPE; <b>CHORD</b> (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) &mdash; one key plays the chord, the old rave chord-memory trick, at the level of one note; DETUNE; OCTAVE.</li>
-    <li><b>FILTER:</b> a 12 dB low-pass with CUTOFF, RES, ENV AMT (how far each note opens it) and ENV DECAY. <b>ENVELOPE</b>: ATTACK, DECAY, SUSTAIN, RELEASE.</li>
-    <li><b>SPACE:</b> CHORUS, and ECHO &mdash; a stereo ping-pong echo, each repeat a little darker &mdash; with ECHO TIME. <b>OUTPUT</b>: VELOCITY and LEVEL.</li>
+    <li><b>SOUND:</b> TYPE, DETUNE, OCTAVE. <b>LAYER:</b> a second of the nine sounds under every note, with its LEVEL and OCTAVE. <b>CHORD</b> (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) &mdash; one key plays the chord, the old rave chord-memory trick &mdash; with INVERSION, SPREAD across the stereo and STRUM.</li>
+    <li><b>SHAPE:</b> the FILTER (LOW, BAND, HIGH; CUTOFF, RES, ENV AMT, ENV DECAY, KEY TRACK); ENVELOPE; <b>PITCH</b> &mdash; PITCH ENV &plusmn; and PITCH TIME (a zap or a swoop), GLIDE, and VIBRATO with a DELAY.</li>
+    <li><b>FX:</b> DRIVE and <b>CRUSH</b> (an old sampler's bits and rate); CHORUS, the ping-pong ECHO with ECHO TIME and FEEDBACK (AUTO as before), WIDTH; VELOCITY and LEVEL.</li>
     <li>Up to 16 notes at once; when it's full the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
   <h3>The built-in ROM synth</h3>
@@ -1494,7 +1495,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.82</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.83</footer>
 </main>
 </div>
 <script>

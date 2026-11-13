@@ -788,25 +788,28 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 ## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD and GRANULAR
 
-**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, REESE's, ACID's and PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones, MORPH's six, SUB's, REESE's, ACID's and PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
 ### SUB
 
-**SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → the **SYNTHS** tab (or right-click the instrument → **LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, GRANULAR)...**) and pick SUB. The instrument becomes SUB and its page opens; **EDIT** opens the page again later.
+**SUB** is a sub bass synth built into Paula's Revenge. Pick an instrument, press **LOAD** → **BUILT-IN SYNTH** and pick SUB. The instrument becomes SUB and its page opens; **EDIT** opens the page again later. Its controls are on three tabs - **SOUND**, **SHAPE** and **LFO + AMP** - and **PRESETS...** has ten: CLEAN SUB, 808 DROP, 808 KNOCK, WARM TUBE, SQUARE SUB, GROWL SUB, VIBRATO SUB, FOLDED SUB, BEAT SUB and SMALL SPEAKERS. (A SUB from an older song sounds as it did.)
 
 It never clicks when notes overlap or follow each other: its oscillator is never restarted (a new note only moves its pitch), its envelope carries on from where it is instead of starting from silence, and anything that has to start afresh starts where the wave crosses zero or fades in.
 
 * **MODE**: **LEGATO** — one note at a time; a note played while another is still held slides to it without a new attack (glide only then). **ALWAYS** — one note at a time, always gliding. **OFF** — one note at a time, every note gets a new attack (still without a click). **POLY** — up to 8 notes at once.
 * **GLIDE**: how long a slide takes.
-* **OSCILLATOR**: **SHAPE** goes from a pure sine to a rounder, brighter wave; **OCTAVE** and **FINE** tune it. **OSC 2** adds a second sine (its level, and **INTERVAL**: an octave up, a fifth up, both, or an octave down). **NOISE** adds a short burst of noise at the start of a note (**NOISE DEC**), for a click-like attack you choose.
-* **808 DROP**: each note starts higher (**DROP**, in semitones) and drops to its pitch over **DROP TIME**, like an 808 kick-bass.
-* **DRIVE**: saturation, **TAPE** (soft) or **TUBE** (warmer, uneven). **TONE** is a low-pass after it, to keep the drive dark.
-* **ENVELOPE**: **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**. **VELOCITY** — how much the velocity (`Cxx`) changes the level.
+* **OSCILLATOR** (SOUND): **SHAPE** goes from a pure sine to a rounder, brighter wave; **OCTAVE** and **FINE** tune it.
+* **OSC 2 + HARMONICS** (SOUND): **OSC 2** adds a second sine (its level, and **INTERVAL**: an octave up, a fifth up, both, or an octave down). **HARM 2** and **HARM 3** add the 2nd and 3rd harmonics - the sub heard on laptop speakers and phones, still click-free.
+* **808 DROP + CLICK** (SHAPE): each note starts higher (**DROP**, in semitones) and drops to its pitch over **DROP TIME**, like an 808 kick-bass; **DROP ON** - **ATTACKS** (new attacks only) or **EVERY NOTE** (legato ones too, for 808 slides). **CLICK** puts a short knock at **CLICK HZ** on each attack; **NOISE** adds a short burst of noise at the start of a note (**NOISE DEC**).
+* **FILTER** (SHAPE): **TONE**, the low-pass, with **RES**, its own envelope (**ENV AMT** ±, **ENV DECAY**: a pluck or a "bwow" on each note) and **KEY TRACK**. With all those at 0 it's the plain, gentle TONE of before.
+* **DRIVE** (SHAPE): saturation and its **TYPE**: **TAPE** (soft), **TUBE** (warmer, uneven), **FOLD** (folded back on itself - growly), **CLIP** (flat-topped) or **BITS** (fewer steps, lower rate). **HIGH-PASS**: the rumble below it taken off (OFF to 80 Hz) - tidy subs for big systems.
+* **LFO** (LFO + AMP): **RATE**, **DEPTH**, **TARGET** (**PITCH** - vibrato, **LEVEL** - tremolo / a sidechain-style pump, **FILTER** - a wobble), **SYNC** to the song's tempo (FREE, 1 BAR to 1/16), **SHAPE** (SINE, TRI, SQUARE, SAW).
+* **ENVELOPE** (LFO + AMP): **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**. **VELOCITY** — how much the velocity (`Cxx`) changes the level.
 * **BEAT** (in the OSCILLATOR box) makes one note sound like two held together, so the sub swells and dips (the beating of two notes) without playing two keys. Choose:
   * **BEAT ST** — the whole sound again, **BEAT ST** semitones up (−12 to +12; +1 to start), at the same level: exactly what holding that second key too sounds like (in POLY), wobble and all. Like two keys, the wobble follows the note — faster up the keyboard (a semitone over a low A beats about 3 times a second; an octave higher, 6) — and it glides with LEGATO.
   * **BEAT HZ** — a copy of the oscillator **BEAT RATE** Hz higher (0.1 to 10 Hz): the same wobble speed on every note, for a steady pulse.
   * **OFF** — no BEAT.
-  **BEAT AMT** is how strong the second one is (100% = as loud as the first: with BEAT HZ the dips go right down to nothing). **BEAT WAIT** is a delay before the beat comes in (0 to 4 seconds): each note starts as a plain, steady sub, then the wobble swells in after that long — and again from each new attack (0 = straight away, as before). Only the controls for the BEAT chosen are shown; when they don't all fit, SUB splits onto two tabs, **SOUND** and **OSC 2 + DRIVE**. Switching it, even mid-note, never clicks, and it works in every MODE. Right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern. (Songs from before v0.72 keep their BEAT as BEAT HZ.)
+  **BEAT AMT** is how strong the second one is (100% = as loud as the first: with BEAT HZ the dips go right down to nothing). **BEAT WAIT** is a delay before the beat comes in (0 to 4 seconds): each note starts as a plain, steady sub, then the wobble swells in after that long — and again from each new attack (0 = straight away, as before). Only the controls for the BEAT chosen are shown. Switching it, even mid-note, never clicks, and it works in every MODE. Right-click the BEAT buttons to put them on a knob and switch BEAT from the pattern. (Songs from before v0.72 keep their BEAT as BEAT HZ.)
 * **LEVEL**: the synth's output level.
 
 Click a control and drag, or use the buttons. **Right-click** a control to make it one of the instrument's knobs (`L`, `Q`, `H`, `W`) or the track's AUTO A / B, so the pattern can move it. Hold **▶ HOLD TO PLAY**, or play the computer or MIDI keyboard, to hear it. **OUTPUT & KNOBS...** opens the same page a plug-in instrument has (OUTPUT, BEND, ON, the filter and envelopes, EQ / FX, chords) — everything in Plug-in instruments below works for SUB too. Its settings are saved in the song and every change is an undo step.
@@ -845,7 +848,7 @@ Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Kn
 
 ### RAVE
 
-**RAVE** is the jungle and hardcore keys — the sounds over the breaks rather than under them. Load it from LOAD → **BUILT-IN SYNTH** → RAVE and pick a sound; every control is set for it, and you can change any of them afterwards (TYPE too).
+**RAVE** is the jungle and hardcore keys — the sounds over the breaks rather than under them. Load it from LOAD → **BUILT-IN SYNTH** → RAVE and pick a sound; every control is set for it, and you can change any of them afterwards (TYPE too). Three tabs: **SOUND**, **SHAPE** and **FX**. **PRESETS...** has the nine sounds and five layered ones: STAB + ORGAN, PIANO + PAD, HOOVER STACK, CRUSHED STAB and STRUM CHORDS. (An older song's RAVE sounds as it did.)
 
 * **STAB** — the rave chord stab: three detuned saws over a square an octave down, the filter snapping shut. CHORD starts on MINOR, so one key plays the whole chord.
 * **PAD** — five wide saws drifting against each other, slow in and slow out: the rolling, atmospheric side of jungle.
@@ -859,11 +862,18 @@ Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB. Kn
 
 The controls:
 
-* **SOUND**: **TYPE** (any of the nine); **CHORD** (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) — one key plays the chord, the old rave chord-memory trick, at the level of one note; **DETUNE**; **OCTAVE**.
-* **FILTER**: a 12 dB low-pass — **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it) and **ENV DECAY**.
-* **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE.
-* **SPACE**: **CHORUS**, and **ECHO** — a stereo ping-pong echo, each repeat a little darker — with **ECHO TIME**.
-* **OUTPUT**: VELOCITY, LEVEL.
+* **SOUND** tab:
+  * **SOUND**: **TYPE** (any of the nine); **DETUNE**; **OCTAVE**.
+  * **LAYER**: a second of the nine sounds under every note - **OFF** or any of them, its **LEVEL** and **OCTAVE**. A stab with an organ an octave up, a piano over a pad, a hoover on a mentasm.
+  * **CHORD** (OFF, MINOR, MAJOR, MIN 7, MAJ 7, 5TH, SUS 4, OCT) — one key plays the chord, the old rave chord-memory trick, at the level of one note; **INVERSION** (0-3: the lowest notes up an octave), **SPREAD** (the chord's notes across the stereo) and **STRUM** (one after another, up to 200 ms apart).
+* **SHAPE** tab:
+  * **FILTER**: **TYPE** (**LOW**, **BAND**, **HIGH**), **CUTOFF**, **RES**, **ENV AMT** (how far each note opens it) and **ENV DECAY**, **KEY TRACK**.
+  * **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE.
+  * **PITCH**: **PITCH ENV** (± semitones each note starts away, falling over **PITCH TIME** - a zap or a swoop), **GLIDE** (each note slides from the last), **VIB RATE**, **VIB DEPTH** and **VIB DELAY** (the vibrato eases in after it).
+* **FX** tab:
+  * **DRIVE + CRUSH**: **DRIVE**, and **CRUSH** - an old sampler's fewer bits and lower rate.
+  * **SPACE**: **CHORUS**, and **ECHO** — a stereo ping-pong echo, each repeat a little darker — with **ECHO TIME** and **FEEDBACK** (AUTO: as the ECHO amount decides, as before); **WIDTH**.
+  * **OUTPUT**: VELOCITY, LEVEL.
 
 Up to 16 notes at once; when it's full, the oldest fades out in a few milliseconds instead of cutting off. Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB.
 

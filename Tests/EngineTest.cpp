@@ -5148,6 +5148,139 @@ static void testReeseDeep()
     }
 }
 
+// (v0.83) SUB, deeper: presets, the filter's envelope, the CLICK, the LFO synced, every drive type, the high-pass
+static void testSubDeep()
+{
+    std::printf ("\n== SUB (v0.83: DEEPER)\n");
+    using namespace sub;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<SubSynth>(); a->prepare (sr, 512); a->setValues (v); return a; };
+    auto run = [&] (SubSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (float x : L) { if (peak) *peak = std::max (*peak, std::abs (x)); if (ok) *ok = *ok && std::isfinite (x); }
+        }
+    };
+    {
+        int bad = 0;
+        for (int i = 0; i < kSubPresets; ++i)
+        {
+            auto a = fresh (subPreset (i)); float pk = 0; bool ok = true;
+            for (int nn : { 33, 36, 40 }) { a->noteOn (nn, 110, 0); run (*a, 30, &pk, &ok); a->noteOff (nn, 0); run (*a, 10, &pk, &ok); }
+            if (! ok || pk < 0.05f || pk > 1.5f) { ++bad; std::printf ("  %s: peak %.3f\n", subPresetName (i), pk); }
+        }
+        for (int d = 0; d < 5; ++d)
+        {
+            auto v = subPreset (0); v[Drive] = 90; v[DriveType] = (float) d; v[Resonance] = 100; v[ToneEnv] = 100; v[Tone] = 300;
+            auto a = fresh (v); float pk = 0; bool ok = true;
+            a->noteOn (36, 127, 0); run (*a, 40, &pk, &ok);
+            if (! ok || pk > 1.5f || pk < 0.02f) { ++bad; std::printf ("  drive %d: peak %.3f\n", d, pk); }
+        }
+        std::printf ("presets and drive types out of range: %d\n", bad);
+        CHECK (bad == 0 && builtinParams (kSubKey).size() == (size_t) Count);
+    }
+    // the filter's envelope: open at the attack, closing over ENV DECAY
+    {
+        auto v = subPreset (0); v[Tone] = 200; v[ToneEnv] = 80; v[ToneDecay] = 150;
+        auto a = fresh (v);
+        a->noteOn (36, 100, 0); a->render (L.data(), R.data(), 32);
+        const float early = a->toneNow();
+        run (*a, 60);
+        std::printf ("filter envelope: %.0f Hz at the attack, %.0f Hz after 0.6 s\n", early, a->toneNow());
+        CHECK (early > 1500.0f && a->toneNow() < 260.0f);
+    }
+    // the CLICK: brighter right at the attack (more change sample to sample)
+    {
+        auto edge = [&] (float click)
+        {
+            auto v = subPreset (0); v[Click] = click; v[ClickTone] = 2000;
+            auto a = fresh (v); a->noteOn (36, 100, 0); a->render (L.data(), R.data(), 240);
+            float d = 0; for (int i = 1; i < 240; ++i) d += std::abs (L[(size_t) i] - L[(size_t) i - 1]);
+            return d;
+        };
+        const float plain = edge (0), clicked = edge (80);
+        std::printf ("attack's first 5 ms, sample-to-sample change: %.3f plain, %.3f with CLICK\n", plain, clicked);
+        CHECK (clicked > plain * 3.0f);
+    }
+    // the LFO synced to 1/4 at 120 BPM on the level: two dips a second
+    {
+        auto v = subPreset (0); v[LfoTarget] = LLevel; v[LfoDepth] = 100; v[LfoSync] = 3;
+        auto a = fresh (v); Song song; song.tempo = 120; song.speed = 6; a->updateSong (song);
+        a->noteOn (45, 100, 0); run (*a, 10);
+        int dips = 0; bool low = false;
+        for (int b = 0; b < 200; ++b)
+        {
+            a->render (L.data(), R.data(), 480);
+            float pk = 0; for (float x : L) pk = std::max (pk, std::abs (x));
+            if (! low && pk < 0.05f) { ++dips; low = true; }
+            if (pk > 0.2f) low = false;
+        }
+        std::printf ("LFO 1/4 at 120 BPM on the level: %d dips in 2 s\n", dips);
+        CHECK (dips >= 3 && dips <= 5);
+    }
+}
+
+// (v0.83) RAVE, deeper: the layered presets, a LAYER under the sound, STRUM, every new control at its extreme
+static void testRaveDeep()
+{
+    std::printf ("\n== RAVE (v0.83: DEEPER)\n");
+    using namespace rave;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<RaveSynth>(); a->prepare (sr, 512); a->setValues (v); return a; };
+    auto run = [&] (RaveSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i) { if (peak) *peak = std::max (*peak, std::abs (L[(size_t) i])); if (ok) *ok = *ok && std::isfinite (L[(size_t) i]) && std::isfinite (R[(size_t) i]); }
+        }
+    };
+    {
+        int bad = 0;
+        for (int i = 0; i < kRaveLayered; ++i)
+        {
+            auto a = fresh (raveLayered (i)); float pk = 0; bool ok = true;
+            for (int nn : { 60, 63, 67 }) { a->noteOn (nn, 110, 0); run (*a, 30, &pk, &ok); a->noteOff (nn, 0); run (*a, 10, &pk, &ok); }
+            if (! ok || pk < 0.02f || pk > 1.6f) { ++bad; std::printf ("  %s: peak %.3f\n", raveLayeredName (i), pk); }
+        }
+        // every control at its far end
+        auto v = ravePreset (Stab);
+        v[Layer] = 1 + Mentasm; v[LayerLevel] = 100; v[LayerOctave] = 2; v[Inversion] = 3; v[ChordSpread] = 100; v[Strum] = 200;
+        v[rave::FilterType] = 1; v[KeyTrack] = 100; v[PitchAmount] = 24; v[Glide] = 1000; v[VibDepth] = 100; v[Drive] = 100; v[Crush] = 100;
+        v[EchoFeedback] = 95; v[Width] = 150; v[Resonance] = 100;
+        auto a = fresh (v); float pk = 0; bool ok = true;
+        for (int nn : { 48, 72 }) { a->noteOn (nn, 127, 0); run (*a, 40, &pk, &ok); }
+        std::printf ("layered presets out of range: %d; everything flat out: peak %.3f\n", bad, pk);
+        CHECK (bad == 0 && ok && pk < 1.6f && raveParams().size() == (size_t) Count);
+    }
+    // a LAYER under the sound: louder, the same voices
+    {
+        auto plain = fresh (ravePreset (Bleep)); float a1 = 0;
+        plain->noteOn (60, 100, 0); run (*plain, 10, &a1);
+        auto v = ravePreset (Bleep); v[Layer] = 1 + Organ; v[LayerLevel] = 100;
+        auto lay = fresh (v); float a2 = 0;
+        lay->noteOn (60, 100, 0); run (*lay, 10, &a2);
+        std::printf ("BLEEP %.3f; with an ORGAN layer %.3f (voices %d / %d)\n", a1, a2, plain->voicesPlaying(), lay->voicesPlaying());
+        CHECK (a2 > a1 * 1.2f && plain->voicesPlaying() == lay->voicesPlaying());
+    }
+    // STRUM: a chord's notes one after another - the first 10 ms quieter than with no strum
+    {
+        auto early = [&] (float strum)
+        {
+            auto v = ravePreset (Stab); v[Strum] = strum; v[Chord] = 3;
+            auto a = fresh (v); a->noteOn (60, 100, 0);
+            float pk = 0; run (*a, 1, &pk); return pk;
+        };
+        const float all = early (0), strummed = early (150);
+        std::printf ("first 10 ms of a MIN 7: %.3f at once, %.3f strummed\n", all, strummed);
+        CHECK (strummed < all * 0.85f);
+    }
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
@@ -6739,6 +6872,8 @@ int main()
     testAcidSynth();
     testPadSynth();
     testReeseDeep();
+    testSubDeep();
+    testRaveDeep();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

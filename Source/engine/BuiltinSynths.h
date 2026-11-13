@@ -51,9 +51,21 @@ namespace sub
              BeatOn, BeatRate, BeatDepth,   // (v0.60: added at the end, so older songs read as before - BEAT off; BeatOn 1 = BEAT HZ, 2 = BEAT ST)
              BeatSemis,                     // (v0.72: BEAT ST - BEAT's 2 - a number of semitones up, as a second key held)
              BeatDelay,                     // (v0.73: how long a note plays plain before BEAT comes in, ms)
+             // (v0.83) HARMONICS for small speakers, an attack CLICK, how the DROP plays, a resonant FILTER with its own
+             // envelope and key tracking, an LFO (to pitch, level or the filter; tempo sync), more DRIVE types, a HIGH-PASS
+             Harm2, Harm3, Click, ClickTone, DropMode,
+             Resonance, ToneEnv, ToneDecay, KeyTrack,
+             LfoRate, LfoDepth, LfoTarget, LfoSync, LfoShape,
+             HighPass,
              Count };
     enum ModeKind { Legato = 0, Always, Retrigger, Poly };
+    enum DriveKind { Tape = 0, Tube, Fold, Clip, Bits };
+    enum LfoTargetKind { LPitch = 0, LLevel, LTone };
 }
+
+constexpr int kSubPresets = 10;
+const char* subPresetName (int i);              // "CLEAN SUB"
+std::vector<float> subPreset (int i);
 
 class SubSynth : public PluginSynth
 {
@@ -71,6 +83,8 @@ public:
     void setValues (const std::vector<float>& v);   // (tests)
     float pitchNow() const { return voices[0].pitch; }   // (tests) the first voice's pitch, in semitones (MIDI)
     float levelNow() const { return voices[0].env; }
+    float toneNow() const { return toneHz; }            // (tests: the filter's cutoff now)
+    void updateSong (const Song& s) override { songBpm = (double) s.tempo * 6.0 / std::max (1, s.speed); }
 
 private:
     struct Event { int offset; int type; int note; int vel; };   // type 0 on, 1 off, 2 all off, 3 bend
@@ -95,6 +109,7 @@ private:
         float fade = 1;            // (POLY: a stolen voice fading out fast)
         bool  fading = false;
         int   order = 0;
+        float clickEnv = 0; double clickPh = 0;   // (v0.83: the attack CLICK)
     };
     static constexpr int kVoices = 8;
     Voice voices[kVoices];
@@ -106,6 +121,12 @@ private:
     uint32_t noiseSeed = 12345;
     // the sound after the voices: drive, DC blocker, TONE (12 dB low-pass)
     float dcX = 0, dcY = 0, lp1 = 0, lp2 = 0;
+    // (v0.83) the resonant filter, its envelope, the LFO, the high-pass, the BITS drive's held sample
+    float svf1 = 0, svf2 = 0, toneEnv = 0, toneHz = 12000, lastPitch = 48;
+    double lfoPh = 0; float lfoHold = 0, lfoNow = 0;
+    float hp1 = 0, hp2 = 0;
+    float bitsHold = 0; int bitsCount = 0;
+    double songBpm = 125.0;
     void handle (const Event&);
     void startVoice (Voice&, int note, int vel, bool retrigger, bool glide);
     void releaseVoice (Voice&);

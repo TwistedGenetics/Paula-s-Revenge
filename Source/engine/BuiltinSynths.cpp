@@ -48,7 +48,8 @@ std::string SynthParam::text (float v) const
     }
     char buf[32];
     const std::string u = unit;
-    if (u == "%") std::snprintf (buf, sizeof (buf), "%d%%", (int) std::lround (v));
+    if (u == "AUTO%") { if (v < 0.5f) std::snprintf (buf, sizeof (buf), "AUTO"); else std::snprintf (buf, sizeof (buf), "%d%%", (int) std::lround (v)); }   // (0: as it decides)
+    else if (u == "%") std::snprintf (buf, sizeof (buf), "%d%%", (int) std::lround (v));
     else if (u == "MS") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.2fS", v / 1000.0f); else std::snprintf (buf, sizeof (buf), "%dMS", (int) std::lround (v)); }
     else if (u == "HZ" && min <= 0.0f && v < 0.5f) std::snprintf (buf, sizeof (buf), "OFF");   // (a frequency that can be off: MONO BASS)
     else if (u == "HZ") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.1fK", v / 1000.0f); else if (v < 10.0f) std::snprintf (buf, sizeof (buf), "%.2fHZ", v); else std::snprintf (buf, sizeof (buf), "%dHZ", (int) std::lround (v)); }
@@ -66,33 +67,59 @@ std::string SynthParam::text (float v) const
 const std::vector<SynthParam>& builtinParams (const std::string& key)
 {
     static const std::vector<SynthParam> none;
+    // (v0.83: three tabs - SOUND, SHAPE, LFO + AMP)
+    static const char* sMd = "0:SOUND>MODE";
+    static const char* sOs = "0:SOUND>OSCILLATOR";
+    static const char* sO2 = "0:SOUND>OSC 2 + HARMONICS";
+    static const char* sDr = "1:SHAPE>808 DROP + CLICK";
+    static const char* sFl = "1:SHAPE>FILTER";
+    static const char* sDv = "1:SHAPE>DRIVE";
+    static const char* sLf = "2:LFO + AMP>LFO";
+    static const char* sEn = "2:LFO + AMP>ENVELOPE";
+    static const char* sOu = "2:LFO + AMP>OUTPUT";
     static const std::vector<SynthParam> subP {
-        { "MODE",      "MODE",       0, 3, 0,      3, "",   "LEGATO|ALWAYS|OFF|POLY" },
-        { "GLIDE",     "MODE",       1, 2000, 80,  1, "MS", "" },
-        { "SHAPE",     "OSCILLATOR", 0, 100, 0,    0, "%",  "" },
-        { "OCTAVE",    "OSCILLATOR", -3, 2, 0,     2, "",   "" },
-        { "FINE",      "OSCILLATOR", -100, 100, 0, 0, "C",  "" },
-        { "OSC 2",     "OSC 2",      0, 100, 0,    0, "%",  "" },
-        { "INTERVAL",  "OSC 2",      0, 3, 0,      3, "",   "+OCT|+5TH|+OCT+5TH|-OCT" },
-        { "NOISE",     "OSC 2",      0, 100, 0,    0, "%",  "" },
-        { "NOISE DEC", "OSC 2",      5, 500, 40,   1, "MS", "" },
-        { "DROP",      "808 DROP",   0, 48, 0,     0, "ST", "" },
-        { "DROP TIME", "808 DROP",   5, 1000, 60,  1, "MS", "" },
-        { "DRIVE",     "DRIVE",      0, 100, 0,    0, "%",  "" },
-        { "TYPE",      "DRIVE",      0, 1, 0,      3, "",   "TAPE|TUBE" },
-        { "TONE",      "DRIVE",      40, 12000, 12000, 1, "HZ", "" },
-        { "ATTACK",    "ENVELOPE",   0.5f, 2000, 2, 1, "MS", "" },
-        { "DECAY",     "ENVELOPE",   5, 5000, 400, 1, "MS", "" },
-        { "SUSTAIN",   "ENVELOPE",   0, 100, 100,  0, "%",  "" },
-        { "RELEASE",   "ENVELOPE",   5, 5000, 60,  1, "MS", "" },
-        { "VELOCITY",  "OUTPUT",     0, 100, 50,   0, "%",  "" },
-        { "LEVEL",     "OUTPUT",     0, 100, 80,   0, "%",  "" },
+        { "MODE",      sMd, 0, 3, 0,      3, "",   "LEGATO|ALWAYS|OFF|POLY" },
+        { "GLIDE",     sMd, 1, 2000, 80,  1, "MS", "" },
+        { "SHAPE",     sOs, 0, 100, 0,    0, "%",  "" },
+        { "OCTAVE",    sOs, -3, 2, 0,     2, "",   "" },
+        { "FINE",      sOs, -100, 100, 0, 0, "C",  "" },
+        { "OSC 2",     sO2, 0, 100, 0,    0, "%",  "" },
+        { "INTERVAL",  sO2, 0, 3, 0,      3, "",   "+OCT|+5TH|+OCT+5TH|-OCT" },
+        { "NOISE",     sDr, 0, 100, 0,    0, "%",  "" },
+        { "NOISE DEC", sDr, 5, 500, 40,   1, "MS", "" },
+        { "DROP",      sDr, 0, 48, 0,     0, "ST", "" },
+        { "DROP TIME", sDr, 5, 1000, 60,  1, "MS", "" },
+        { "DRIVE",     sDv, 0, 100, 0,    0, "%",  "" },
+        { "TYPE",      sDv, 0, 4, 0,      3, "",   "TAPE|TUBE|FOLD|CLIP|BITS" },
+        { "TONE",      sFl, 40, 12000, 12000, 1, "HZ", "" },
+        { "ATTACK",    sEn, 0.5f, 2000, 2, 1, "MS", "" },
+        { "DECAY",     sEn, 5, 5000, 400, 1, "MS", "" },
+        { "SUSTAIN",   sEn, 0, 100, 100,  0, "%",  "" },
+        { "RELEASE",   sEn, 5, 5000, 60,  1, "MS", "" },
+        { "VELOCITY",  sOu, 0, 100, 50,   0, "%",  "" },
+        { "LEVEL",     sOu, 0, 100, 80,   0, "%",  "" },
         // (BEAT sits in the OSCILLATOR box: it's a second copy of that oscillator)
-        { "BEAT",      "OSCILLATOR", 0, 2, 0,      3, "",   "OFF|BEAT HZ|BEAT ST" },
-        { "BEAT RATE", "OSCILLATOR", 0.1f, 10, 1,  1, "HZ", "" },
-        { "BEAT AMT",  "OSCILLATOR", 0, 100, 100,  0, "%",  "" },
-        { "BEAT ST",   "OSCILLATOR", -12, 12, 1,   2, "ST", "" },
-        { "BEAT WAIT", "OSCILLATOR", 0, 4000, 0,   0, "MS", "" },   // (the delay before BEAT comes in)
+        { "BEAT",      sOs, 0, 2, 0,      3, "",   "OFF|BEAT HZ|BEAT ST" },
+        { "BEAT RATE", sOs, 0.1f, 10, 1,  1, "HZ", "" },
+        { "BEAT AMT",  sOs, 0, 100, 100,  0, "%",  "" },
+        { "BEAT ST",   sOs, -12, 12, 1,   2, "ST", "" },
+        { "BEAT WAIT", sOs, 0, 4000, 0,   0, "MS", "" },   // (the delay before BEAT comes in)
+        // (v0.83)
+        { "HARM 2",    sO2, 0, 100, 0,    0, "%",  "" },
+        { "HARM 3",    sO2, 0, 100, 0,    0, "%",  "" },
+        { "CLICK",     sDr, 0, 100, 0,    0, "%",  "" },
+        { "CLICK HZ",  sDr, 200, 6000, 1500, 1, "HZ", "" },
+        { "DROP ON",   sDr, 0, 1, 0,      3, "",   "ATTACKS|EVERY NOTE" },
+        { "RES",       sFl, 0, 100, 0,    0, "%",  "" },
+        { "ENV AMT",   sFl, -100, 100, 0, 0, "%",  "" },
+        { "ENV DECAY", sFl, 5, 3000, 200, 1, "MS", "" },
+        { "KEY TRACK", sFl, 0, 100, 0,    0, "%",  "" },
+        { "RATE",      sLf, 0.05f, 20, 5, 1, "HZ", "" },
+        { "DEPTH",     sLf, 0, 100, 0,    0, "%",  "" },
+        { "TARGET",    sLf, 0, 2, 0,      3, "",   "PITCH|LEVEL|FILTER" },
+        { "SYNC",      sLf, 0, 5, 0,      3, "",   "FREE|1 BAR|1/2|1/4|1/8|1/16" },
+        { "SHAPE",     sLf, 0, 3, 0,      3, "",   "SINE|TRI|SQUARE|SAW" },
+        { "HIGH-PASS", sDv, 0, 80, 0,     0, "HZ", "" },
     };
     static const std::vector<SynthParam> grainP {
         { "SOURCE",    "SOURCE",     0, 2, 0,      3, "",   "TABLE|SAMPLE|RECORDING" },
@@ -208,6 +235,34 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
 }
 
 // ============================================================================ SUB
+const char* subPresetName (int i)
+{
+    static const char* n[kSubPresets] = { "CLEAN SUB", "808 DROP", "808 KNOCK", "WARM TUBE", "SQUARE SUB", "GROWL SUB",
+                                          "VIBRATO SUB", "FOLDED SUB", "BEAT SUB", "SMALL SPEAKERS" };
+    return n[std::clamp (i, 0, kSubPresets - 1)];
+}
+
+std::vector<float> subPreset (int i)
+{
+    using namespace sub;
+    auto v = builtinDefaults (kSubKey);
+    auto set = [&] (std::initializer_list<std::pair<int, float>> l) { for (auto& [k, x] : l) v[(size_t) k] = x; };
+    switch (std::clamp (i, 0, kSubPresets - 1))
+    {
+        case 1: set ({ { DropAmount, 12 }, { DropTime, 120 }, { Decay, 1500 }, { Sustain, 30 }, { Release, 300 }, { Drive, 15 } }); break;
+        case 2: set ({ { DropAmount, 7 }, { DropTime, 50 }, { Click, 60 }, { ClickTone, 1800 }, { Drive, 45 }, { DriveType, Tube }, { Decay, 900 }, { Sustain, 20 }, { Harm2, 25 } }); break;
+        case 3: set ({ { Shape, 20 }, { Drive, 35 }, { DriveType, Tube }, { Tone, 900 }, { Harm2, 20 } }); break;
+        case 4: set ({ { Shape, 100 }, { Tone, 600 }, { Resonance, 20 }, { Drive, 10 } }); break;
+        case 5: set ({ { Shape, 60 }, { Tone, 300 }, { Resonance, 70 }, { LfoTarget, LTone }, { LfoDepth, 60 }, { LfoSync, 3 }, { Drive, 30 }, { HighPass, 25 } }); break;
+        case 6: set ({ { LfoTarget, LPitch }, { LfoRate, 5.5f }, { LfoDepth, 12 }, { Glide, 120 } }); break;
+        case 7: set ({ { Shape, 40 }, { Drive, 55 }, { DriveType, Fold }, { Tone, 2500 }, { ToneEnv, 40 }, { ToneDecay, 250 } }); break;
+        case 8: set ({ { BeatOn, 2 }, { BeatSemis, 12 }, { BeatDepth, 40 }, { BeatDelay, 300 }, { Drive, 15 } }); break;
+        case 9: set ({ { Harm2, 60 }, { Harm3, 45 }, { Drive, 25 }, { DriveType, Tube }, { HighPass, 30 } }); break;
+        default: break;
+    }
+    return v;
+}
+
 SubSynth::SubSynth()
 {
     const auto d = builtinDefaults (kSubKey);
@@ -273,8 +328,15 @@ void SubSynth::startVoice (Voice& v, int note, int vel, bool retrigger, bool gli
         v.drop = p[sub::DropAmount];          // (the 808 drop: the pitch starts up there and falls; the wave never jumps)
         v.beatAge = 0;                        // (BEAT DELAY counts from each new attack)
         v.noiseEnv = 1.0f;
+        v.clickEnv = 1.0f; v.clickPh = 0;     // (v0.83: the CLICK)
+        toneEnv = 1.0f;                       // (the FILTER's envelope)
     }
-    else if (v.stage == 0 || v.stage == 3) v.stage = 2;   // (legato into a voice that was letting go: back to sustain)
+    else
+    {
+        if (v.stage == 0 || v.stage == 3) v.stage = 2;   // (legato into a voice that was letting go: back to sustain)
+        if (std::lround (p[sub::DropMode]) == 1) v.drop = p[sub::DropAmount];   // (DROP ON EVERY NOTE: legato ones too)
+    }
+    lastPitch = (float) note;
     v.order = ++orderCount;
 }
 
@@ -356,7 +418,8 @@ float SubSynth::renderVoice (Voice& v)
     }
     if (v.drop > 0.0005f) v.drop *= (float) std::exp (-1.0 / std::max (1.0, p[sub::DropTime] * 0.001 * sr * 0.4));
     else v.drop = 0;
-    const double semis = v.pitch + v.drop + bend + p[sub::Octave] * 12.0f + p[sub::Fine] * 0.01f;
+    const float lfoSemis = std::lround (p[sub::LfoTarget]) == sub::LPitch ? lfoNow * p[sub::LfoDepth] * 0.01f * 2.0f : 0.0f;   // (vibrato: up to 2 semitones)
+    const double semis = v.pitch + v.drop + bend + p[sub::Octave] * 12.0f + p[sub::Fine] * 0.01f + lfoSemis;
     const double hz = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
     v.phase += hz / sr; v.phase -= std::floor (v.phase);
     // BEAT: the same wave RATE Hz higher - the two drift in and out of step RATE times a second, whatever the note
@@ -397,6 +460,16 @@ float SubSynth::renderVoice (Voice& v)
         else x = (x + shapeWave (v.phaseB) * v.beatMix) / (1.0f + 0.6f * v.beatMix);
     }
     x += shapeWave (v.phase2) * o2;
+    // (v0.83) HARMONICS: the 2nd and 3rd as sines from the same phase - the sub heard on small speakers, still click-free
+    if (p[sub::Harm2] > 0.0f) x += (float) std::sin (kTwoPi * 2.0 * v.phase) * p[sub::Harm2] * 0.005f;
+    if (p[sub::Harm3] > 0.0f) x += (float) std::sin (kTwoPi * 3.0 * v.phase) * p[sub::Harm3] * 0.004f;
+    // CLICK: a short blip at CLICK HZ on each attack, gone in a few ms (the 808's knock)
+    if (p[sub::Click] > 0.0f && v.clickEnv > 0.0005f)
+    {
+        v.clickPh += p[sub::ClickTone] / sr; v.clickPh -= std::floor (v.clickPh);
+        x += (float) std::sin (kTwoPi * v.clickPh) * v.clickEnv * p[sub::Click] * 0.01f;
+        v.clickEnv *= (float) std::exp (-1.0 / (0.0025 * sr));
+    }
     if (p[sub::Noise] > 0.0f && v.noiseEnv > 0.0001f)
     {
         noiseSeed = noiseSeed * 1664525u + 1013904223u;
@@ -421,25 +494,85 @@ void SubSynth::render (float* left, float* right, int n)
     const float drive = p[sub::Drive] * 0.01f;
     const float g = 1.0f + drive * 24.0f;
     const float norm = drive > 0.0f ? 1.0f / std::tanh (g) : 1.0f;
-    const bool tube = std::lround (p[sub::DriveType]) == 1;
     const float tone = p[sub::Tone];
     const float a = tone >= 11990.0f ? 1.0f : (float) (1.0 - std::exp (-kTwoPi * tone / sr));
     const float level = p[sub::Level] * 0.01f * 0.6f;
+    const int dtype = (int) std::lround (p[sub::DriveType]);
+    // (v0.83) the FILTER: the plain 12 dB TONE as ever, unless RES, its envelope, KEY TRACK or the LFO move it
+    const int lfoTarget = (int) std::lround (p[sub::LfoTarget]);
+    const bool svfOn = p[sub::Resonance] > 0.0f || std::abs (p[sub::ToneEnv]) > 0.0f || p[sub::KeyTrack] > 0.0f || (lfoTarget == sub::LTone && p[sub::LfoDepth] > 0.0f);
+    const float toneFall = (float) std::exp (-1.0 / std::max (1.0, p[sub::ToneDecay] * 0.001 * sr * 0.3));
+    static const double perBeat[6] = { 0, 0.25, 0.5, 1, 2, 4 };
+    const int sync = std::clamp ((int) std::lround (p[sub::LfoSync]), 0, 5);
+    const double lfoRate = sync == 0 ? p[sub::LfoRate] : songBpm / 60.0 * perBeat[sync];
+    const int lshape = (int) std::lround (p[sub::LfoShape]);
+    const float hpHz = p[sub::HighPass];
+    const float hpA = hpHz >= 1.0f ? (float) (1.0 - std::exp (-kTwoPi * hpHz / sr)) : 0.0f;
+    float g1 = 0, k1 = 2;
     for (int i = 0; i < n; ++i)
     {
         while (ev < events.size() && events[ev].offset <= i) handle (events[ev++]);
         if (pendingRelease >= 0 && --pendingRelease < 0) releaseVoice (voices[0]);
+        // the LFO
+        const double before = lfoPh;
+        lfoPh += lfoRate / sr; lfoPh -= std::floor (lfoPh);
+        switch (lshape)
+        {
+            case 1: lfoNow = (float) (lfoPh < 0.5 ? 4.0 * lfoPh - 1.0 : 3.0 - 4.0 * lfoPh); break;
+            case 2: { const float t = lfoPh < 0.5 ? 1.0f : -1.0f; lfoNow += (t - lfoNow) * 0.02f; break; }
+            case 3: { const float t = (float) (1.0 - 2.0 * lfoPh); lfoNow += (t - lfoNow) * (lfoPh < before ? 0.02f : 1.0f); break; }
+            default: lfoNow = (float) std::sin (kTwoPi * lfoPh); break;
+        }
         float x = 0;
         for (auto& v : voices) x += renderVoice (v);
+        if (lfoTarget == sub::LLevel) x *= 1.0f - p[sub::LfoDepth] * 0.01f * (0.5f - 0.5f * lfoNow);
         if (drive > 0.0f)
         {
-            // TAPE: a smooth, even squash; TUBE: lopsided (warmer, more second harmonic) - then the DC it makes is taken off
-            x = tube ? std::tanh (g * (x + 0.3f * x * x)) * norm : std::tanh (g * x) * norm;
+            // TAPE: a smooth, even squash; TUBE: lopsided (warmer, more second harmonic); FOLD: folded back on itself;
+            // CLIP: flat-topped; BITS: fewer steps - then the DC it makes is taken off
+            switch (dtype)
+            {
+                case sub::Tube: x = std::tanh (g * (x + 0.3f * x * x)) * norm; break;
+                case sub::Fold: x = std::sin (x * (1.0f + drive * 6.0f)) * 0.95f; break;
+                case sub::Clip: x = std::clamp (x * (1.0f + drive * 8.0f), -0.8f, 0.8f); break;
+                case sub::Bits:
+                {
+                    const float steps = std::pow (2.0f, 12.0f - drive * 9.0f);
+                    if ((bitsCount++ % std::max (1, 1 + (int) (drive * 6.0f))) == 0) bitsHold = std::round (std::tanh (x * 1.5f) * steps) / steps;
+                    x = bitsHold;
+                    break;
+                }
+                default: x = std::tanh (g * x) * norm; break;
+            }
             const float y = x - dcX + 0.9995f * dcY;
             dcX = x; dcY = y; x = y;
         }
-        if (a < 1.0f) { lp1 += a * (x - lp1); lp2 += a * (lp1 - lp2); x = lp2; }
+        if (svfOn)
+        {
+            toneEnv *= toneFall;
+            if ((i & 15) == 0)
+            {
+                const float oct = p[sub::ToneEnv] * 0.01f * 5.0f * toneEnv + p[sub::KeyTrack] * 0.01f * (lastPitch - 36.0f) / 12.0f
+                                + (lfoTarget == sub::LTone ? lfoNow * p[sub::LfoDepth] * 0.01f * 2.0f : 0.0f);
+                toneHz = std::clamp (tone * std::pow (2.0f, oct), 30.0f, (float) (sr * 0.45));
+                g1 = (float) std::tan (3.14159265358979 * toneHz / sr);
+                k1 = 2.0f - 1.55f * p[sub::Resonance] * 0.01f;
+            }
+            const float a1 = 1.0f / (1.0f + g1 * (g1 + k1)), a2 = g1 * a1, a3 = g1 * a2;
+            const float v3 = x - svf2, v1 = a1 * svf1 + a2 * v3, v2 = svf2 + a2 * svf1 + a3 * v3;
+            svf1 = 2.0f * v1 - svf1; svf2 = 2.0f * v2 - svf2;
+            x = v2;
+        }
+        else
+        {
+            toneHz = tone;
+            if (a < 1.0f) { lp1 += a * (x - lp1); lp2 += a * (lp1 - lp2); x = lp2; }
+        }
+        // HIGH-PASS: the rumble below it off (two poles)
+        if (hpA > 0.0f) { hp1 += hpA * (x - hp1); hp2 += hpA * (hp1 - hp2); x -= hp2; }
         x *= level;
+        if (! std::isfinite (x)) x = 0.0f;
+        { const float ax = std::abs (x); if (ax > 1.2f) x = std::copysign (1.2f + 0.3f * std::tanh ((ax - 1.2f) * 3.0f), x); }   // (never past 1.5)
         left[i] = x; right[i] = x;
     }
     while (ev < events.size()) handle (events[ev++]);
