@@ -8,6 +8,7 @@
 #include "../engine/RaveSynth.h"
 #include "../engine/MorphSynth.h"
 #include "../engine/AcidSynth.h"
+#include "../engine/PadSynth.h"
 
 namespace prv::ui::synthpresets
 {
@@ -77,6 +78,8 @@ inline std::vector<Preset> factory (const std::string& key)
         for (int t = 0; t < kMorphPresets; ++t) out.push_back ({ morphPresetName (t), key, morphPreset (t) });
     else if (key == kAcidKey)
         for (int t = 0; t < kAcidPresets; ++t) out.push_back ({ acidPresetName (t), key, acidPreset (t) });
+    else if (key == kPadKey)
+        for (int t = 0; t < kPadPresets; ++t) out.push_back ({ padPresetName (t), key, padPreset (t) });
     else if (! builtinParams (key).empty())
         out.push_back ({ "DEFAULTS", key, builtinDefaults (key) });
     return out;

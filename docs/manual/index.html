@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.80</span>
+  <span class="ver">MANUAL &middot; V0.81</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -551,7 +551,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h2>INSTRUMENTS &amp; SAMPLES</h2>
   <div class="accent t2"></div>
   <h3>Loading, opening and naming an instrument</h3>
-  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
+  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
   <figure>
     <div class="frame sunken"><img src="img/load_kinds.png" alt="LOAD's question over the main screen: LOAD INTO INSTRUMENT 04: WHAT KIND? with SAMPLE, BUILT-IN SYNTH, VST3 / AU SYNTH, SAVED INSTRUMENT, MIDI OUT, CV OUT, RECORD AUDIO and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>LOAD asks what kind of instrument first</figcaption>
@@ -1031,6 +1031,22 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <div class="frame sunken"><img src="img/acid_devilfish.png" alt="ACID's DEVIL FISH tab: DEVIL FISH ENVELOPES (ACC DECAY, ATTACK, SWEEP, AMP DECAY, RELEASE), DEVIL FISH FILTER (TRACKING, FILTER FM, RES BASS), SLIDE (TIME, OVERLAP (KEYS) / TIED NOTES) and MUFFLER + DRIVE (OFF / SOFT / HARD, DRIVE)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
+  <h3>The built-in PAD synth: four layers</h3>
+  <p><b>PAD</b> plays <b>four layers</b> on every note, each a whole sound of its own. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; PAD. Up to 12 notes at once; seven tabs: <span class="b">LAYER A</span>&ndash;<span class="b">D</span>, <span class="b">MIX</span>, <span class="b">MOD</span> and <span class="b">SPACE</span>. <b>PRESETS...</b> has ten pads.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/pad_layer.png" alt="PAD's LAYER A tab: SOURCE (OFF / ON, WAVE: SAW, OCTAVE, TUNE, FINE), UNISON (VOICES 05, DETUNE, SPREAD, DRIFT), FILTER (OFF / LOW / BAND / HIGH, CUTOFF, RES, ENV&gt;CUT) and ENVELOPE (ATTACK, DECAY, SUSTAIN, RELEASE, DELAY), with the tabs LAYER A, LAYER B, LAYER C, LAYER D, MIX, MOD and SPACE above." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A layer: its wave, unison, filter and envelope</figcaption>
+  </figure>
+  <ul>
+    <li><b>Each layer:</b> WAVE &mdash; SAW, SQUARE, PWM, TRI, SINE, ORGAN, VOX (a sung &ldquo;ah&rdquo;), GLASS (an FM bell), NOISE, AIR (tuned breath) &mdash; with OCTAVE, TUNE and FINE; up to 7 unison VOICES with DETUNE, stereo SPREAD and analog DRIFT; its own FILTER (LOW, BAND, HIGH) moved by its own ENVELOPE; and a start <b>DELAY</b>, so one layer can swell in after another.</li>
+    <li><b>MIX:</b> every layer's LEVEL and PAN side by side, its <b>KEY LOW / KEY HIGH</b> (two layers meeting at a key split the keyboard) and <b>ALL / SOFT / HARD</b> &mdash; velocity layers: playing harder changes the sound.</li>
+    <li><b>MOD:</b> the MAIN FILTER (LOW 12, LOW 24, BAND, HIGH) with its own envelope, key tracking and velocity; two LFOs, each to CUTOFF, PITCH, LEVEL, PAN, <b>A&lt;&gt;B</b> or <b>C&lt;&gt;D</b> (a slow fade between two layers) or WIDTH.</li>
+    <li><b>SPACE:</b> CHORUS, a ping-pong ECHO, a REVERB with SIZE and TONE; GLIDE, VEL SENS, WIDTH and LEVEL.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/pad_mix.png" alt="PAD's MIX tab: a box for each of LAYER A to D with LEVEL, PAN, KEY LOW, KEY HIGH and ALL / SOFT / HARD." width="1440" height="900" loading="lazy"></div>
+    <figcaption>MIX: the layers' levels, key splits and velocity layers together</figcaption>
+  </figure>
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
@@ -1474,7 +1490,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.80</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.81</footer>
 </main>
 </div>
 <script>

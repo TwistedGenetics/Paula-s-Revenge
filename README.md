@@ -35,7 +35,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it, **double-click** it to open that block's pattern (from any page); **right-click > BLOCK NAME...** or `Cmd+R` names the block; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -66,7 +66,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -786,9 +786,9 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
 
-## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID and GRANULAR
+## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD and GRANULAR
 
-**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, ACID's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, ACID's ten, PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
 ### SUB
 
@@ -893,6 +893,32 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 * **MUFFLER + DRIVE**: the **MUFFLER** - **OFF / SOFT / HARD** - clips the output, softly or hard; **DRIVE** pushes into it.
 
 **PRESETS...** has ten to start from: CLASSIC, SQUELCH, RUBBER BASS, SQUARE ACID, DEVIL SCREAM, SLOW SWEEP, MUFFLED SUB, SELF-OSC BLEEP, TIED SLIDES and HARDCORE ACID.
+
+### PAD
+
+**PAD** is a layered pad synth: **four layers**, each a whole sound of its own, played together on every note. LOAD → **BUILT-IN SYNTH** → PAD. Up to 12 notes at once. Its page has seven tabs: **LAYER A**, **LAYER B**, **LAYER C**, **LAYER D**, **MIX**, **MOD** and **SPACE** (in a narrow window the layer tabs are just **A B C D**).
+
+Each **LAYER** tab:
+
+* **SOURCE**: the layer **OFF / ON**; **WAVE** - **SAW**, **SQUARE**, **PWM** (a square whose width moves slowly), **TRI**, **SINE**, **ORGAN** (drawbars), **VOX** (a sung "ah"), **GLASS** (an FM bell, brighter as it starts), **NOISE**, **AIR** (breath, tuned to the note); **OCTAVE**, **TUNE** (semitones, to stack fifths and octaves), **FINE**.
+* **UNISON**: **VOICES** (1-7 copies of the wave), **DETUNE** (how far apart, cents), **SPREAD** (how wide across the stereo), **DRIFT** (each copy wanders a little on its own, like an old analog).
+* **FILTER**: the layer's own - **OFF / LOW / BAND / HIGH**, **CUTOFF**, **RES**, **ENV>CUT** (± - its envelope opens or closes it).
+* **ENVELOPE**: the layer's own **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**, and **DELAY**: how long after the note the layer starts - so a bell can strike and a pad swell in after it.
+
+**MIX** - the four layers side by side, for layering:
+
+* **LEVEL** and **PAN** for each.
+* **KEY LOW** / **KEY HIGH**: the keys the layer plays - set two layers to meet at a key and they **split** the keyboard (a bass below, a pad above).
+* **ALL / SOFT / HARD**: a **velocity layer** - SOFT plays only on softer notes, HARD only on harder ones, so playing harder changes the sound, not just its level.
+
+**MOD**:
+
+* **MAIN FILTER** (after the layers, on each note): **TYPE** (OFF, LOW 12, LOW 24, BAND, HIGH), **CUTOFF**, **RES**, **ENV AMT** ±, **KEY TRACK**, **VEL>CUT**; its own **FILTER ENV** (ADSR).
+* **LFO 1** and **LFO 2**: **SHAPE** (SINE, TRI, SAW, SQUARE, S&H), **RATE**, **DEPTH** and **TARGET**: **CUTOFF**, **PITCH** (vibrato), **LEVEL** (tremolo), **PAN** (auto-pan), **A<>B** (fades between layers A and B), **C<>D**, or **WIDTH**.
+
+**SPACE**: **CHORUS** (and its **RATE**), **ECHO** (**TIME**, **FEEDBACK** - a ping-pong), **REVERB** (**SIZE**, **TONE**), and the **OUTPUT**: **GLIDE**, **VEL SENS**, **WIDTH** (0 mono, 100 as it is, up to 150 wider), **LEVEL**.
+
+**PRESETS...**: WARM ANALOG, JUNGLE ATMOS, GLASS CHOIR, STRING ENSEMBLE, AIR PAD, ORGAN SWELL, PWM DREAM, BELL + PAD (a delayed layer), SPLIT BASS / PAD (a key split at C-3) and SOFT / HARD (velocity layers).
 
 ### GRANULAR
 

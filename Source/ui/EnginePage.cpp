@@ -420,6 +420,9 @@ void EnginePage::build()
     // one row per control, in boxes by section (in the synth's own order)
     for (auto& r : rows) { if (r.slider) removeChildComponent (r.slider.get()); if (r.number) removeChildComponent (r.number.get()); if (r.cycle) removeChildComponent (r.cycle.get()); for (auto& b : r.choices) removeChildComponent (b.get()); }
     rows.clear(); boxes.clear();
+    for (auto& t : genTabs) removeChildComponent (t.get());
+    genTabs.clear(); genTabNames.clear();
+    const auto oldKey = shownKey;
     shownKey = inst().pluginKey;
     const auto& ps = builtinParams (shownKey);
     for (int i = 0; i < (int) ps.size(); ++i)
@@ -458,7 +461,7 @@ void EnginePage::build()
         {
             r.number = std::make_unique<NumberBox> (q.name, (int) q.min, (int) q.max, (int) q.def);
             r.number->compact = true; r.number->labelChars = 9;
-            r.number->valueChars = (int) std::max<size_t> (3, std::max (q.text (q.min).size(), q.text (q.max).size()));   // ("+12ST" whole)
+            r.number->valueChars = (int) std::max<size_t> (3, std::max ({ q.text (q.min).size(), q.text (q.max).size(), q.text (q.def).size(), q.text (0.5f * (q.min + q.max)).size() }));   // ("+12ST", "CENTRE" whole)
             r.number->format = [q] (int v) { return juce::String (q.text ((float) v)); };
             r.number->onChange = [this, i] (int v) { edit (i, (float) v, true); };
             addAndMakeVisible (*r.number);
@@ -474,7 +477,27 @@ void EnginePage::build()
             addAndMakeVisible (*r.slider);
         }
         const juce::String sec (q.section);
-        auto box = std::find_if (boxes.begin(), boxes.end(), [&] (const Box& b) { return b.title == sec; });
+        auto box = std::find_if (boxes.begin(), boxes.end(), [&] (const Box& b) { return b.key == sec; });
+        if (box == boxes.end() && sec.contains (">"))
+        {
+            // (v0.81) a tab of the synth's own: "0:LAYER A|A>SOURCE" (0: its place among the tabs, if not first come)
+            auto tab = sec.upToFirstOccurrenceOf (">", false, false);
+            if (tab.length() > 2 && tab[1] == ':') tab = tab.substring (2);
+            const auto longName = tab.upToFirstOccurrenceOf ("|", false, false), shortName = tab.contains ("|") ? tab.fromFirstOccurrenceOf ("|", false, false) : longName;
+            int t = 0;
+            while (t < (int) genTabNames.size() && genTabNames[(size_t) t].first != longName) ++t;
+            if (t == (int) genTabNames.size())
+            {
+                genTabNames.push_back ({ longName, shortName });
+                auto b = std::make_unique<PixButton> (longName, true);
+                b->setClickingTogglesState (false);
+                b->onClick = [this, t] { showPage (10 + t); };
+                addAndMakeVisible (*b);
+                genTabs.push_back (std::move (b));
+            }
+            boxes.push_back ({ sec.fromFirstOccurrenceOf (">", false, false), {}, {}, 10 + t, sec });
+            box = boxes.end() - 1;
+        }
         if (box == boxes.end())
         {
             // (GRANULAR: SOURCE sits beside the sound; LFOS, ENV MOD and FILTER are on the second page)
@@ -486,12 +509,39 @@ void EnginePage::build()
                              || (shownKey == kRomKey && ! sec.startsWith ("TONE ") && sec != "MORPH FILTER")   // (ROM: its TONES, then the rest; MORPH FILTER a page of its own)
                              || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"))
                              || (shownKey == kAcidKey && (sec.startsWith ("DEVIL FISH") || sec == "SLIDE" || sec == "MUFFLER + DRIVE"));   // (ACID: the 303, then the Devil Fish)
-            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : shownKey == kRomKey && sec == "MORPH FILTER" ? 3 : second ? 1 : 0 });
+            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : shownKey == kRomKey && sec == "MORPH FILTER" ? 3 : second ? 1 : 0, sec });
             box = boxes.end() - 1;
         }
         box->rowIndex.push_back ((int) rows.size());
         rows.push_back (std::move (r));
     }
+    // (the tabs in their places: "N:" first, else as they came; the boxes' pages follow)
+    if (! genTabNames.empty())
+    {
+        std::vector<int> order ((size_t) genTabNames.size());
+        std::vector<int> rank ((size_t) genTabNames.size(), 0);
+        for (const auto& q : ps)
+        {
+            const juce::String sec (q.section);
+            if (! sec.contains (">")) continue;
+            auto tab = sec.upToFirstOccurrenceOf (">", false, false);
+            const int want = tab.length() > 2 && tab[1] == ':' ? tab[0] - '0' : 100;
+            tab = (tab.length() > 2 && tab[1] == ':' ? tab.substring (2) : tab).upToFirstOccurrenceOf ("|", false, false);
+            for (size_t t = 0; t < genTabNames.size(); ++t) if (genTabNames[t].first == tab && rank[t] == 0) rank[t] = want * 100 + (int) t + 1;
+        }
+        for (size_t t = 0; t < order.size(); ++t) order[t] = (int) t;
+        std::stable_sort (order.begin(), order.end(), [&] (int a, int b) { return rank[(size_t) a] < rank[(size_t) b]; });
+        std::vector<int> placeOf (order.size());
+        for (size_t k = 0; k < order.size(); ++k) placeOf[(size_t) order[k]] = (int) k;
+        std::vector<std::unique_ptr<PixButton>> tabs2; std::vector<std::pair<juce::String, juce::String>> names2;
+        for (int t : order) { tabs2.push_back (std::move (genTabs[(size_t) t])); names2.push_back (genTabNames[(size_t) t]); }
+        genTabs = std::move (tabs2); genTabNames = std::move (names2);
+        for (size_t k = 0; k < genTabs.size(); ++k) genTabs[k]->onClick = [this, k] { showPage (10 + (int) k); };
+        for (auto& b : boxes) if (b.page >= 10) b.page = 10 + placeOf[(size_t) (b.page - 10)];
+    }
+    // (a synth of tabs of its own starts on its first; another synth's pages from their start)
+    if (! genTabNames.empty()) { if (oldKey != shownKey || pageShown < 10 || pageShown >= 10 + (int) genTabNames.size()) pageShown = 10; }
+    else if (pageShown >= 10) pageShown = 0;
 }
 
 void EnginePage::sync()
@@ -526,7 +576,8 @@ void EnginePage::tick()
 
 void EnginePage::showPage (int k)
 {
-    pageShown = k == 3 && shownKey == kRomKey ? 3 : juce::jlimit (0, 1, k);   // (3: ROM's MORPH FILTER)
+    if (! genTabNames.empty()) pageShown = 10 + juce::jlimit (0, (int) genTabNames.size() - 1, k >= 10 ? k - 10 : k);   // (v0.81: tabs of its own)
+    else pageShown = k == 3 && shownKey == kRomKey ? 3 : juce::jlimit (0, 1, k);   // (3: ROM's MORPH FILTER)
     resized();
     repaint();
 }
@@ -760,11 +811,33 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages);
-    for (auto& b : pageBtn) b.setVisible (paged);
-    pageBtn[2].setVisible (paged && shownKey == kRomKey);
+    const bool generic = ! genTabNames.empty();
+    const bool paged = generic || shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages);
+    for (auto& b : pageBtn) b.setVisible (paged && ! generic);
+    pageBtn[2].setVisible (paged && ! generic && shownKey == kRomKey);
+    if (generic)
+    {
+        // (v0.81) the synth's own tabs: their names if they fit on a line, else the short ones; a second line if need be
+        int longW = 0, shortW = 0;
+        for (const auto& t : genTabNames) { longW += charsW (t.first.length()) + gap; shortW += charsW (t.second.length()) + gap; }
+        const bool useLong = longW <= r.getWidth() + gap;
+        auto line = r.removeFromTop (rowH);
+        for (size_t k = 0; k < genTabs.size(); ++k)
+        {
+            const auto& nm = useLong ? genTabNames[k].first : genTabNames[k].second;
+            const int w = charsW (nm.length());
+            if (w > line.getWidth()) { r.removeFromTop (gap); line = r.removeFromTop (rowH); }
+            genTabs[k]->setButtonText (nm);
+            genTabs[k]->setBounds (line.removeFromLeft (w)); line.removeFromLeft (gap);
+            genTabs[k]->setToggleState (pageShown == 10 + (int) k, juce::dontSendNotification);
+            genTabs[k]->setVisible (true);
+        }
+        juce::ignoreUnused (shortW);
+        r.removeFromTop (gap * 2);
+    }
     loadSampleBtn.setVisible (shownKey == kGrainKey);
-    if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages))
+    if (generic) {}
+    else if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages))
     {
         // REESE, ROM (and SUB when it needs them): the two pages' tabs on a line of their own
         const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey, mp = shownKey == kMorphKey, ac = shownKey == kAcidKey;
@@ -947,7 +1020,8 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS"
                             : inst().pluginKey == kRomKey ? " - ROMPLER"
                             : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS"
-                            : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH" : "";
+                            : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH"
+                            : inst().pluginKey == kPadKey ? " - LAYERED PADS" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }

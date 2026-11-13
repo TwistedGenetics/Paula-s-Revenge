@@ -5,6 +5,7 @@
 #include "RomSynth.h"
 #include "MorphSynth.h"
 #include "AcidSynth.h"
+#include "PadSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -51,6 +52,8 @@ std::string SynthParam::text (float v) const
     else if (u == "MS") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.2fS", v / 1000.0f); else std::snprintf (buf, sizeof (buf), "%dMS", (int) std::lround (v)); }
     else if (u == "HZ") { if (v >= 1000.0f) std::snprintf (buf, sizeof (buf), "%.1fK", v / 1000.0f); else if (v < 10.0f) std::snprintf (buf, sizeof (buf), "%.2fHZ", v); else std::snprintf (buf, sizeof (buf), "%dHZ", (int) std::lround (v)); }
     else if (u == "ST" || u == "C") std::snprintf (buf, sizeof (buf), "%+d%s", (int) std::lround (v), u.c_str());
+    else if (u == "NOTE") { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" };
+                            const int n = std::clamp ((int) std::lround (v), 24, 127) - 24; std::snprintf (buf, sizeof (buf), "%s%d", nm[n % 12], n / 12); }   // (a key, as the pattern names it)
     else if (u == "CX") std::snprintf (buf, sizeof (buf), "C%02X", (int) std::lround (v));   // (a pattern's volume command: C40 the loudest)
     else if (u == "#") std::snprintf (buf, sizeof (buf), "%02X", (int) std::lround (v));   // (an instrument, as the instruments list shows it)
     else if (u == "LR") { const int x = (int) std::lround (v); if (x == 0) std::snprintf (buf, sizeof (buf), "CENTRE"); else std::snprintf (buf, sizeof (buf), "%s%d", x < 0 ? "L" : "R", std::abs (x)); }   // (a pan)
@@ -128,6 +131,7 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kRomKey) return romParams();
     if (key == kMorphKey) return morphSynthParams();
     if (key == kAcidKey) return acidSynthParams();
+    if (key == kPadKey) return padSynthParams();
     return none;
 }
 
@@ -173,7 +177,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : key == kPadKey ? "PAD" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     if (key == kAcidKey) in.volume = 0x30;   // (ACID: a C40 note is accented - ACCENT FROM C38; the rest play at C30)
@@ -196,6 +200,7 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     if (in.pluginKey == kRomKey) s = std::make_unique<RomSynth>();
     if (in.pluginKey == kMorphKey) s = std::make_unique<MorphSynth>();
     if (in.pluginKey == kAcidKey) s = std::make_unique<AcidSynth>();
+    if (in.pluginKey == kPadKey) s = std::make_unique<PadSynth>();
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;

@@ -10,6 +10,7 @@
 #include "engine/MorphFilter.h"
 #include "engine/MorphSynth.h"
 #include "engine/AcidSynth.h"
+#include "engine/PadSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
@@ -4954,12 +4955,113 @@ static void testAcidSynth()
     }
 }
 
+// (v0.81) PAD: four layers - each with its own keys, velocity zone, start delay - unison, the main filter, SPACE
+static void testPadSynth()
+{
+    std::printf ("\n== PAD (FOUR LAYERS)\n");
+    using namespace pad;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<PadSynth>(); a->prepare (sr, 512); a->setValues (v); return a; };
+    auto run = [&] (PadSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr, float* side = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i)
+            {
+                if (peak) *peak = std::max (*peak, std::abs (L[(size_t) i]));
+                if (ok) *ok = *ok && std::isfinite (L[(size_t) i]) && std::isfinite (R[(size_t) i]);
+                if (side) *side = std::max (*side, std::abs (L[(size_t) i] - R[(size_t) i]));
+            }
+        }
+    };
+    // the default: two layers, plays, in stereo
+    {
+        auto a = fresh (padPreset (0)); float pk = 0, side = 0; bool ok = true;
+        a->noteOn (60, 100, 0); run (*a, 200, &pk, &ok, &side);
+        std::printf ("WARM ANALOG: peak %.3f, stereo difference %.3f, layers A %.2f B %.2f C %.2f\n", pk, side, a->layerLevel (0), a->layerLevel (1), a->layerLevel (2));
+        CHECK (ok && pk > 0.05f && pk < 1.5f && side > 0.01f && a->layerLevel (0) > 0.1f && a->layerLevel (1) > 0.1f && a->layerLevel (2) == 0.0f);
+    }
+    // KEY ranges: SPLIT BASS / PAD - below C-3 layer B, from C-3 up layer A
+    {
+        auto a = fresh (padPreset (8));
+        a->noteOn (48, 100, 0); run (*a, 20);
+        const float lowA = a->layerLevel (0), lowB = a->layerLevel (1);
+        a->allNotesOff (0); run (*a, 400);
+        a->noteOn (72, 100, 0); run (*a, 100);
+        std::printf ("split: C-2 plays A %.2f B %.2f; C-4 plays A %.2f B %.2f\n", lowA, lowB, a->layerLevel (0), a->layerLevel (1));
+        CHECK (lowA == 0.0f && lowB > 0.1f && a->layerLevel (0) > 0.1f && a->layerLevel (1) == 0.0f);
+    }
+    // VELOCITY zones: SOFT / HARD
+    {
+        auto a = fresh (padPreset (9));
+        a->noteOn (60, 40, 0); run (*a, 60);
+        const float softA = a->layerLevel (0), softB = a->layerLevel (1);
+        auto b = fresh (padPreset (9));
+        b->noteOn (60, 120, 0); run (*b, 60);
+        std::printf ("velocity: soft plays A %.2f B %.2f; hard plays A %.2f B %.2f\n", softA, softB, b->layerLevel (0), b->layerLevel (1));
+        CHECK (softA == 0.0f && softB > 0.05f && b->layerLevel (0) > 0.05f && b->layerLevel (1) == 0.0f);
+    }
+    // DELAY: BELL + PAD - the bell at once, the pad layer only after its 250 ms
+    {
+        auto a = fresh (padPreset (7));
+        a->noteOn (60, 100, 0); run (*a, 10);
+        const float bell = a->layerLevel (2), early = a->layerLevel (0);
+        run (*a, 100);
+        std::printf ("delay: at 100 ms bell %.2f pad %.2f; at 1.1 s pad %.2f\n", bell, early, a->layerLevel (0));
+        CHECK (bell > 0.2f && early == 0.0f && a->layerLevel (0) > 0.05f);
+    }
+    // let go: it fades and stops (no reverb or echo to wait for here)
+    {
+        auto v = padPreset (0); v[Reverb] = 0; v[Echo] = 0; v[Chorus] = 0;
+        auto a = fresh (v);
+        a->noteOn (60, 100, 0); run (*a, 100);
+        a->noteOff (60, 0); run (*a, 600);
+        float tail = 0; run (*a, 10, &tail);
+        CHECK (a->voicesPlaying() == 0 && tail < 1.0e-3f);
+    }
+    // every preset, a six-note chord: finite and in range; twenty notes: still 12 voices at most; and fast enough
+    {
+        int bad = 0;
+        for (int i = 0; i < kPadPresets; ++i)
+        {
+            auto a = fresh (padPreset (i)); float pk = 0; bool ok = true;
+            for (int n : { 48, 55, 60, 63, 67, 72 }) a->noteOn (n, 100, 0);
+            run (*a, 150, &pk, &ok);
+            if (! ok || pk < 0.02f || pk > 2.0f) { ++bad; std::printf ("  %s: peak %.3f %s\n", padPresetName (i), pk, ok ? "" : "NOT FINITE"); }
+        }
+        auto v = padPreset (0);
+        for (int l = 0; l < kLayers; ++l) { v[(size_t) pad::p (l, On)] = 1; v[(size_t) pad::p (l, Unison)] = 7; }
+        auto a = fresh (v);
+        for (int n = 0; n < 20; ++n) a->noteOn (40 + n * 2, 100, 0);
+        const auto t0 = std::chrono::steady_clock::now();
+        run (*a, 100);
+        const double ms = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - t0).count();
+        std::printf ("presets out of range: %d; 12 notes x 4 layers x 7 voices: %d playing, 1 s rendered in %.0f ms\n", bad, a->voicesPlaying(), ms);
+        CHECK (bad == 0 && a->voicesPlaying() <= 12);
+    }
+    // its tabs: LAYER A..D, FILTER + LFOS, SPACE (the page's own tabs come from the sections)
+    {
+        std::vector<std::string> tabs;
+        for (const auto& q : padSynthParams())
+        {
+            const std::string sec = q.section;
+            const auto t = sec.substr (0, sec.find ('>'));
+            if (sec.find ('>') != std::string::npos && std::find (tabs.begin(), tabs.end(), t) == tabs.end()) tabs.push_back (t);
+        }
+        CHECK (tabs.size() == 7 && padSynthParams().size() == (size_t) Count && builtinDefaults (kPadKey).size() == (size_t) Count);
+        const SynthParam key { "K", "", 24, 119, 60, 2, "NOTE", "" };
+        CHECK (key.text (60) == "C-3");
+    }
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
 {
     std::printf ("\n== NO STUCK NOTES\n");
-    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey };
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey };
     std::mt19937 rng (79);
     std::uniform_real_distribution<float> u (0, 1);
     int stuck = 0;
@@ -4972,7 +5074,7 @@ static void testNoStuckNotes()
             for (size_t i = 0; i < ps.size(); ++i)
             {
                 const std::string n = ps[i].name;
-                const bool tail = n == "RELEASE" || n.find ("ECHO") != std::string::npos;
+                const bool tail = n == "RELEASE" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK";
                 if (! tail && u (rng) < 0.5f) vals[i] = ps[i].toValue (u (rng));
             }
             writeBuiltinState (in, vals);
@@ -4996,7 +5098,7 @@ static void testNoStuckNotes()
             for (int blk = 0; blk < 10; ++blk) { std::fill (L.begin(), L.end(), 0.0f); s->render (L.data(), R.data(), 512); for (float x : L) tail = std::max (tail, std::abs (x)); }
             if (! (tail < 0.001f)) { ++stuck; std::printf ("%s (try %d): still sounding %.4f\n", key, trial, tail); }
         }
-    std::printf ("stuck: %d of 28\n", stuck);
+    std::printf ("stuck: %d of 32\n", stuck);
     CHECK (stuck == 0);
 }
 
@@ -6543,6 +6645,7 @@ int main()
     testMorphSynth();
     testNoStuckNotes();
     testAcidSynth();
+    testPadSynth();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

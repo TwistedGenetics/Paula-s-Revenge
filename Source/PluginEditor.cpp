@@ -1197,7 +1197,7 @@ void PaulaEditor::showLoadMenu()
     juce::Component::SafePointer<PaulaEditor> safe (this);
     choice.show (*this, "LOAD INTO INSTRUMENT " + hex + ": WHAT KIND?",
                  { "SAMPLE - A WAV / AIFF / MP3 FROM YOUR FILES (THE SAMPLE BROWSER)",
-                   "BUILT-IN SYNTH - SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR",
+                   "BUILT-IN SYNTH - SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR",
                    "VST3 / AU SYNTH - A PLUG-IN INSTRUMENT",
                    "SAVED INSTRUMENT - ONE OF YOURS (.PRVI)",
                    "MIDI OUT - PLAY YOUR HARDWARE",
@@ -1236,7 +1236,8 @@ void PaulaEditor::openLoad (int kind)
                        "RAVE - JUNGLE KEYS: STAB, PAD, ORGAN, BLEEP, BELL, HOOVER, MENTASM, PIANO...",
                        "ROM - A ROMPLER: FOUR TONES OF YOUR OWN LOOPED MULTISAMPLES (JV / M1 STYLE)",
                        "MORPH - A MORPHING-FILTER SYNTH: VOWELS, PHASES, COMBS ON EVERY NOTE (MORPHEUS STYLE)",
-                       "ACID - A 303 BASS LINE WITH THE DEVIL FISH MODS (ACCENT, SLIDE, SQUELCH)" }, [safe, hex] (int a)
+                       "ACID - A 303 BASS LINE WITH THE DEVIL FISH MODS (ACCENT, SLIDE, SQUELCH)",
+                       "PAD - FOUR LAYERS OF SOUND: UNISON, SPLITS, VELOCITY LAYERS, LFOS, REVERB" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1244,6 +1245,7 @@ void PaulaEditor::openLoad (int kind)
             if (safe != nullptr && a == 4) safe->makeBuiltinSynth (prv::kRomKey);
             if (safe != nullptr && a == 5) safe->makeBuiltinSynth (prv::kMorphKey);
             if (safe != nullptr && a == 6) safe->makeBuiltinSynth (prv::kAcidKey);
+            if (safe != nullptr && a == 7) safe->makeBuiltinSynth (prv::kPadKey);
             if (safe != nullptr && a == 3)
                 safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
                                    { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
@@ -1280,7 +1282,7 @@ void PaulaEditor::openLoad (int kind)
 void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : key == prv::kPadKey ? "PAD SYNTH" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
         if (key == prv::kRaveKey) prv::makeRave (proc.song.instruments[(size_t) i], raveType);
@@ -1290,7 +1292,7 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 

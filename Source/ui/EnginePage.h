@@ -10,6 +10,7 @@
 #include "../engine/RomSynth.h"
 #include "../engine/MorphSynth.h"
 #include "../engine/AcidSynth.h"
+#include "../engine/PadSynth.h"
 #include <map>
 #include "Widgets.h"
 
@@ -54,7 +55,15 @@ private:
         std::unique_ptr<PixButton> cycle;                  // (many choices: one button, a menu)
     };
     std::vector<Row> rows;
-    struct Box { juce::String title; std::vector<int> rowIndex; juce::Rectangle<float> area; int page = 0; };
+    struct Box { juce::String title; std::vector<int> rowIndex; juce::Rectangle<float> area; int page = 0; juce::String key; };
+    // (v0.81) tabs of the synth's own: a section "TAB>BOX" puts the box on tab TAB ("LAYER A|A": its name, and a short
+    // one for a narrow window) - pages 10, 11, ... in the order the tabs first come
+    std::vector<std::unique_ptr<PixButton>> genTabs;
+    std::vector<std::pair<juce::String, juce::String>> genTabNames;
+  public:
+    int tabCount() const { return (int) genTabNames.size(); }                 // (tests)
+    PixButton* tabButton (int k) { return k >= 0 && k < (int) genTabs.size() ? genTabs[(size_t) k].get() : nullptr; }
+  private:
     std::vector<Box> boxes;
     PixButton playBtn { juce::String::charToString ((juce::juce_wchar) 1) + " HOLD TO PLAY" }, optionsBtn { "OUTPUT & KNOBS..." }, closeBtn { "CLOSE" };
   public:
