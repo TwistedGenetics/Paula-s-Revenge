@@ -50,6 +50,7 @@ public:
     void setParameter (int index, float value01) override;
     void render (float* left, float* right, int numSamples) override;
     void update (const Instrument&) override;
+    void lineVolume (int cxx) override { lineVol = cxx; }
     void setValues (const std::vector<float>& v);   // (tests)
     // (tests)
     bool  sounding() const { return ampEnv > 1.0e-5f || gate; }
@@ -57,9 +58,11 @@ public:
     float cutoffNow() const { return cutoffHz; }
     float sweepNow() const { return sweep; }
     int   attacks() const { return attackCount; }    // notes that started their envelopes (a slide doesn't)
+    int   accents() const { return accentCount; }    // notes that were accented
 
 private:
-    struct Event { int offset; int type; int note; int vel; };
+    struct Event { int offset; int type; int note; int vel; int line = -1; };
+    int lineVol = -1;   // (v0.86) the next notes' line: a Cxx (1), none (0), played live (-1)
     std::vector<Event> events;
     std::array<float, acid::Count> p {};
     std::vector<uint8_t> lastState;
@@ -71,6 +74,7 @@ private:
     float pitch = 48, target = 48;    // semitones (MIDI)
     float vel = 1;
     bool accented = false;
+    int accentCount = 0;
     double ph = 0, subPh = 0;
     float meg = 0, megDecay = 0;      // the filter's envelope
     float accEnv = 0, sweep = 0;      // the accent's envelope, and the sweep it charges
@@ -84,7 +88,7 @@ private:
     long long sampleNow = 0, lastOffAt = -1;   // (a note-off and a note-on at the same sample: TIED)
     int attackCount = 0;
     void handle (const Event&);
-    void startNote (int note, int velocity, bool slide);
+    void startNote (int note, int velocity, bool slide, int line = -1);
     void releaseGate();
 };
 } // namespace prv

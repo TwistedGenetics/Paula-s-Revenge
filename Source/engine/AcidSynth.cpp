@@ -113,7 +113,7 @@ void AcidSynth::setParameter (int i, float v01)
     if (i >= 0 && i < (int) ps.size()) p[(size_t) i] = ps[(size_t) i].toValue (v01);
 }
 
-void AcidSynth::noteOn (int note, int vel, int offset) { if (events.size() < 1024) events.push_back ({ offset, vel > 0 ? 0 : 1, note, vel }); }
+void AcidSynth::noteOn (int note, int vel, int offset) { if (events.size() < 1024) events.push_back ({ offset, vel > 0 ? 0 : 1, note, vel, lineVol }); }
 void AcidSynth::noteOff (int note, int offset)         { if (events.size() < 1024) events.push_back ({ offset, 1, note, 0 }); }
 void AcidSynth::allNotesOff (int offset)               { if (events.size() < 1024) events.push_back ({ offset, 2, 0, 0 }); }
 void AcidSynth::pitchBend (int v, int offset)          { if (events.size() < 1024) events.push_back ({ offset, 3, v, 0 }); }
@@ -126,21 +126,26 @@ void AcidSynth::releaseGate()
     lastOffAt = sampleNow;
 }
 
-void AcidSynth::startNote (int note, int velocity, bool slide)
+void AcidSynth::startNote (int note, int velocity, bool slide, int line)
 {
     key = note;
     target = (float) note;
     vel = std::clamp (velocity, 1, 127) / 127.0f;
-    const bool acc = velocity >= (int) std::lround (p[acid::AccentAt] * 127.0f / 64.0f);
+    // ACCENT: in a song, a Cxx at ACCENT FROM or louder on the note's own line (a plain note plays at full velocity, so
+    // velocity alone would accent them all); played live, how hard
+    const bool acc = line != 0 && velocity >= (int) std::lround (p[acid::AccentAt] * 127.0f / 64.0f);
     if (slide && ampEnv > 1.0e-4f)
     {
-        // SLIDE: the pitch glides there; the envelopes carry on (as a 303's slide step)
+        // SLIDE: the pitch glides there; the envelopes carry on (as a 303's slide step) - an accent on it still hits
         gate = true;
         if (ampStage == 3) ampStage = 2;
+        accented = acc;
+        if (acc) { accEnv = 1.0f; ++accentCount; }
         return;
     }
     pitch = target;
     accented = acc;
+    if (acc) ++accentCount;
     meg = 1.0f;
     megDecay = fallIn (acc ? p[acid::AccentDecay] : p[acid::Decay], sr);
     if (acc) accEnv = 1.0f;
@@ -161,7 +166,7 @@ void AcidSynth::handle (const Event& e)
             const bool tiedNow = tied && ! gate && lastOffAt == sampleNow;   // (the last note ran right into this one)
             held.erase (std::remove (held.begin(), held.end(), e.note), held.end());
             held.push_back (e.note);
-            startNote (e.note, e.vel, overlap || tiedNow);
+            startNote (e.note, e.vel, overlap || tiedNow, e.line);
             break;
         }
         case 1:

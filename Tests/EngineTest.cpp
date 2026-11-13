@@ -4945,7 +4945,7 @@ static void testAcidSynth()
         std::printf ("presets out of range: %d; flat out: peak %.3f\n", bad, pk);
         CHECK (bad == 0 && ok && pk < 2.0f);
     }
-    // a song's ACID instrument: VOL 30 (a plain note), so C40 is the accent
+    // a song's ACID instrument starts at VOL 30 (its level); the accent itself comes from a Cxx on the note's line (below)
     {
         Instrument in; makeBuiltin (in, kAcidKey);
         CHECK (in.pluginName == "ACID" && in.volume == 0x30 && builtinDefaults (kAcidKey).size() == (size_t) Count);
@@ -4953,6 +4953,33 @@ static void testAcidSynth()
         const int at = (int) std::lround (def[AccentAt] * 127.0f / 64.0f);
         CHECK (vel < at && 127 >= at);
     }
+    // (v0.86) in the song: C40 beside a note accents it - one note after another (no OFF between), either SLIDE mode,
+    // C40 in either command column
+    for (int mode = 0; mode < 2; ++mode)
+        for (int col = 0; col < 2; ++col)
+        {
+            Song s = makeSong();
+            makeBuiltin (s.instruments[4], kAcidKey);
+            auto v = readBuiltinState (s.instruments[4]); v[SlideMode] = (float) mode; writeBuiltinState (s.instruments[4], v);
+            s.blocks[0] = Block {}; s.blocks[0].lines = 16;
+            for (int l = 0; l < 16; l += 2) s.blocks[0].at (l, 0) = Cell { (uint8_t) (13 + (l % 4)), 5, 0, 0 };
+            for (int l : { 4, 10 })
+            {
+                auto& c = s.blocks[0].at (l, 0);
+                if (col == 0) { c.cmd = 0xC; c.param = 0x40; } else { c.cmd2 = 0xC; c.param2 = 0x40; }
+            }
+            s.sequence = { 0 };
+            Player pl; pl.setSampleRate (48000); pl.setSong (&s);
+            pl.synths().factory = [] (int, const Instrument& in, double sr) { return createBuiltinSynth (in, sr); };
+            pl.synths().syncNow (s, 48000);
+            pl.playSong (0);
+            std::vector<float> L (48000 * 2), R (L.size());
+            for (size_t a0 = 0; a0 < L.size(); a0 += 480) pl.render (L.data() + a0, R.data() + a0, 480);
+            auto* ac = dynamic_cast<AcidSynth*> (pl.synths().at (4));
+            std::printf ("in the song, SLIDE %s, C40 in column %d: %d notes started, %d accented\n", mode == 0 ? "OVERLAP" : "TIED", col + 1,
+                         ac ? ac->attacks() : -1, ac ? ac->accents() : -1);
+            CHECK (ac != nullptr && ac->accents() == 2);
+        }
 }
 
 // (v0.81) PAD: four layers - each with its own keys, velocity zone, start delay - unison, the main filter, SPACE

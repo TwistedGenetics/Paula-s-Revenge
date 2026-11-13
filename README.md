@@ -920,7 +920,7 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 * **OSCILLATOR**: **SAW / SQUARE**, **TUNE**, **FINE**, **SHAPE** (the square's width), **SUB** (a square an octave down, for weight - not a 303's, but handy).
 * **FILTER**: **CUTOFF**, **RESONANCE** (all the way up it whistles on its own), **ENV MOD** (how far the envelope opens it).
-* **ENVELOPE + ACCENT**: **DECAY** (the filter envelope on a plain note), **ACCENT** (how much harder an accented note hits - brighter and louder), **ACCENT FROM**: how loud a note has to be to be accented, as a pattern's volume command. An ACID instrument's **VOL starts at 48 (C30)**, so plain notes aren't accented and a note with **C40** is (ACCENT FROM is C38).
+* **ENVELOPE + ACCENT**: **DECAY** (the filter envelope on a plain note), **ACCENT** (how much harder an accented note hits - brighter and louder), **ACCENT FROM**: to accent a note, put a volume command this loud or louder **on the note's own line** - **C40** (ACCENT FROM is C38). Notes without one aren't accented. It works in either command column, and on a sliding note too (the slide carries on, the accent still hits). Played from the keyboard, notes are accented by how hard you play.
 * **OUTPUT**: **VELOCITY** (how much quieter soft notes are - 0, as a 303), **LEVEL**.
 
 **DEVIL FISH** tab:

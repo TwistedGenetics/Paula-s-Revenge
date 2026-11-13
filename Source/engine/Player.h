@@ -271,6 +271,7 @@ private:
         Cell   microCell; long long microDelay = -1; bool earlyDone = false;  // Mxx
         // a plug-in instrument's note on this track
         int    synthNote = -1, synthInstr = -1, synthVel = 100, lastBend = 8192;
+        int    synthLineVol = 0;   // (v0.86) the note's line had a Cxx (1) or not (0) - ACID's accent
         int    synthChord[kMaxChordNotes] { -1, -1, -1, -1, -1, -1, -1, -1 };   // CHORD: the notes of slot xy
         bool   synthRootOn = true;                 // (a chord without +0 doesn't sound the played note)
         bool   chordLine = false;                  // 0xy on this line made a chord (no arpeggio)

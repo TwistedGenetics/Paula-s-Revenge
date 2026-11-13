@@ -176,6 +176,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
     if (cell.cmd == 0xC) vol = std::min ((int) cell.param, 64);
     else if (cell.cmd2 == 0xC) vol = std::min ((int) cell.param2, 64);
     v.synthVel = std::clamp ((int) std::lround (vol * 127.0 / 64.0), 1, 127);
+    v.synthLineVol = cell.cmd == 0xC || cell.cmd2 == 0xC ? 1 : 0;
     v.active = false;   // (no sample to play)
     auto* s = rack.at (v.instr);
     if (s == nullptr || (ch < kMaxTracks && mute[ch].load (std::memory_order_relaxed)) || ! instrumentIsOn (v.instr)) return;
@@ -214,6 +215,7 @@ void Player::synthTrigger (Voice& v, const Cell& cell, int ch)
         }
         v.chordLine = true;
     }
+    s->lineVolume (v.synthLineVol);
     if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int j = 0; j < kMaxChordNotes; ++j)
         if (v.synthChord[j] >= 0) s->noteOn (v.synthChord[j], v.synthVel, chunkPos);
@@ -229,6 +231,7 @@ void Player::synthRetrigger (Voice& v, int velocityChange)
     v.synthVel = std::clamp (v.synthVel + velocityChange, 1, 127);
     if (v.synthRootOn) s->noteOff (v.synthNote, chunkPos);
     for (int c : v.synthChord) if (c >= 0) s->noteOff (c, chunkPos);
+    s->lineVolume (v.synthLineVol);
     if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
     for (int c : v.synthChord) if (c >= 0) s->noteOn (c, v.synthVel, chunkPos);
     ++synthOnSerial[v.synthInstr];
@@ -550,6 +553,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
             if (j.note < 0)
             {
                 j.note = note; j.instr = instrIndex; j.midi = midiNoteFor (note + in.transpose);
+                s->lineVolume (-1);
                 s->noteOn (j.midi, std::clamp (velocity127, 1, 127), chunkPos);
                 ++synthOnSerial[instrIndex]; synthShape[instrIndex].note = note + in.transpose;
                 return;
