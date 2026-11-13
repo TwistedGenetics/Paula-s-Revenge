@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.79</span>
+  <span class="ver">MANUAL &middot; V0.80</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -551,7 +551,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h2>INSTRUMENTS &amp; SAMPLES</h2>
   <div class="accent t2"></div>
   <h3>Loading, opening and naming an instrument</h3>
-  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
+  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
   <figure>
     <div class="frame sunken"><img src="img/load_kinds.png" alt="LOAD's question over the main screen: LOAD INTO INSTRUMENT 04: WHAT KIND? with SAMPLE, BUILT-IN SYNTH, VST3 / AU SYNTH, SAVED INSTRUMENT, MIDI OUT, CV OUT, RECORD AUDIO and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>LOAD asks what kind of instrument first</figcaption>
@@ -1015,6 +1015,22 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><b>MORPH FILTER:</b> MODEL (the effect's 12), MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH. <b>MORPH ENV:</b> AMOUNT &plusmn; and its ADSR. <b>MORPH LFO:</b> RATE, DEPTH.</li>
     <li>On <span class="b">AMP + SPACE</span>: the amp ENVELOPE, CHORD, OCTAVE, CHORUS, ECHO, VELOCITY and LEVEL. Up to 16 notes.</li>
   </ul>
+  <h3>The built-in ACID synth (303 + Devil Fish)</h3>
+  <p><b>ACID</b> is a 303-style bass line synth with the <b>Devil Fish</b> mods &mdash; our own model of the sound. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ACID. One note at a time: a saw or square into a resonant low-pass, with the envelope and <b>ACCENT</b> that make it squelch and <b>SLIDE</b> between notes. Two tabs: <span class="b">303</span> and <span class="b">DEVIL FISH</span>; <b>PRESETS...</b> has ten sounds.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/acid_303.png" alt="ACID's 303 tab: OSCILLATOR (SAW / SQUARE, TUNE, FINE, SHAPE, SUB), FILTER (CUTOFF 380HZ, RESONANCE 72%, ENV MOD 55%), ENVELOPE + ACCENT (DECAY 350MS, ACCENT 65%, ACCENT FROM C38) and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <figcaption>ACID's 303 tab: the original's knobs</figcaption>
+  </figure>
+  <ul>
+    <li><b>Accents:</b> a note at <b>ACCENT FROM</b> (C38) or louder is accented &mdash; brighter and harder. An ACID instrument's VOL starts at 48 (C30), so write <code>C40</code> on the notes to accent.</li>
+    <li><b>Slides:</b> <b>OVERLAP (KEYS)</b> slides a note played while the last is held. <b>TIED NOTES</b> also slides, in the pattern, a note that runs straight into the next one with <b>no OFF</b> between, with no new envelope &mdash; a 303's slide step. Put an OFF where a note should play fresh. <b>3xx</b> works too.</li>
+    <li><b>303:</b> SAW / SQUARE, TUNE, FINE, SHAPE, SUB &middot; CUTOFF, RESONANCE (to self-oscillation), ENV MOD &middot; DECAY, ACCENT, ACCENT FROM &middot; VELOCITY, LEVEL.</li>
+    <li><b>DEVIL FISH:</b> ACC DECAY (the accent's own decay), ATTACK (a soft attack on plain notes), SWEEP (slow: a run of accents builds up), AMP DECAY (5.00S holds), RELEASE &middot; TRACKING, FILTER FM, RES BASS &middot; slide TIME (10 ms - 1 s) &middot; the MUFFLER (OFF / SOFT / HARD) and DRIVE.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/acid_devilfish.png" alt="ACID's DEVIL FISH tab: DEVIL FISH ENVELOPES (ACC DECAY, ATTACK, SWEEP, AMP DECAY, RELEASE), DEVIL FISH FILTER (TRACKING, FILTER FM, RES BASS), SLIDE (TIME, OVERLAP (KEYS) / TIED NOTES) and MUFFLER + DRIVE (OFF / SOFT / HARD, DRIVE)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The Devil Fish mods: their own tab</figcaption>
+  </figure>
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
@@ -1458,7 +1474,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.79</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.80</footer>
 </main>
 </div>
 <script>

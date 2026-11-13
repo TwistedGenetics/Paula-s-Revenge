@@ -35,7 +35,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it, **double-click** it to open that block's pattern (from any page); **right-click > BLOCK NAME...** or `Cmd+R` names the block; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -66,7 +66,7 @@ Right-click almost anything for what you can do with it (a big-text list; `Esc` 
 
 | Where | What's there |
 |---|---|
-| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
+| Instrument list | COPY, PASTE, DUPLICATE TO NEXT FREE, CLEAR (or the Delete key), RENAME, SAVE INSTRUMENT..., LOAD INSTRUMENT..., CHOP TO PHRASE..., LOAD SAMPLE, LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR), LOAD A VST / AU SYNTH, MIDI OUT TO HARDWARE, CV OUT TO A MODULAR, SAMPLE (RECORD AUDIO), PLAY C-3 (Alt+click still plays it) |
 | Sequence list | COPY, CUT, PASTE, DUPLICATE, DELETE, INSERT THE SAME BLOCK, INSERT A NEW BLOCK, CLONE IN PLACE, SECTION NAME, BLOCK NAME |
 | Block panel (its background) | COPY / CUT / PASTE BLOCK, CLEAR BLOCK, DUPLICATE, NEW, DELETE, DOUBLE / HALVE LENGTH |
 | Pattern, note column | COPY / CUT / PASTE TRACK, CLEAR THIS LINE, INSERT A LINE, DELETE THE LINE, EFFECT COMMANDS, VU METER COLOUR, SPECTRUM COLOUR |
@@ -786,9 +786,9 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
 
-## Built-in synths: SUB, REESE, RAVE, ROM, MORPH and GRANULAR
+## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID and GRANULAR
 
-**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds, MORPH's six, ACID's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
 ### SUB
 
@@ -873,6 +873,26 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 * **MORPH FILTER**: **MODEL** (the same 12 as the effect), **MORPH**, **FREQ** (semitones), **EMPHASIS**, **KEY TRACK** (the filter follows the notes: 100% = all the way), **VEL>MORPH** (harder notes further along, or back).
 * **MORPH ENV**: **AMOUNT** (± how far it moves MORPH), ATTACK, DECAY, SUSTAIN, RELEASE. **MORPH LFO**: **RATE**, **DEPTH**.
 * **ENVELOPE** (the amp), **SOUND** (CHORD, OCTAVE), **SPACE** (CHORUS, ECHO, ECHO TIME), **OUTPUT** (VELOCITY, LEVEL). Up to 16 notes.
+
+### ACID
+
+**ACID** is a 303-style bass line synth with the **Devil Fish** mods - our own model of the sound, not a copy of any circuit. LOAD → **BUILT-IN SYNTH** → ACID. One voice (a bass line plays one note at a time): a saw or square into a resonant low-pass whose envelope and **ACCENT** give the squelch, and **SLIDE** between notes. Its page has two tabs: **303** (the original's controls) and **DEVIL FISH** (the mods).
+
+**303** tab:
+
+* **OSCILLATOR**: **SAW / SQUARE**, **TUNE**, **FINE**, **SHAPE** (the square's width), **SUB** (a square an octave down, for weight - not a 303's, but handy).
+* **FILTER**: **CUTOFF**, **RESONANCE** (all the way up it whistles on its own), **ENV MOD** (how far the envelope opens it).
+* **ENVELOPE + ACCENT**: **DECAY** (the filter envelope on a plain note), **ACCENT** (how much harder an accented note hits - brighter and louder), **ACCENT FROM**: how loud a note has to be to be accented, as a pattern's volume command. An ACID instrument's **VOL starts at 48 (C30)**, so plain notes aren't accented and a note with **C40** is (ACCENT FROM is C38).
+* **OUTPUT**: **VELOCITY** (how much quieter soft notes are - 0, as a 303), **LEVEL**.
+
+**DEVIL FISH** tab:
+
+* **DEVIL FISH ENVELOPES**: **ACC DECAY** (the accented notes' own filter decay - a 303's was fixed), **ATTACK** (a soft attack on plain notes, 0.3-30 ms; accents always hit at once), **SWEEP** (the accent sweep: down, a run of accents builds up, each one brighter than the last; up, every accent the same), **AMP DECAY** (the amp's own decay - all the way up, 5.00S, it holds while the note does), **RELEASE**.
+* **DEVIL FISH FILTER**: **TRACKING** (the cutoff follows the notes), **FILTER FM** (the output back into the cutoff, at audio rate - growl and grit), **RES BASS** (how much of the low end survives a high resonance).
+* **SLIDE**: **TIME** (how long a slide takes, 10 ms - 1 s; a 303's was about 60 ms) and which notes slide: **OVERLAP (KEYS)** - a note played while the last is still held (on the keys or MIDI) - or **TIED NOTES**: in the pattern, a note that runs straight into the next one, **with no OFF between**, slides into it with no new envelope (a 303's slide step). Put an OFF (or leave a gap) where a note should play fresh. The tracker's **3xx** slide works too, as on any synth.
+* **MUFFLER + DRIVE**: the **MUFFLER** - **OFF / SOFT / HARD** - clips the output, softly or hard; **DRIVE** pushes into it.
+
+**PRESETS...** has ten to start from: CLASSIC, SQUELCH, RUBBER BASS, SQUARE ACID, DEVIL SCREAM, SLOW SWEEP, MUFFLED SUB, SELF-OSC BLEEP, TIED SLIDES and HARDCORE ACID.
 
 ### GRANULAR
 

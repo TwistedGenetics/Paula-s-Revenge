@@ -484,7 +484,8 @@ void EnginePage::build()
                              || (reesePage && (sec == "HOOVER" || sec == "FILTER" || sec == "WOBBLE" || sec == "DRIVE"))
                              || (shownKey == kSubKey && (sec == "OSC 2" || sec == "808 DROP" || sec == "DRIVE"))   // (when SUB needs two pages)
                              || (shownKey == kRomKey && ! sec.startsWith ("TONE ") && sec != "MORPH FILTER")   // (ROM: its TONES, then the rest; MORPH FILTER a page of its own)
-                             || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"));
+                             || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"))
+                             || (shownKey == kAcidKey && (sec.startsWith ("DEVIL FISH") || sec == "SLIDE" || sec == "MUFFLER + DRIVE"));   // (ACID: the 303, then the Devil Fish)
             boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : shownKey == kRomKey && sec == "MORPH FILTER" ? 3 : second ? 1 : 0 });
             box = boxes.end() - 1;
         }
@@ -759,16 +760,16 @@ void EnginePage::resized()
 
     // GRANULAR: the sound it reads (with its SOURCE box beside it) across the top, then its controls on two pages
     waveArea = {};
-    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages);
+    const bool paged = shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged);
     pageBtn[2].setVisible (paged && shownKey == kRomKey);
     loadSampleBtn.setVisible (shownKey == kGrainKey);
-    if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || (shownKey == kSubKey && subPages))
+    if (shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages))
     {
         // REESE, ROM (and SUB when it needs them): the two pages' tabs on a line of their own
-        const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey, mp = shownKey == kMorphKey;
-        pageBtn[0].setButtonText (romP ? "TONES" : mp ? "MORPH" : "SOUND");
-        pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : mp ? "AMP + SPACE" : "HOOVER + FILTER");
+        const bool sub = shownKey == kSubKey, romP = shownKey == kRomKey, mp = shownKey == kMorphKey, ac = shownKey == kAcidKey;
+        pageBtn[0].setButtonText (romP ? "TONES" : mp ? "MORPH" : ac ? "303" : "SOUND");
+        pageBtn[1].setButtonText (sub ? "OSC 2 + DRIVE" : romP ? "SOUND + FILTER" : mp ? "AMP + SPACE" : ac ? "DEVIL FISH" : "HOOVER + FILTER");
         auto tabs = r.removeFromTop (rowH); r.removeFromTop (gap * 2);
         if (romP)
         {
@@ -945,7 +946,8 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kReeseKey ? " - REESE / HOOVER BASS"
                             : inst().pluginKey == kRaveKey ? " - JUNGLE KEYS"
                             : inst().pluginKey == kRomKey ? " - ROMPLER"
-                            : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS" : "";
+                            : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS"
+                            : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }

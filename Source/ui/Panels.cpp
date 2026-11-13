@@ -1433,7 +1433,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
             } },
         { "LOAD INSTRUMENT...", [safe, r] { if (safe != nullptr) safe->showLoadInstrument (r); } },
         { "LOAD SAMPLE...", [safe] { if (safe != nullptr) { if (safe->openBrowser) safe->openBrowser(); else safe->loadSample(); } } },
-        { "LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
+        { "LOAD A BUILT-IN SYNTH (SUB, REESE, RAVE, ROM, MORPH, ACID, GRANULAR)...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (4); } } },
         { "LOAD A VST / AU SYNTH...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (1); } } },
         { "MIDI OUT TO HARDWARE...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (2); } } },
         { "CV OUT TO A MODULAR...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (3); } } },

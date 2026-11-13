@@ -9,6 +9,7 @@
 #include "engine/RomBank.h"
 #include "engine/MorphFilter.h"
 #include "engine/MorphSynth.h"
+#include "engine/AcidSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
 #include "engine/GearMaps.h"
@@ -4849,12 +4850,116 @@ static void testMorphFilter()
 }
 
 // ---- MORPH (v0.78): the morphing-filter synth
+// (v0.80) ACID: a 303 bass line with the Devil Fish mods - accent, slide (overlap and tied), the sweep, release
+static void testAcidSynth()
+{
+    std::printf ("\n== ACID (303 + DEVIL FISH)\n");
+    using namespace acid;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto run = [&] (AcidSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (float x : L) { if (peak) *peak = std::max (*peak, std::abs (x)); if (ok) *ok = *ok && std::isfinite (x); }
+        }
+    };
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<AcidSynth>(); a->prepare (sr, 512); a->setValues (v); return a; };
+    const auto def = acidPreset (0);
+    // a plain note, and an accented one: brighter and louder
+    {
+        auto a = fresh (def); float pk = 0; bool ok = true;
+        float cut = 0, cutA = 0;
+        a->noteOn (36, 95, 0);
+        for (int k = 0; k < 6; ++k) { a->render (L.data(), R.data(), 480); cut = std::max (cut, a->cutoffNow()); }
+        run (*a, 20, &pk, &ok);
+        auto b = fresh (def); float pkA = 0;
+        b->noteOn (36, 127, 0);
+        for (int k = 0; k < 6; ++k) { b->render (L.data(), R.data(), 480); cutA = std::max (cutA, b->cutoffNow()); }
+        run (*b, 20, &pkA, &ok);
+        std::printf ("plain note: cutoff %.0f Hz, peak %.3f; accented: %.0f Hz, %.3f\n", cut, pk, cutA, pkA);
+        CHECK (ok && pk > 0.05f && pk < 2.0f && cutA > cut * 1.3f && pkA > pk);
+        // let go: it stops
+        a->noteOff (36, 0); run (*a, 50);
+        float tail = 0; run (*a, 5, &tail);
+        CHECK (! a->sounding() && tail < 1.0e-3f);
+    }
+    // SLIDE by overlap: one attack, the pitch glides (not jumps) to the new note
+    {
+        auto a = fresh (def);
+        a->noteOn (36, 95, 0); run (*a, 10);
+        a->noteOn (48, 95, 0); a->render (L.data(), R.data(), 48);
+        const float mid = a->pitchNow();
+        run (*a, 30);
+        std::printf ("overlap slide 36 > 48: %.2f after 1 ms, %.2f after 300 ms, %d attack(s)\n", mid, a->pitchNow(), a->attacks());
+        CHECK (a->attacks() == 1 && mid > 36.0f && mid < 47.0f && std::abs (a->pitchNow() - 48.0f) < 0.05f);
+        // the second key up: back to the first, still sliding, still one attack
+        a->noteOff (48, 0); run (*a, 30);
+        CHECK (a->attacks() == 1 && std::abs (a->pitchNow() - 36.0f) < 0.05f);
+    }
+    // SLIDE: TIED NOTES - a note-off and a note-on at the same moment (a pattern's back-to-back notes) slide;
+    // in OVERLAP mode the same notes play fresh; and a gap (an OFF earlier) plays fresh in either
+    {
+        auto v = def; v[SlideMode] = Tied;
+        auto a = fresh (v);
+        a->noteOn (36, 95, 0); run (*a, 10);
+        a->noteOff (36, 100); a->noteOn (43, 95, 100); run (*a, 10);
+        auto b = fresh (def);
+        b->noteOn (36, 95, 0); run (*b, 10);
+        b->noteOff (36, 100); b->noteOn (43, 95, 100); run (*b, 10);
+        a->noteOff (43, 0); run (*a, 2); a->noteOn (45, 95, 0); run (*a, 2);
+        std::printf ("tied: %d attacks (2 expected: the slide, then a fresh note after a gap); overlap mode: %d\n", a->attacks(), b->attacks());
+        CHECK (a->attacks() == 2 && b->attacks() == 2);
+    }
+    // the accent SWEEP: a run of accents builds it up when it's slow
+    {
+        auto v = def; v[SweepSpeed] = 0; v[AccentDecay] = 200;
+        auto a = fresh (v);
+        float first = 0, last = 0;
+        for (int n = 0; n < 6; ++n)
+        {
+            a->noteOn (36, 127, 0);
+            float top = 0;
+            for (int b = 0; b < 12; ++b) { a->render (L.data(), R.data(), 480); top = std::max (top, a->sweepNow()); }
+            a->noteOff (36, 0);
+            if (n == 0) first = top;
+            last = top;
+        }
+        std::printf ("accent sweep (slow): %.3f after one accent, %.3f after six\n", first, last);
+        CHECK (last > first * 1.5f);
+    }
+    // every preset plays, finite and in range; the extremes too (self-oscillating, muffler hard, FM)
+    {
+        int bad = 0;
+        for (int i = 0; i < kAcidPresets; ++i)
+        {
+            auto a = fresh (acidPreset (i)); float pk = 0; bool ok = true;
+            for (int n : { 36, 39, 43, 48 }) { a->noteOn (n, n == 43 ? 127 : 95, 0); run (*a, 12, &pk, &ok); a->noteOff (n, 0); run (*a, 3, &pk, &ok); }
+            if (! ok || pk < 0.02f || pk > 2.0f) { ++bad; std::printf ("  %s: peak %.3f %s\n", acidPresetName (i), pk, ok ? "" : "NOT FINITE"); }
+        }
+        auto v = def; v[Resonance] = 100; v[FilterFm] = 100; v[Muffler] = 2; v[Drive] = 100; v[Cutoff] = 8000; v[EnvMod] = 100; v[Accent] = 100;
+        auto a = fresh (v); float pk = 0; bool ok = true;
+        a->noteOn (24, 127, 0); run (*a, 100, &pk, &ok);
+        std::printf ("presets out of range: %d; flat out: peak %.3f\n", bad, pk);
+        CHECK (bad == 0 && ok && pk < 2.0f);
+    }
+    // a song's ACID instrument: VOL 30 (a plain note), so C40 is the accent
+    {
+        Instrument in; makeBuiltin (in, kAcidKey);
+        CHECK (in.pluginName == "ACID" && in.volume == 0x30 && builtinDefaults (kAcidKey).size() == (size_t) Count);
+        const int vel = (int) std::lround (0x30 * 127.0 / 64.0);
+        const int at = (int) std::lround (def[AccentAt] * 127.0f / 64.0f);
+        CHECK (vel < at && 127 >= at);
+    }
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
 {
     std::printf ("\n== NO STUCK NOTES\n");
-    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey };
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey };
     std::mt19937 rng (79);
     std::uniform_real_distribution<float> u (0, 1);
     int stuck = 0;
@@ -4891,7 +4996,7 @@ static void testNoStuckNotes()
             for (int blk = 0; blk < 10; ++blk) { std::fill (L.begin(), L.end(), 0.0f); s->render (L.data(), R.data(), 512); for (float x : L) tail = std::max (tail, std::abs (x)); }
             if (! (tail < 0.001f)) { ++stuck; std::printf ("%s (try %d): still sounding %.4f\n", key, trial, tail); }
         }
-    std::printf ("stuck: %d of 24\n", stuck);
+    std::printf ("stuck: %d of 28\n", stuck);
     CHECK (stuck == 0);
 }
 
@@ -6437,6 +6542,7 @@ int main()
     testMorphFilter();
     testMorphSynth();
     testNoStuckNotes();
+    testAcidSynth();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

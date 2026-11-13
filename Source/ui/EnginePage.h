@@ -9,6 +9,7 @@
 #include "../engine/RaveSynth.h"
 #include "../engine/RomSynth.h"
 #include "../engine/MorphSynth.h"
+#include "../engine/AcidSynth.h"
 #include <map>
 #include "Widgets.h"
 
