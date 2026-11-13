@@ -111,6 +111,11 @@ private:
     juce::Rectangle<float> waveArea;
     // (GRANULAR has more than fits at once: its controls on two pages)
     PixButton loadSampleBtn { "LOAD SAMPLE..." };
+  public:
+    // (v0.85) PAD: each layer's SAMPLE box starts with LOAD SAMPLE... - the sample browser, for that layer
+    PixButton padLoadBtn[4] { PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE...") };
+    std::function<void (int layer)> onLoadPadSample;
+  private:
     std::unique_ptr<juce::FileChooser> chooser;
     void updateToneButtons();
     PixButton pageBtn[3] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true), PixButton ("MORPH", true) };   // (the third: ROM's MORPH FILTER, page 3)

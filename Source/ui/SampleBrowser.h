@@ -15,6 +15,7 @@ public:
     ~SampleBrowser() override;
 
     std::function<void()> onLoaded;   // a sample went into the current instrument
+    int padLayer = -1;                // (v0.85) >= 0: the sample goes into this PAD layer (its SAMPLE wave), not over the instrument
     std::function<void()> onClose;
     std::function<void (const juce::String&)> onStatus;
 

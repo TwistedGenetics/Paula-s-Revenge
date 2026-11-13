@@ -934,11 +934,11 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 ### PAD
 
-**PAD** is a layered pad synth: **four layers**, each a whole sound of its own, played together on every note. LOAD → **BUILT-IN SYNTH** → PAD. Up to 12 notes at once. Its page has seven tabs: **LAYER A**, **LAYER B**, **LAYER C**, **LAYER D**, **MIX**, **MOD** and **SPACE** (in a narrow window the layer tabs are just **A B C D**).
+**PAD** is a layered pad synth: **four layers**, each a whole sound of its own, played together on every note. LOAD → **BUILT-IN SYNTH** → PAD. Up to 12 notes at once. Its page has eight tabs: **LAYER A**, **LAYER B**, **LAYER C**, **LAYER D**, **MIX**, **MOD**, **SPACE** and **SAMPLES** (the layer tabs are just **A B C D** when they don't all fit).
 
 Each **LAYER** tab:
 
-* **SOURCE**: the layer **OFF / ON**; **WAVE** - **SAW**, **SQUARE**, **PWM** (a square whose width moves slowly), **TRI**, **SINE**, **ORGAN** (drawbars), **VOX** (a sung "ah"), **GLASS** (an FM bell, brighter as it starts), **NOISE**, **AIR** (breath, tuned to the note); **OCTAVE**, **TUNE** (semitones, to stack fifths and octaves), **FINE**.
+* **SOURCE**: the layer **OFF / ON**; **WAVE** - **SAW**, **SQUARE**, **PWM** (a square whose width moves slowly), **TRI**, **SINE**, **ORGAN** (drawbars), **VOX** (a sung "ah"), **GLASS** (an FM bell, brighter as it starts), **NOISE**, **AIR** (breath, tuned to the note), **SAMPLE** (a sample of your own - see SAMPLES below); **OCTAVE**, **TUNE** (semitones, to stack fifths and octaves), **FINE**. **LOAD SAMPLE...** (at the top of the box) loads a sample into the layer.
 * **UNISON**: **VOICES** (1-7 copies of the wave), **DETUNE** (how far apart, cents), **SPREAD** (how wide across the stereo), **DRIFT** (each copy wanders a little on its own, like an old analog).
 * **FILTER**: the layer's own - **OFF / LOW / BAND / HIGH**, **CUTOFF**, **RES**, **ENV>CUT** (± - its envelope opens or closes it).
 * **ENVELOPE**: the layer's own **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**, and **DELAY**: how long after the note the layer starts - so a bell can strike and a pad swell in after it.
@@ -955,6 +955,15 @@ Each **LAYER** tab:
 * **LFO 1** and **LFO 2**: **SHAPE** (SINE, TRI, SAW, SQUARE, S&H), **RATE**, **DEPTH** and **TARGET**: **CUTOFF**, **PITCH** (vibrato), **LEVEL** (tremolo), **PAN** (auto-pan), **A<>B** (fades between layers A and B), **C<>D**, or **WIDTH**.
 
 **SPACE**: **CHORUS** (and its **RATE**), **ECHO** (**TIME**, **FEEDBACK** - a ping-pong), **REVERB** (**SIZE**, **TONE**), and the **OUTPUT**: **GLIDE**, **VEL SENS**, **WIDTH** (0 mono, 100 as it is, up to 150 wider), **LEVEL**.
+
+**SAMPLES** - any layer can play a sample (a choir, strings, a vocal, a texture from a record) with everything a layer has - unison, its filter and envelope, a key split or velocity layer - under or over the synth layers:
+
+* **LOAD SAMPLE...** (on each layer's tab, and on SAMPLES): the sample browser opens, just as for any instrument - click a sample to hear it (AUTO PLAY plays each one you pick), then **LOAD INTO** (or double-click). The layer's **WAVE** becomes **SAMPLE** and it plays it; the instrument stays PAD. The sample is kept in the PAD (in the song and a saved instrument). If another layer already plays the PAD's own sample, the new one goes into the next free instrument instead (and that layer's SAMPLE is its number), so both keep their sound - that one is in the song, but not in a saved PAD instrument. Undo takes it out again (two undos when it went into another instrument).
+* **SAMPLE**: **OWN** (the one loaded into the PAD) or any instrument's number - play another instrument's sample in a layer.
+* **ROOT**: the key that plays it at its own pitch (C-3, as everywhere in the tracker).
+* **START**: where in it every note starts (0-100%).
+* **LOOP**: **AUTO** - its own loop if it has one (from the WAV, or set in the sample editor), else the whole of it from START; **WHOLE** - always the whole; **ONE SHOT** - once through. **XFADE**: how much of the loop is crossfaded at the join, so a sample with no loop of its own still loops without a click.
+* A layer's SAMPLES box shows only LOAD SAMPLE... until it plays a sample; its title says which (`LAYER A: CHOIR AAH`).
 
 **PRESETS...**: WARM ANALOG, JUNGLE ATMOS, GLASS CHOIR, STRING ENSEMBLE, AIR PAD, ORGAN SWELL, PWM DREAM, BELL + PAD (a delayed layer), SPLIT BASS / PAD (a key split at C-3) and SOFT / HARD (velocity layers).
 

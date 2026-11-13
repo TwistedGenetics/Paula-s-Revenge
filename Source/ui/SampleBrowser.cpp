@@ -1,6 +1,7 @@
 // Paula's Revenge - sample browser that auditions files as you move through them
 #include "SampleBrowser.h"
 #include "../engine/BuiltinSynths.h"
+#include "../engine/PadSynth.h"
 #include "../SongFile.h"
 #include "../Prefs.h"
 
@@ -107,7 +108,9 @@ void SampleBrowser::opened()
 void SampleBrowser::updateLoadLabel()
 {
     loadBtn.setButtonText ("LOAD INTO " + juce::String::toHexString (proc.editorState.instrument + 1).toUpperCase().paddedLeft ('0', 2)
-                           + (proc.song.instruments[(size_t) proc.editorState.instrument].pluginKey == kGrainKey ? " (GRANULAR)" : ""));
+                           + (proc.song.instruments[(size_t) proc.editorState.instrument].pluginKey == kGrainKey ? " (GRANULAR)"
+                              : padLayer >= 0 && proc.song.instruments[(size_t) proc.editorState.instrument].pluginKey == kPadKey
+                                  ? " (PAD LAYER " + juce::String::charToString ((juce::juce_wchar) ('A' + padLayer)) + ")" : ""));
 }
 
 void SampleBrowser::setDirectory (const juce::File& d)
@@ -263,6 +266,54 @@ bool SampleBrowser::loadSelected()
         });
         if (onStatus) onStatus ("LOADED " + e.file.getFileName().toUpperCase() + " INTO GRANULAR "
                                 + juce::String::toHexString (idx + 1).toUpperCase().paddedLeft ('0', 2) + " - ITS GRAINS COME FROM IT NOW");
+        if (onLoaded) onLoaded();
+        return true;
+    }
+    if (padLayer >= 0 && proc.song.instruments[(size_t) idx].pluginKey == kPadKey)
+    {
+        // PAD (v0.85): the layer plays the sample - its WAVE becomes SAMPLE. The sample goes into the PAD itself (it stays
+        // PAD; SAMPLE: OWN) - unless another layer already plays the PAD's own: then into the next free instrument, so
+        // that one keeps its sound (SAMPLE: that instrument's number)
+        const int l = juce::jlimit (0, pad::kLayers - 1, padLayer);
+        const auto layerName = juce::String::charToString ((juce::juce_wchar) ('A' + l));
+        const auto hex = [] (int i) { return juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2); };
+        const auto now = readBuiltinState (proc.song.instruments[(size_t) idx]);
+        bool ownTaken = false;
+        for (int o = 0; o < pad::kLayers; ++o)
+            if (o != l && std::lround (now[(size_t) pad::p (o, pad::Wave)]) == pad::Sample && std::lround (now[(size_t) pad::s (o, pad::SmpSlot)]) == 0
+                && ! proc.song.instruments[(size_t) idx].data.empty()) ownTaken = true;
+        int target = idx;
+        if (ownTaken)
+        {
+            target = -1;
+            for (int i = 0; i < kMaxInstruments && target < 0; ++i)
+            {
+                const auto& f = proc.song.instruments[(size_t) i];
+                if (i != idx && ! f.hasData() && ! f.isPlugin() && f.name.empty()) target = i;
+            }
+            if (target < 0) { if (onStatus) onStatus ("NO FREE INSTRUMENT SLOT FOR IT - ANOTHER LAYER PLAYS THE PAD'S OWN SAMPLE"); return false; }
+            proc.history.instrument (target, "LOAD SAMPLE FOR PAD LAYER " + layerName);
+            proc.withLock ([&] { proc.player.jamAllOff(); std::swap (proc.song.instruments[(size_t) target], in); });
+        }
+        proc.history.instrument (idx, "LOAD SAMPLE INTO PAD LAYER " + layerName);
+        proc.withLock ([&]
+        {
+            proc.player.jamAllOff();
+            auto& g = proc.song.instruments[(size_t) idx];
+            if (target == idx)
+            {
+                g.data = std::move (in.data); g.dataR = std::move (in.dataR);
+                g.rate = in.rate; g.natRate = in.natRate; g.playStart = 0; g.playEnd = 0;
+                g.loopStart = in.loopStart; g.loopLength = in.loopLength; g.slices.clear(); g.name = in.name;
+            }
+            auto v = readBuiltinState (g);
+            v[(size_t) pad::p (l, pad::On)] = 1; v[(size_t) pad::p (l, pad::Wave)] = (float) pad::Sample;
+            v[(size_t) pad::s (l, pad::SmpSlot)] = target == idx ? 0.0f : (float) (target + 1);
+            writeBuiltinState (g, v);
+        });
+        padLayer = -1;
+        if (onStatus) onStatus ("LOADED " + e.file.getFileName().toUpperCase() + (target == idx ? " INTO PAD " + hex (idx) : " INTO " + hex (target) + " FOR PAD " + hex (idx))
+                                + " - LAYER " + layerName + " PLAYS IT");
         if (onLoaded) onLoaded();
         return true;
     }

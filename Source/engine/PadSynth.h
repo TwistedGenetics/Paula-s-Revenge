@@ -30,8 +30,12 @@ namespace pad
              Lfo1Shape, Lfo1Rate, Lfo1Depth, Lfo1Target,
              Lfo2Shape, Lfo2Rate, Lfo2Depth, Lfo2Target,
              Chorus, ChorusRate, Echo, EchoTime, EchoFeedback, Reverb, ReverbSize, ReverbTone,
-             Glide, VelSens, Width, Level_, Count };
-    enum Wave { Saw = 0, Square, Pwm, Tri, Sine, Organ, Vox, Glass, Noise, Air, Waves };
+             Glide, VelSens, Width, Level_,
+             SampleBase, Count = SampleBase + kLayers * 5 };
+    // (v0.85) each layer's SAMPLE wave: which sample (0 = the PAD's own), its ROOT key, START, LOOP and XFADE
+    enum S { SmpSlot, SmpRoot, SmpStart, SmpLoop, SmpFade, PerSample };
+    inline int s (int layer, int what) { return SampleBase + layer * PerSample + what; }
+    enum Wave { Saw = 0, Square, Pwm, Tri, Sine, Organ, Vox, Glass, Noise, Air, Sample, Waves };
     enum Target { TCutoff = 0, TPitch, TLevel, TPan, TAB, TCD, TWidth };
     inline int p (int layer, int what) { return layer * PerLayer + what; }
 }
@@ -53,6 +57,8 @@ public:
     void setParameter (int index, float value01) override;
     void render (float* left, float* right, int numSamples) override;
     void update (const Instrument&) override;
+    void updateSong (const Song& s) override;
+    void setTestSample (std::vector<int16_t> mono, double rate, int loopStart = 0, int loopLength = 0);   // (tests: a sample without a song)
     void setValues (const std::vector<float>& v);   // (tests)
     int  voicesPlaying() const;                     // (tests)
     float layerLevel (int layer) const;             // (tests: how loud a layer is in the notes playing now)
@@ -71,6 +77,9 @@ private:
         float env = 0; int stage = 0;  // 1 attack, 2 decay, 3 sustain, 4 release, 0 done
         int delayLeft = 0;
         std::array<double, kUni> ph {}, ph2 {};
+        std::array<double, kUni> pos {};   // (SAMPLE: where each unison copy is reading)
+        std::array<bool, kUni> ended {};
+        std::array<double, kUni> sstep {};   // (SAMPLE: how far each copy moves a sample)
         std::array<float, kUni> drift {}, driftTo {};
         Svf fl, fr, f1, f2, f3;        // its filter (L, R), VOX's formants
         float noiseLp = 0;
@@ -101,6 +110,14 @@ private:
     double lfoPh[2] {};
     float lfoHold[2] {}, lfoVal[2] {};
     float lastPitch = -1;
+    // SAMPLE (v0.85): the song's samples (an instrument's own, or another's), read while rendering
+    const Song* song = nullptr;
+    const Instrument* me = nullptr;
+    int self = -1;
+    Instrument testSmp;   // (tests)
+    bool hasTestSmp = false;
+    struct Smp { const int16_t* l = nullptr; const int16_t* r = nullptr; int len = 0; double rate = 16574; int loopA = 0, loopB = 0; };
+    Smp sampleFor (int layer) const;
     struct Env { float a = 0.001f, d = 0.999f, s = 1, r = 0.999f; };   // (each envelope's steps for this block)
     Env layerEnv[pad::kLayers], filterEnv;
     // SPACE

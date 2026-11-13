@@ -84,6 +84,12 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     enginePage.onChanged = [this] { instruments.refresh(); };
     enginePage.onStatus = [this] (const juce::String& m) { setStatus (m); };
     enginePage.onLoadSample = [this] { openLoad (0); setStatus ("PICK A SAMPLE FOR GRANULAR - DOUBLE-CLICK OR LOAD INTO LOADS IT"); };
+    enginePage.onLoadPadSample = [this] (int l)
+    {
+        browser.padLayer = l;
+        openLoad (0);
+        setStatus ("PICK A SAMPLE FOR PAD LAYER " + juce::String::charToString ((juce::juce_wchar) ('A' + l)) + " - CLICK TO HEAR IT, DOUBLE-CLICK OR LOAD INTO LOADS IT");
+    };
     enginePage.onOptions = [this] { setView (View::Synth); };
     addChildComponent (enginePage);
     synthPage.onOpenBuiltin = [this] { setView (View::Engine); };
@@ -430,7 +436,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     prv::ui::Theme::markDarkPage (stemsPanel);
     addChildComponent (stemsPanel);
     browser.onLoaded = [this] { refreshAll(); setView (returnView); };
-    browser.onClose = [this] { setView (returnView); };
+    browser.onClose = [this] { browser.padLayer = -1; setView (returnView); };
     browser.onStatus = [this] (const juce::String& m) { setStatus (m); };
     addChildComponent (sampleEditor);
     addChildComponent (browser);

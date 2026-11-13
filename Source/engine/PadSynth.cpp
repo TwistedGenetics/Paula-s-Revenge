@@ -69,7 +69,7 @@ const std::vector<SynthParam>& padSynthParams()
     static const std::vector<SynthParam> ps = []
     {
         std::vector<SynthParam> v;
-        const char* waves = "SAW|SQUARE|PWM|TRI|SINE|ORGAN|VOX|GLASS|NOISE|AIR";
+        const char* waves = "SAW|SQUARE|PWM|TRI|SINE|ORGAN|VOX|GLASS|NOISE|AIR|SAMPLE";
         for (int l = 0; l < pad::kLayers; ++l)
         {
             const std::string L (1, (char) ('A' + l));
@@ -82,7 +82,7 @@ const std::vector<SynthParam>& padSynthParams()
             const char* lev = str ("4:MIX>LAYER " + L);
             const bool on = l < 2;
             v.push_back ({ "LAYER",     src, 0, 1, on ? 1.0f : 0.0f, 3, "", "OFF|ON" });
-            v.push_back ({ "WAVE",      src, 0, 9, l == 0 ? 0.0f : l == 1 ? 2.0f : l == 2 ? 7.0f : 9.0f, 3, "", waves });
+            v.push_back ({ "WAVE",      src, 0, 10, l == 0 ? 0.0f : l == 1 ? 2.0f : l == 2 ? 7.0f : 9.0f, 3, "", waves });
             v.push_back ({ "OCTAVE",    src, -3, 2, l == 1 ? -1.0f : 0.0f, 2, "", "" });
             v.push_back ({ "TUNE",      src, -24, 24, l == 2 ? 12.0f : 0.0f, 2, "ST", "" });
             v.push_back ({ "FINE",      src, -50, 50, 0, 0, "C", "" });
@@ -144,6 +144,17 @@ const std::vector<SynthParam>& padSynthParams()
         v.push_back ({ "VEL SENS",  out, 0, 100, 40, 0, "%", "" });
         v.push_back ({ "WIDTH",     out, 0, 150, 100, 0, "%", "" });
         v.push_back ({ "LEVEL",     out, 0, 100, 70, 0, "%", "" });
+        // (v0.85) each layer's SAMPLE wave: the SAMPLES tab
+        for (int l = 0; l < pad::kLayers; ++l)
+        {
+            const std::string L (1, (char) ('A' + l));
+            const char* sm = str ("7:SAMPLES>LAYER " + L);   // (a tab of their own; LOAD SAMPLE... is on each layer's too)
+            v.push_back ({ "SAMPLE",    sm, 0, (float) kMaxInstruments, 0, 2, "SLOT", "" });
+            v.push_back ({ "ROOT",      sm, 24, 119, 60, 2, "NOTE", "" });
+            v.push_back ({ "START",     sm, 0, 100, 0, 0, "%", "" });
+            v.push_back ({ "LOOP",      sm, 0, 2, 0, 3, "", "AUTO|WHOLE|ONE SHOT" });
+            v.push_back ({ "XFADE",     sm, 0, 100, 25, 0, "%", "" });
+        }
         return v;
     }();
     return ps;
@@ -243,8 +254,46 @@ void PadSynth::prepare (double sampleRate, int)
 
 void PadSynth::setValues (const std::vector<float>& v) { for (size_t i = 0; i < v.size() && i < p.size(); ++i) p[i] = v[i]; }
 
+void PadSynth::updateSong (const Song& s)
+{
+    song = &s;
+    self = me != nullptr && me >= s.instruments.data() && me < s.instruments.data() + kMaxInstruments ? (int) (me - s.instruments.data()) : -1;
+}
+
+void PadSynth::setTestSample (std::vector<int16_t> mono, double rate, int loopStart, int loopLength)
+{
+    testSmp = Instrument {};
+    testSmp.data = std::move (mono); testSmp.rate = rate; testSmp.loopStart = loopStart; testSmp.loopLength = loopLength;
+    hasTestSmp = true;
+}
+
+PadSynth::Smp PadSynth::sampleFor (int layer) const
+{
+    // which sample a layer's SAMPLE wave plays: 0 = the PAD's own (loaded into it), else that instrument's
+    Smp s;
+    const int slot = (int) std::lround (p[(size_t) pad::s (layer, pad::SmpSlot)]);
+    const Instrument* in = nullptr;
+    if (slot == 0 && hasTestSmp) in = &testSmp;
+    else if (song != nullptr)
+    {
+        const int i = slot == 0 ? self : slot - 1;
+        if (i >= 0 && i < kMaxInstruments) in = &song->instruments[(size_t) i];
+    }
+    if (in == nullptr || in->data.size() < 4) return s;
+    const int n = (int) in->data.size();
+    const int a = std::clamp (in->playStart, 0, n - 4);
+    const int b = in->playEnd > a + 4 ? std::min (n, in->playEnd) : n;
+    s.l = in->data.data(); s.r = in->dataR.size() == in->data.size() ? in->dataR.data() : nullptr;
+    s.len = b; s.rate = in->rate > 1 ? in->rate : 16574.0;
+    s.loopA = a;   // (where it starts: its START)
+    if (in->loopLength >= 4 && in->loopStart >= a && in->loopStart + 4 <= b)
+    { s.loopB = std::min (b, in->loopStart + in->loopLength); s.loopA = -in->loopStart - 1; }   // (its own loop, marked by a minus)
+    return s;
+}
+
 void PadSynth::update (const Instrument& in)
 {
+    me = &in;
     bendRange = std::clamp (in.bendRange, 1, 48);
     if (in.pluginState == lastState) return;
     lastState = in.pluginState;
@@ -308,6 +357,14 @@ void PadSynth::startVoice (int key, int vel)
         L.stage = 1; L.env = 0;
         L.delayLeft = (int) (p[(size_t) pad::p (l, Delay)] * 0.001 * sr);
         for (int u = 0; u < kUni; ++u) { L.ph[(size_t) u] = 0.5 * (rnd() + 1.0f); L.ph2[(size_t) u] = 0.5 * (rnd() + 1.0f); L.drift[(size_t) u] = rnd(); L.driftTo[(size_t) u] = rnd(); }
+        if (std::lround (p[(size_t) pad::p (l, Wave)]) == Sample)
+        {
+            // (SAMPLE: every copy from START, so the attack is the sample's own)
+            const Smp sm = sampleFor (l);
+            const int a = sm.loopA < 0 ? 0 : sm.loopA;
+            const double from = sm.len > 0 ? a + (sm.len - a) * std::clamp (p[(size_t) pad::s (l, SmpStart)], 0.0f, 100.0f) * 0.01 : 0.0;
+            for (int u = 0; u < kUni; ++u) { L.pos[(size_t) u] = std::min (from, std::max (0.0, sm.len - 2.0)); L.ended[(size_t) u] = false; }
+        }
     }
     lastPitch = (float) key;
 }
@@ -356,6 +413,7 @@ void PadSynth::renderVoice (Voice& v, const float* lfo, float& outL, float& outR
         const int wave = (int) std::lround (q (Wave));
         const int U = std::clamp ((int) std::lround (q (Unison)), 1, kUni);
         const int ft = (int) std::lround (q (pad::FilterType));
+        const Smp sm = wave == Sample ? sampleFor (l) : Smp {};
         if (L.upd-- <= 0)
         {
             // the pitches of its unison voices (with their drift) and its filter: every 16 samples
@@ -372,6 +430,12 @@ void PadSynth::renderVoice (Voice& v, const float* lfo, float& outL, float& outR
                 const double cents = pos * q (Detune) + d * drift * 14.0;
                 L.dts[(size_t) u] = std::min (0.45, L.baseHz * std::pow (2.0, cents / 1200.0) / sr);
                 L.panOf[(size_t) u] = std::clamp (pos * spread, -1.0f, 1.0f);
+                if (wave == Sample)
+                {
+                    // (SAMPLE: at ROOT it plays at the sample's own rate)
+                    const double rootHz = 440.0 * std::pow (2.0, (p[(size_t) pad::s (l, SmpRoot)] - 69.0) / 12.0);
+                    L.sstep[(size_t) u] = L.baseHz * std::pow (2.0, cents / 1200.0) / rootHz * sm.rate / sr;
+                }
             }
             if (wave == Vox)
             {
@@ -393,6 +457,46 @@ void PadSynth::renderVoice (Voice& v, const float* lfo, float& outL, float& outR
         {
             const double dt = L.dts[(size_t) u];
             const double hz = dt * sr;
+            if (wave == Sample)
+            {
+                // SAMPLE: read it at this copy's speed, looping (with a crossfade over the join) or once through
+                if (sm.len < 4 || L.ended[(size_t) u]) continue;
+                const int mode = (int) std::lround (p[(size_t) pad::s (l, SmpLoop)]);
+                int A = sm.loopA < 0 ? -sm.loopA - 1 : sm.loopA, B = sm.loopA < 0 ? sm.loopB : sm.len;
+                if (mode == 1 || (mode == 0 && sm.loopA >= 0))   // (WHOLE - or AUTO with no loop of its own: from START to the end)
+                {
+                    const int a0 = sm.loopA < 0 ? 0 : sm.loopA;
+                    A = a0 + (int) ((sm.len - a0) * std::clamp (p[(size_t) pad::s (l, SmpStart)], 0.0f, 100.0f) * 0.01f);
+                    B = sm.len;
+                }
+                const bool loop = mode != 2 && B - A >= 4;
+                const double F = loop ? std::floor ((B - A) * 0.5 * std::clamp (p[(size_t) pad::s (l, SmpFade)], 0.0f, 100.0f) * 0.01) : 0.0;
+                auto rd = [&] (const int16_t* d, double x)
+                {
+                    const int i = std::clamp ((int) x, 0, sm.len - 2);
+                    const float f = (float) (x - i);
+                    return (d[i] + (d[i + 1] - d[i]) * f) * (1.0f / 32768.0f);
+                };
+                double& at = L.pos[(size_t) u];
+                if (! loop && at >= sm.len - 2) { L.ended[(size_t) u] = true; continue; }
+                float xl = rd (sm.l, at), xr = sm.r != nullptr ? rd (sm.r, at) : xl;
+                if (loop && F >= 2 && at >= B - F)
+                {
+                    // (the join: the loop's start fades in as its end fades out - equal power, no click)
+                    const double into = at - (B - F);
+                    const float tt = (float) std::clamp (into / F, 0.0, 1.0);
+                    const float go = std::sqrt (1.0f - tt), come = std::sqrt (tt);
+                    xl = xl * go + rd (sm.l, A + into) * come;
+                    xr = xr * go + (sm.r != nullptr ? rd (sm.r, A + into) : rd (sm.l, A + into)) * come;
+                }
+                at += L.sstep[(size_t) u];
+                if (loop && at >= B) at = A + F + (at - B);
+                if (loop && at >= B) at = A;   // (a step longer than the loop)
+                const float pan = L.panOf[(size_t) u];
+                lL += xl * (1.0f - pan) * 0.5f;
+                lR += xr * (1.0f + pan) * 0.5f;
+                continue;
+            }
             auto& ph = L.ph[(size_t) u];
             ph = wrap (ph + dt);
             float x = 0;

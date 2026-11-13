@@ -4956,6 +4956,101 @@ static void testAcidSynth()
 }
 
 // (v0.81) PAD: four layers - each with its own keys, velocity zone, start delay - unison, the main filter, SPACE
+// (v0.85) PAD's SAMPLE wave: a layer plays a sample - at ROOT its own pitch, an octave up twice as fast; LOOP AUTO / WHOLE
+// keep it going with a crossfade over the join; ONE SHOT plays it once; START; old PAD settings untouched
+static void testPadSample()
+{
+    std::printf ("\n== PAD: SAMPLE LAYERS\n");
+    using namespace pad;
+    const double sr = 48000.0;
+    // a 200 Hz sine, 0.25 s, at 48000
+    std::vector<int16_t> sine (12030);   // (not a whole number of cycles: a plain jump at the join would click)
+    for (size_t i = 0; i < sine.size(); ++i) sine[i] = (int16_t) std::lround (20000.0 * std::sin (2.0 * 3.14159265358979 * 200.0 * (double) i / 48000.0));
+    auto setup = [&] (int loopMode, float fade = 25)
+    {
+        auto v = builtinDefaults (kPadKey);
+        v[(size_t) pad::p (0, Wave)] = (float) Sample; v[(size_t) pad::p (0, Unison)] = 1; v[(size_t) pad::p (0, pad::FilterType)] = 0;
+        v[(size_t) pad::p (0, Attack)] = 0.5f; v[(size_t) pad::p (0, Sustain)] = 100; v[(size_t) pad::p (0, Release)] = 5;
+        v[(size_t) pad::p (1, On)] = 0;
+        v[MainType] = 0; v[Chorus] = 0; v[Echo] = 0; v[Reverb] = 0; v[Lfo1Depth] = 0; v[Lfo2Depth] = 0;
+        v[(size_t) pad::s (0, SmpLoop)] = (float) loopMode; v[(size_t) pad::s (0, SmpFade)] = fade;
+        auto a = std::make_unique<PadSynth>(); a->prepare (sr, 512); a->setValues (v);
+        a->setTestSample (sine, 48000.0);
+        return a;
+    };
+    auto pitchOf = [&] (PadSynth& a, int note)
+    {
+        a.noteOn (note, 127, 0);
+        std::vector<float> L (4800), R (4800);
+        a.render (L.data(), R.data(), 4800);   // (settle)
+        a.render (L.data(), R.data(), 4800);
+        int cross = 0;
+        for (size_t i = 1; i < L.size(); ++i) if (L[i - 1] < 0 && L[i] >= 0) ++cross;
+        a.allNotesOff (0);
+        return cross * 10.0;   // (0.1 s)
+    };
+    {
+        auto a = setup (0);
+        const double atRoot = pitchOf (*a, 60);
+        auto b = setup (0);
+        const double up = pitchOf (*b, 72);
+        std::printf ("sample at ROOT C-3: %.0f Hz (expect 200); C-4: %.0f Hz (expect 400)\n", atRoot, up);
+        CHECK (std::abs (atRoot - 200) <= 20 && std::abs (up - 400) <= 20);
+    }
+    // LOOP: AUTO (no loop points: the whole) goes on past the end; ONE SHOT stops; a smooth join
+    auto tailLevel = [&] (int mode, float* jump)
+    {
+        auto a = setup (mode);
+        a->noteOn (60, 127, 0);
+        std::vector<float> L (480), R (480);
+        float last = 0, maxStep = 0, late = 0;
+        for (int b = 0; b < 200; ++b)   // (2 s - eight times the sample)
+        {
+            a->render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i)
+            {
+                if (b > 2) maxStep = std::max (maxStep, std::abs (L[(size_t) i] - last));
+                last = L[(size_t) i];
+                if (b > 150) late = std::max (late, std::abs (L[(size_t) i]));
+            }
+        }
+        if (jump) *jump = maxStep;
+        return late;
+    };
+    float jumpAuto = 0, jumpWhole = 0;
+    const float lAuto = tailLevel (0, &jumpAuto), lWhole = tailLevel (1, &jumpWhole), lOnce = tailLevel (2, nullptr);
+    std::printf ("after 1.5 s: AUTO %.3f, WHOLE %.3f, ONE SHOT %.3f; biggest step AUTO %.3f WHOLE %.3f\n", lAuto, lWhole, lOnce, jumpAuto, jumpWhole);
+    CHECK (lAuto > 0.03f && lWhole > 0.03f && lOnce == 0.0f);
+    CHECK (jumpAuto < 0.01f && jumpWhole < 0.01f);   // (at this level a 200 Hz sine moves at most ~0.002 a sample: no click at the join)
+    // its own loop points (AUTO): a loop of whole cycles plays on without a crossfade's dip
+    {
+        auto a = setup (0, 0);
+        a->setTestSample (sine, 48000.0, 2400, 4800);   // (20 cycles)
+        a->noteOn (60, 127, 0);
+        std::vector<float> L (480), R (480);
+        float late = 0, last = 0, step = 0;
+        for (int b = 0; b < 100; ++b)
+        {
+            a->render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i) { if (b > 2) step = std::max (step, std::abs (L[(size_t) i] - last)); last = L[(size_t) i]; if (b > 60) late = std::max (late, std::abs (L[(size_t) i])); }
+        }
+        std::printf ("its own loop: still playing %.3f, biggest step %.3f\n", late, step);
+        CHECK (late > 0.03f && step < 0.01f);
+    }
+    // nothing loaded: silent, no crash; old PAD settings (WAVE 0-9) don't touch the sample
+    {
+        auto v = builtinDefaults (kPadKey);
+        v[(size_t) pad::p (0, Wave)] = (float) Sample;
+        auto a = std::make_unique<PadSynth>(); a->prepare (sr, 512); a->setValues (v);
+        a->noteOn (60, 100, 0);
+        std::vector<float> L (480), R (480); bool ok = true;
+        for (int b = 0; b < 20; ++b) { a->render (L.data(), R.data(), 480); for (float x : L) ok = ok && std::isfinite (x); }
+        CHECK (ok);
+        const auto& ps = padSynthParams();
+        CHECK ((int) ps.size() == pad::Count && std::string (ps[(size_t) pad::s (0, SmpSlot)].text (0)) == "OWN" && std::string (ps[(size_t) pad::s (0, SmpRoot)].text (60)) == "C-3");
+    }
+}
+
 static void testPadSynth()
 {
     std::printf ("\n== PAD (FOUR LAYERS)\n");
@@ -5050,7 +5145,7 @@ static void testPadSynth()
             const auto t = sec.substr (0, sec.find ('>'));
             if (sec.find ('>') != std::string::npos && std::find (tabs.begin(), tabs.end(), t) == tabs.end()) tabs.push_back (t);
         }
-        CHECK (tabs.size() == 7 && padSynthParams().size() == (size_t) Count && builtinDefaults (kPadKey).size() == (size_t) Count);
+        CHECK (tabs.size() == 8 && padSynthParams().size() == (size_t) Count && builtinDefaults (kPadKey).size() == (size_t) Count);
         const SynthParam key { "K", "", 24, 119, 60, 2, "NOTE", "" };
         CHECK (key.text (60) == "C-3");
     }
@@ -6936,6 +7031,7 @@ int main()
     testNoStuckNotes();
     testAcidSynth();
     testPadSynth();
+    testPadSample();
     testReeseDeep();
     testSubDeep();
     testRaveDeep();

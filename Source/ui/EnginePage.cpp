@@ -37,6 +37,11 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     for (auto* c : { &playBtn, &optionsBtn, &closeBtn, &presetsBtn }) addAndMakeVisible (c);
     loadSampleBtn.onClick = [this] { if (onLoadSample) onLoadSample(); };
     addChildComponent (loadSampleBtn);
+    for (int l = 0; l < 4; ++l)
+    {
+        padLoadBtn[l].onClick = [this, l] { if (onLoadPadSample) onLoadPadSample (l); };
+        addChildComponent (padLoadBtn[l]);
+    }
     for (int t = 0; t < kRomTones; ++t)
     {
         toneBtn[t].onClick = [this, t] { openRomBrowser (t); };
@@ -120,7 +125,8 @@ void EnginePage::edit (int param, float value, bool merge)
     });
     if (onStatus) onStatus (juce::String (inst().pluginName) + " " + q.name + ": " + juce::String (q.text (value)));
     sync();
-    if ((inst().pluginKey == kSubKey && param == sub::BeatOn) || (inst().pluginKey == kGrainKey && param == grain::Source)) resized();   // (rows come and go)
+    if ((inst().pluginKey == kSubKey && param == sub::BeatOn) || (inst().pluginKey == kGrainKey && param == grain::Source)
+        || (inst().pluginKey == kPadKey && param < pad::SampleBase && param % pad::PerLayer == pad::Wave)) resized();   // (rows come and go)
     if (onChanged) onChanged();
 }
 
@@ -674,6 +680,14 @@ void EnginePage::knobMenu (int param)
     showMenu (ps[(size_t) param].name, std::move (items));
 }
 
+// (PAD, v0.85) the layer whose LOAD SAMPLE... a box starts with: its SOURCE (on its tab) and its box on SAMPLES; else -1
+static int padSampleBox (const juce::String& key)
+{
+    if (key.startsWith ("7:SAMPLES") ) return juce::jlimit (0, 3, (int) (key.getLastCharacter() - 'A'));
+    if (key.length() > 2 && key[1] == ':' && key[0] >= '0' && key[0] <= '3' && key.endsWith (">SOURCE")) return key[0] - '0';
+    return -1;
+}
+
 void EnginePage::resized()
 {
     const float px = Theme::px;
@@ -681,6 +695,7 @@ void EnginePage::resized()
     const int gap = (int) std::max (2.0f, px);
     const int title = (int) (px * 11);
     if (! relayout) subPages = false;
+    for (auto& pb : padLoadBtn) pb.setVisible (false);
     for (auto& tb : toneBtn) tb.setVisible (false);
     for (auto& sb : sampleBtn) sb.setVisible (false);
     romFolderBtn.setVisible (false);
@@ -736,9 +751,16 @@ void EnginePage::resized()
     };
     // (SUB's BEAT: only what's in use - RATE for BEAT HZ, ST for BEAT ST, nothing more when it's OFF)
     std::vector<float> vals;
-    if (inst().pluginKey == kSubKey || inst().pluginKey == kGrainKey) vals = readBuiltinState (inst());
+    if (inst().pluginKey == kSubKey || inst().pluginKey == kGrainKey || inst().pluginKey == kPadKey) vals = readBuiltinState (inst());
     auto hidden = [&] (const Row& rw)
     {
+        // (PAD, v0.85: a layer's SAMPLE controls only while its WAVE is SAMPLE - LOAD SAMPLE... is always there)
+        if (shownKey == kPadKey && vals.size() >= (size_t) pad::Count)
+        {
+            if (rw.param < pad::SampleBase) return false;
+            const int l = (rw.param - pad::SampleBase) / pad::PerSample;
+            return std::lround (vals[(size_t) pad::p (l, pad::Wave)]) != pad::Sample;
+        }
         // (GRANULAR, v0.75: TABLE only for a table, SAMPLE only for a sample - room for PRESETS' line)
         if (shownKey == kGrainKey && vals.size() > (size_t) grain::SampleSlot)
         {
@@ -763,6 +785,7 @@ void EnginePage::resized()
         int lines = 0;
         for (int ri : b.rowIndex) if (! hidden (rows[(size_t) ri])) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
         if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;   // (its samples' button)
+        if (shownKey == kPadKey && padSampleBox (b.key) >= 0) ++lines;      // (LOAD SAMPLE...)
         return gap * 4 + title + lines * (rowH + gap);
     };
     auto place = [&] (Box& b, juce::Rectangle<int> area)
@@ -780,6 +803,12 @@ void EnginePage::resized()
             sampleBtn[t].setBounds (head);
             toneBtn[t].setVisible (true);
             sampleBtn[t].setVisible (true);
+        }
+        if (shownKey == kPadKey && padSampleBox (b.key) >= 0)
+        {
+            const int l = padSampleBox (b.key);
+            padLoadBtn[l].setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap);
+            padLoadBtn[l].setVisible (true);
         }
         for (int ri : b.rowIndex)
         {
@@ -1058,6 +1087,29 @@ void EnginePage::paint (juce::Graphics& g)
             const float room = b.area.getWidth() - px * 30;
             for (const auto& c : { b.title + ": " + nm + (n > 0 ? " (" + juce::String (n) + ")" : juce::String()), b.title + ": " + nm, nm })
                 if (PixelFont::textWidth (c, px) <= room) { head = c; break; }
+        }
+        // (PAD: a layer playing a sample says which - "SOURCE: BREATH", on SAMPLES "LAYER A: BREATH", "LAYER B: 05 STRINGS")
+        const int padL = shownKey == kPadKey ? padSampleBox (b.key) : -1;
+        const auto padV = padL >= 0 ? readBuiltinState (inst()) : std::vector<float>();
+        if (padL >= 0 && padV.size() >= (size_t) pad::Count && std::lround (padV[(size_t) pad::p (padL, pad::Wave)]) == pad::Sample)
+        {
+            const int l = padL;
+            const auto& v = padV;
+            const int slot = (int) std::lround (v[(size_t) pad::s (l, pad::SmpSlot)]);
+            const int from = slot == 0 ? proc.editorState.instrument : slot - 1;
+            juce::String nm = "NO SAMPLE";
+            if (from >= 0 && from < kMaxInstruments && ! proc.song.instruments[(size_t) from].data.empty())
+                nm = (slot == 0 ? juce::String() : hex2 (slot) + " ") + juce::String (proc.song.instruments[(size_t) from].name).toUpperCase();
+            const juce::String t = b.title;
+            const float room = b.area.getWidth() - px * 30;
+            const juce::String letter = t.startsWith ("LAYER ") ? t.getLastCharacters (1) + ": " + nm : nm;   // ("A: BREATH" - which layer, still)
+            for (const auto& c : { t + ": " + nm, letter, nm, t })
+                if (PixelFont::textWidth (c, px) <= room) { head = c; break; }
+        }
+        else if (padL >= 0 && b.key.startsWith ("7:"))   // (its WAVE isn't SAMPLE: LOAD SAMPLE... makes it one)
+        {
+            for (const auto& c : { b.title + ": NOT A SAMPLE", b.title.getLastCharacters (1) + ": NOT A SAMPLE", b.title })
+                if (PixelFont::textWidth (c, px) <= b.area.getWidth() - px * 30) { head = c; break; }
         }
         Theme::panelBox (g, b.area, head, pal);
     }

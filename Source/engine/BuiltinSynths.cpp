@@ -57,6 +57,7 @@ std::string SynthParam::text (float v) const
     else if (u == "NOTE") { static const char* nm[12] = { "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-" };
                             const int n = std::clamp ((int) std::lround (v), 24, 127) - 24; std::snprintf (buf, sizeof (buf), "%s%d", nm[n % 12], n / 12); }   // (a key, as the pattern names it)
     else if (u == "CX") std::snprintf (buf, sizeof (buf), "C%02X", (int) std::lround (v));   // (a pattern's volume command: C40 the loudest)
+    else if (u == "SLOT") { if (std::lround (v) == 0) std::snprintf (buf, sizeof (buf), "OWN"); else std::snprintf (buf, sizeof (buf), "%02X", (int) std::lround (v)); }   // (PAD: its own sample, or an instrument's)
     else if (u == "#") std::snprintf (buf, sizeof (buf), "%02X", (int) std::lround (v));   // (an instrument, as the instruments list shows it)
     else if (u == "LR") { const int x = (int) std::lround (v); if (x == 0) std::snprintf (buf, sizeof (buf), "CENTRE"); else std::snprintf (buf, sizeof (buf), "%s%d", x < 0 ? "L" : "R", std::abs (x)); }   // (a pan)
     else if (kind == 2) std::snprintf (buf, sizeof (buf), "%+d", (int) std::lround (v));
