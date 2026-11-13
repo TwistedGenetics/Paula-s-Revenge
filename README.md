@@ -788,7 +788,7 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 ## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD and GRANULAR
 
-**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones, MORPH's six, SUB's, REESE's, ACID's and PAD's ten; for the others, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+**Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones; SUB's, REESE's, MORPH's, ACID's, PAD's and GRANULAR's ten; for ROM, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
 ### SUB
 
@@ -895,12 +895,22 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 ### MORPH
 
-**MORPH** is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has a morphing filter of its own, moved by its own envelope - so a pad can open from "OO" to "AH" as it swells, a bass can talk, a phaser's notches can slide as a chord rings. Load it from LOAD → **BUILT-IN SYNTH** → MORPH; **PRESETS...** has six sounds to start from (VOWEL PAD, TALKING BASS, PHASE STRINGS, COMB BELLS, ACID MORPH, SCREAM LEAD). Two tabs: **MORPH** and **AMP + SPACE**.
+**MORPH** is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has a morphing filter of its own, moved by its own envelope - so a pad can open from "OO" to "AH" as it swells, a bass can talk, a phaser's notches can slide as a chord rings. Load it from LOAD → **BUILT-IN SYNTH** → MORPH. Three tabs: **OSC**, **MORPH** and **AMP + FX**. **PRESETS...** has ten: VOWEL PAD, TALKING BASS, PHASE STRINGS, COMB BELLS, ACID MORPH, SCREAM LEAD, DOUBLE VOWEL (two filters in series), SYNCED SWEEP (the LFO locked to the tempo), RANDOM CHOIR (every note a different vowel) and ZAP BASS. (A MORPH from an older song sounds as it did.)
 
-* **OSCILLATORS**: **WAVE 1** and **WAVE 2** (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), **OSC 2** (its level), **DETUNE** (OSC 2 against OSC 1, and the SUPERSAW's spread), **OSC2 TUNE** (semitones), **PW** (the PULSE's width).
-* **MORPH FILTER**: **MODEL** (the same 12 as the effect), **MORPH**, **FREQ** (semitones), **EMPHASIS**, **KEY TRACK** (the filter follows the notes: 100% = all the way), **VEL>MORPH** (harder notes further along, or back).
-* **MORPH ENV**: **AMOUNT** (± how far it moves MORPH), ATTACK, DECAY, SUSTAIN, RELEASE. **MORPH LFO**: **RATE**, **DEPTH**.
-* **ENVELOPE** (the amp), **SOUND** (CHORD, OCTAVE), **SPACE** (CHORUS, ECHO, ECHO TIME), **OUTPUT** (VELOCITY, LEVEL). Up to 16 notes.
+**OSC**:
+
+* **OSCILLATORS**: **WAVE 1** and **WAVE 2** (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), **OSC 2** (its level), **DETUNE** (OSC 2 against OSC 1, and the SUPERSAW's spread), **OSC2 TUNE** (semitones), **PW** (the PULSE's width). **SUB** (a sine an octave down, for weight), **NOISE** (hiss into the filter, for breathy vowels), **DRIVE** (into the filter, so the peaks growl).
+* **SOUND**: **CHORD**, **OCTAVE**.
+* **PITCH**: **GLIDE** (each note slides from the last), **PITCH ENV** (± semitones each note starts away) and **PITCH TIME** - a zap on a bass, a swoop on a lead.
+
+**MORPH**:
+
+* **MORPH FILTER**: **MODEL** (the same 12 as the effect), **MORPH**, **FREQ** (semitones), **EMPHASIS**, **KEY TRACK** (the filter follows the notes: 100% = all the way), **VEL>MORPH** (harder notes further along, or back), **RANDOM** (each note sits a random amount along or back - a choir where no two notes say quite the same vowel).
+* **FILTER 2**: a second morph filter. **ROUTE**: **OFF**, **SERIES** (after the first - two vowels at once, deeper and more vocal) or **PARALLEL** (beside it - two shapes mixed); its own **MODEL**, **MORPH +/-** (where it sits against the first: both move together with the envelope and LFO) and **FREQ**.
+* **MORPH ENV**: **AMOUNT** (± how far it moves MORPH), ATTACK, DECAY, SUSTAIN, RELEASE.
+* **MORPH LFO**: **RATE**, **DEPTH**, **SHAPE** (SINE, TRI, SQUARE, SAW, S&H - a new vowel every step) and **SYNC** to the song's tempo (FREE, 1 BAR to 1/16).
+
+**AMP + FX**: **ENVELOPE** (the amp), **SPACE** (CHORUS, ECHO, ECHO TIME, **FEEDBACK** - AUTO: as the ECHO amount decides, as before - and **WIDTH**), **OUTPUT** (VELOCITY, LEVEL). Up to 16 notes.
 
 ### ACID
 
@@ -953,13 +963,14 @@ Each **LAYER** tab:
 **GRANULAR** plays a sound as a cloud of tiny overlapping pieces ("grains"), so it can hold one moment of a sound for ever, smear it into a pad, stretch it, or scatter it into glitter. Load it like SUB (LOAD → **BUILT-IN SYNTH** → GRANULAR). Notes play it at their pitch (`C-3` plays the sound at its own pitch), up to 6 at once.
 
 * **SOURCE** — what the grains are cut from. **TABLE**: one of 8 built-in sounds that change from start to end (**SINE**, **SAW** dark to bright, **SQUARE** to thin pulse, **VOCAL** through the vowels A E I O U, **BELL** ringing away, **GLASS**, **NOISE** dark to bright, **CHOIR**). **SAMPLE**: a sample of its own — press **LOAD SAMPLE...** (under the SOURCE box) and pick one in the sample browser just as you load any sample (or press LOAD on the instruments panel → SAMPLES with GRANULAR picked); it stays GRANULAR, takes its grains from that sample and keeps it in the song — or any other instrument's sample: set **SAMPLE** to its number. (Only what the SOURCE uses is shown: the table's name for TABLE, the SAMPLE number for SAMPLE.) **RECORDING**: the audio input, live — it keeps the last 8 seconds of what comes in (set the input in the audio settings, as for SAMPLE recording).
-* Across the top, next to the SOURCE box, is the sound itself, with a line at **POSITION** and a thin line where the grains are reading now. **Click or drag on it** to set POSITION. Under it, two tabs show the rest of the controls: **GRAINS** (GRAINS, PITCH, ENVELOPE, OUTPUT) and **LFOS + FILTER** (LFO 1, LFO 2, ENV MOD, FILTER).
-* **GRAINS**: **POSITION** — where in the sound they come from. **SCAN** — moves the position on as the note plays (100% = at the sound's own speed, so it plays through it; less stretches it; minus goes backwards). **SIZE** — how long each grain is. **DENSITY** — how many grains a second. **SPRAY** — scatters where (and when) each grain starts. **FREEZE** — holds the position where it is (and, on RECORDING, stops taking in new sound, so you can play what was caught).
-* **PITCH**: **PITCH** (semitones), **SPREAD** (each grain a random amount out of tune — shimmer and clusters), **REVERSE** (how many grains play backwards), **STEREO** (how far apart left and right the grains are spread).
+* Across the top, next to the SOURCE box, is the sound itself, with a line at **POSITION** and a thin line where the grains are reading now. **Click or drag on it** to set POSITION. Under it, three tabs show the rest of the controls: **GRAINS** (GRAINS, PITCH), **LFOS + FILTER** (LFO 1, LFO 2, ENV MOD, FILTER - **MOD** in a narrow window) and **AMP + FX** (ENVELOPE, SPACE, OUTPUT). **PRESETS...** has ten: DEFAULTS, CHOIR CLOUD, GLASS SHIMMER, FROZEN VOCAL, STUTTER SYNC, SCALE SPARKLE, REVERSE SWELLS, TEXTURE DRONE, PERC SCATTER and KEY SCAN (presets keep the settings, not a sample). A GRANULAR from an older song sounds as it did.
+* **GRAINS**: **POSITION** — where in the sound they come from. **SCAN** — moves the position on as the note plays (100% = at the sound's own speed, so it plays through it; less stretches it; minus goes backwards). **SIZE** — how long each grain is. **DENSITY** — how many grains a second. **SPRAY** — scatters where (and when) each grain starts. **FREEZE** — holds the position where it is (and, on RECORDING, stops taking in new sound, so you can play what was caught). **WINDOW** — each grain's shape: **SMOOTH** (as before), **TRIANGLE**, **FLAT** (hard-edged, fuller), **PERC** (a sharp start dying away - stuttery, rhythmic grains) or **SWELL** (fading in, cut off at the end - backwards-sounding). **KEY>POS** — higher notes read from further along the sound (or further back, below 0): the keyboard scans the sample.
+* **PITCH**: **PITCH** (semitones), **SPREAD** (each grain a random amount out of tune — shimmer and clusters), **REVERSE** (how many grains play backwards), **STEREO** (how far apart left and right the grains are spread). **SCALE**: SPREAD's random pitches snap to **OCTAVES**, **FIFTHS**, **MAJOR**, **MINOR** or **PENTA** notes instead of anywhere (**FREE**) - a cloud that sparkles in key. **DETUNE** (cents, each grain a little out - a chorus of grains). **SHIMMER** (how many grains play an octave up).
 * **ENVELOPE**: ATTACK, DECAY, SUSTAIN, RELEASE — slow ones make pads.
-* **LFO 1** (a sine) and **LFO 2** (a triangle): **RATE**, **AMT** and **TO** — POSITION, SIZE, DENSITY, SPRAY, PITCH, STEREO, CUTOFF or LEVEL. **ENV MOD**: the envelope moves one too (**ENV AMT** can be minus).
+* **LFO 1** and **LFO 2**: **RATE**, **AMT** and **TO** — POSITION, SIZE, DENSITY, SPRAY, PITCH, STEREO, CUTOFF or LEVEL; **SHAPE** (SINE, TRI, SQUARE, SAW, S&H - LFO 1 starts as a sine, LFO 2 a triangle) and **SYNC** to the song's tempo (FREE, 1 BAR to 1/16): a synced square on POSITION is a grain stutter in time with the break. **ENV MOD**: the envelope moves one too (**ENV AMT** can be minus).
 * **FILTER**: **CUTOFF** and **RES** (a resonant low-pass), **DIFFUSE** (smears the grains into a wash).
-* **LEVEL**.
+* **SPACE**: **ECHO** (a ping-pong echo), **ECHO TIME**, **FEEDBACK**, **WIDTH** (0 mono to 150 extra wide).
+* **OUTPUT**: **LEVEL**.
 
 On TABLE, grains of the same note line up with each other, so with SPRAY and SPREAD at 0 a note is a clean, steady tone; turn them up to break it apart. Right-click, HOLD TO PLAY, OUTPUT & KNOBS..., saving and undo work as on SUB.
 

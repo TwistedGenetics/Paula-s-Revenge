@@ -82,6 +82,8 @@ inline std::vector<Preset> factory (const std::string& key)
         for (int t = 0; t < kMorphPresets; ++t) out.push_back ({ morphPresetName (t), key, morphPreset (t) });
     else if (key == kAcidKey)
         for (int t = 0; t < kAcidPresets; ++t) out.push_back ({ acidPresetName (t), key, acidPreset (t) });
+    else if (key == kGrainKey)
+        for (int t = 0; t < kGrainPresets; ++t) out.push_back ({ grainPresetName (t), key, grainPreset (t) });
     else if (key == kSubKey)
         for (int t = 0; t < kSubPresets; ++t) out.push_back ({ subPresetName (t), key, subPreset (t) });
     else if (key == kReeseKey)

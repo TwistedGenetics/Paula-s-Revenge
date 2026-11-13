@@ -5281,6 +5281,71 @@ static void testRaveDeep()
     }
 }
 
+// (v0.84) MORPH, deeper: its presets, FILTER 2 in series and parallel, the LFO synced, RANDOM, everything flat out
+static void testMorphDeep()
+{
+    std::printf ("\n== MORPH (v0.84: DEEPER)\n");
+    using namespace msyn;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<MorphSynth>(); a->prepare (48000, 512); a->setValues (v); return a; };
+    auto run = [&] (MorphSynth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i) { if (peak) *peak = std::max (*peak, std::abs (L[(size_t) i])); if (ok) *ok = *ok && std::isfinite (L[(size_t) i]) && std::isfinite (R[(size_t) i]); }
+        }
+    };
+    int bad = 0;
+    for (int i = 0; i < kMorphPresets; ++i)
+    {
+        auto a = fresh (morphPreset (i)); float pk = 0; bool ok = true;
+        for (int nn : { 48, 55, 60 }) { a->noteOn (nn, 110, 0); run (*a, 30, &pk, &ok); a->noteOff (nn, 0); run (*a, 10, &pk, &ok); }
+        if (! ok || pk < 0.02f || pk > 1.6f) { ++bad; std::printf ("  %s: peak %.3f\n", morphPresetName (i), pk); }
+    }
+    for (int route = 0; route < 3; ++route)
+    {
+        auto v = morphPreset (0); v[Route2] = (float) route; v[Model2] = 10; v[Emphasis] = 100; v[Drive] = 100; v[SubLevel] = 100; v[NoiseLevel] = 100;
+        v[PitchEnv] = 24; v[Glide] = 1000; v[MorphRandom] = 100; v[EchoFeedback] = 95; v[Width] = 150; v[LfoSync] = 5; v[LfoShape] = 4; v[LfoDepth] = 100;
+        auto a = fresh (v); float pk = 0; bool ok = true;
+        for (int nn : { 36, 72 }) { a->noteOn (nn, 127, 0); run (*a, 40, &pk, &ok); }
+        if (! ok || pk > 1.6f || pk < 0.01f) { ++bad; std::printf ("  route %d flat out: peak %.3f\n", route, pk); }
+    }
+    // RANDOM: two notes of the same key sit at different morphs
+    {
+        auto v = morphPreset (0); v[MorphRandom] = 100; v[EnvAmount] = 0; v[LfoDepth] = 0; v[Morph] = 50; v[VelMorph] = 0;
+        auto a = fresh (v);
+        a->noteOn (60, 100, 0); run (*a, 2); const float m1 = a->morphOf (0);
+        a->noteOn (64, 100, 0); run (*a, 2);
+        float m2 = -1; for (int k = 1; k < 16; ++k) if (a->morphOf (k) > 0) m2 = a->morphOf (k);
+        std::printf ("RANDOM: one note at %.2f, the next at %.2f\n", m1, m2);
+        CHECK (std::abs (m1 - m2) > 0.01f);
+    }
+    std::printf ("presets and flat-out settings out of range: %d\n", bad);
+    CHECK (bad == 0 && morphSynthParams().size() == (size_t) Count);
+}
+
+// (v0.84) GRANULAR, deeper: presets, every window, the scale, shimmer, synced S&H, echo - finite and in range
+static void testGrainDeep()
+{
+    std::printf ("\n== GRANULAR (v0.84: DEEPER)\n");
+    using namespace grain;
+    std::vector<float> L (480), R (480);
+    int bad = 0;
+    for (int i = 0; i < kGrainPresets + 5; ++i)
+    {
+        auto v = grainPreset (std::min (i, kGrainPresets - 1));
+        if (i >= kGrainPresets) { v[Window] = (float) (i - kGrainPresets); v[Shimmer] = 100; v[Scale] = 3; v[PitchSpread] = 24; v[Echo] = 100; v[EchoFeedback] = 95; v[Width] = 150; v[Lfo1Shape] = 4; v[Lfo1Sync] = 5; v[Lfo1Depth] = 100; v[Density] = 120; }
+        GrainSynth a; a.prepare (48000, 512); a.setValues (v);
+        float pk = 0; bool ok = true;
+        for (int nn : { 48, 60, 67 }) a.noteOn (nn, 110, 0);
+        for (int b = 0; b < 150; ++b) { a.render (L.data(), R.data(), 480); for (int k = 0; k < 480; ++k) { pk = std::max (pk, std::abs (L[(size_t) k])); ok = ok && std::isfinite (L[(size_t) k]) && std::isfinite (R[(size_t) k]); } }
+        if (! ok || pk < 0.01f || pk >= 2.0f) { ++bad; std::printf ("  %s%s: peak %.3f\n", grainPresetName (std::min (i, kGrainPresets - 1)), i >= kGrainPresets ? " (flat out)" : "", pk); }
+    }
+    std::printf ("presets and extremes out of range: %d\n", bad);
+    CHECK (bad == 0 && builtinParams (kGrainKey).size() == (size_t) Count);
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
@@ -6874,6 +6939,8 @@ int main()
     testReeseDeep();
     testSubDeep();
     testRaveDeep();
+    testMorphDeep();
+    testGrainDeep();
     testReeseSynth();
     testDubThrows();
     testLiveMode();

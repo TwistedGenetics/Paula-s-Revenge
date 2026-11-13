@@ -50,44 +50,72 @@ namespace
 const std::vector<SynthParam>& morphSynthParams()
 {
     static const char* waves = "SAW|PULSE|SQUARE|TRI|SINE|NOISE|SUPERSAW|ORGAN";
+    // (v0.84: three tabs)
+    static const char* os = "0:OSC>OSCILLATORS";
+    static const char* sd = "0:OSC>SOUND";
+    static const char* pt = "0:OSC>PITCH";
+    static const char* mf = "1:MORPH>MORPH FILTER";
+    static const char* f2 = "1:MORPH>FILTER 2";
+    static const char* me = "1:MORPH>MORPH ENV";
+    static const char* ml = "1:MORPH>MORPH LFO";
+    static const char* en = "2:AMP + FX>ENVELOPE";
+    static const char* sp = "2:AMP + FX>SPACE";
+    static const char* ou = "2:AMP + FX>OUTPUT";
     static const std::vector<SynthParam> ps {
-        { "WAVE 1",    "OSCILLATORS", 0, 7, 6,        3, "",   waves },
-        { "WAVE 2",    "OSCILLATORS", 0, 7, 1,        3, "",   waves },
-        { "OSC 2",     "OSCILLATORS", 0, 100, 40,     0, "%",  "" },
-        { "DETUNE",    "OSCILLATORS", 0, 50, 12,      0, "C",  "" },
-        { "OSC2 TUNE", "OSCILLATORS", -24, 24, 0,     2, "ST", "" },
-        { "PW",        "OSCILLATORS", 5, 95, 30,      0, "%",  "" },
-        { "MODEL",     "MORPH FILTER", 0, (float) (morph::kModels - 1), 0, 3, "", modelChoices() },
-        { "MORPH",     "MORPH FILTER", 0, 100, 0,     0, "%",  "" },
-        { "FREQ",      "MORPH FILTER", -36, 36, 0,    2, "ST", "" },
-        { "EMPHASIS",  "MORPH FILTER", 0, 100, 55,    0, "%",  "" },
-        { "KEY TRACK", "MORPH FILTER", 0, 100, 50,    0, "%",  "" },
-        { "VEL>MORPH", "MORPH FILTER", -100, 100, 20, 0, "%",  "" },
-        { "AMOUNT",    "MORPH ENV",   -100, 100, 80,  0, "%",  "" },
-        { "ATTACK",    "MORPH ENV",   0.5f, 8000, 400, 1, "MS", "" },
-        { "DECAY",     "MORPH ENV",   5, 8000, 1500,  1, "MS", "" },
-        { "SUSTAIN",   "MORPH ENV",   0, 100, 60,     0, "%",  "" },
-        { "RELEASE",   "MORPH ENV",   5, 8000, 800,   1, "MS", "" },
-        { "RATE",      "MORPH LFO",   0.05f, 20, 0.4f, 1, "HZ", "" },
-        { "DEPTH",     "MORPH LFO",   0, 100, 15,     0, "%",  "" },
-        { "ATTACK",    "ENVELOPE",    0.5f, 8000, 30, 1, "MS", "" },
-        { "DECAY",     "ENVELOPE",    5, 8000, 1500,  1, "MS", "" },
-        { "SUSTAIN",   "ENVELOPE",    0, 100, 85,     0, "%",  "" },
-        { "RELEASE",   "ENVELOPE",    5, 8000, 900,   1, "MS", "" },
-        { "CHORD",     "SOUND",       0, 7, 0,        3, "",   "OFF|MINOR|MAJOR|MIN 7|MAJ 7|5TH|SUS 4|OCT" },
-        { "OCTAVE",    "SOUND",       -3, 2, 0,       2, "",   "" },
-        { "CHORUS",    "SPACE",       0, 100, 35,     0, "%",  "" },
-        { "ECHO",      "SPACE",       0, 100, 15,     0, "%",  "" },
-        { "ECHO TIME", "SPACE",       20, 1500, 375,  1, "MS", "" },
-        { "VELOCITY",  "OUTPUT",      0, 100, 50,     0, "%",  "" },
-        { "LEVEL",     "OUTPUT",      0, 100, 75,     0, "%",  "" },
+        { "WAVE 1",    os, 0, 7, 6,        3, "",   waves },
+        { "WAVE 2",    os, 0, 7, 1,        3, "",   waves },
+        { "OSC 2",     os, 0, 100, 40,     0, "%",  "" },
+        { "DETUNE",    os, 0, 50, 12,      0, "C",  "" },
+        { "OSC2 TUNE", os, -24, 24, 0,     2, "ST", "" },
+        { "PW",        os, 5, 95, 30,      0, "%",  "" },
+        { "MODEL",     mf, 0, (float) (morph::kModels - 1), 0, 3, "", modelChoices() },
+        { "MORPH",     mf, 0, 100, 0,      0, "%",  "" },
+        { "FREQ",      mf, -36, 36, 0,     2, "ST", "" },
+        { "EMPHASIS",  mf, 0, 100, 55,     0, "%",  "" },
+        { "KEY TRACK", mf, 0, 100, 50,     0, "%",  "" },
+        { "VEL>MORPH", mf, -100, 100, 20,  0, "%",  "" },
+        { "AMOUNT",    me, -100, 100, 80,  0, "%",  "" },
+        { "ATTACK",    me, 0.5f, 8000, 400, 1, "MS", "" },
+        { "DECAY",     me, 5, 8000, 1500,  1, "MS", "" },
+        { "SUSTAIN",   me, 0, 100, 60,     0, "%",  "" },
+        { "RELEASE",   me, 5, 8000, 800,   1, "MS", "" },
+        { "RATE",      ml, 0.05f, 20, 0.4f, 1, "HZ", "" },
+        { "DEPTH",     ml, 0, 100, 15,     0, "%",  "" },
+        { "ATTACK",    en, 0.5f, 8000, 30, 1, "MS", "" },
+        { "DECAY",     en, 5, 8000, 1500,  1, "MS", "" },
+        { "SUSTAIN",   en, 0, 100, 85,     0, "%",  "" },
+        { "RELEASE",   en, 5, 8000, 900,   1, "MS", "" },
+        { "CHORD",     sd, 0, 7, 0,        3, "",   "OFF|MINOR|MAJOR|MIN 7|MAJ 7|5TH|SUS 4|OCT" },
+        { "OCTAVE",    sd, -3, 2, 0,       2, "",   "" },
+        { "CHORUS",    sp, 0, 100, 35,     0, "%",  "" },
+        { "ECHO",      sp, 0, 100, 15,     0, "%",  "" },
+        { "ECHO TIME", sp, 20, 1500, 375,  1, "MS", "" },
+        { "VELOCITY",  ou, 0, 100, 50,     0, "%",  "" },
+        { "LEVEL",     ou, 0, 100, 75,     0, "%",  "" },
+        // (v0.84)
+        { "ROUTE",     f2, 0, 2, 0,        3, "",   "OFF|SERIES|PARALLEL" },
+        { "MODEL",     f2, 0, (float) (morph::kModels - 1), 4, 3, "", modelChoices() },
+        { "MORPH +/-", f2, -100, 100, 0,   0, "%",  "" },
+        { "FREQ",      f2, -36, 36, 0,     2, "ST", "" },
+        { "SHAPE",     ml, 0, 4, 0,        3, "",   "SINE|TRI|SQUARE|SAW|S&H" },
+        { "SYNC",      ml, 0, 5, 0,        3, "",   "FREE|1 BAR|1/2|1/4|1/8|1/16" },
+        { "RANDOM",    mf, 0, 100, 0,      0, "%",  "" },
+        { "SUB",       os, 0, 100, 0,      0, "%",  "" },
+        { "NOISE",     os, 0, 100, 0,      0, "%",  "" },
+        { "DRIVE",     os, 0, 100, 0,      0, "%",  "" },
+        { "GLIDE",     pt, 0, 1000, 0,     0, "MS", "" },
+        { "PITCH ENV", pt, -24, 24, 0,     0, "ST", "" },
+        { "PITCH TIME", pt, 5, 2000, 100,  1, "MS", "" },
+        { "FEEDBACK",  sp, 0, 95, 0,       0, "AUTO%", "" },
+        { "WIDTH",     sp, 0, 150, 100,    0, "%",  "" },
     };
     return ps;
 }
 
 const char* morphPresetName (int i)
 {
-    static const char* n[kMorphPresets] = { "VOWEL PAD", "TALKING BASS", "PHASE STRINGS", "COMB BELLS", "ACID MORPH", "SCREAM LEAD" };
+    static const char* n[kMorphPresets] = { "VOWEL PAD", "TALKING BASS", "PHASE STRINGS", "COMB BELLS", "ACID MORPH", "SCREAM LEAD",
+                                            "DOUBLE VOWEL", "SYNCED SWEEP", "RANDOM CHOIR", "ZAP BASS" };
     return n[std::clamp (i, 0, kMorphPresets - 1)];
 }
 
@@ -109,6 +137,12 @@ std::vector<float> morphPreset (int i)
                        { Emphasis, 75 }, { LfoDepth, 0 }, { Attack, 1 }, { Decay, 400 }, { Sustain, 70 }, { Release, 80 }, { Chorus, 0 }, { Echo, 15 }, { VelMorph, 50 } }); break;
         case 5: set ({ { Wave1, SuperSaw }, { Wave2, Square }, { Mix, 35 }, { Model, 10 }, { Morph, 30 }, { EnvAmount, 50 }, { EnvAttack, 200 }, { LfoRate, 5 }, { LfoDepth, 20 },
                        { Attack, 5 }, { Release, 300 }, { Chorus, 20 }, { Echo, 25 } }); break;
+        case 6: set ({ { Model, 0 }, { Route2, 1 }, { Model2, 2 }, { Morph2, 30 }, { Freq2, 5 }, { EnvAmount, 60 }, { Chorus, 50 } }); break;
+        case 7: set ({ { Wave1, Saw }, { Wave2, Saw }, { Mix, 50 }, { Model, 4 }, { LfoDepth, 80 }, { LfoSync, 3 }, { LfoShape, 1 }, { EnvAmount, 0 },
+                       { Route2, 2 }, { Model2, 5 }, { Morph2, -40 } }); break;
+        case 8: set ({ { Wave1, SuperSaw }, { Model, 3 }, { MorphRandom, 80 }, { EnvAmount, 30 }, { Chord, 1 }, { Attack, 300 }, { Release, 1500 }, { Chorus, 60 }, { Echo, 25 } }); break;
+        case 9: set ({ { Wave1, Square }, { Wave2, Saw }, { Octave, -1 }, { Model, 7 }, { Morph, 10 }, { EnvAmount, 70 }, { EnvAttack, 1 }, { EnvDecay, 200 }, { EnvSustain, 0 },
+                       { PitchEnv, 12 }, { PitchTime, 60 }, { SubLevel, 50 }, { Drive, 40 }, { Attack, 1 }, { Sustain, 80 }, { Release, 100 }, { Chorus, 0 }, { Echo, 0 }, { LfoDepth, 0 } }); break;
         default: break;
     }
     return v;
@@ -172,6 +206,10 @@ void MorphSynth::startVoice (int key, float pitch, int vel)
         seed = seed * 1664525u + 1013904223u; v.ph1[o] = (double) (seed >> 8) / 16777216.0;
         seed = seed * 1664525u + 1013904223u; v.ph2[o] = (double) (seed >> 8) / 16777216.0;
     }
+    seed = seed * 1664525u + 1013904223u;
+    v.rnd = (float) (seed >> 9) / 4194304.0f - 1.0f;      // (RANDOM: this note's own morph)
+    v.penv = 1.0f;
+    if (p[msyn::Glide] > 0.5f && lastNote >= 0) v.glideOff = lastNote - (float) key;
     v.order = ++orderCount;
 }
 
@@ -192,6 +230,7 @@ void MorphSynth::handle (const Event& e)
         oldest->fading = true; ++freeCount;
     }
     for (int iv : chord) startVoice (e.note, (float) (e.note + iv), e.vel);
+    lastNote = (float) e.note;
 }
 
 float MorphSynth::osc (int wave, std::array<double, 5>& ph, double hz, float pw)
@@ -234,13 +273,20 @@ float MorphSynth::osc (int wave, std::array<double, 5>& ph, double hz, float pw)
 void MorphSynth::renderVoice (Voice& v, float lfo, float& outL, float& outR)
 {
     if (v.stage == 0 && ! v.fading) return;
-    const double semis = v.pitch + bend + p[msyn::Octave] * 12.0f;
+    // (v0.84) pitch: the PITCH envelope, GLIDE
+    v.penv *= (float) std::exp (-1.0 / std::max (1.0, p[msyn::PitchTime] * 0.001 * sr * 0.3));
+    if (v.glideOff != 0.0f) { v.glideOff *= (float) std::exp (-1.0 / std::max (1.0, p[msyn::Glide] * 0.001 * sr * 0.3)); if (std::abs (v.glideOff) < 0.002f) v.glideOff = 0; }
+    const double semis = v.pitch + bend + p[msyn::Octave] * 12.0f + p[msyn::PitchEnv] * v.penv + v.glideOff;
     const double hz1 = 440.0 * std::pow (2.0, (semis - 69.0) / 12.0);
     const double hz2 = 440.0 * std::pow (2.0, (semis + p[msyn::Osc2Tune] + p[msyn::Detune] * 0.01 - 69.0) / 12.0);
     const float pw = std::clamp (p[msyn::PulseWidth] * 0.01f, 0.05f, 0.95f);
     const float mix = p[msyn::Mix] * 0.01f;
     float x = osc ((int) std::lround (p[msyn::Wave1]), v.ph1, hz1, pw) * (1.0f - 0.5f * mix)
             + osc ((int) std::lround (p[msyn::Wave2]), v.ph2, hz2, pw) * mix;
+    // SUB (a sine an octave down), NOISE, DRIVE into the filter
+    if (p[msyn::SubLevel] > 0.0f) { step (v.phSub, std::min (0.45, hz1 * 0.5 / sr)); x += (float) std::sin (kTwoPi * v.phSub) * p[msyn::SubLevel] * 0.008f; }
+    if (p[msyn::NoiseLevel] > 0.0f) { seed = seed * 1664525u + 1013904223u; x += ((int) (seed >> 9) - 4194304) / 4194304.0f * p[msyn::NoiseLevel] * 0.005f; }
+    if (p[msyn::Drive] > 0.0f) { const float d = 1.0f + p[msyn::Drive] * 0.06f; x = std::tanh (x * d) / std::sqrt (d); }
 
     envStep (v.env, v.stage, p[msyn::Attack], p[msyn::Decay], p[msyn::Sustain] * 0.01f, p[msyn::Release], sr);
     int ms = v.mstage;
@@ -251,13 +297,20 @@ void MorphSynth::renderVoice (Voice& v, float lfo, float& outL, float& outR)
     {
         // where the filter is: MORPH, its envelope, the LFO, how hard it was played; FREQ with the keys
         const float m = p[msyn::Morph] * 0.01f + p[msyn::EnvAmount] * 0.01f * v.menv + p[msyn::LfoDepth] * 0.01f * 0.5f * lfo
-                        + p[msyn::VelMorph] * 0.01f * (v.vel - 0.5f);
+                        + p[msyn::VelMorph] * 0.01f * (v.vel - 0.5f) + p[msyn::MorphRandom] * 0.01f * 0.5f * v.rnd;
         v.morphNow = std::clamp (m, 0.0f, 1.0f);
         const float oct = p[msyn::Freq] / 12.0f + p[msyn::KeyTrack] * 0.01f * (v.pitch - 60.0f) / 12.0f;
         v.filter.set ((int) std::lround (p[msyn::Model]), v.morphNow, oct, p[msyn::Emphasis] * 0.01f, sr);
+        if (std::lround (p[msyn::Route2]) != 0)
+            v.filter2.set ((int) std::lround (p[msyn::Model2]), std::clamp (v.morphNow + p[msyn::Morph2] * 0.01f, 0.0f, 1.0f),
+                           oct + p[msyn::Freq2] / 12.0f, p[msyn::Emphasis] * 0.01f, sr);
         v.upd = 31;
     }
-    x = v.filter.process (x);
+    // the MORPH FILTER - and FILTER 2 after it (SERIES) or beside it (PARALLEL)
+    const int route = (int) std::lround (p[msyn::Route2]);
+    if (route == 1) x = v.filter2.process (v.filter.process (x)) * 0.8f;
+    else if (route == 2) x = (v.filter.process (x) + v.filter2.process (x)) * 0.6f;
+    else x = v.filter.process (x);
 
     const float vs = p[msyn::VelSens] * 0.01f;
     float amp = v.env * (1.0f - vs + vs * v.vel);
@@ -279,12 +332,29 @@ void MorphSynth::render (float* left, float* right, int n)
     const float level = p[msyn::Level] * 0.01f * 0.6f;
     const int chLen = (int) chBuf[0].size(), ecLen = (int) echoBuf[0].size();
     const int ecDelay = std::clamp ((int) (p[msyn::EchoTime] * 0.001 * sr), 1, std::max (1, ecLen - 2));
-    const float fb = 0.25f + 0.4f * echo;
+    const float fb = p[msyn::EchoFeedback] >= 0.5f ? p[msyn::EchoFeedback] * 0.01f : 0.25f + 0.4f * echo;   // (0: AUTO, as before v0.84)
+    static const double perBeat[6] = { 0, 0.25, 0.5, 1, 2, 4 };
+    const int sync = std::clamp ((int) std::lround (p[msyn::LfoSync]), 0, 5);
+    const double lfoRate = sync == 0 ? p[msyn::LfoRate] : songBpm / 60.0 * perBeat[sync];
+    const int lshape = (int) std::lround (p[msyn::LfoShape]);
+    const float width = p[msyn::Width] * 0.01f;
     for (int i = 0; i < n; ++i)
     {
         while (ev < events.size() && events[ev].offset <= i) handle (events[ev++]);
-        lfoPh += p[msyn::LfoRate] / sr; lfoPh -= std::floor (lfoPh);
-        const float lfo = (float) std::sin (kTwoPi * lfoPh);
+        const double before = lfoPh;
+        lfoPh += lfoRate / sr; lfoPh -= std::floor (lfoPh);
+        if (lfoPh < before) { seed = seed * 1664525u + 1013904223u; lfoHold = (float) (seed >> 9) / 4194304.0f - 1.0f; }
+        float lw;
+        switch (lshape)
+        {
+            case 1: lw = (float) (lfoPh < 0.5 ? 4.0 * lfoPh - 1.0 : 3.0 - 4.0 * lfoPh); break;
+            case 2: lw = lfoPh < 0.5 ? 1.0f : -1.0f; break;
+            case 3: lw = (float) (1.0 - 2.0 * lfoPh); break;
+            case 4: lw = lfoHold; break;
+            default: lw = (float) std::sin (kTwoPi * lfoPh); break;
+        }
+        lfoSmooth += (lw - lfoSmooth) * (lshape >= 2 ? 0.01f : 1.0f);
+        const float lfo = lfoSmooth;
         float l = 0, r = 0;
         for (auto& v : voices) renderVoice (v, lfo, l, r);
         if (chorus > 0 && chLen > 8)
@@ -314,7 +384,10 @@ void MorphSynth::render (float* left, float* right, int n)
             if (++echoPos >= ecLen) echoPos = 0;
             l += eL * echo * 0.7f; r += eR * echo * 0.7f;
         }
-        left[i] = l * level; right[i] = r * level;
+        if (std::abs (width - 1.0f) > 0.001f) { const float m = (l + r) * 0.5f, sd = (l - r) * 0.5f * width; l = m + sd; r = m - sd; }
+        float ol = l * level, orr = r * level;
+        auto lim = [] (float x) { const float a = std::abs (x); return a < 1.5f ? x : std::copysign (1.5f + 0.5f * std::tanh ((a - 1.5f) * 2.0f), x); };
+        left[i] = std::isfinite (ol) ? lim (ol) : 0.0f; right[i] = std::isfinite (orr) ? lim (orr) : 0.0f;
     }
     while (ev < events.size()) handle (events[ev++]);
     events.clear();

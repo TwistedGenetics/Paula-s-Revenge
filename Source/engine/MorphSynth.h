@@ -7,6 +7,7 @@
 
 #include "PluginSynth.h"
 #include "MorphFilter.h"
+#include <algorithm>
 #include <array>
 #include <vector>
 
@@ -22,11 +23,16 @@ namespace msyn
              EnvAmount, EnvAttack, EnvDecay, EnvSustain, EnvRelease,
              LfoRate, LfoDepth,
              Attack, Decay, Sustain, Release,
-             Chord, Octave, Chorus, Echo, EchoTime, VelSens, Level, Count };
+             Chord, Octave, Chorus, Echo, EchoTime, VelSens, Level,
+             // (v0.84) a second MORPH FILTER (in SERIES or PARALLEL), the LFO's SHAPE and SYNC, a RANDOM morph each note,
+             // SUB and NOISE, DRIVE into the filters, GLIDE, a PITCH envelope, echo FEEDBACK, WIDTH
+             Route2, Model2, Morph2, Freq2, LfoShape, LfoSync, MorphRandom,
+             SubLevel, NoiseLevel, Drive, Glide, PitchEnv, PitchTime, EchoFeedback, Width,
+             Count };
     enum Wave { Saw = 0, Pulse, Square, Tri, Sine, Noise, SuperSaw, Organ, Waves };
 }
 const std::vector<SynthParam>& morphSynthParams();
-constexpr int kMorphPresets = 6;
+constexpr int kMorphPresets = 10;
 const char* morphPresetName (int i);              // "VOWEL PAD"
 std::vector<float> morphPreset (int i);           // its settings (PRESETS lists them)
 
@@ -43,6 +49,7 @@ public:
     void setParameter (int index, float value01) override;
     void render (float* left, float* right, int numSamples) override;
     void update (const Instrument&) override;
+    void updateSong (const Song& s) override { songBpm = (double) s.tempo * 6.0 / std::max (1, s.speed); }
     void setValues (const std::vector<float>& v);   // (tests)
     int  voicesPlaying() const;                     // (tests)
     float morphOf (int voice) const;                // (tests: where a voice's MORPH is now)
@@ -66,6 +73,9 @@ private:
         int   upd = 0, order = 0;
         float fade = 1; bool fading = false;
         float pan = 0;
+        MorphFilter filter2;           // (v0.84: FILTER 2)
+        float rnd = 0, penv = 0, glideOff = 0;
+        double phSub = 0;
     };
     static constexpr int kVoices = 16;
     Voice voices[kVoices];
@@ -73,6 +83,8 @@ private:
     int orderCount = 0;
     uint32_t seed = 4242;
     double lfoPh = 0;
+    float lfoHold = 0, lfoSmooth = 0, lastNote = -1;
+    double songBpm = 125.0;
     std::vector<float> chBuf[2]; int chPos = 0; double chPh = 0;
     std::vector<float> echoBuf[2]; int echoPos = 0; float echoLp[2] {};
     void handle (const Event&);

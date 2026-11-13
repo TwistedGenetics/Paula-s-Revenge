@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.83</span>
+  <span class="ver">MANUAL &middot; V0.84</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -924,7 +924,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
   <h3>Presets for the built-in synths</h3>
-  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine sounds; for the others, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
+  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine and five layered ones; ten each for SUB, REESE, MORPH, ACID, PAD and GRANULAR; for ROM, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
   <figure>
     <div class="frame sunken"><img src="img/synth_presets.png" alt="RAVE's PRESETS menu: SAVE THESE SETTINGS AS MY PRESET..., the nine sounds STAB to BELGIAN, MY DARK SCREAM, DELETE ONE OF MY PRESETS... and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>RAVE's presets, with one of yours</figcaption>
@@ -1010,15 +1010,15 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </figure>
   <p>Loading an ordinary WAV also uses its own loop points, and for a looped sample its root note, so C-3 plays a C.</p>
   <h3>The built-in MORPH synth</h3>
-  <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; MORPH; <b>PRESETS...</b> has six sounds to start from.</p>
+  <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; MORPH; <b>PRESETS...</b> has ten sounds to start from, from VOWEL PAD and TALKING BASS to DOUBLE VOWEL, SYNCED SWEEP, RANDOM CHOIR and ZAP BASS. Three tabs: <span class="b">OSC</span>, <span class="b">MORPH</span> and <span class="b">AMP + FX</span>. (A MORPH from an older song sounds as it did.)</p>
   <figure>
-    <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab: OSCILLATORS (WAVE 1 SUPERSAW, WAVE 2 PULSE, OSC 2, DETUNE, OSC2 TUNE, PW), MORPH FILTER (MODEL AH &gt; EE, MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH), MORPH ENV and MORPH LFO." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab: MORPH FILTER (MODEL, MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH, RANDOM), FILTER 2 (ROUTE, MODEL, MORPH +/-, FREQ), MORPH ENV and MORPH LFO with SHAPE and SYNC." width="1440" height="900" loading="lazy"></div>
     <figcaption>MORPH: two oscillators into a morphing filter per note</figcaption>
   </figure>
   <ul>
-    <li><b>OSCILLATORS:</b> WAVE 1 and 2 (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), OSC 2's level, DETUNE, OSC2 TUNE, PW.</li>
-    <li><b>MORPH FILTER:</b> MODEL (the effect's 12), MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH. <b>MORPH ENV:</b> AMOUNT &plusmn; and its ADSR. <b>MORPH LFO:</b> RATE, DEPTH.</li>
-    <li>On <span class="b">AMP + SPACE</span>: the amp ENVELOPE, CHORD, OCTAVE, CHORUS, ECHO, VELOCITY and LEVEL. Up to 16 notes.</li>
+    <li><span class="b">OSC</span> &mdash; <b>OSCILLATORS:</b> WAVE 1 and 2 (SAW, PULSE, SQUARE, TRI, SINE, NOISE, SUPERSAW, ORGAN), OSC 2's level, DETUNE, OSC2 TUNE, PW, <b>SUB</b> (a sine an octave down), <b>NOISE</b> (breath into the filter), <b>DRIVE</b> (into the filter). <b>SOUND:</b> CHORD, OCTAVE. <b>PITCH:</b> GLIDE, PITCH ENV &plusmn; and PITCH TIME (a zap or a swoop).</li>
+    <li><span class="b">MORPH</span> &mdash; <b>MORPH FILTER:</b> MODEL (the effect's 12), MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH, <b>RANDOM</b> (each note a random amount along or back: a choir where no two notes say the same vowel). <b>FILTER 2:</b> ROUTE <b>OFF / SERIES / PARALLEL</b>, its own MODEL, MORPH +/- (against the first; both follow the envelope and LFO) and FREQ &mdash; two vowels at once. <b>MORPH ENV:</b> AMOUNT &plusmn; and its ADSR. <b>MORPH LFO:</b> RATE, DEPTH, SHAPE (SINE, TRI, SQUARE, SAW, S&amp;H) and SYNC to the tempo (FREE, 1 BAR to 1/16).</li>
+    <li><span class="b">AMP + FX</span> &mdash; the amp ENVELOPE; SPACE: CHORUS, ECHO, ECHO TIME, FEEDBACK (AUTO as before), WIDTH; VELOCITY and LEVEL. Up to 16 notes.</li>
   </ul>
   <h3>The built-in ACID synth (303 + Devil Fish)</h3>
   <p><b>ACID</b> is a 303-style bass line synth with the <b>Devil Fish</b> mods &mdash; our own model of the sound. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ACID. One note at a time: a saw or square into a resonant low-pass, with the envelope and <b>ACCENT</b> that make it squelch and <b>SLIDE</b> between notes. Two tabs: <span class="b">303</span> and <span class="b">DEVIL FISH</span>; <b>PRESETS...</b> has ten sounds.</p>
@@ -1055,16 +1055,17 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <h3>The built-in GRANULAR synth</h3>
   <p><b>GRANULAR</b> plays a sound as a cloud of tiny overlapping pieces &mdash; grains &mdash; so it can hold one moment of a sound for ever, smear it into a pad, stretch it or scatter it into glitter. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; GRANULAR. Notes play it at their pitch (<code>C-3</code> = the sound's own pitch), up to 6 at once.</p>
   <figure>
-    <div class="frame sunken"><img src="img/grain_page.png" alt="The GRANULAR page: the sound across the top with a line at POSITION and the SOURCE box beside it, the GRAINS and LFOS + FILTER tabs, then boxes for GRAINS, PITCH, ENVELOPE and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/grain_page.png" alt="The GRANULAR page: the sound across the top and the SOURCE box beside it, the GRAINS, MOD and AMP + FX tabs, then the GRAINS box (with FREEZE, WINDOW and KEY&gt;POS) and the PITCH box (with SCALE, DETUNE and SHIMMER)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The GRANULAR page: click the sound to set where the grains come from</figcaption>
   </figure>
   <ul>
     <li><b>SOURCE:</b> <span class="b">TABLE</span> &mdash; 8 built-in sounds that change from start to end (SINE, SAW, SQUARE, VOCAL through A E I O U, BELL, GLASS, NOISE, CHOIR). <span class="b">SAMPLE</span> &mdash; press <span class="b">LOAD SAMPLE...</span> under the SOURCE box and pick a sample in the browser, just as for any instrument: it goes into GRANULAR (which stays GRANULAR) and is saved with the song. Or set SAMPLE to another instrument's number to use its sample. <span class="b">RECORDING</span> &mdash; the audio input, live: the last 8 seconds of what comes in.</li>
-    <li>Across the top, beside the SOURCE box, is the sound itself, with a line at POSITION and a thin line where the grains are reading. <b>Click or drag on it</b> to set POSITION. Two tabs under it show the rest: <span class="b">GRAINS</span> and <span class="b">LFOS + FILTER</span>.</li>
-    <li><b>GRAINS:</b> POSITION; SCAN (moves the position on as the note plays &mdash; 100% plays through at the sound's own speed, less stretches it, minus goes backwards); SIZE; DENSITY (grains a second); SPRAY (scatters where and when grains start); <b>FREEZE</b> (holds the position &mdash; and on RECORDING stops taking in sound, so you can play what was caught).</li>
-    <li><b>PITCH:</b> PITCH, SPREAD (each grain randomly out of tune), REVERSE (how many play backwards), STEREO (how wide they spread).</li>
-    <li><b>ENVELOPE</b>; <b>LFO 1</b> (sine) and <b>LFO 2</b> (triangle) with RATE, AMT and TO; <b>ENV MOD</b> &mdash; each can move POSITION, SIZE, DENSITY, SPRAY, PITCH, STEREO, CUTOFF or LEVEL.</li>
-    <li><b>FILTER:</b> CUTOFF and RES (a resonant low-pass), DIFFUSE (smears the grains into a wash). Then LEVEL.</li>
+    <li>Across the top, beside the SOURCE box, is the sound itself, with a line at POSITION and a thin line where the grains are reading. <b>Click or drag on it</b> to set POSITION. Three tabs under it show the rest: <span class="b">GRAINS</span>, <span class="b">LFOS + FILTER</span> (<b>MOD</b> in a narrow window) and <span class="b">AMP + FX</span>. <b>PRESETS...</b> has ten: DEFAULTS, CHOIR CLOUD, GLASS SHIMMER, FROZEN VOCAL, STUTTER SYNC, SCALE SPARKLE, REVERSE SWELLS, TEXTURE DRONE, PERC SCATTER and KEY SCAN (settings only, not a sample). A GRANULAR from an older song sounds as it did.</li>
+    <li><b>GRAINS:</b> POSITION; SCAN (moves the position on as the note plays &mdash; 100% plays through at the sound's own speed, less stretches it, minus goes backwards); SIZE; DENSITY (grains a second); SPRAY (scatters where and when grains start); <b>FREEZE</b> (holds the position &mdash; and on RECORDING stops taking in sound, so you can play what was caught); <b>WINDOW</b> &mdash; each grain's shape: SMOOTH, TRIANGLE, FLAT, PERC (sharp and dying &mdash; stuttery) or SWELL (backwards-sounding); <b>KEY&gt;POS</b> &mdash; higher notes read further along the sound (or back, below 0).</li>
+    <li><b>PITCH:</b> PITCH, SPREAD (each grain randomly out of tune), REVERSE (how many play backwards), STEREO (how wide they spread); <b>SCALE</b> &mdash; SPREAD's random pitches snap to OCTAVES, FIFTHS, MAJOR, MINOR or PENTA (or anywhere: FREE), a cloud in key; <b>DETUNE</b> (cents); <b>SHIMMER</b> (grains an octave up).</li>
+    <li><b>LFO 1</b> and <b>LFO 2</b> with RATE, AMT, TO, <b>SHAPE</b> (SINE, TRI, SQUARE, SAW, S&amp;H) and <b>SYNC</b> to the tempo (a synced square on POSITION stutters in time); <b>ENV MOD</b> &mdash; each can move POSITION, SIZE, DENSITY, SPRAY, PITCH, STEREO, CUTOFF or LEVEL.</li>
+    <li><b>FILTER:</b> CUTOFF and RES (a resonant low-pass), DIFFUSE (smears the grains into a wash).</li>
+    <li><span class="b">AMP + FX</span> &mdash; <b>ENVELOPE</b> (ADSR); <b>SPACE:</b> ECHO (ping-pong), ECHO TIME, FEEDBACK, WIDTH; <b>OUTPUT:</b> LEVEL.</li>
     <li>On a TABLE, a note's grains line up with each other, so with SPRAY and SPREAD at 0 it is a clean tone; turn them up to break it apart. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
 </section>
@@ -1495,7 +1496,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.83</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.84</footer>
 </main>
 </div>
 <script>

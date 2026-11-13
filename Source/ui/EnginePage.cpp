@@ -509,11 +509,26 @@ void EnginePage::build()
                              || (shownKey == kRomKey && ! sec.startsWith ("TONE ") && sec != "MORPH FILTER")   // (ROM: its TONES, then the rest; MORPH FILTER a page of its own)
                              || (shownKey == kMorphKey && (sec == "ENVELOPE" || sec == "SOUND" || sec == "SPACE" || sec == "OUTPUT"))
                              || (shownKey == kAcidKey && (sec.startsWith ("DEVIL FISH") || sec == "SLIDE" || sec == "MUFFLER + DRIVE"));   // (ACID: the 303, then the Devil Fish)
-            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : shownKey == kRomKey && sec == "MORPH FILTER" ? 3 : second ? 1 : 0, sec });
+            // (GRANULAR, v0.84: a third page - ENVELOPE, SPACE, OUTPUT)
+            const bool third = (shownKey == kRomKey && sec == "MORPH FILTER") || (grainPage && (sec == "ENVELOPE" || sec == "SPACE" || sec == "OUTPUT"));
+            boxes.push_back ({ sec, {}, {}, grainPage && sec == "SOURCE" ? 2 : third ? 3 : second ? 1 : 0, sec });
             box = boxes.end() - 1;
         }
         box->rowIndex.push_back ((int) rows.size());
         rows.push_back (std::move (r));
+    }
+    // (v0.84) every name whole: a box with a longer one ("PITCH TIME") gives all its rows that much room, so they line up
+    for (const auto& b : boxes)
+    {
+        int chars = 9;
+        for (int ri : b.rowIndex)
+            if (rows[(size_t) ri].slider || rows[(size_t) ri].number)
+                chars = std::max (chars, (int) juce::String (ps[(size_t) rows[(size_t) ri].param].name).length());
+        for (int ri : b.rowIndex)
+        {
+            if (auto& s = rows[(size_t) ri].slider) s->labelChars = chars;
+            if (auto& n = rows[(size_t) ri].number) n->labelChars = chars;
+        }
     }
     // (the tabs in their places: "N:" first, else as they came; the boxes' pages follow)
     if (! genTabNames.empty())
@@ -577,7 +592,7 @@ void EnginePage::tick()
 void EnginePage::showPage (int k)
 {
     if (! genTabNames.empty()) pageShown = 10 + juce::jlimit (0, (int) genTabNames.size() - 1, k >= 10 ? k - 10 : k);   // (v0.81: tabs of its own)
-    else pageShown = k == 3 && shownKey == kRomKey ? 3 : juce::jlimit (0, 1, k);   // (3: ROM's MORPH FILTER)
+    else pageShown = k == 3 && (shownKey == kRomKey || shownKey == kGrainKey) ? 3 : juce::jlimit (0, 1, k);   // (3: ROM's MORPH FILTER, GRANULAR's AMP + FX)
     resized();
     repaint();
 }
@@ -814,7 +829,7 @@ void EnginePage::resized()
     const bool generic = ! genTabNames.empty();
     const bool paged = generic || shownKey == kGrainKey || shownKey == kReeseKey || shownKey == kRomKey || shownKey == kMorphKey || shownKey == kAcidKey || (shownKey == kSubKey && subPages);
     for (auto& b : pageBtn) b.setVisible (paged && ! generic);
-    pageBtn[2].setVisible (paged && ! generic && shownKey == kRomKey);
+    pageBtn[2].setVisible (paged && ! generic && (shownKey == kRomKey || shownKey == kGrainKey));
     if (generic)
     {
         // (v0.81) the synth's own tabs: their names if they fit on a line, else the short ones; a second line if need be
@@ -868,7 +883,7 @@ void EnginePage::resized()
     }
     else if (paged)
     {
-        pageBtn[0].setButtonText ("GRAINS"); pageBtn[1].setButtonText ("LFOS + FILTER");
+        pageBtn[0].setButtonText ("GRAINS"); pageBtn[1].setButtonText ("LFOS + FILTER"); pageBtn[2].setButtonText ("AMP + FX");
         Box* src = nullptr;
         for (auto& b : boxes) if (b.page == 2) src = &b;
         const int srcW = juce::jlimit (charsW (14), std::max (charsW (14), r.getWidth() / 2), charsW (22));
@@ -895,10 +910,14 @@ void EnginePage::resized()
         // the page tabs under the sound, beside the SOURCE box (no line of their own)
         auto tabs = band.removeFromBottom (rowH); band.removeFromBottom (gap * 2);
         waveArea = band.toFloat();
-        const int tw = std::max (charsW (8), (tabs.getWidth() - gap) * 2 / 5);
-        pageBtn[0].setBounds (tabs.removeFromLeft (tw)); tabs.removeFromLeft (gap);
+        // (v0.84: three - GRAINS, LFOS + FILTER (MOD when narrow), AMP + FX)
+        const int w0 = charsW (6), w2 = charsW (8);
+        const int rest = tabs.getWidth() - w0 - w2 - gap * 2;
+        pageBtn[1].setButtonText (rest >= charsW (13) ? "LFOS + FILTER" : "MOD");
+        pageBtn[0].setBounds (tabs.removeFromLeft (w0)); tabs.removeFromLeft (gap);
+        pageBtn[2].setBounds (tabs.removeFromRight (w2)); tabs.removeFromRight (gap);
         pageBtn[1].setBounds (tabs);
-        for (int k = 0; k < 2; ++k) pageBtn[k].setToggleState (pageShown == k, juce::dontSendNotification);
+        for (int k = 0; k < 3; ++k) pageBtn[k].setToggleState (pageShown == (k == 2 ? 3 : k), juce::dontSendNotification);
     }
     // (v0.79) the ROM browser: in place of the boxes
     if (browsingTone >= 0)

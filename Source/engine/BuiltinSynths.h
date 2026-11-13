@@ -140,8 +140,15 @@ namespace grain
 {
     enum P { Source, Table, SampleSlot, Position, Scan, Size, Density, Spray, Pitch, PitchSpread, Reverse, Stereo,
              Freeze, Attack, Decay, Sustain, Release, Lfo1Rate, Lfo1Depth, Lfo1Target, Lfo2Rate, Lfo2Depth, Lfo2Target,
-             EnvDepth, EnvTarget, Cutoff, Resonance, Diffuse, Level, Count };
+             EnvDepth, EnvTarget, Cutoff, Resonance, Diffuse, Level,
+             // (v0.84) the grains' WINDOW, a SCALE for the pitch spread, DETUNE, KEY > POSITION, SHIMMER (octave-up
+             // grains), the LFOs' SHAPE and SYNC, a ping-pong ECHO, WIDTH
+             Window, Scale, Detune, KeyPos, Shimmer, Lfo1Shape, Lfo1Sync, Lfo2Shape, Lfo2Sync, Echo, EchoTime, EchoFeedback, Width,
+             Count };
 }
+constexpr int kGrainPresets = 10;
+const char* grainPresetName (int i);
+std::vector<float> grainPreset (int i);
 
 class GrainSynth : public PluginSynth
 {
@@ -184,7 +191,7 @@ private:
     static constexpr int kNotes = 6;
     Note notes[kNotes];
     int orderCount = 0;
-    struct Grain { bool on = false; int note = 0; double readPos = 0, step = 1; int age = 0, len = 1; float amp = 0, panL = 1, panR = 1; };
+    struct Grain { bool on = false; int note = 0; double readPos = 0, step = 1; int age = 0, len = 1; float amp = 0, panL = 1, panR = 1; int win = 0; };
     static constexpr int kGrains = 128;
     Grain grains[kGrains];
     struct Event { int offset; int type; int note; int vel; };
@@ -192,6 +199,8 @@ private:
     float bend = 0;
     int bendRange = 12;
     double lfo1 = 0, lfo2 = 0;
+    float lfoHold[2] {}, lfoSmooth[2] {};
+    std::vector<float> echoBuf[2]; int echoPos = 0; float echoLp[2] {};   // (v0.84: ECHO)
     float posNow = 0;
     uint32_t seed = 22222;
     // after the grains: the filter (a resonant 12 dB low-pass) and the diffusion (four all-passes a side)

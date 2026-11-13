@@ -151,6 +151,20 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
         { "RES",       "FILTER",     0, 100, 0,    0, "%",  "" },
         { "DIFFUSE",   "FILTER",     0, 100, 0,    0, "%",  "" },
         { "LEVEL",     "OUTPUT",     0, 100, 80,   0, "%",  "" },
+        // (v0.84)
+        { "WINDOW",    "GRAINS",     0, 4, 0,      3, "",   "SMOOTH|TRIANGLE|FLAT|PERC|SWELL" },
+        { "SCALE",     "PITCH",      0, 5, 0,      3, "",   "FREE|OCTAVES|FIFTHS|MAJOR|MINOR|PENTA" },
+        { "DETUNE",    "PITCH",      0, 100, 0,    0, "C",  "" },
+        { "KEY>POS",   "GRAINS",     -100, 100, 0, 0, "%",  "" },
+        { "SHIMMER",   "PITCH",      0, 100, 0,    0, "%",  "" },
+        { "LFO1 SHAPE", "LFO 1",     0, 4, 0,      3, "",   "SINE|TRI|SQUARE|SAW|S&H" },
+        { "LFO1 SYNC", "LFO 1",      0, 5, 0,      3, "",   "FREE|1 BAR|1/2|1/4|1/8|1/16" },
+        { "LFO2 SHAPE", "LFO 2",     0, 4, 1,      3, "",   "SINE|TRI|SQUARE|SAW|S&H" },
+        { "LFO2 SYNC", "LFO 2",      0, 5, 0,      3, "",   "FREE|1 BAR|1/2|1/4|1/8|1/16" },
+        { "ECHO",      "SPACE",      0, 100, 0,    0, "%",  "" },
+        { "ECHO TIME", "SPACE",      20, 1500, 375, 1, "MS", "" },
+        { "FEEDBACK",  "SPACE",      0, 95, 40,    0, "%",  "" },
+        { "WIDTH",     "SPACE",      0, 150, 100,  0, "%",  "" },
     };
     if (key == kSubKey) return subP;
     if (key == kGrainKey) return grainP;
@@ -580,6 +594,35 @@ void SubSynth::render (float* left, float* right, int n)
 }
 
 // ============================================================================ GRANULAR
+const char* grainPresetName (int i)
+{
+    static const char* n[kGrainPresets] = { "DEFAULTS", "CHOIR CLOUD", "GLASS SHIMMER", "FROZEN VOCAL", "STUTTER SYNC", "SCALE SPARKLE",
+                                            "REVERSE SWELLS", "TEXTURE DRONE", "PERC SCATTER", "KEY SCAN" };
+    return n[std::clamp (i, 0, kGrainPresets - 1)];
+}
+
+std::vector<float> grainPreset (int i)
+{
+    using namespace grain;
+    auto v = builtinDefaults (kGrainKey);
+    auto set = [&] (std::initializer_list<std::pair<int, float>> l) { for (auto& [k, x] : l) v[(size_t) k] = x; };
+    switch (std::clamp (i, 0, kGrainPresets - 1))
+    {
+        case 1: set ({ { Table, 7 }, { Size, 250 }, { Density, 30 }, { Spray, 40 }, { Stereo, 90 }, { Detune, 25 }, { Attack, 800 }, { Release, 2500 }, { Diffuse, 50 }, { Echo, 20 } }); break;
+        case 2: set ({ { Table, 5 }, { Size, 120 }, { Density, 40 }, { Shimmer, 40 }, { PitchSpread, 12 }, { Scale, 1 }, { Stereo, 100 }, { Echo, 30 }, { EchoTime, 500 } }); break;
+        case 3: set ({ { Table, 3 }, { Freeze, 1 }, { Position, 45 }, { Size, 180 }, { Density, 35 }, { Spray, 15 }, { Diffuse, 60 }, { Attack, 400 } }); break;
+        case 4: set ({ { Table, 1 }, { Size, 40 }, { Density, 16 }, { Window, 2 }, { Lfo1Target, 0 }, { Lfo1Depth, 60 }, { Lfo1Shape, 4 }, { Lfo1Sync, 4 }, { Spray, 0 } }); break;
+        case 5: set ({ { Table, 4 }, { Size, 80 }, { Density, 25 }, { PitchSpread, 24 }, { Scale, 5 }, { Window, 3 }, { Stereo, 100 }, { Echo, 35 }, { EchoTime, 333 } }); break;
+        case 6: set ({ { Table, 6 }, { Reverse, 100 }, { Window, 4 }, { Size, 400 }, { Density, 12 }, { Attack, 1500 }, { Release, 3000 }, { Diffuse, 40 } }); break;
+        case 7: set ({ { Table, 6 }, { Scan, 20 }, { Size, 600 }, { Density, 20 }, { Spray, 70 }, { PitchSpread, 7 }, { Scale, 2 }, { Lfo2Target, 6 }, { Lfo2Depth, 40 }, { Lfo2Rate, 0.07f },
+                       { Cutoff, 2500 }, { Attack, 2000 }, { Release, 4000 }, { Diffuse, 70 } }); break;
+        case 8: set ({ { Table, 2 }, { Window, 3 }, { Size, 60 }, { Density, 18 }, { Spray, 100 }, { Stereo, 100 }, { PitchSpread, 12 }, { Scale, 1 } }); break;
+        case 9: set ({ { Table, 3 }, { KeyPos, 100 }, { Size, 150 }, { Density, 30 }, { Attack, 50 } }); break;
+        default: break;
+    }
+    return v;
+}
+
 namespace
 {
     constexpr double kC3 = 261.6255653005986;   // MIDI 60, the pitch every source plays at on C-3
@@ -721,6 +764,27 @@ namespace
         }();
         return w.data();
     }
+    // (v0.84) the grains' WINDOW: SMOOTH (as ever), TRIANGLE, FLAT (a plateau with soft edges), PERC (fast in, falling
+    // away), SWELL (rising, quick out)
+    const float* window (int which)
+    {
+        static const std::vector<std::vector<float>> all = []
+        {
+            std::vector<std::vector<float>> t (5, std::vector<float> (1025));
+            for (int i = 0; i <= 1024; ++i)
+            {
+                const double x = i / 1024.0;
+                t[0][(size_t) i] = 0.5f - 0.5f * (float) std::cos (kTwoPi * x);
+                t[1][(size_t) i] = (float) (1.0 - std::abs (2.0 * x - 1.0));
+                const double e = std::min (1.0, std::min (x, 1.0 - x) / 0.12);
+                t[2][(size_t) i] = (float) (0.5 - 0.5 * std::cos (3.141592653589793 * e));
+                t[3][(size_t) i] = (float) (std::min (1.0, x / 0.03) * std::pow (1.0 - x, 2.5));
+                t[4][(size_t) i] = (float) (std::pow (x, 2.0) * std::min (1.0, (1.0 - x) / 0.05));
+            }
+            return t;
+        }();
+        return all[(size_t) std::clamp (which, 0, 4)].data();
+    }
 
     constexpr float kRingSeconds = 8.0f;
 }
@@ -737,6 +801,7 @@ GrainSynth::GrainSynth()
     for (int i = 0; i < grain::Count; ++i) p[(size_t) i] = d[(size_t) i];
     table (0);   // (made here, on the message thread - never while playing)
     hann();
+    window (0);
     events.reserve (256);
 }
 
@@ -745,6 +810,8 @@ void GrainSynth::prepare (double sampleRate, int)
     sr = sampleRate > 0 ? sampleRate : 48000.0;
     ring.assign ((size_t) (sr * kRingSeconds), 0.0f);
     ringPos = ringFill = 0;
+    for (auto& b : echoBuf) b.assign ((size_t) (sr * 1.6) + 4, 0.0f);
+    echoPos = 0;
     static const float msL[4] = { 4.7f, 7.9f, 12.3f, 19.1f }, msR[4] = { 5.3f, 8.6f, 13.1f, 20.4f };
     for (int i = 0; i < 8; ++i)
     {
@@ -893,12 +960,26 @@ void GrainSynth::spawn (Note& n, const Src& s, const float mod[8])
     const float sizeMs = p[grain::Size] * std::pow (2.0f, 2.0f * mod[1]);
     const float spray = std::clamp (p[grain::Spray] * 0.01f + mod[3], 0.0f, 1.0f);
     const float stereo = std::clamp (p[grain::Stereo] * 0.01f + mod[5], 0.0f, 1.0f);
-    const float semis = (float) (n.note - 60) + p[grain::Pitch] + 12.0f * mod[4] + bend + p[grain::PitchSpread] * rnd();
+    // the pitch: the note, PITCH, the modulation, the SPREAD (snapped to the SCALE), DETUNE, and SHIMMER's octave-up grains
+    float spreadSt = p[grain::PitchSpread] * rnd();
+    const int scale = (int) std::lround (p[grain::Scale]);
+    if (scale > 0 && p[grain::PitchSpread] > 0.0f)
+    {
+        static const std::vector<int> scales[6] = { {}, { 0 }, { 0, 7 }, { 0, 2, 4, 5, 7, 9, 11 }, { 0, 2, 3, 5, 7, 8, 10 }, { 0, 2, 4, 7, 9 } };
+        const auto& sc = scales[(size_t) std::clamp (scale, 0, 5)];
+        const float r = std::round (spreadSt);
+        const int oct = (int) std::floor (r / 12.0f);
+        int best = sc[0], within = (int) r - oct * 12;
+        for (int st : sc) if (std::abs (st - within) < std::abs (best - within)) best = st;
+        spreadSt = (float) (oct * 12 + best);
+    }
+    float semis = (float) (n.note - 60) + p[grain::Pitch] + 12.0f * mod[4] + bend + spreadSt + p[grain::Detune] * 0.01f * rnd();
+    if (p[grain::Shimmer] > 0.0f && rnd() * 0.5f + 0.5f < p[grain::Shimmer] * 0.01f) semis += 12.0f;
     const bool rev = rnd() * 0.5f + 0.5f < p[grain::Reverse] * 0.01f;
     const double step = (s.rate / sr) * std::pow (2.0, semis / 12.0) * (rev ? -1.0 : 1.0);
     const int len = std::max (16, (int) (std::clamp (sizeMs, 2.0f, 4000.0f) * 0.001f * (float) sr));
     // where: POSITION, plus SCAN's travel, the modulation and SPRAY
-    double pos = p[grain::Position] * 0.01 + n.scan + mod[0] * 0.5 + spray * 0.15 * rnd();
+    double pos = p[grain::Position] * 0.01 + n.scan + mod[0] * 0.5 + spray * 0.15 * rnd() + p[grain::KeyPos] * 0.01 * (n.note - 60) / 48.0;
     pos -= std::floor (pos);
     const bool live = s.f != nullptr && s.f == ring.data();
     if (live)   // (the recording: never read past what has just come in)
@@ -922,7 +1003,7 @@ void GrainSynth::spawn (Note& n, const Src& s, const float mod[8])
     g->on = true;
     g->note = (int) (&n - notes);
     g->readPos = live ? (double) s.ringStart + start : start;
-    g->step = step; g->age = 0; g->len = len;
+    g->step = step; g->age = 0; g->len = len; g->win = (int) std::lround (p[grain::Window]);
     g->amp = 0.8f / std::sqrt (std::max (1.0f, overlap));
     g->panL = std::sqrt (0.5f * (1.0f - pan)) * 1.41421356f;
     g->panR = std::sqrt (0.5f * (1.0f + pan)) * 1.41421356f;
@@ -942,7 +1023,14 @@ void GrainSynth::render (float* left, float* right, int n)
     const float atk = (float) (1.0 / std::max (1.0, p[grain::Attack] * 0.001 * sr));
     const float dec = (float) (1.0 - std::exp (-4.6 / std::max (1.0, p[grain::Decay] * 0.001 * sr)));
     const float rel = (float) std::exp (-4.6 / std::max (1.0, p[grain::Release] * 0.001 * sr));
-    const double l1 = p[grain::Lfo1Rate] / sr, l2 = p[grain::Lfo2Rate] / sr;
+    static const double perBeat[6] = { 0, 0.25, 0.5, 1, 2, 4 };
+    const double bpm = song != nullptr ? (double) song->tempo * 6.0 / std::max (1, song->speed) : 125.0;
+    const int y1 = std::clamp ((int) std::lround (p[grain::Lfo1Sync]), 0, 5), y2 = std::clamp ((int) std::lround (p[grain::Lfo2Sync]), 0, 5);
+    const double l1 = (y1 == 0 ? p[grain::Lfo1Rate] : bpm / 60.0 * perBeat[y1]) / sr, l2 = (y2 == 0 ? p[grain::Lfo2Rate] : bpm / 60.0 * perBeat[y2]) / sr;
+    const int s1 = (int) std::lround (p[grain::Lfo1Shape]), s2 = (int) std::lround (p[grain::Lfo2Shape]);
+    const float echo = p[grain::Echo] * 0.01f, efb = p[grain::EchoFeedback] * 0.01f, width = p[grain::Width] * 0.01f;
+    const int ecLen = (int) echoBuf[0].size();
+    const int ecDelay = std::clamp ((int) (p[grain::EchoTime] * 0.001 * sr), 1, std::max (1, ecLen - 2));
     const int t1 = (int) std::lround (p[grain::Lfo1Target]), t2 = (int) std::lround (p[grain::Lfo2Target]), te = (int) std::lround (p[grain::EnvTarget]);
     const float d1 = p[grain::Lfo1Depth] * 0.01f, d2 = p[grain::Lfo2Depth] * 0.01f, de = p[grain::EnvDepth] * 0.01f;
     const bool cutMod = (d1 > 0 && t1 == 6) || (d2 > 0 && t2 == 6) || (de != 0 && te == 6);
@@ -955,12 +1043,26 @@ void GrainSynth::render (float* left, float* right, int n)
     for (int i = 0; i < n; ++i)
     {
         while (ev < events.size() && events[ev].offset <= i) handle (events[ev++]);
-        // the LFOs (1: a sine, 2: a triangle) into their targets
-        lfo1 += l1; if (lfo1 >= 1) lfo1 -= 1;
-        lfo2 += l2; if (lfo2 >= 1) lfo2 -= 1;
+        // the LFOs (SHAPE: 1 a sine, 2 a triangle as they start; SYNC to the song) into their targets
+        lfo1 += l1; if (lfo1 >= 1) { lfo1 -= 1; lfoHold[0] = rnd(); }
+        lfo2 += l2; if (lfo2 >= 1) { lfo2 -= 1; lfoHold[1] = rnd(); }
         float mod[8] {};
-        mod[std::clamp (t1, 0, 7)] += d1 * (float) std::sin (kTwoPi * lfo1);
-        mod[std::clamp (t2, 0, 7)] += d2 * (float) (lfo2 < 0.5 ? 4.0 * lfo2 - 1.0 : 3.0 - 4.0 * lfo2);
+        auto shapeOf = [&] (int k, double ph, int sh)
+        {
+            float x;
+            switch (sh)
+            {
+                case 1: x = (float) (ph < 0.5 ? 4.0 * ph - 1.0 : 3.0 - 4.0 * ph); break;
+                case 2: x = ph < 0.5 ? 1.0f : -1.0f; break;
+                case 3: x = (float) (1.0 - 2.0 * ph); break;
+                case 4: x = lfoHold[k]; break;
+                default: x = (float) std::sin (kTwoPi * ph); break;
+            }
+            lfoSmooth[k] += (x - lfoSmooth[k]) * (sh >= 2 ? 0.01f : 1.0f);
+            return lfoSmooth[k];
+        };
+        mod[std::clamp (t1, 0, 7)] += d1 * shapeOf (0, lfo1, s1);
+        mod[std::clamp (t2, 0, 7)] += d2 * shapeOf (1, lfo2, s2);
         // the notes: envelopes, travel, new grains
         for (auto& nt : notes)
         {
@@ -993,7 +1095,7 @@ void GrainSynth::render (float* left, float* right, int n)
             {
                 if (! g.on) continue;
                 const auto& nt = notes[g.note];
-                const float w = win[(size_t) ((int64_t) g.age * 1024 / g.len)];
+                const float w = (g.win == 0 ? win : window (g.win))[(size_t) ((int64_t) g.age * 1024 / g.len)];
                 double rp = g.readPos;
                 if (rp < 0 || rp >= (double) wrap) { rp = std::fmod (rp, (double) wrap); if (rp < 0) rp += (double) wrap; }
                 const size_t i0 = (size_t) rp;
@@ -1039,10 +1141,24 @@ void GrainSynth::render (float* left, float* right, int n)
             }
             L += (wl - L) * diffuse; R += (wr - R) * diffuse;
         }
+        // (v0.84) ECHO: ping-pong, each repeat a little darker; WIDTH
+        if (echo > 0.001f && ecLen > 8)
+        {
+            int rp = echoPos - ecDelay; if (rp < 0) rp += ecLen;
+            const float eL = echoBuf[0][(size_t) rp], eR = echoBuf[1][(size_t) rp];
+            echoLp[0] += 0.35f * (eR - echoLp[0]); echoLp[1] += 0.35f * (eL - echoLp[1]);
+            echoBuf[0][(size_t) echoPos] = 0.5f * (L + R) + efb * echoLp[0];
+            echoBuf[1][(size_t) echoPos] = efb * echoLp[1];
+            if (++echoPos >= ecLen) echoPos = 0;
+            L += eL * echo * 0.7f; R += eR * echo * 0.7f;
+        }
+        if (std::abs (width - 1.0f) > 0.001f) { const float m = (L + R) * 0.5f, sd = (L - R) * 0.5f * width; L = m + sd; R = m - sd; }
         float lv = level;
         const float lm = mod[7] + (te == 7 ? de * envNow() : 0.0f);
         if (lm != 0) lv *= std::max (0.0f, 1.0f + lm);
-        left[i] = L * lv; right[i] = R * lv;
+        float ol = L * lv, orr = R * lv;
+        auto lim = [] (float x) { const float a = std::abs (x); return a < 1.5f ? x : std::copysign (1.5f + 0.5f * std::tanh ((a - 1.5f) * 2.0f), x); };
+        left[i] = std::isfinite (ol) ? lim (ol) : 0.0f; right[i] = std::isfinite (orr) ? lim (orr) : 0.0f;
     }
     while (ev < events.size()) handle (events[ev++]);
     events.clear();
