@@ -59,12 +59,17 @@ public:
     float sweepNow() const { return sweep; }
     int   attacks() const { return attackCount; }    // notes that started their envelopes (a slide doesn't)
     int   accents() const { return accentCount; }    // notes that were accented
+    float valueOf (int i) const { return i >= 0 && i < (int) p.size() ? p[(size_t) i] : 0.0f; }   // a control, as it is now (automation)
 
 private:
     struct Event { int offset; int type; int note; int vel; int line = -1; };
     int lineVol = -1;   // (v0.86) the next notes' line: a Cxx (1), none (0), played live (-1)
     std::vector<Event> events;
     std::array<float, acid::Count> p {};
+    std::array<float, acid::Count> base {};   // (v0.86) the settings as loaded - restoreParameter puts one back
+  public:
+    void restoreParameter (int i) override { if (i >= 0 && i < (int) p.size()) p[(size_t) i] = base[(size_t) i]; }
+  private:
     std::vector<uint8_t> lastState;
     double sr = 48000.0;
     // the one voice

@@ -27,6 +27,7 @@ public:
     virtual void render (float* left, float* right, int numSamples) = 0;   // replaces the buffers
     virtual int  latency() const { return 0; }                     // samples its output is late by
     virtual void update (const Instrument&) {}                     // the instrument's settings (each block)
+    virtual void restoreParameter (int /*index*/) {}                // (v0.86) an envelope let go: back to its own setting
     virtual void lineVolume (int /*cxx*/) {}                       // (v0.86) the next notes: 1 their line has a Cxx, 0 it hasn't, -1 played live
     virtual void updateSong (const Song&) {}                       // the song it plays in (each block, after update)
     // the audio input (GRANULAR's live recording; each block, before render)

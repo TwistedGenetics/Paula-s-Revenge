@@ -82,6 +82,7 @@ public:
 
     std::function<void()> onClose;
     std::function<void (const juce::String&)> onStatus;
+    std::function<void (int target, int param)> onAutomate;   // (v0.86) right-click a slider: AUTOMATE - its envelope
     std::function<void (bool song)> onPlayStop;
     std::function<void()> onMeterColourMenu;   // right-click a meter
     std::function<void()> onBackFromInstrument;   // BACK on an instrument's own insert: its page

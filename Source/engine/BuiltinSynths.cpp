@@ -296,6 +296,7 @@ void SubSynth::update (const Instrument& in)
     if (in.pluginState == lastState) return;   // (a knob's change holds until the page changes something)
     lastState = in.pluginState;
     setValues (readBuiltinState (in));
+    base = p;   // (what an envelope goes back to when it lets go)
 }
 
 void SubSynth::setParameter (int i, float v01)
@@ -830,6 +831,7 @@ void GrainSynth::update (const Instrument& in)
     if (in.pluginState == lastState) return;
     lastState = in.pluginState;
     setValues (readBuiltinState (in));
+    base = p;   // (what an envelope goes back to when it lets go)
 }
 
 void GrainSynth::setParameter (int i, float v01)

@@ -48,6 +48,7 @@ public:
     void keyStateFromElsewhere (bool isDown);   // key releases while a plug-in window is in front
     void refreshMeters() { frame |= 1; timerCallback(); }   // (a whole frame: the 30-a-second part too) also used by the screenshot test
     void setView (PaulaProcessor::EditorState::View);
+    void automateControl (int target, int param);   // (v0.86) a control's right-click AUTOMATE: the AUTOMATION panel, on its envelope
     prv::ui::SampleEditor& getSampleEditor() { return sampleEditor; }
     prv::ui::SampleBrowser& getBrowser() { return browser; }
     prv::ui::ParamsPage& getParams() { return params; }

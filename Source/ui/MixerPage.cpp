@@ -783,6 +783,12 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         chSend[s].defaultValue = 0.0f;
         chSend[s].onDragStart = [this, s] { proc.history.mixer ("TRACK " + juce::String (chTrack + 1) + " SEND " + (char) ('A' + s), true); };
         chSend[s].onChange = [this, s] (float v) { proc.withLock ([&] { proc.song.mixer.ch[chTrack].send[s] = v; }); };
+        chSend[s].onRightClick = [this, s]
+        {
+            if (chTrack < 0 || chTrack >= kMixTracks) return;
+            const int tr = chTrack;
+            showMenu (juce::String ("SEND ") + (char) ('A' + s), { { "AUTOMATE (DRAW ITS ENVELOPE)", [this, tr, s] { if (onAutomate) onAutomate (kModStripBase + tr, 1 + s); } } });
+        };
         chPre[s].onClick = [this, s]
         {
             const bool pre = chPre[s].getToggleState();
@@ -797,6 +803,12 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     chFader.defaultValue = FaderMeter::dbToPos (0.0f);
     chFader.format = [] (float v) { return FaderMeter::dbText (FaderMeter::posToDb (v)) + (FaderMeter::posToDb (v) > -59.9f ? " DB" : ""); };
     chFader.onDragStart = [this] { proc.history.mixer ("TRK " + juce::String (chTrack + 1) + " FADER", true); };
+    chFader.onRightClick = [this]
+    {
+        if (chTrack < 0 || chTrack >= kMixTracks) return;
+        const int tr = chTrack;
+        showMenu ("FADER", { { "AUTOMATE ITS VOLUME (DRAW THE ENVELOPE)", [this, tr] { if (onAutomate) onAutomate (kModStripBase + tr, 0); } } });
+    };
     chFader.onChange = [this] (float v)
     {
         float d = FaderMeter::posToDb (v);
@@ -911,6 +923,15 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
             if (i >= (int) ps.size()) return;
             edit (slotOwner (fxSlot) + " " + juce::String (fxName (s.type)) + " " + juce::String (ps[(size_t) i].name) + (on ? " ON" : " OFF"), false,
                   [this, i, on] (MixerSettings& m) { m.slot (fxSlot).p[i] = on ? 1.0f : 0.0f; });
+        };
+        // (v0.86) right-click: AUTOMATE - its envelope in the AUTOMATION panel
+        param[i]->onRightClick = [this, i]
+        {
+            const auto& s = proc.song.mixer.slot (fxSlot);
+            const auto& ps = fxParams (s.type);
+            if (i >= (int) ps.size()) return;
+            const int slot = fxSlot;
+            showMenu (juce::String (ps[(size_t) i].name), { { "AUTOMATE (DRAW ITS ENVELOPE)", [this, slot, i] { if (onAutomate) onAutomate (slot, i); } } });
         };
         addChildComponent (*param[i]);
         addChildComponent (*paramToggle[i]);

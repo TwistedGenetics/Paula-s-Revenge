@@ -168,6 +168,7 @@ void ReeseSynth::update (const Instrument& in)
     if (in.pluginState == lastState) return;
     lastState = in.pluginState;
     setValues (readBuiltinState (in));
+    base = p;   // (what an envelope goes back to when it lets go)
 }
 
 void ReeseSynth::setParameter (int i, float v01)

@@ -24,6 +24,7 @@ public:
     ~EnginePage() override;
     std::function<void()> onClose, onChanged, onOptions, onLoadSample;   // onLoadSample: GRANULAR's LOAD SAMPLE... (the sample browser)   // onOptions: OUTPUT & KNOBS... (the plug-in instrument page)
     std::function<void (const juce::String&)> onStatus;
+    std::function<void (int target, int param)> onAutomate;   // (v0.86) right-click a control: AUTOMATE - its envelope
 
     void refresh();                      // the current instrument's values into the controls (rebuilt for another synth)
     void tick();

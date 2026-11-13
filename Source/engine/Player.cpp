@@ -287,6 +287,8 @@ void Player::releaseEnvelope (int target, int param)
     else if (target >= kModMacroBase && target < kModMacroBase + kMods) mixerEngine.mods.setMacro (target - kModMacroBase, -1.0f);
     else if (target >= kInstMacroBase && target < kInstMacroBase + kMixInstruments * kInstMacros)
         mixerEngine.mods.setInstMacro ((target - kInstMacroBase) / kInstMacros, (target - kInstMacroBase) % kInstMacros, -1.0f);
+    else if (target >= kAutoInstrumentBase && target < kAutoInstrumentBase + kMaxInstruments && param >= 0 && param < 512)   // (512 up: a GEAR control, sent by MIDI)
+        if (auto* s = rack.at (target - kAutoInstrumentBase)) s->restoreParameter (param);   // (a built-in synth's control)
 }
 
 bool Player::applyEnvelopes()

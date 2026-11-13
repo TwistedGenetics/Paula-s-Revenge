@@ -1,6 +1,7 @@
 // Paula's Revenge - graphical AUTOMATION (see AutomationPanel.h)
 #include "AutomationPanel.h"
 #include "../engine/GearMaps.h"
+#include "../engine/BuiltinSynths.h"
 #include "ModPage.h"
 #include "MixerPage.h"
 #include "../engine/Modulation.h"
@@ -11,6 +12,49 @@ std::vector<AutoPoint> AutomationPanel::clip;
 
 namespace
 {
+    // (v0.86) a built-in synth's controls in the list: each by its own name - "CUTOFF" - with its layer (PAD's A-D) or its
+    // box only where two share a name ("A LEVEL", "LFO 2 RATE"), so the list stays short enough to read whole
+    std::vector<juce::String> builtinLabels (const std::vector<SynthParam>& ps)
+    {
+        std::vector<juce::String> layer (ps.size()), box (ps.size()), out (ps.size());
+        for (size_t i = 0; i < ps.size(); ++i)
+        {
+            juce::String sec (ps[i].section), tab, b = sec;
+            if (sec.contains (">")) { tab = sec.upToFirstOccurrenceOf (">", false, false); b = sec.fromFirstOccurrenceOf (">", false, false); }
+            if (tab.contains (":")) tab = tab.fromFirstOccurrenceOf (":", false, false);
+            if (tab.contains ("|")) tab = tab.upToFirstOccurrenceOf ("|", false, false);
+            if (tab.startsWith ("LAYER ") && tab.length() == 7) layer[i] = tab.getLastCharacters (1);
+            if (b.startsWith ("LAYER ") && b.length() == 7) { layer[i] = b.getLastCharacters (1); b = {}; }
+            box[i] = b.toUpperCase();
+            out[i] = juce::String (ps[i].name).toUpperCase();
+        }
+        auto dupes = [&] (size_t i) { int n = 0; for (const auto& o : out) if (o == out[i]) ++n; return n > 1; };
+        std::vector<bool> d (ps.size());
+        for (size_t i = 0; i < ps.size(); ++i) d[i] = dupes (i);
+        for (size_t i = 0; i < ps.size(); ++i) if (d[i] && layer[i].isNotEmpty()) out[i] = layer[i] + " " + out[i];
+        for (size_t i = 0; i < ps.size(); ++i) d[i] = dupes (i);
+        // (a box's name, short: "ENV ATTACK" not "ENVELOPE ATTACK")
+        auto shortBox = [] (juce::String b)
+        {
+            static const char* m[][2] = { { "MORPH FILTER", "MORPH" }, { "MORPH ENV", "M ENV" }, { "MORPH LFO", "M LFO" }, { "FILTER 2", "F2" },
+                                          { "OSCILLATORS", "OSC" }, { "OSCILLATOR", "OSC" }, { "ENVELOPE", "ENV" }, { "CHORUS + ECHO", "CHORUS" }, { "FLANGER", "FLANGE" } };
+            for (auto& x : m) if (b == x[0]) return juce::String (x[1]);
+            return b;
+        };
+        for (size_t i = 0; i < ps.size(); ++i) if (d[i] && box[i].isNotEmpty() && box[i] != out[i]) out[i] = shortBox (box[i]) + " " + out[i];
+        // still long: the usual synth shorthand (the status line and the panel's title give the whole name)
+        for (auto& o : out)
+            if (o.length() > 12)
+                o = o.replace ("FEEDBACK", "FDBK").replace ("RELEASE", "REL").replace ("SUSTAIN", "SUS").replace ("ATTACK", "ATK");
+        return out;
+    }
+
+    juce::String builtinLabel (const std::vector<SynthParam>& ps, int i)
+    {
+        const auto l = builtinLabels (ps);
+        return i >= 0 && i < (int) l.size() ? l[(size_t) i] : juce::String ("#") + juce::String (i);
+    }
+
     juce::String fullName (PaulaProcessor& proc, int target, int param)
     {
         if (target >= kModMacroBase && target < kModMacroBase + kMods) return "MOD " + juce::String (target - kModMacroBase + 1) + " MACRO";
@@ -21,7 +65,10 @@ namespace
         {
             const int ins = target - kAutoInstrumentBase;
             juce::String p = "#" + juce::String (param);
-            if (auto* s = proc.synthAt (ins)) p = prv::PluginHost::parameterName (s->instance(), param).toUpperCase();
+            const auto& bi = proc.song.instruments[(size_t) ins];
+            if (bi.isBuiltin() && param >= 0 && param < (int) builtinParams (bi.pluginKey).size())
+                p = juce::String (bi.pluginName).toUpperCase() + " " + builtinLabel (builtinParams (bi.pluginKey), param);
+            else if (auto* s = proc.synthAt (ins)) p = prv::PluginHost::parameterName (s->instance(), param).toUpperCase();
             else if (param >= kGearAutoBase)
                 if (const auto* map = gearMap (proc.song.instruments[(size_t) ins].midiGear))
                     if (param - kGearAutoBase < (int) map->params.size()) p = juce::String (map->params[(size_t) (param - kGearAutoBase)].label());
@@ -108,7 +155,7 @@ void AutomationPanel::rebuildList()
         {
             auto* pe = proc.pluginAt (slot);
             if (pe == nullptr) return;
-            const int n = std::min ((int) prv::PluginHost::parameterValues (pe->instance()).size(), 48);
+            const int n = std::min ((int) prv::PluginHost::parameterValues (pe->instance()).size(), 4096);   // (v0.86: all of them)
             for (int i = 0; i < n; ++i)
                 add (slot, i, prefix + juce::String (s.pluginName).toUpperCase().substring (0, 6) + " " + prv::PluginHost::parameterName (pe->instance(), i).toUpperCase());
             return;
@@ -117,6 +164,10 @@ void AutomationPanel::rebuildList()
         for (int i = 0; i < (int) ps.size(); ++i) add (slot, i, prefix + juce::String (fxShortName (s.type)) + " " + juce::String (ps[(size_t) i].name));
     };
     for (int k = 0; k < kInserts; ++k) addSlot (trackSlot (t, k), juce::String (k + 1) + " ");
+    // (v0.86) the send buses' and the master's inserts, whichever track
+    for (int r = 0; r < kReturns; ++r)
+        for (int k = 0; k < kInserts; ++k) addSlot (returnSlot (r, k), juce::String (r == 0 ? "BUS A " : "BUS B "));
+    for (int k = 0; k < kInserts; ++k) addSlot (masterSlot (k), "MASTER ");
     // the instrument being played: its own inserts, and a plug-in's own parameters
     const int ins = juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument);
     const juce::String insName = "I" + juce::String::toHexString (ins + 1).toUpperCase().paddedLeft ('0', 2) + " ";
@@ -131,9 +182,19 @@ void AutomationPanel::rebuildList()
                 for (size_t n = 0; n < map->params.size() && n < 256; ++n)
                     add (kAutoInstrumentBase + ins, kGearAutoBase + (int) n, insName + juce::String (map->params[n].label()));
     }
+    // (v0.86) a built-in synth's controls: every one, by box and name
+    {
+        const auto& in = proc.song.instruments[(size_t) ins];
+        if (in.isBuiltin())
+        {
+            const auto& ps = builtinParams (in.pluginKey);
+            const auto labels = builtinLabels (ps);
+            for (int n = 0; n < (int) ps.size(); ++n) add (kAutoInstrumentBase + ins, n, insName + labels[(size_t) n]);
+        }
+    }
     if (auto* sy = proc.synthAt (ins))
     {
-        const int n = std::min ((int) prv::PluginHost::parameterValues (sy->instance()).size(), 48);
+        const int n = std::min ((int) prv::PluginHost::parameterValues (sy->instance()).size(), 4096);
         for (int i = 0; i < n; ++i) add (kAutoInstrumentBase + ins, i, insName + prv::PluginHost::parameterName (sy->instance(), i).toUpperCase());
     }
     for (int m = 0; m < kMods; ++m)
@@ -143,6 +204,22 @@ void AutomationPanel::rebuildList()
     for (int i = 0; i < (int) list.size(); ++i) if (list[(size_t) i].target == keep.target && list[(size_t) i].param == keep.param) selRow = i;
     if (list.empty()) selRow = -1;
     targetList.selected = std::max (0, selRow);
+}
+
+bool AutomationPanel::show (int target, int param)
+{
+    // (v0.86) a control's right-click AUTOMATE: its envelope, picked in the list
+    query = {}; automatedOnly = false; onlyBtn.setToggleState (false, juce::dontSendNotification);
+    rebuildList();
+    for (int i = 0; i < (int) list.size(); ++i)
+        if (list[(size_t) i].target == target && list[(size_t) i].param == param)
+        {
+            selectTarget (i);
+            targetList.ensureVisible (i);
+            repaint();
+            return true;
+        }
+    return false;
 }
 
 void AutomationPanel::refresh()
@@ -580,7 +657,7 @@ void AutomationPanel::resized()
     auto r = getLocalBounds();
     r.removeFromTop ((int) (kGrab * px));
     // left: what it is, the search, the controls, AUTOMATED ONLY
-    auto left = r.removeFromLeft (std::min (charsW (30), (int) (r.getWidth() * 0.4f)));
+    auto left = r.removeFromLeft (std::min (charsW (30), (int) (r.getWidth() * 0.46f)));   // (v0.86: a little wider - names whole)
     r.removeFromLeft (gap * 2);
     header = left.removeFromTop (rowH).toFloat();
     left.removeFromTop (gap);

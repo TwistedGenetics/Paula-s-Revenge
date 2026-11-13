@@ -170,6 +170,7 @@ void MorphSynth::update (const Instrument& in)
     if (in.pluginState == lastState) return;
     lastState = in.pluginState;
     setValues (readBuiltinState (in));
+    base = p;   // (what an envelope goes back to when it lets go)
 }
 
 void MorphSynth::setParameter (int i, float v01)

@@ -660,6 +660,7 @@ void EnginePage::knobMenu (int param)
     juce::Component::SafePointer<EnginePage> safe (this);
     static const char* letters[] = { "L", "Q", "H", "W" };
     std::vector<MenuItem> items;
+    items.push_back ({ "AUTOMATE (DRAW ITS ENVELOPE)", [safe, i, param] { if (safe && safe->onAutomate) safe->onAutomate (kAutoInstrumentBase + i, param); } });
     for (int k = 0; k < kInstrumentKnobs; ++k)
         items.push_back ({ juce::String ("KNOB ") + letters[k] + " (" + letters[k] + "XX ON ITS NOTES)", [safe, i, k, param, name]
         {

@@ -54,6 +54,10 @@ private:
     struct Event { int offset; int type; int note; int vel; };
     std::vector<Event> events;
     std::array<float, rom::Count> p {};
+    std::array<float, rom::Count> base {};   // (v0.86) the settings as loaded - restoreParameter puts one back
+  public:
+    void restoreParameter (int i) override { if (i >= 0 && i < (int) p.size()) p[(size_t) i] = base[(size_t) i]; }
+  private:
     std::vector<uint8_t> lastState;
     std::shared_ptr<const RomBank> bank;
     double sr = 48000.0;

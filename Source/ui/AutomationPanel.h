@@ -29,6 +29,10 @@ public:
     const std::vector<Target>& targets() const { return list; }   // what the list shows now
     int  selectedTarget() const { return selRow; }
     void selectTarget (int row);
+    bool show (int target, int param);
+    juce::String selectedName() const { return selRow >= 0 && selRow < (int) list.size() ? list[(size_t) selRow].name : juce::String(); }
+    juce::String selectedShortName() const { return selRow >= 0 && selRow < (int) list.size() ? list[(size_t) selRow].shortName : juce::String(); }   // (as the list shows it)
+    const AutoLane* selectedLane() const { return lane(); }   // (tests)   // (v0.86) pick this control's envelope (false: not in the list)
     void setTool (Tool t);
     void setSnap (Snap s);
     void setShape (AutoShape);

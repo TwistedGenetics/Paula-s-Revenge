@@ -40,6 +40,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         setStatus (st.showAutomation ? "AUTOMATION: PICK A CONTROL ON THE LEFT, DOUBLE-CLICK THE GRAPH TO ADD POINTS (DRAG ITS TOP EDGE TO RESIZE)" : "AUTOMATION HIDDEN (THE ENVELOPES STILL PLAY)");
     };
     automation.onStatus = [this] (const juce::String& t) { setStatus (t); };
+    enginePage.onAutomate = [this] (int target, int param) { automateControl (target, param); };
+    mixer.onAutomate      = [this] (int target, int param) { automateControl (target, param); };
     automation.onResize = [this, &st] (int h) { st.autoHeight = juce::jmax ((int) (prv::ui::Theme::px * 60), h); resized(); };
 
     // ---- title bar
@@ -540,6 +542,27 @@ void PaulaEditor::historyRestored (const juce::String& what)
     setStatus (what);
     refreshAll();
     repaint();
+}
+
+// (v0.86) a control's right-click AUTOMATE: the AUTOMATION panel opens under the pattern with that control picked. Its
+// list follows the track and instrument you're on, so they move to the control's own first
+void PaulaEditor::automateControl (int target, int param)
+{
+    auto& st = proc.editorState;
+    if (target >= 0 && target < prv::kTrackSlots) st.track = target / prv::kInserts;
+    else if (target >= prv::kMixerSlots && target < prv::kTotalSlots) st.instrument = (target - prv::kMixerSlots) / prv::kInserts;
+    else if (target >= prv::kModStripBase && target < prv::kModStripBase + prv::kMixTracks) st.track = target - prv::kModStripBase;
+    else if (target >= prv::kAutoInstrumentBase && target < prv::kAutoInstrumentBase + prv::kMaxInstruments) st.instrument = target - prv::kAutoInstrumentBase;
+    st.track = juce::jlimit (0, std::max (0, proc.song.numTracks - 1), st.track);
+    st.showAutomation = true;
+    autoBtn.setToggleState (true, juce::dontSendNotification);
+    setView (View::Pattern);
+    refreshAll();
+    resized();
+    if (automation.show (target, param))
+        setStatus ("AUTOMATION: " + automation.selectedName() + " - DOUBLE-CLICK THE GRAPH TO ADD POINTS, OR DRAW");
+    else
+        setStatus ("THAT CONTROL ISN'T IN THE AUTOMATION LIST HERE");
 }
 
 void PaulaEditor::setView (View v)
