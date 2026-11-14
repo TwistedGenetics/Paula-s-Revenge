@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.88.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.89.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -206,6 +206,18 @@ target_compile_definitions(PaulasRevenge PUBLIC
     JUCE_PLUGINHOST_AU=$<IF:$<PLATFORM_ID:Darwin>,1,0>
     JUCE_WASAPI=1
     JUCE_DIRECTSOUND=1)
+
+# ASIO (Windows, v0.89): with -DPRV_ASIO_SDK=<the ASIO SDK folder> (the build fetches it from Steinberg; see build.yml),
+# the app can play through an interface's ASIO driver - straight to the hardware, past Windows' sound processing.
+# ASIO is a trademark and software of Steinberg Media Technologies GmbH (used under Steinberg's ASIO licence agreement)
+set(PRV_ASIO_SDK "" CACHE PATH "The Steinberg ASIO SDK folder (Windows): builds in ASIO")
+if(WIN32 AND PRV_ASIO_SDK AND EXISTS "${PRV_ASIO_SDK}/common/iasiodrv.h")
+    message(STATUS "ASIO: on (${PRV_ASIO_SDK})")
+    target_compile_definitions(PaulasRevenge PUBLIC JUCE_ASIO=1)
+    target_include_directories(PaulasRevenge PRIVATE "${PRV_ASIO_SDK}/common")
+elseif(WIN32)
+    message(STATUS "ASIO: off (no PRV_ASIO_SDK)")
+endif()
 
 # STEMS: ONNX Runtime goes with the app (inside the Mac bundle, next to the Windows .exe)
 if(PRV_STEMS)

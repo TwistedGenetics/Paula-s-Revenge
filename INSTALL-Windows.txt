@@ -9,8 +9,16 @@ isn't code-signed yet. Click "More info", then "Run anyway". It only
 asks once.
 
 Audio and MIDI devices: File > Audio/MIDI Settings... (Ctrl+,).
-"Windows Audio" is the usual choice; File > Follow System Output makes
+With an audio interface, pick ASIO at the top and its driver: the sound
+goes straight to the interface, as in Ableton. Otherwise "Windows Audio"
+(or "Windows Audio (Exclusive Mode)", which also skips Windows' sound
+processing). Plain "Windows Audio" goes through any Windows "audio
+enhancements" (Dolby, bass boost...), which can put a ringing tone on
+deep bass: turn them off in Windows Settings > System > Sound > your
+device, or use ASIO / exclusive mode. File > Follow System Output makes
 the sound follow Windows when you plug in headphones.
+
+ASIO is a trademark and software of Steinberg Media Technologies GmbH.
 
 Shortcuts: everything the Mac does with Cmd, the PC does with Ctrl
 (Ctrl+S save, Ctrl+Z undo, Ctrl+R capture...). Full screen is F11.

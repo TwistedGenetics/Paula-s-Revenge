@@ -133,11 +133,33 @@ jobs:
         with:
           arch: x64
 
+      # ASIO (v0.89): Steinberg's SDK, fetched from Steinberg at build time under their ASIO licence agreement (it isn't
+      # kept in this repository). The newest first; if Steinberg moves it, the build carries on without ASIO
+      - name: Get the ASIO SDK
+        run: |
+          mkdir -p asio-dl && cd asio-dl
+          for u in https://www.steinberg.net/asiosdk \
+                   https://download.steinberg.net/sdk_downloads/ASIO-SDK_2.3.4_2025-10-15.zip \
+                   https://download.steinberg.net/sdk_downloads/asiosdk_2.3.3_2019-06-14.zip; do
+            if curl -fsSL --retry 3 -o asiosdk.zip "$u" && unzip -tq asiosdk.zip > /dev/null 2>&1; then echo "ASIO SDK from $u"; break; fi
+            rm -f asiosdk.zip
+          done
+          if [ -f asiosdk.zip ]; then
+            unzip -q asiosdk.zip
+            h=$(find . -name iasiodrv.h | head -1)
+            if [ -n "$h" ]; then
+              sdk=$(cd "$(dirname "$h")/.." && pwd -W)
+              echo "PRV_ASIO_SDK=$sdk" >> "$GITHUB_ENV"
+              echo "ASIO SDK at $sdk"
+            fi
+          fi
+          [ -n "$(grep PRV_ASIO_SDK "$GITHUB_ENV" || true)" ] || echo "::warning::No ASIO SDK - this build has no ASIO"
+
       - name: Configure
         # the C++ runtime built in (MultiThreaded): no Visual C++ redistributable needed on the PC
         run: |
           set -o pipefail
-          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded 2>&1 | tee configure.log
+          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${PRV_ASIO_SDK:+-DPRV_ASIO_SDK="$PRV_ASIO_SDK"} 2>&1 | tee configure.log
 
       - name: Build
         run: |
