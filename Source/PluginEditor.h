@@ -54,6 +54,8 @@ public:
     prv::ui::ParamsPage& getParams() { return params; }
     prv::ui::ArrangePage& getArrange() { return arrange; }
     prv::ui::MixerPage& getMixer() { return mixer; }
+    prv::ui::PixButton& getNewButton() { return newBtn; }   // (tests)
+    void clearToNewSong();   // (v0.88) NEW's "Clear": a blank canvas
     prv::ui::RadioPage& getRadio() { return radioPage; }
     prv::ui::SynthPage& getSynthPage() { return synthPage; }
     prv::ui::EnginePage& getEnginePage() { return enginePage; }

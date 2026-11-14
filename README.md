@@ -288,7 +288,7 @@ Mark the parts of a song (intro, drop, break…) with dividers in the sequence:
 
 ## Saving and your samples
 
-**The song's name is its file's name**: SAVE AS `amen roller.prv` and the song is called `AMEN ROLLER` (shown at the top); load a `.prv` and it takes that file's name. It's also in the window's title bar. A new song is `UNTITLED` until it's saved. MODs keep the name inside them until you save them as `.prv`.
+**The song's name is its file's name**: SAVE AS `amen roller.prv` and the song is called `AMEN ROLLER` (shown at the top); load a `.prv` and it takes that file's name. It's also in the window's title bar. A new song is `UNTITLED` until it's saved. **NEW** (after "Clear") is a blank canvas: no instruments, one empty block, the mixer as new, 125 BPM. MODs keep the name inside them until you save them as `.prv`.
 
 **SAVE** writes straight to the song's file with no window (the status line says where); the first save asks for a name. Saving happens **in the background**: the pattern and the music carry on while a big song is written (the status line says SAVING..., then SAVED), and the file is only replaced once the new one is complete. If the file was changed since you opened it — by your other computer through a shared folder — SAVE asks first: **SAVE A COPY** (with this computer's name in it) or **REPLACE IT**. **SAVE AS** always asks, so you can keep versions (`tune v1.prv`, `tune v2.prv`…). The save folder and the song's file are remembered, the next time too. `Cmd+S` saves, `Cmd+Shift+S` is SAVE AS. **SAVE*** with a star (and a `*` after the song name) means there are unsaved changes.
 

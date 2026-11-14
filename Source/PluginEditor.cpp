@@ -1656,19 +1656,23 @@ void PaulaEditor::newSong()
         "Clear the current song? Unsaved changes will be lost.", "Clear", "Cancel", this,
         juce::ModalCallbackFunction::create ([safe] (int r)
         {
-            if (r != 1 || safe == nullptr) return;
-            prv::Song s;
-            // keep the instruments so a fresh tune can start straight away
-            s.instruments = safe->proc.song.instruments;
-            s.chordsSaved = false;   // (the global chord set)
-            safe->proc.replaceSong (std::move (s));
-            auto& st = safe->proc.editorState;
-            st.block = 0; st.line = 0; st.seqPos = 0; st.track = 0;
-            st.currentFile = {};
-            safe->setStatus ("NEW SONG - INSTRUMENTS KEPT (CLEAR THEM IN THE INSTRUMENT PANEL)");
-            safe->refreshAll();
-            safe->repaint();
+            if (r == 1 && safe != nullptr) safe->clearToNewSong();
         }));
+}
+
+// (v0.88) a blank canvas: no instruments, one empty block, the mixer as new, 125 BPM
+void PaulaEditor::clearToNewSong()
+{
+    proc.withLock ([&] { proc.player.stop(); proc.player.jamAllOff(); });
+    prv::Song s;
+    s.chordsSaved = false;   // (the global chord set)
+    proc.replaceSong (std::move (s));
+    auto& st = proc.editorState;
+    st.block = 0; st.line = 0; st.seqPos = 0; st.track = 0; st.instrument = 0;
+    st.currentFile = {};
+    setStatus ("NEW SONG - A BLANK CANVAS");
+    refreshAll();
+    repaint();
 }
 
 juce::String PaulaEditor::songNameFor (const juce::File& f)

@@ -7124,6 +7124,43 @@ static void testConditions()
 
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "chain")
+    {
+        // (analysis) a held note on SUB, ACID and REESE at their defaults: straight from the synth, and through the player
+        const char* dir = std::getenv ("PRV_DIR");
+        const char* keys[] = { kSubKey, kAcidKey, kReeseKey };
+        const char* names[] = { "SUB", "ACID", "REESE" };
+        const int sr = std::getenv ("PRV_SR") ? std::atoi (std::getenv ("PRV_SR")) : 48000;
+        for (int k = 0; k < 3; ++k)
+            for (int note : { 36, 48 })
+            {
+                const int len = (sr * 2 / 480) * 480;
+                std::vector<float> L ((size_t) len), R ((size_t) len);
+                {
+                    Instrument in; makeBuiltin (in, keys[k]);
+                    auto s = createBuiltinSynth (in, sr); s->update (in);
+                    s->noteOn (note, 100, 0);
+                    for (int a0 = 0; a0 < len; a0 += 480) s->render (L.data() + a0, R.data() + a0, 480);
+                    const std::string f = std::string (dir) + "/" + names[k] + "_" + std::to_string (note) + "_synth.f32";
+                    if (FILE* fp = std::fopen (f.c_str(), "wb")) { std::fwrite (L.data(), 4, L.size(), fp); std::fclose (fp); }
+                }
+                {
+                    Song s = makeSong();
+                    makeBuiltin (s.instruments[4], keys[k]);
+                    s.blocks[0] = Block {}; s.blocks[0].lines = 64;
+                    s.blocks[0].at (0, 0) = Cell { (uint8_t) (note - 23), 5, 0, 0 };   // (tracker note: C-1 = 1 ... MIDI 36 = C-1?)
+                    s.sequence = { 0 };
+                    Player p; p.setSampleRate (sr); p.setSong (&s);
+                    p.synths().factory = [] (int, const Instrument& in, double r) { return createBuiltinSynth (in, r); };
+                    p.synths().syncNow (s, sr);
+                    p.playBlock (0);
+                    for (int a0 = 0; a0 < len; a0 += 480) p.render (L.data() + a0, R.data() + a0, 480);
+                    const std::string f = std::string (dir) + "/" + names[k] + "_" + std::to_string (note) + "_player.f32";
+                    if (FILE* fp = std::fopen (f.c_str(), "wb")) { std::fwrite (L.data(), 4, L.size(), fp); std::fclose (fp); }
+                }
+            }
+        return 0;
+    }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "alias")
     {
         // (analysis) every SUB, REESE and ACID preset, notes held: raw floats for a spectrum
