@@ -7141,6 +7141,8 @@ int main()
             auto held = std::make_unique<Player>();
             Player& p = *held;
             p.options = PaulaOptions {};
+            if (std::getenv ("PRV_CLEAN")) p.options.model = PaulaOptions::Model::Clean;
+            if (std::getenv ("PRV_MIX")) p.forceMixPath = true;   // (a song using the mixer: each track through its strip)
             p.setSampleRate (48000);
             p.synths().factory = [] (int, const Instrument& in, double r) { return createBuiltinSynth (in, r); };
             p.synths().syncNow (s, 48000);
