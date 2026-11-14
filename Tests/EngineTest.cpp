@@ -7124,6 +7124,39 @@ static void testConditions()
 
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "renderwav")
+    {
+        // (analysis) RENDER WAV, as the app does it, with the default options (A500, 8-BIT, 8CH GRIT): SUB, ACID, REESE
+        const char* dir = std::getenv ("PRV_DIR");
+        const char* keys[] = { kSubKey, kAcidKey, kReeseKey };
+        const char* names[] = { "SUB", "ACID", "REESE" };
+        for (int k = 0; k < 3; ++k)
+        {
+            Song s;   // (a new song, as NEW makes it)
+            makeBuiltin (s.instruments[0], keys[k]);
+            s.blocks[0].lines = 32;
+            s.blocks[0].at (0, 0) = Cell { 13, 1, 0, 0 };    // C-2 (MIDI 36)
+            s.blocks[0].at (16, 0) = Cell { 25, 1, 0, 0 };   // C-3
+            // (as renderSongToWav: the default options, 4096-sample blocks)
+            auto held = std::make_unique<Player>();
+            Player& p = *held;
+            p.options = PaulaOptions {};
+            p.setSampleRate (48000);
+            p.synths().factory = [] (int, const Instrument& in, double r) { return createBuiltinSynth (in, r); };
+            p.synths().syncNow (s, 48000);
+            p.synths().prepare (48000, MixerEngine::kMaxBlock);
+            p.setSong (&s);
+            p.mixer().syncEffectsNow (s.mixer);
+            std::vector<float> L (4096), R (4096), out;
+            p.render (L.data(), R.data(), MixerEngine::kMaxBlock);
+            p.playSong();
+            for (int b = 0; b < 48000 * 4 / 4096; ++b) { p.render (L.data(), R.data(), 4096); out.insert (out.end(), L.begin(), L.end()); }
+            const std::string f = std::string (dir) + "/" + names[k] + "_render.f32";
+            if (FILE* fp = std::fopen (f.c_str(), "wb")) { std::fwrite (out.data(), 4, out.size(), fp); std::fclose (fp); }
+            std::printf ("%s rendered\n", names[k]);
+        }
+        return 0;
+    }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "chain")
     {
         // (analysis) a held note on SUB, ACID and REESE at their defaults: straight from the synth, and through the player
