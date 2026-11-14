@@ -121,7 +121,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.86</span>
+  <span class="ver">MANUAL &middot; V0.87</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -1021,7 +1021,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
     <li><span class="b">AMP + FX</span> &mdash; the amp ENVELOPE; SPACE: CHORUS, ECHO, ECHO TIME, FEEDBACK (AUTO as before), WIDTH; VELOCITY and LEVEL. Up to 16 notes.</li>
   </ul>
   <h3>The built-in ACID synth (303 + Devil Fish)</h3>
-  <p><b>ACID</b> is a 303-style bass line synth with the <b>Devil Fish</b> mods &mdash; our own model of the sound. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ACID. One note at a time: a saw or square into a resonant low-pass, with the envelope and <b>ACCENT</b> that make it squelch and <b>SLIDE</b> between notes. Two tabs: <span class="b">303</span> and <span class="b">DEVIL FISH</span>; <b>PRESETS...</b> has ten sounds.</p>
+  <p><b>ACID</b> is a 303-style bass line synth with the <b>Devil Fish</b> mods &mdash; our own model of the sound. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ACID. One note at a time: a saw or square into a resonant low-pass, with the envelope and <b>ACCENT</b> that make it squelch and <b>SLIDE</b> between notes. Two tabs: <span class="b">303</span> and <span class="b">DEVIL FISH</span>; <b>PRESETS...</b> has ten sounds. The voice runs at four times the song's rate, so a screaming filter or the drive can't fold harmonics back down as a whistle (SUB's and REESE's drives do the same).</p>
   <figure>
     <div class="frame sunken"><img src="img/acid_303.png" alt="ACID's 303 tab: OSCILLATOR (SAW / SQUARE, TUNE, FINE, SHAPE, SUB), FILTER (CUTOFF 380HZ, RESONANCE 72%, ENV MOD 55%), ENVELOPE + ACCENT (DECAY 350MS, ACCENT 65%, ACCENT FROM C38) and OUTPUT." width="1440" height="900" loading="lazy"></div>
     <figcaption>ACID's 303 tab: the original's knobs</figcaption>
@@ -1107,7 +1107,8 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   <div class="tbl sunken"><table>
     <thead><tr><th>DO</th><th>WHAT HAPPENS</th></tr></thead>
     <tbody>
-      <tr><td>Pick a control (left)</td><td>VOLUME, SENDS, the track's inserts, the instrument's own inserts and parameters, MACROs. <code>*</code> = has an envelope here. Type to search; AUTOMATED ONLY.</td></tr>
+      <tr><td>Pick a control (left)</td><td>VOLUME, SENDS, the track's inserts, the send buses' and master's inserts, the instrument's own inserts, <b>every control of a built-in synth</b> (<code>I04 CUTOFF</code>, PAD's <code>I04 A LEVEL</code>) and all of a plug-in's parameters, MACROs. <code>*</code> = has an envelope here. Type to search; AUTOMATED ONLY.</td></tr>
+      <tr><td>Right-click a control &rarr; <b>AUTOMATE</b></td><td>On a built-in synth's control, a mixer effect's slider, a track's FADER or SEND: the panel opens with that control picked, ready to draw. When the block stops, the control goes back to its own setting.</td></tr>
       <tr><td>Double-click</td><td>Adds a point (snapped); on a point, removes it. <kbd>Delete</kbd> removes the selected one.</td></tr>
       <tr><td>Drag a point</td><td>Moves it, with a readout of the line and the real value. <kbd>Shift</kbd> leaves the snap.</td></tr>
       <tr><td><span class="b">POINTS</span> / <span class="b">LINES</span> / <span class="b">CURVES</span></td><td>Steps, straight lines, or bends: drag a line up or down to bend it.</td></tr>
@@ -1502,7 +1503,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.86</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.87</footer>
 </main>
 </div>
 <script>
