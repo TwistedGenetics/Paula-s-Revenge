@@ -444,6 +444,21 @@ void ReeseSynth::render (float* left, float* right, int n)
         float l = 0, r = 0;
         for (auto& v : voices) renderVoice (v, l, r, moveNow, wobNow, pwmNow);
         float* ch[2] = { &l, &r };
+        // (v0.88) the DRIVE at 4x (always, so its little delay never jumps): what it makes above 20 kHz is taken off before
+        // it folds back down as a whistle. CRUSH's steps are its sound: they stay at the song's rate
+        for (int c = 0; c < 2; ++c)
+            *ch[c] = driveOs[c].process (*ch[c], [&] (float x)
+            {
+                if (drive <= 0) return x;
+                switch (dtype)
+                {
+                    case Hard:    return std::clamp (x * dg * 0.7f, -1.0f, 1.0f) * 0.9f;
+                    case Fold:    return std::sin (x * dg * 1.2f) * 0.9f;
+                    case Rectify: { const float y = std::tanh (dg * 0.7f * x) * dnorm; return 0.55f * y + 0.65f * std::abs (y); }
+                    case Crush:   return x;
+                    default:      return std::tanh (dg * 0.7f * x) * dnorm;
+                }
+            });
         if (drive > 0)
         {
             const bool crushNow = dtype == Crush && (crushCount++ % std::max (1, 1 + (int) (drive * 10.0f))) == 0;
@@ -452,9 +467,6 @@ void ReeseSynth::render (float* left, float* right, int n)
                 float x = *ch[c];
                 switch (dtype)
                 {
-                    case Hard:    x = std::clamp (x * dg * 0.7f, -1.0f, 1.0f) * 0.9f; break;
-                    case Fold:    x = std::sin (x * dg * 1.2f) * 0.9f; break;
-                    case Rectify: { const float y = std::tanh (dg * 0.7f * x) * dnorm; x = 0.55f * y + 0.65f * std::abs (y); break; }
                     case Crush:
                     {
                         const float steps = std::pow (2.0f, 12.0f - drive * 9.0f);
@@ -462,7 +474,7 @@ void ReeseSynth::render (float* left, float* right, int n)
                         x = crushHold[c];
                         break;
                     }
-                    default:      x = std::tanh (dg * 0.7f * x) * dnorm; break;
+                    default: break;
                 }
                 const float y = x - dcX[c] + 0.9995f * dcY[c];
                 dcX[c] = x; dcY[c] = y; *ch[c] = y;

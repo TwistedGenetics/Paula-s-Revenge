@@ -13,6 +13,7 @@
 #pragma once
 
 #include "PluginSynth.h"
+#include "Oversample.h"
 #include <array>
 #include <vector>
 
@@ -71,7 +72,11 @@ private:
     void restoreParameter (int i) override { if (i >= 0 && i < (int) p.size()) p[(size_t) i] = base[(size_t) i]; }
   private:
     std::vector<uint8_t> lastState;
-    double sr = 48000.0;
+    double sr = 48000.0 * kOs, outSr = 48000.0;   // (sr: the voice's own rate, 4x the song's)
+    static constexpr int kChunk = 128;
+    std::array<float, kChunk * kOs> hi {};
+    Decimator dec;
+    void renderHi (float* out, int n);
     // the one voice
     std::vector<int> held;            // keys down, oldest first
     bool gate = false;

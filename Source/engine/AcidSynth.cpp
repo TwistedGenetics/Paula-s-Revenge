@@ -95,7 +95,33 @@ AcidSynth::AcidSynth()
     held.reserve (32);
 }
 
-void AcidSynth::prepare (double sampleRate, int) { sr = sampleRate > 0 ? sampleRate : 48000.0; }
+void AcidSynth::prepare (double sampleRate, int)
+{
+    // (v0.88) the voice runs at 4x the song's rate: a screaming filter or the drive can't fold harmonics back as a whistle
+    outSr = sampleRate > 0 ? sampleRate : 48000.0;
+    sr = outSr * kOs;
+    dec.reset();
+}
+
+void AcidSynth::render (float* left, float* right, int n)
+{
+    for (auto& e : events) e.offset *= kOs;   // (queued in the song's samples)
+    int done = 0;
+    while (done < n)
+    {
+        const int m = std::min (n - done, kChunk);
+        renderHi (hi.data(), m * kOs);
+        for (int i = 0; i < m; ++i)
+        {
+            float o = dec.push (hi.data() + i * kOs);
+            const float ao = std::abs (o);
+            if (ao > 1.5f) o = std::copysign (1.5f + 0.5f * std::tanh ((ao - 1.5f) * 2.0f), o);
+            left[done + i] = o; right[done + i] = o;
+        }
+        done += m;
+    }
+    for (auto& e : events) e.offset /= kOs;   // (what's left: the next block's)
+}
 
 void AcidSynth::setValues (const std::vector<float>& v) { for (size_t i = 0; i < v.size() && i < p.size(); ++i) p[i] = v[i]; }
 
@@ -184,7 +210,7 @@ void AcidSynth::handle (const Event& e)
     }
 }
 
-void AcidSynth::render (float* left, float* right, int n)
+void AcidSynth::renderHi (float* dst, int n)
 {
     using namespace acid;
     std::stable_sort (events.begin(), events.end(), [] (const Event& a, const Event& b) { return a.offset < b.offset; });
@@ -282,10 +308,7 @@ void AcidSynth::render (float* left, float* right, int n)
         else lastOut = 0.0f;
         // (no DC)
         const float d = out - dcX + 0.9995f * dcY; dcX = out; dcY = d;
-        float o = d * level;
-        const float ao = std::abs (o);
-        if (ao > 1.5f) o = std::copysign (1.5f + 0.5f * std::tanh ((ao - 1.5f) * 2.0f), o);
-        left[i] = o; right[i] = o;
+        dst[i] = d * level;
         ++sampleNow;
     }
     // (events past the block's end: the next one's)

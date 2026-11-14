@@ -5,6 +5,7 @@
 #pragma once
 
 #include "PluginSynth.h"
+#include "Oversample.h"
 #include <array>
 #include <memory>
 #include <string>
@@ -130,6 +131,7 @@ private:
     double lfoPh = 0; float lfoHold = 0, lfoNow = 0;
     float hp1 = 0, hp2 = 0;
     float bitsHold = 0; int bitsCount = 0;
+    Oversampler driveOs;   // (v0.88) the DRIVE at 4x: no aliasing whistle
     double songBpm = 125.0;
     void handle (const Event&);
     void startVoice (Voice&, int note, int vel, bool retrigger, bool glide);

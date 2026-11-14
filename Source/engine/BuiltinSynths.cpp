@@ -542,15 +542,26 @@ void SubSynth::render (float* left, float* right, int n)
         float x = 0;
         for (auto& v : voices) x += renderVoice (v);
         if (lfoTarget == sub::LLevel) x *= 1.0f - p[sub::LfoDepth] * 0.01f * (0.5f - 0.5f * lfoNow);
+        // (v0.88) the drive runs at 4x (always, so its little delay never jumps): the harmonics it makes above 20 kHz are
+        // taken off before they can fold back down as a whistle. BITS's steps are its sound, so they stay at the song's rate
+        x = driveOs.process (x, [&] (float v)
+        {
+            if (drive <= 0.0f) return v;
+            switch (dtype)
+            {
+                case sub::Tube: return std::tanh (g * (v + 0.3f * v * v)) * norm;
+                case sub::Fold: return std::sin (v * (1.0f + drive * 6.0f)) * 0.95f;
+                case sub::Clip: return std::clamp (v * (1.0f + drive * 8.0f), -0.8f, 0.8f);
+                case sub::Bits: return v;
+                default:        return std::tanh (g * v) * norm;
+            }
+        });
         if (drive > 0.0f)
         {
             // TAPE: a smooth, even squash; TUBE: lopsided (warmer, more second harmonic); FOLD: folded back on itself;
             // CLIP: flat-topped; BITS: fewer steps - then the DC it makes is taken off
             switch (dtype)
             {
-                case sub::Tube: x = std::tanh (g * (x + 0.3f * x * x)) * norm; break;
-                case sub::Fold: x = std::sin (x * (1.0f + drive * 6.0f)) * 0.95f; break;
-                case sub::Clip: x = std::clamp (x * (1.0f + drive * 8.0f), -0.8f, 0.8f); break;
                 case sub::Bits:
                 {
                     const float steps = std::pow (2.0f, 12.0f - drive * 9.0f);
@@ -558,7 +569,7 @@ void SubSynth::render (float* left, float* right, int n)
                     x = bitsHold;
                     break;
                 }
-                default: x = std::tanh (g * x) * norm; break;
+                default: break;
             }
             const float y = x - dcX + 0.9995f * dcY;
             dcX = x; dcY = y; x = y;

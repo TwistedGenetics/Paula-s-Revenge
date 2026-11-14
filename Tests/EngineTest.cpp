@@ -5514,6 +5514,127 @@ static void testNoStuckNotes()
     CHECK (stuck == 0);
 }
 
+// (v0.88) OVERSAMPLING: a drive on a high note made harmonics past 24 kHz that folded back down as a whistle (a 15 kHz
+// tone through a hard drive: its 3rd harmonic, 45 kHz, lands at 3 kHz). At 4x it's taken off first; plain tones pass
+static void testOversampling()
+{
+    std::printf ("\n== OVERSAMPLING (no whistle from the drives)\n");
+    auto goertzel = [] (const std::vector<float>& x, double hz)
+    {
+        const double w = 2.0 * 3.14159265358979 * hz / 48000.0, c = 2.0 * std::cos (w);
+        double s1 = 0, s2 = 0;
+        for (float v : x) { const double s0 = v + c * s1 - s2; s2 = s1; s1 = s0; }
+        return std::sqrt (s1 * s1 + s2 * s2 - c * s1 * s2) / (double) x.size() * 2.0;
+    };
+    const int n = 48000;
+    std::vector<float> plain ((size_t) n), over ((size_t) n), pass ((size_t) n);
+    Oversampler os, os2;
+    for (int i = 0; i < n; ++i)
+    {
+        const float x = 0.9f * (float) std::sin (2.0 * 3.14159265358979 * 15000.0 * i / 48000.0);
+        plain[(size_t) i] = std::tanh (4.0f * x);
+        over[(size_t) i] = os.process (x, [] (float v) { return std::tanh (4.0f * v); });
+        pass[(size_t) i] = os2.process ((float) std::sin (2.0 * 3.14159265358979 * 1000.0 * i / 48000.0), [] (float v) { return v; });
+    }
+    const double aPlain = goertzel (plain, 3000.0), aOver = goertzel (over, 3000.0);
+    const double keep = goertzel (over, 15000.0), thru = goertzel (pass, 1000.0);
+    std::printf ("the fold-back at 3 kHz: %.1f dB plain, %.1f dB at 4x; the 15 kHz tone %.2f; a 1 kHz tone through %.3f\n",
+                 20 * std::log10 (aPlain + 1e-12), 20 * std::log10 (aOver + 1e-12), keep, thru);
+    CHECK (aOver < aPlain * 0.03 && keep > 0.8 && std::abs (thru - 1.0) < 0.01);
+}
+
+// (v0.88) RINGING: every built-in synth, any settings (resonance, drive, filters at their extremes), played by the song -
+// notes, OFFs, chords, retriggers, note cuts, the same instrument on several tracks - then OFF on every track: within
+// 20 seconds it's quiet. When one isn't, the control that does it is found (each setting put back in turn)
+static float ringTail (const char* key, const std::vector<float>& vals, uint32_t seed, bool stopIt)
+{
+    Song s = makeSong();
+    makeBuiltin (s.instruments[4], key);
+    writeBuiltinState (s.instruments[4], vals);
+    s.blocks[0] = Block {}; s.blocks[0].lines = 64;
+    std::mt19937 rng (seed);
+    std::uniform_real_distribution<float> u (0, 1);
+    for (int l = 0; l < 56; ++l)
+        for (int tr = 0; tr < 3; ++tr)
+        {
+            if (u (rng) < 0.35f)
+            {
+                Cell c { (uint8_t) (u (rng) < 0.2f ? kNoteOff : 13 + (int) (u (rng) * 36)), 5, 0, 0 };
+                const float r = u (rng);
+                if (r < 0.1f) { c.cmd = 0xC; c.param = (uint8_t) (u (rng) * 64); }
+                else if (r < 0.15f) { c.cmd = 0xE; c.param = (uint8_t) (0xC0 + (int) (u (rng) * 5)); }   // (note cut)
+                else if (r < 0.2f) { c.cmd = 0xE; c.param = (uint8_t) (0x90 + 1 + (int) (u (rng) * 3)); }  // (retrigger)
+                else if (r < 0.25f) { c.cmd = 0xE; c.param = (uint8_t) (0xD0 + (int) (u (rng) * 5)); }   // (note delay)
+                s.blocks[0].at (l, tr) = c;
+            }
+        }
+    for (int tr = 0; tr < 3; ++tr) s.blocks[0].at (57, tr) = Cell { kNoteOff, 0, 0, 0 };
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.synths().factory = [] (int, const Instrument& in, double sr) { return createBuiltinSynth (in, sr); };
+    p.synths().syncNow (s, 48000);
+    p.playBlock (0);
+    std::vector<float> L (480), R (480);
+    // to line 60 (64 lines at speed 6, 125 BPM: 7.68 s), then stop or let it loop round to the top (no: block mode loops)
+    for (int b = 0; b < 48000 * 7 / 480 + 30; ++b) p.render (L.data(), R.data(), 480);
+    if (stopIt) p.stop();
+    else
+    {
+        // the last lines are empty after the OFFs: keep playing those, then stop the clock (as at the song's end)
+        p.stop();
+    }
+    for (int b = 0; b < 48000 * 20 / 480; ++b) p.render (L.data(), R.data(), 480);
+    float tail = 0;
+    for (int b = 0; b < 20; ++b) { p.render (L.data(), R.data(), 480); for (size_t i = 0; i < 480; ++i) tail = std::max ({ tail, std::abs (L[i]), std::abs (R[i]) }); }
+    return tail;
+}
+
+static void testNoRinging()
+{
+    std::printf ("\n== NO RINGING (the song, any settings)\n");
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey };
+    std::mt19937 rng (88);
+    std::uniform_real_distribution<float> u (0, 1);
+    int ringing = 0, runs = 0;
+    for (auto* key : keys)
+        for (int trial = 0; trial < 12; ++trial)
+        {
+            const auto def = builtinDefaults (key);
+            const auto& ps = builtinParams (key);
+            auto vals = def;
+            for (size_t i = 0; i < ps.size(); ++i)
+            {
+                // (an echo at 95% feedback or an 8-second release is meant to go on: those stay as they are)
+                const std::string n = ps[i].name;
+                if (n == "RELEASE" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK") continue;
+                if (u (rng) < 0.5f) vals[i] = ps[i].toValue (u (rng));
+                if (trial % 3 == 0 && u (rng) < 0.3f) vals[i] = ps[i].toValue (u (rng) < 0.5f ? 0.0f : 1.0f);   // (extremes)
+            }
+            ++runs;
+            const float tail = ringTail (key, vals, (uint32_t) (trial * 31 + 7), trial % 2 == 0);
+            if (tail < 0.0005f) continue;
+            ++ringing;
+            // which control: put each changed one back to its default; the one that stops it is it
+            std::string who;
+            for (size_t i = 0; i < ps.size(); ++i)
+            {
+                if (vals[i] == def[i]) continue;
+                auto v2 = vals; v2[i] = def[i];
+                if (ringTail (key, v2, (uint32_t) (trial * 31 + 7), trial % 2 == 0) < 0.0005f)
+                {
+                    char buf[96]; std::snprintf (buf, sizeof (buf), " %s=%s", ps[i].name, ps[i].text (vals[i]).c_str());
+                    who += buf;
+                }
+            }
+            std::printf ("%s (try %d): still sounding %.4f after 20 s - %s\n", key, trial, tail, who.empty() ? "(no one control)" : who.c_str());
+            if (who.empty())
+                for (size_t i = 0; i < ps.size(); ++i)
+                    if (vals[i] != def[i]) std::printf ("    %s %s = %s\n", ps[i].section, ps[i].name, ps[i].text (vals[i]).c_str());
+        }
+    std::printf ("ringing: %d of %d\n", ringing, runs);
+    CHECK (ringing == 0);
+}
+
 static void testMorphSynth()
 {
     std::printf ("\n== MORPH SYNTH\n");
@@ -7003,6 +7124,59 @@ static void testConditions()
 
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "alias")
+    {
+        // (analysis) every SUB, REESE and ACID preset, notes held: raw floats for a spectrum
+        const char* dir = std::getenv ("PRV_DIR");
+        auto dumpOne = [&] (const char* key, const std::vector<float>& v, const std::string& name, int note)
+        {
+            // at 48 kHz and at 192 kHz (no aliasing to speak of): what the 48 kHz one has more of up high is aliasing
+            for (int sr : { 48000, 192000 })
+            {
+                Instrument in; makeBuiltin (in, key); writeBuiltinState (in, v);
+                auto s = createBuiltinSynth (in, sr);
+                s->update (in);
+                s->noteOn (note, 127, 0);
+                const int len = std::getenv ("PRV_STEADY") ? sr * 2 : sr * 4 / 10;   // (0.4 s; steady: 2 s)
+                std::vector<float> L ((size_t) len), R ((size_t) len);
+                s->render (L.data(), R.data(), len);
+                const std::string f = std::string (dir) + "/" + name + "_" + std::to_string (note) + "_" + std::to_string (sr) + ".f32";
+                if (FILE* fp = std::fopen (f.c_str(), "wb")) { std::fwrite (L.data(), 4, L.size(), fp); std::fclose (fp); }
+            }
+        };
+        if (std::getenv ("PRV_STEADY"))
+        {
+            // steady notes (no sweeps): what isn't a harmonic of the note is aliasing - ACID's filter high and singing, the drives
+            for (int note : { 36, 48, 60 })
+            {
+                for (float res : { 60.0f, 85.0f, 95.0f })
+                    for (float cut : { 1500.0f, 4000.0f })
+                        for (int muff = 0; muff < 3; ++muff)
+                        {
+                            auto v = acidPreset (0);
+                            v[acid::EnvMod] = 0; v[acid::Accent] = 0; v[acid::Resonance] = res; v[acid::Cutoff] = cut; v[acid::Muffler] = (float) muff; v[acid::Drive] = muff ? 70.0f : 0.0f;
+                            char nm[64]; std::snprintf (nm, sizeof (nm), "ACID_res%d_cut%d_m%d", (int) res, (int) cut, muff);
+                            dumpOne (kAcidKey, v, nm, note);
+                        }
+                for (int dt = 0; dt < 5; ++dt)
+                {
+                    auto v = subPreset (0); v[sub::Drive] = 80; v[sub::DriveType] = (float) dt;
+                    dumpOne (kSubKey, v, std::string ("SUB_drive") + std::to_string (dt), note);
+                    auto r = reesePreset (0); r[reese::Drive] = 80; r[reese::DriveType] = (float) dt; r[reese::Voices] = 1; r[reese::MoveDepth] = 0; r[reese::Detune] = 0; r[reese::WobbleDepth] = 0; r[reese::Chorus] = 0; r[reese::Drift] = 0; r[reese::Stack] = 0; r[reese::Noise] = 0; r[reese::SubLevel] = 0; r[reese::Octave] = 0;
+                    dumpOne (kReeseKey, r, std::string ("REESE_drive") + std::to_string (dt), note);
+                }
+            }
+            return 0;
+        }
+        for (int note : { 36, 48, 60 })
+        {
+            for (int i = 0; i < kSubPresets; ++i)   dumpOne (kSubKey,   subPreset (i),   std::string ("SUB_") + subPresetName (i), note);
+            for (int i = 0; i < kReesePresets; ++i) dumpOne (kReeseKey, reesePreset (i), std::string ("REESE_") + reesePresetName (i), note);
+            for (int i = 0; i < kAcidPresets; ++i)  dumpOne (kAcidKey,  acidPreset (i),  std::string ("ACID_") + acidPresetName (i), note);
+        }
+        return 0;
+    }
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "ring") { testNoRinging(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "studio") { testStudioFx(); testModulation(); testEnvelopes(); testClockSync(); testPhrases(); testInstMacros(); testScopes(); testBreakTools(); testStretchSync(); testConditions(); std::printf ("\n%d checks failed\n", failures); return failures ? 1 : 0; }
     testDoubleHalve();
     testScopes();
@@ -7056,6 +7230,8 @@ int main()
     testMorphFilter();
     testMorphSynth();
     testNoStuckNotes();
+    testNoRinging();
+    testOversampling();
     testAcidSynth();
     testPadSynth();
     testPadSample();

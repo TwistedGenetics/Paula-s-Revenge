@@ -803,7 +803,7 @@ It never clicks when notes overlap or follow each other: its oscillator is never
 * **OSC 2 + HARMONICS** (SOUND): **OSC 2** adds a second sine (its level, and **INTERVAL**: an octave up, a fifth up, both, or an octave down). **HARM 2** and **HARM 3** add the 2nd and 3rd harmonics - the sub heard on laptop speakers and phones, still click-free.
 * **808 DROP + CLICK** (SHAPE): each note starts higher (**DROP**, in semitones) and drops to its pitch over **DROP TIME**, like an 808 kick-bass; **DROP ON** - **ATTACKS** (new attacks only) or **EVERY NOTE** (legato ones too, for 808 slides). **CLICK** puts a short knock at **CLICK HZ** on each attack; **NOISE** adds a short burst of noise at the start of a note (**NOISE DEC**).
 * **FILTER** (SHAPE): **TONE**, the low-pass, with **RES**, its own envelope (**ENV AMT** ±, **ENV DECAY**: a pluck or a "bwow" on each note) and **KEY TRACK**. With all those at 0 it's the plain, gentle TONE of before.
-* **DRIVE** (SHAPE): saturation and its **TYPE**: **TAPE** (soft), **TUBE** (warmer, uneven), **FOLD** (folded back on itself - growly), **CLIP** (flat-topped) or **BITS** (fewer steps, lower rate). **HIGH-PASS**: the rumble below it taken off (OFF to 80 Hz) - tidy subs for big systems.
+* **DRIVE** (SHAPE): saturation and its **TYPE**: **TAPE** (soft), **TUBE** (warmer, uneven), **FOLD** (folded back on itself - growly), **CLIP** (flat-topped) or **BITS** (fewer steps, lower rate). It runs at four times the song's rate: no aliasing whistle on high notes (BITS keeps its grit). **HIGH-PASS**: the rumble below it taken off (OFF to 80 Hz) - tidy subs for big systems.
 * **LFO** (LFO + AMP): **RATE**, **DEPTH**, **TARGET** (**PITCH** - vibrato, **LEVEL** - tremolo / a sidechain-style pump, **FILTER** - a wobble), **SYNC** to the song's tempo (FREE, 1 BAR to 1/16), **SHAPE** (SINE, TRI, SQUARE, SAW).
 * **ENVELOPE** (LFO + AMP): **ATTACK**, **DECAY**, **SUSTAIN**, **RELEASE**. **VELOCITY** — how much the velocity (`Cxx`) changes the level.
 * **BEAT** (in the OSCILLATOR box) makes one note sound like two held together, so the sub swells and dips (the beating of two notes) without playing two keys. Choose:
@@ -838,7 +838,7 @@ Click a control and drag, or use the buttons. **Right-click** a control to make 
 
 **FX** (in this order, after the voices):
 
-* **DRIVE**: **DRIVE** and its **TYPE**: **WARM** (as ever), **HARD** (clipped), **FOLD** (wavefolded - the metallic neuro edge), **RECTIFY** (a gritty octave-up), **CRUSH** (fewer bits and a lower rate); **SQUASH** - loud parts down, quiet parts up, everything in your face.
+* **DRIVE**: **DRIVE** and its **TYPE**: **WARM** (as ever), **HARD** (clipped), **FOLD** (wavefolded - the metallic neuro edge), **RECTIFY** (a gritty octave-up), **CRUSH** (fewer bits and a lower rate); **SQUASH** - loud parts down, quiet parts up, everything in your face. The drive runs at four times the song's rate, so the harmonics it makes can't fold back down as a whistle on top of the note (CRUSH keeps its grit: that's its sound).
 * **PHASER**: **MIX**, **RATE**, **DEPTH**, **FEEDBACK** - six stages sweeping (or swept by the WOBBLE).
 * **FLANGER**: **MIX**, **RATE**, **DEPTH**, **FEEDBACK** (± - below 0 is the hollow, tubey one): with the phaser, the neuro reese's twist.
 * **STEREO**: **CHORUS** (the wide, swirling hoover chorus), **WIDTH** (0 mono - 150 extra wide), **MONO BASS**: below this frequency both sides are the same, so a wide reese still has a solid, centred low end in a club (OFF, or 20-300 Hz).
@@ -915,7 +915,7 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 ### ACID
 
-**ACID** is a 303-style bass line synth with the **Devil Fish** mods - our own model of the sound, not a copy of any circuit. LOAD → **BUILT-IN SYNTH** → ACID. One voice (a bass line plays one note at a time): a saw or square into a resonant low-pass whose envelope and **ACCENT** give the squelch, and **SLIDE** between notes. Its page has two tabs: **303** (the original's controls) and **DEVIL FISH** (the mods).
+**ACID** is a 303-style bass line synth with the **Devil Fish** mods - our own model of the sound, not a copy of any circuit. LOAD → **BUILT-IN SYNTH** → ACID. One voice (a bass line plays one note at a time): a saw or square into a resonant low-pass whose envelope and **ACCENT** give the squelch, and **SLIDE** between notes. The whole voice runs at four times the song's rate, so a screaming filter or the drive doesn't fold harmonics back down as a whistle. Its page has two tabs: **303** (the original's controls) and **DEVIL FISH** (the mods).
 
 **303** tab:
 

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "PluginSynth.h"
+#include "Oversample.h"
 #include <algorithm>
 #include <array>
 #include <vector>
@@ -115,6 +116,7 @@ private:
     float sqEnv = 0, sqGain = 1;
     float mbL[2] {}, mbR[2] {};
     float crushHold[2] {}; int crushCount = 0;
+    Oversampler driveOs[2];   // (v0.88) the DRIVE at 4x, each side: no aliasing whistle
     float wobNowValue = 0;
     // after the voices: drive and its DC blocker, the chorus
     float dcX[2] {}, dcY[2] {};
