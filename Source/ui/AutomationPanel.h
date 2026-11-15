@@ -30,6 +30,7 @@ public:
     int  selectedTarget() const { return selRow; }
     void selectTarget (int row);
     bool show (int target, int param);
+    bool follow (int target, int param);   // (v0.92) a control was moved: pick it (keeping the search, if it's in the list)
     juce::String selectedName() const { return selRow >= 0 && selRow < (int) list.size() ? list[(size_t) selRow].name : juce::String(); }
     juce::String selectedShortName() const { return selRow >= 0 && selRow < (int) list.size() ? list[(size_t) selRow].shortName : juce::String(); }   // (as the list shows it)
     const AutoLane* selectedLane() const { return lane(); }   // (tests)   // (v0.86) pick this control's envelope (false: not in the list)

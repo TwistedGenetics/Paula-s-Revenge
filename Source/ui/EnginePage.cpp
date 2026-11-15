@@ -114,6 +114,7 @@ void EnginePage::edit (int param, float value, bool merge)
 {
     const auto& ps = builtinParams (inst().pluginKey);
     if (param < 0 || param >= (int) ps.size()) return;
+    if (onTouched) onTouched (kAutoInstrumentBase + proc.editorState.instrument, param);   // (v0.92) the AUTOMATION list follows
     const auto& q = ps[(size_t) param];
     value = juce::jlimit (std::min (q.min, q.max), std::max (q.min, q.max), value);
     proc.history.instrument (proc.editorState.instrument, juce::String (inst().pluginName) + ": " + q.name, merge);
@@ -1070,7 +1071,9 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kRomKey ? " - ROMPLER"
                             : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS"
                             : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH"
-                            : inst().pluginKey == kPadKey ? " - LAYERED PADS" : "";
+                            : inst().pluginKey == kPadKey ? " - LAYERED PADS"
+                            : inst().pluginKey == kDrum808Key ? " - TR-808 DRUM MACHINE"
+                            : inst().pluginKey == kDrum909Key ? " - TR-909 DRUM MACHINE" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
         if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }

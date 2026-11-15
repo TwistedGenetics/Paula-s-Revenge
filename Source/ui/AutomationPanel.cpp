@@ -5,6 +5,7 @@
 #include "ModPage.h"
 #include "MixerPage.h"
 #include "../engine/Modulation.h"
+#include "PatternEditor.h"
 
 namespace prv::ui
 {
@@ -204,6 +205,18 @@ void AutomationPanel::rebuildList()
     for (int i = 0; i < (int) list.size(); ++i) if (list[(size_t) i].target == keep.target && list[(size_t) i].param == keep.param) selRow = i;
     if (list.empty()) selRow = -1;
     targetList.selected = std::max (0, selRow);
+}
+
+bool AutomationPanel::follow (int target, int param)
+{
+    rebuildList();
+    for (int i = 0; i < (int) list.size(); ++i)
+        if (list[(size_t) i].target == target && list[(size_t) i].param == param)
+        {
+            if (i != selRow) { selectTarget (i); targetList.ensureVisible (i); repaint(); }
+            return true;
+        }
+    return show (target, param);
 }
 
 bool AutomationPanel::show (int target, int param)
@@ -596,7 +609,8 @@ void AutomationPanel::paint (juce::Graphics& g)
     for (int l = 0; l <= n; ++l)
     {
         const float x = toScreen (l, 0).x;
-        const bool bar = l % 16 == 0, beat = l % 4 == 0;
+        const int gl = PatternEditor::gridLines();
+        const bool bar = l % std::max (16, gl) == 0, beat = l % gl == 0;   // (the pattern's GRID)
         if (! beat && in.getWidth() / n < px * 3) continue;
         g.setColour (P.ink.withAlpha (bar ? 0.45f : beat ? 0.25f : 0.1f));
         g.fillRect (x - (bar ? px * 0.5f : px * 0.25f), in.getY(), bar ? px : px * 0.5f, in.getHeight());

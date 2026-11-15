@@ -6,6 +6,7 @@
 #include "MorphSynth.h"
 #include "AcidSynth.h"
 #include "PadSynth.h"
+#include "DrumSynth.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -175,6 +176,8 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kMorphKey) return morphSynthParams();
     if (key == kAcidKey) return acidSynthParams();
     if (key == kPadKey) return padSynthParams();
+    if (key == kDrum808Key) return drumParams (false);
+    if (key == kDrum909Key) return drumParams (true);
     return none;
 }
 
@@ -220,7 +223,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : key == kPadKey ? "PAD" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : key == kPadKey ? "PAD" : key == kDrum808Key ? "808" : key == kDrum909Key ? "909" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     if (key == kAcidKey) in.volume = 0x30;   // (ACID: a C40 note is accented - ACCENT FROM C38; the rest play at C30)
@@ -244,6 +247,8 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     if (in.pluginKey == kMorphKey) s = std::make_unique<MorphSynth>();
     if (in.pluginKey == kAcidKey) s = std::make_unique<AcidSynth>();
     if (in.pluginKey == kPadKey) s = std::make_unique<PadSynth>();
+    if (in.pluginKey == kDrum808Key) s = std::make_unique<DrumSynth> (false);
+    if (in.pluginKey == kDrum909Key) s = std::make_unique<DrumSynth> (true);
     if (in.pluginKey == kGrainKey) s = std::make_unique<GrainSynth>();
     if (s) s->prepare (sampleRate, 4096);
     return s;

@@ -42,6 +42,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     automation.onStatus = [this] (const juce::String& t) { setStatus (t); };
     enginePage.onAutomate = [this] (int target, int param) { automateControl (target, param); };
     mixer.onAutomate      = [this] (int target, int param) { automateControl (target, param); };
+    enginePage.onTouched  = [this] (int target, int param) { touchedControl (target, param); };
+    mixer.onTouched       = [this] (int target, int param) { touchedControl (target, param); };
     automation.onResize = [this, &st] (int h) { st.autoHeight = juce::jmax ((int) (prv::ui::Theme::px * 60), h); resized(); };
 
     // ---- title bar
@@ -235,6 +237,23 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
     followBtn.onClick    = [this, &st] { st.follow = followBtn.getToggleState(); refreshAll(); };
+    // GRID: click steps 2 > 4 > 8 > 16; right-click picks one
+    gridBtn.onClick = [this]
+    {
+        const int g = prv::ui::PatternEditor::gridLines();
+        setGridLines (g >= 16 ? 2 : g * 2);
+        pattern.grabKeyboardFocus();
+    };
+    gridBtn.onRightClick = [this]
+    {
+        juce::Component::SafePointer<PaulaEditor> safe (this);
+        std::vector<prv::ui::MenuItem> items;
+        for (int g : { 2, 4, 8, 16 })
+            items.push_back ({ (prv::ui::PatternEditor::gridLines() == g ? "> " : "  ") + juce::String ("EVERY ") + juce::String (g) + " LINES",
+                               [safe, g] { if (safe != nullptr) safe->setGridLines (g); } });
+        prv::ui::showMenu ("GRID: HIGHLIGHT A LINE", std::move (items));
+    };
+    gridBtn.setButtonText ("GRID " + juce::String (prv::ui::PatternEditor::gridLines()));
     panelsBtn.onClick    = [this] { showPanels = panelsBtn.getToggleState(); resized(); };
     for (auto* b : { &tempoBox, &speedBox, &octBox, &stepBox }) b->compact = true;
     tempoBox.onChange = [this] (int v) { proc.history.settings ("BPM", true); proc.withLock ([&] { proc.song.tempo = v; }); };
@@ -466,7 +485,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
-            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
+            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &gridBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &radioBtn, &autoBtn, &liveBtn, &spectrum,
@@ -565,6 +584,15 @@ void PaulaEditor::automateControl (int target, int param)
         setStatus ("AUTOMATION: " + automation.selectedName() + " - DOUBLE-CLICK THE GRAPH TO ADD POINTS, OR DRAW");
     else
         setStatus ("THAT CONTROL ISN'T IN THE AUTOMATION LIST HERE");
+}
+
+// (v0.92) a control was moved: the AUTOMATION panel's list picks it (shown or not), so its envelope is there to draw
+void PaulaEditor::touchedControl (int target, int param)
+{
+    if (target == lastTouched.first && param == lastTouched.second) return;
+    lastTouched = { target, param };
+    if (automation.follow (target, param) && proc.editorState.showAutomation)
+        setStatus ("AUTOMATION: " + automation.selectedName() + " (THE LAST CONTROL YOU MOVED)");
 }
 
 void PaulaEditor::setView (View v)
@@ -976,10 +1004,10 @@ void PaulaEditor::resized()
     // (FOLLOW and MIXER after STEP; the wider gaps close up when the window is narrow, labels stay full size)
     auto tr = r.removeFromTop (rowH).reduced (std::max (1, gap / 2), 0);
     auto tW = [px] (int chars) { return (int) std::ceil (px * 6 * chars - px + 7.0f); };   // (the text at full size, a little room)
-    const int fixedW = tW (6) + tW (7) + tW (6) + tW (6) + tW (4) + tW (6) + tW (5)
+    const int fixedW = tW (6) + tW (7) + tW (6) + tW (6) + tW (4) + tW (6) + tW (7) + tW (5)
                      + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px) + stepBox.preferredWidth (px);
     const int tg = std::max (2, (int) px);   // between the buttons
-    const int spare = tr.getWidth() - fixedW - tg * 6;
+    const int spare = tr.getWidth() - fixedW - tg * 7;
     const int bigGap = juce::jlimit (tg, gap * 3, spare / 5);
     playSongBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
     playBlockBtn.setBounds (tr.removeFromLeft (tW (7))); tr.removeFromLeft (tg);
@@ -991,6 +1019,7 @@ void PaulaEditor::resized()
     octBox.setBounds (tr.removeFromLeft (octBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
     stepBox.setBounds (tr.removeFromLeft (stepBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
     followBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
+    gridBtn.setBounds (tr.removeFromLeft (tW (7))); tr.removeFromLeft (tg);
     mixerBtn.setBounds (tr.removeFromLeft (tW (5)));
     posLabel.setVisible (false);
 
@@ -1268,7 +1297,9 @@ void PaulaEditor::openLoad (int kind)
                        "ROM - A ROMPLER: FOUR TONES OF YOUR OWN LOOPED MULTISAMPLES (JV / M1 STYLE)",
                        "MORPH - A MORPHING-FILTER SYNTH: VOWELS, PHASES, COMBS ON EVERY NOTE (MORPHEUS STYLE)",
                        "ACID - A 303 BASS LINE WITH THE DEVIL FISH MODS (ACCENT, SLIDE, SQUELCH)",
-                       "PAD - FOUR LAYERS OF SOUND: UNISON, SPLITS, VELOCITY LAYERS, LFOS, REVERB" }, [safe, hex] (int a)
+                       "PAD - FOUR LAYERS OF SOUND: UNISON, SPLITS, VELOCITY LAYERS, LFOS, REVERB",
+                       "808 - THE TR-808 DRUM MACHINE: BOOM KICK, SNARE, CLAP, HATS, COWBELL (C = KICK, D = SNARE...)",
+                       "909 - THE TR-909 DRUM MACHINE: PUNCHY KICK, SNARE, CLAP, HATS, CRASH, RIDE (C = KICK...)" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1277,6 +1308,8 @@ void PaulaEditor::openLoad (int kind)
             if (safe != nullptr && a == 5) safe->makeBuiltinSynth (prv::kMorphKey);
             if (safe != nullptr && a == 6) safe->makeBuiltinSynth (prv::kAcidKey);
             if (safe != nullptr && a == 7) safe->makeBuiltinSynth (prv::kPadKey);
+            if (safe != nullptr && a == 8) safe->makeBuiltinSynth (prv::kDrum808Key);
+            if (safe != nullptr && a == 9) safe->makeBuiltinSynth (prv::kDrum909Key);
             if (safe != nullptr && a == 3)
                 safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
                                    { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
@@ -1313,7 +1346,7 @@ void PaulaEditor::openLoad (int kind)
 void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : key == prv::kPadKey ? "PAD SYNTH" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : key == prv::kPadKey ? "PAD SYNTH" : key == prv::kDrum808Key ? "808 DRUMS" : key == prv::kDrum909Key ? "909 DRUMS" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
         if (key == prv::kRaveKey) prv::makeRave (proc.song.instruments[(size_t) i], raveType);
@@ -1323,7 +1356,7 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : prv::isDrumKey (key) ? juce::String (key == prv::kDrum808Key ? "808" : "909") + " DRUM KIT - C KICK, C# RIM, D SNARE, D# CLAP, F CLOSED HAT, G OPEN HAT (ANY OCTAVE)" : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 
@@ -1454,6 +1487,15 @@ void PaulaEditor::chooseCaptureQuantise()
         if (safe == nullptr || a < 0 || a >= 5) return;
         safe->setCaptureQuantise (qs[a]);
     });
+}
+
+void PaulaEditor::setGridLines (int g)
+{
+    prv::ui::PatternEditor::setGridLines (g);
+    const int now = prv::ui::PatternEditor::gridLines();
+    gridBtn.setButtonText ("GRID " + juce::String (now));
+    pattern.repaint(); automation.repaint();
+    setStatus ("GRID: A HIGHLIGHTED LINE EVERY " + juce::String (now) + " LINES (CLICK GRID FOR THE NEXT, RIGHT-CLICK TO PICK)");
 }
 
 void PaulaEditor::setCaptureQuantise (int q)

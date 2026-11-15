@@ -59,6 +59,7 @@ add_library(prv_engine STATIC
     Source/engine/MorphFilter.cpp
     Source/engine/MorphSynth.cpp
     Source/engine/AcidSynth.cpp
+    Source/engine/DrumSynth.cpp
     Source/engine/PadSynth.cpp
     Source/engine/LiveFx.cpp
     Source/engine/Crunch.cpp

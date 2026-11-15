@@ -480,7 +480,7 @@ void PatternEditor::paint (juce::Graphics& g)
         const bool cursorRow = l == st.line;
 
         if (cursorRow)         { g.setColour (sk.band);   g.fillRect (rowRect); }
-        else if (l % 4 == 0)   { g.setColour (sk.stripe); g.fillRect (rowRect); }
+        else if (l % gridLines() == 0) { g.setColour (sk.stripe); g.fillRect (rowRect); }   // (GRID: every 2 / 4 / 8 / 16)
         if (playing && playBlock == blk && playLine == l && ! (st.follow && cursorRow))
         {
             g.setColour (sk.text);
@@ -2104,6 +2104,13 @@ int PatternEditor::followInstrumentAt (int line, int track) const
 
 bool PatternEditor::recordNoteOffs()          { return prv::prefs().getBoolValue ("recordNoteOffs", true); }
 void PatternEditor::setRecordNoteOffs (bool on) { prv::prefs().setValue ("recordNoteOffs", on); }
+namespace { int gridCache = -1; }
+int  PatternEditor::gridLines()
+{
+    if (gridCache < 0) { const int g = prv::prefs().getIntValue ("gridLines", 4); gridCache = (g == 2 || g == 4 || g == 8 || g == 16) ? g : 4; }
+    return gridCache;
+}
+void PatternEditor::setGridLines (int g) { gridCache = (g == 2 || g == 4 || g == 8 || g == 16) ? g : 4; prv::prefs().setValue ("gridLines", gridCache); prv::prefs().saveIfNeeded(); }
 int  PatternEditor::captureQuantise()           { const int q = prv::prefs().getIntValue ("captureQuantise", 1); return (q == 0 || q == 1 || q == 2 || q == 4 || q == 8) ? q : 1; }
 void PatternEditor::setCaptureQuantise (int q) { prv::prefs().setValue ("captureQuantise", q); prv::prefs().saveIfNeeded(); }
 

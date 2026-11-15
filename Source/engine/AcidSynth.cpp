@@ -36,7 +36,7 @@ const std::vector<SynthParam>& acidSynthParams()
         { "ACCENT FROM", "ENVELOPE + ACCENT", 1, 64, 0x38, 2, "CX", "" },   // (a note this loud (Cxx) or louder is accented)
         // the Devil Fish's
         { "ACC DECAY",   "DEVIL FISH ENVELOPES", 30, 3000, 200, 1, "MS", "" },
-        { "ATTACK",      "DEVIL FISH ENVELOPES", 0.3f, 30, 3, 1, "MS", "" },
+        { "ATTACK",      "DEVIL FISH ENVELOPES", 0.3f, 2000, 3, 1, "MS", "" },   // (v0.92: up to 2 s - the Devil Fish's 30 ms is barely heard)
         { "SWEEP",       "DEVIL FISH ENVELOPES", 0, 100, 45, 0, "%", "" },
         { "AMP DECAY",   "DEVIL FISH ENVELOPES", 16, 5000, 5000, 1, "MS", "" },
         { "RELEASE",     "DEVIL FISH ENVELOPES", 1, 1000, 8, 1, "MS", "" },
@@ -177,7 +177,10 @@ void AcidSynth::startNote (int note, int velocity, bool slide, int line)
     megDecay = fallIn (acc ? p[acid::AccentDecay] : p[acid::Decay], sr);
     if (acc) accEnv = 1.0f;
     ampStage = 1;
-    attackRate = 1.0f / (float) std::max (1.0, (acc ? 0.3 : (double) p[acid::SoftAttack]) * 0.001 * sr);
+    // (v0.92) the attack: an accent snaps in (a 303's accent) unless the ATTACK is set long (past 30 ms, the Devil
+    // Fish's range): then accented notes fade in too
+    const double att = p[acid::SoftAttack];
+    attackRate = 1.0f / (float) std::max (1.0, (acc && att <= 30.0 ? 0.3 : att) * 0.001 * sr);
     gate = true;
     ++attackCount;
 }

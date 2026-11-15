@@ -9,6 +9,7 @@
 #include "../engine/MorphSynth.h"
 #include "../engine/AcidSynth.h"
 #include "../engine/PadSynth.h"
+#include "../engine/DrumSynth.h"
 #include "../engine/ReeseSynth.h"
 
 namespace prv::ui::synthpresets
@@ -90,6 +91,8 @@ inline std::vector<Preset> factory (const std::string& key)
         for (int t = 0; t < kReesePresets; ++t) out.push_back ({ reesePresetName (t), key, reesePreset (t) });
     else if (key == kPadKey)
         for (int t = 0; t < kPadPresets; ++t) out.push_back ({ padPresetName (t), key, padPreset (t) });
+    else if (isDrumKey (key))
+        for (int t = 0; t < kDrumPresets; ++t) out.push_back ({ drumPresetName (key == kDrum909Key, t), key, drumPreset (key == kDrum909Key, t) });
     else if (! builtinParams (key).empty())
         out.push_back ({ "DEFAULTS", key, builtinDefaults (key) });
     return out;

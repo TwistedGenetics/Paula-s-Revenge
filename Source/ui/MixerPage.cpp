@@ -781,7 +781,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         chSend[s].labelChars = 7;
         chSend[s].valueChars = 5;
         chSend[s].defaultValue = 0.0f;
-        chSend[s].onDragStart = [this, s] { proc.history.mixer ("TRACK " + juce::String (chTrack + 1) + " SEND " + (char) ('A' + s), true); };
+        chSend[s].onDragStart = [this, s] { if (onTouched && chTrack >= 0 && chTrack < kMixTracks) onTouched (kModStripBase + chTrack, 1 + s); proc.history.mixer ("TRACK " + juce::String (chTrack + 1) + " SEND " + (char) ('A' + s), true); };
         chSend[s].onChange = [this, s] (float v) { proc.withLock ([&] { proc.song.mixer.ch[chTrack].send[s] = v; }); };
         chSend[s].onRightClick = [this, s]
         {
@@ -802,7 +802,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     chFader.valueChars = 7;
     chFader.defaultValue = FaderMeter::dbToPos (0.0f);
     chFader.format = [] (float v) { return FaderMeter::dbText (FaderMeter::posToDb (v)) + (FaderMeter::posToDb (v) > -59.9f ? " DB" : ""); };
-    chFader.onDragStart = [this] { proc.history.mixer ("TRK " + juce::String (chTrack + 1) + " FADER", true); };
+    chFader.onDragStart = [this] { if (onTouched && chTrack >= 0 && chTrack < kMixTracks) onTouched (kModStripBase + chTrack, 0); proc.history.mixer ("TRK " + juce::String (chTrack + 1) + " FADER", true); };
     chFader.onRightClick = [this]
     {
         if (chTrack < 0 || chTrack >= kMixTracks) return;
@@ -897,6 +897,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         param[i]->valueChars = 10;
         param[i]->onDragStart = [this, i]
         {
+            if (onTouched) onTouched (fxSlot, i);
             const auto& s = proc.song.mixer.slot (fxSlot);
             const auto& ps = fxParams (s.type);
             if (i < (int) ps.size()) proc.history.mixer (slotOwner (fxSlot) + " " + juce::String (fxName (s.type)) + " " + juce::String (ps[(size_t) i].name), true);

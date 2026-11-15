@@ -112,6 +112,9 @@ public:
     void exportSamples();
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
     void setFollowInstrument (bool on);
+    void setGridLines (int lines);
+    void touchedControl (int target, int param);       // (v0.92) a control moved: the automation list picks it
+    std::pair<int, int> lastTouched { -1, -1 };
     void chooseCaptureQuantise();                      // CAPTURE QUANTISE: as played (Mxx) or every 1/2/4/8 lines
     void setCaptureQuantise (int lines);
     static juce::String quantiseName (int lines);
@@ -203,6 +206,7 @@ private:
     PixButton editBtn { juce::String::charToString ((juce::juce_wchar) 5) + " EDIT", true };
     PixButton captureBtn { "CAPTURE" };
     PixButton followBtn { "FOLLOW", true };
+    PixButton gridBtn { "GRID 4" };   // (v0.92) the pattern's highlighted lines: every 2, 4, 8 or 16
     PixButton loopBtn { "LOOP", true };
     PixButton panelsBtn { "PANELS", true };
     NumberBox tempoBox { "BPM", 32, 255, 125 }, speedBox { "SPD", 1, 31, 6 }, octBox { "OCT", 0, 6, 3 }, stepBox { "STEP", 0, 16, 1 };

@@ -4369,6 +4369,7 @@ static void testEnvelopes()
 
 // ---- following a MIDI clock
 #include "engine/ClockSync.h"
+#include "engine/DrumSynth.h"
 static void testClockSync()
 {
     std::printf ("\n== midi clock\n");
@@ -4900,6 +4901,20 @@ static void testAcidSynth()
         a->noteOff (36, 0); run (*a, 50);
         float tail = 0; run (*a, 5, &tail);
         CHECK (! a->sounding() && tail < 1.0e-3f);
+    }
+    // (v0.92) ATTACK up to 2 s: a long one fades the note in - quiet at first, full later
+    {
+        auto v = def; v[SoftAttack] = 500;
+        auto a = fresh (v);
+        a->noteOn (36, 95, 0);
+        float early = 0, late = 0;
+        run (*a, 5, &early);           // the first 50 ms
+        run (*a, 60);                  // to 650 ms
+        run (*a, 10, &late);
+        auto b = fresh (def); float snap = 0;
+        b->noteOn (36, 95, 0); run (*b, 5, &snap);
+        std::printf ("ATTACK 500 MS: first 50 ms peak %.3f, at 650 ms %.3f (ATTACK 3 MS: %.3f)\n", early, late, snap);
+        CHECK (acidSynthParams()[SoftAttack].max >= 2000.0f && early < snap * 0.35f && late > early * 2.0f);
     }
     // SLIDE by overlap: one attack, the pitch glides (not jumps) to the new note
     {
@@ -5483,12 +5498,56 @@ static void testGrainDeep()
     CHECK (bad == 0 && builtinParams (kGrainKey).size() == (size_t) Count);
 }
 
+// (v0.92) 808 and 909: every key a drum that sounds and dies away; the closed hat chokes the open one
+static void testDrumSynth()
+{
+    std::printf ("\n== 808 / 909 DRUMS\n");
+    const double sr = 48000.0;
+    for (int m = 0; m < 2; ++m)
+    {
+        const bool n9 = m == 1;
+        CHECK (drumParams (n9).size() == (size_t) (drumSlots (n9) * drums::PerDrum + drums::OutCount));
+        CHECK (builtinParams (n9 ? kDrum909Key : kDrum808Key).size() == drumParams (n9).size());
+        Instrument in; makeBuiltin (in, n9 ? kDrum909Key : kDrum808Key);
+        CHECK (in.pluginName == (n9 ? "909" : "808"));
+        auto syn = createBuiltinSynth (in, sr);
+        CHECK (syn != nullptr);
+        int sounded = 0;
+        for (int s = 0; s < 12; ++s)
+        {
+            DrumSynth d (n9); d.prepare (sr, 512);
+            std::vector<float> L (480), R (480);
+            d.noteOn (36 + s, 127, 0);
+            float pk = 0; bool ok = true;
+            for (int b = 0; b < 100; ++b) { d.render (L.data(), R.data(), 480); for (int i = 0; i < 480; ++i) { pk = std::max (pk, std::abs (L[i]) + std::abs (R[i])); ok = ok && std::isfinite (L[i]); } }
+            if (pk > 0.05f && ok) ++sounded;
+            for (int b = 0; b < 500; ++b) d.render (L.data(), R.data(), 480);   // (5 s more)
+            bool any = false; for (int k = 0; k < 12; ++k) any = any || d.sounding (k);
+            CHECK (! any);
+        }
+        std::printf ("%s: %d of 12 keys sound\n", n9 ? "909" : "808", sounded);
+        CHECK (sounded == 12);   // (the 909's B: its kick)
+        // the choke, and a soft note quieter than a hard one (ACCENT)
+        DrumSynth d (n9); d.prepare (sr, 512);
+        std::vector<float> L (480), R (480);
+        d.noteOn (55, 127, 0); d.render (L.data(), R.data(), 480);   // G: open hat
+        CHECK (d.sounding (7));
+        d.noteOn (53, 127, 0); for (int b = 0; b < 3; ++b) d.render (L.data(), R.data(), 480);   // F: closed hat
+        CHECK (! d.sounding (7));
+        auto peakOf = [&] (int vel) { DrumSynth e (n9); e.prepare (sr, 512); e.noteOn (38, vel, 0); float pk = 0;
+                                      for (int b = 0; b < 20; ++b) { e.render (L.data(), R.data(), 480); for (float x : L) pk = std::max (pk, std::abs (x)); } return pk; };
+        const float hard = peakOf (127), soft = peakOf (40);
+        std::printf ("snare: hard %.3f, soft %.3f\n", hard, soft);
+        CHECK (soft < hard * 0.75f && soft > 0.0f);
+    }
+}
+
 // (v0.79) every built-in synth, any settings, notes on and off in any order (as keys and the pattern give them): once
 // every key is up, it goes quiet - no envelope left hanging
 static void testNoStuckNotes()
 {
     std::printf ("\n== NO STUCK NOTES\n");
-    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey };
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey, kDrum808Key, kDrum909Key };
     std::mt19937 rng (79);
     std::uniform_real_distribution<float> u (0, 1);
     int stuck = 0;
@@ -7320,6 +7379,7 @@ int main()
     testNoRinging();
     testOversampling();
     testAcidSynth();
+    testDrumSynth();
     testPadSynth();
     testPadSample();
     testReeseDeep();
