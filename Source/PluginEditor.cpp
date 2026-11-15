@@ -1004,9 +1004,16 @@ void PaulaEditor::resized()
     // (FOLLOW and MIXER after STEP; the wider gaps close up when the window is narrow, labels stay full size)
     auto tr = r.removeFromTop (rowH).reduced (std::max (1, gap / 2), 0);
     auto tW = [px] (int chars) { return (int) std::ceil (px * 6 * chars - px + 7.0f); };   // (the text at full size, a little room)
-    const int fixedW = tW (6) + tW (7) + tW (6) + tW (6) + tW (4) + tW (6) + tW (7) + tW (5)
-                     + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px) + stepBox.preferredWidth (px);
+    // (GRID: "GRID 16" when there's room, else "G16" - the label is never squeezed)
+    const int gridLong = tW (7), gridShort = tW (3);
+    const int fixedNoGrid = tW (6) + tW (7) + tW (6) + tW (6) + tW (4) + tW (6) + tW (5)
+                          + tempoBox.preferredWidth (px) + speedBox.preferredWidth (px) + octBox.preferredWidth (px) + stepBox.preferredWidth (px);
     const int tg = std::max (2, (int) px);   // between the buttons
+    const bool gridRoomy = tr.getWidth() - fixedNoGrid - gridLong - tg * 7 >= tg * 5;
+    const int gridW = gridRoomy ? gridLong : gridShort;
+    gridShortLabel = ! gridRoomy;
+    gridBtn.setButtonText ((gridRoomy ? "GRID " : "G") + juce::String (prv::ui::PatternEditor::gridLines()));
+    const int fixedW = fixedNoGrid + gridW;
     const int spare = tr.getWidth() - fixedW - tg * 7;
     const int bigGap = juce::jlimit (tg, gap * 3, spare / 5);
     playSongBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
@@ -1019,7 +1026,7 @@ void PaulaEditor::resized()
     octBox.setBounds (tr.removeFromLeft (octBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
     stepBox.setBounds (tr.removeFromLeft (stepBox.preferredWidth (px))); tr.removeFromLeft (bigGap);
     followBtn.setBounds (tr.removeFromLeft (tW (6))); tr.removeFromLeft (tg);
-    gridBtn.setBounds (tr.removeFromLeft (tW (7))); tr.removeFromLeft (tg);
+    gridBtn.setBounds (tr.removeFromLeft (gridW)); tr.removeFromLeft (tg);
     mixerBtn.setBounds (tr.removeFromLeft (tW (5)));
     posLabel.setVisible (false);
 
@@ -1493,7 +1500,7 @@ void PaulaEditor::setGridLines (int g)
 {
     prv::ui::PatternEditor::setGridLines (g);
     const int now = prv::ui::PatternEditor::gridLines();
-    gridBtn.setButtonText ("GRID " + juce::String (now));
+    gridBtn.setButtonText ((gridShortLabel ? "G" : "GRID ") + juce::String (now));
     pattern.repaint(); automation.repaint();
     setStatus ("GRID: A HIGHLIGHTED LINE EVERY " + juce::String (now) + " LINES (CLICK GRID FOR THE NEXT, RIGHT-CLICK TO PICK)");
 }

@@ -193,7 +193,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
     <thead><tr><th>AREA</th><th>WHAT IT DOES</th></tr></thead>
     <tbody>
       <tr><td>Title bar</td><td><span class="b">NEW</span> <span class="b">LOAD</span> <span class="b">SAVE</span> <span class="b">SAVE AS</span>, <span class="b">UNDO</span> <span class="b">REDO</span>, <span class="b">FULL VEL</span> <span class="b">NOTE-OFFS</span> <span class="b">CAPTURE</span> (see <a href="#pattern">Recording</a>), and text size <span class="b">A-</span> <span class="b">A+</span>. Save MOD, Render WAV and Export Samples are in the <b>File</b> menu.</td></tr>
-      <tr><td>Transport</td><td>Play the song or the block (either also brings you back to this main page from any other page), stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>) and <span class="b">MIXER</span> (<kbd>Cmd</kbd><kbd>2</kbd>).</td></tr>
+      <tr><td>Transport</td><td>Play the song or the block (either also brings you back to this main page from any other page), stop, <span class="b">EDIT</span> mode, <span class="b">LOOP</span> (the marked lines), BPM, SPD (ticks per line), octave and step, <span class="b">FOLLOW</span> (<kbd>Cmd</kbd><kbd>F</kbd>), <span class="b">GRID</span> (a highlighted line every 2, 4, 8 or 16 lines: click for the next, right-click to pick) and <span class="b">MIXER</span> (<kbd>Cmd</kbd><kbd>2</kbd>).</td></tr>
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td>Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">EQ/FX</span>, <span class="b">PARAMS</span>; <kbd>Delete</kbd> clears the instrument picked (CLEAR and RENAME are on its right-click). The instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
@@ -1033,12 +1033,29 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
     <li><b>Accents:</b> write <code>C40</code> (or any volume at <b>ACCENT FROM</b>, C38, or louder) on a note's own line to accent it &mdash; brighter and harder; notes without one aren't. Either command column, and on a sliding note too. Played from the keyboard, how hard you play decides.</li>
     <li><b>Slides:</b> <b>OVERLAP (KEYS)</b> slides a note played while the last is held. <b>TIED NOTES</b> also slides, in the pattern, a note that runs straight into the next one with <b>no OFF</b> between, with no new envelope &mdash; a 303's slide step. Put an OFF where a note should play fresh. <b>3xx</b> works too.</li>
     <li><b>303:</b> SAW / SQUARE, TUNE, FINE, SHAPE, SUB &middot; CUTOFF, RESONANCE (to self-oscillation), ENV MOD &middot; DECAY, ACCENT, ACCENT FROM &middot; VELOCITY, LEVEL.</li>
-    <li><b>DEVIL FISH:</b> ACC DECAY (the accent's own decay), ATTACK (a soft attack on plain notes), SWEEP (slow: a run of accents builds up), AMP DECAY (5.00S holds), RELEASE &middot; TRACKING, FILTER FM, RES BASS &middot; slide TIME (10 ms - 1 s) &middot; the MUFFLER (OFF / SOFT / HARD) and DRIVE.</li>
+    <li><b>DEVIL FISH:</b> ACC DECAY (the accent's own decay), ATTACK (0.3&nbsp;ms to 2&nbsp;s: up to 30&nbsp;ms the Devil Fish's soft attack, accents still snap in; longer, every note fades in), SWEEP (slow: a run of accents builds up), AMP DECAY (5.00S holds), RELEASE &middot; TRACKING, FILTER FM, RES BASS &middot; slide TIME (10 ms - 1 s) &middot; the MUFFLER (OFF / SOFT / HARD) and DRIVE.</li>
   </ul>
   <figure>
     <div class="frame sunken"><img src="img/acid_devilfish.png" alt="ACID's DEVIL FISH tab: DEVIL FISH ENVELOPES (ACC DECAY, ATTACK, SWEEP, AMP DECAY, RELEASE), DEVIL FISH FILTER (TRACKING, FILTER FM, RES BASS), SLIDE (TIME, OVERLAP (KEYS) / TIED NOTES) and MUFFLER + DRIVE (OFF / SOFT / HARD, DRIVE)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
+  <h3>The built-in 808 and 909 drum machines</h3>
+  <p><b>808</b> and <b>909</b> are the two classic drum machines, built in and synthesised the way the originals make their sounds (no samples). LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; 808 or 909. One key per drum, the same in every octave, so on the laptop keys <kbd>Z</kbd> is the kick, <kbd>X</kbd> the snare, <kbd>V</kbd> the closed hat and <kbd>B</kbd> the open hat.</p>
+  <div class="tbl sunken"><table>
+    <thead><tr><th>KEY</th><th>808</th><th>909</th></tr></thead>
+    <tbody>
+      <tr><td><code>C</code></td><td>KICK: the long, deep boom</td><td>KICK: punchy, swept down from high</td></tr>
+      <tr><td><code>C#</code> / <code>D</code> / <code>D#</code></td><td>RIM SHOT / SNARE / CLAP</td><td>RIM SHOT / SNARE / CLAP</td></tr>
+      <tr><td><code>E</code> / <code>F#</code> / <code>G#</code></td><td>LOW / MID / HI TOM</td><td>LOW / MID / HI TOM</td></tr>
+      <tr><td><code>F</code> / <code>G</code></td><td>CLOSED HAT / OPEN HAT</td><td>CLOSED HAT / OPEN HAT</td></tr>
+      <tr><td><code>A</code> / <code>A#</code> / <code>B</code></td><td>CYMBAL / COWBELL / CLAVE</td><td>CRASH / RIDE / KICK again</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>Every drum has <b>LEVEL</b>, <b>TUNE</b>, <b>DECAY</b>, <b>TONE</b> and <b>PAN</b>. TONE is that drum's tone knob: the kick's edge (the 909's <b>ATTACK</b> click), the snare's <b>SNAPPY</b>, the toms' <b>NOISE</b>, the hats' brightness.</li>
+    <li>Tabs: <span class="b">KICK + SNARE</span>, <span class="b">TOMS + MORE</span>, <span class="b">HATS + CYMBALS</span> and <span class="b">OUTPUT</span> (<b>LEVEL</b>, <b>DRIVE</b>, and <b>ACCENT</b>: how much <code>Cxx</code> or how hard you play changes each hit). A closed hat cuts off an open one.</li>
+    <li><span class="b">PRESETS...</span>: CLASSIC, LONG BOOM, TIGHT and DIRTY (808); CLASSIC, HARD, DEEP and SHORT (909).</li>
+  </ul>
   <h3>The built-in PAD synth: four layers</h3>
   <p><b>PAD</b> plays <b>four layers</b> on every note, each a whole sound of its own. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; PAD. Up to 12 notes at once; eight tabs: <span class="b">LAYER A</span>&ndash;<span class="b">D</span>, <span class="b">MIX</span>, <span class="b">MOD</span>, <span class="b">SPACE</span> and <span class="b">SAMPLES</span>. <b>PRESETS...</b> has ten pads.</p>
   <figure>
@@ -1111,6 +1128,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
     <thead><tr><th>DO</th><th>WHAT HAPPENS</th></tr></thead>
     <tbody>
       <tr><td>Pick a control (left)</td><td>VOLUME, SENDS, the track's inserts, the send buses' and master's inserts, the instrument's own inserts, <b>every control of a built-in synth</b> (<code>I04 CUTOFF</code>, PAD's <code>I04 A LEVEL</code>) and all of a plug-in's parameters, MACROs. <code>*</code> = has an envelope here. Type to search; AUTOMATED ONLY.</td></tr>
+      <tr><td>Move a control</td><td>Turn a built-in synth's control, a mixer effect's slider, a track's FADER or SEND and the list picks it, ready to draw.</td></tr>
       <tr><td>Right-click a control &rarr; <b>AUTOMATE</b></td><td>On a built-in synth's control, a mixer effect's slider, a track's FADER or SEND: the panel opens with that control picked, ready to draw. When the block stops, the control goes back to its own setting.</td></tr>
       <tr><td>Double-click</td><td>Adds a point (snapped); on a point, removes it. <kbd>Delete</kbd> removes the selected one.</td></tr>
       <tr><td>Drag a point</td><td>Moves it, with a readout of the line and the real value. <kbd>Shift</kbd> leaves the snap.</td></tr>

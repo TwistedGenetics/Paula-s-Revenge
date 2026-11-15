@@ -32,10 +32,10 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Area | What it does |
 |---|---|
 | Title bar | HELP, NEW, LOAD, SAVE, SAVE AS (native `.prv`), UNDO, REDO, **FULL VEL**, **NOTE-OFFS**, **CAPTURE**, text size `A-` / `A+`. SAVE MOD, RENDER WAV and EXPORT SAMPLES are in the **File** menu |
-| Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **MIXER** (`Cmd+2`) |
+| Transport | Play song, play block (either one also takes you back to this main page from whatever page is open), stop, edit mode, LOOP (the marked lines), BPM, speed (ticks per line), octave, step, **FOLLOW** (the cursor moves with playback), **GRID** (a highlighted line every 2, 4, 8 or 16 lines: click for the next, right-click to pick; `G8` when the window is narrow), **MIXER** (`Cmd+2`) |
 | Sequence | The song order, with a scrollbar; it follows the position playing. Click a position to jump to it, **double-click** it to open that block's pattern (from any page); **right-click > BLOCK NAME...** or `Cmd+R` names the block; drag over the names to highlight positions for CUT / COPY / PASTE / DUPLICATE / DEL / COMBINE (see Sequence tools); set which block plays there. Drag the position numbers (or ▲ ▼, or `Alt+↑/↓` in the pattern) to move the highlighted positions. CLONE IN PLACE gives this position its own copy of the block (see below). Click the section label at the right of a row (or `+ SECTION`) to start a labelled **section**; LOOP SECTION loops it, LOOP SELECTION loops the highlight (see Song sections) |
 | Block | Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
-| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
+| Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR, 808, 909), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
 | Pattern editor | 8 tracks. The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
 | Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
@@ -748,7 +748,8 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 
 **AUTOMATION** on the bottom row opens the envelope panel under the pattern, in place of the spectrum (drag its top edge to make it taller or shorter). It shows the current block, and follows the block and track you're on.
 
-* **Left:** the current track's controls — VOLUME, SEND A, SEND B, every control of its three inserts, the send buses' and the master's inserts (`BUS A`, `BUS B`, `MASTER`), the current instrument's own inserts, **every control of a built-in synth** (SUB, REESE, RAVE, MORPH, ACID, PAD, GRANULAR, ROM — as `I04 CUTOFF`, PAD's layers as `I04 A LEVEL`), all of a plug-in instrument's parameters, and any MACRO modulators. `*` marks the ones with an envelope in this block. Type to search (Backspace, Esc clears); **AUTOMATED ONLY** shows just the ones with envelopes.
+* **Left:** the current track's controls — VOLUME, SEND A, SEND B, every control of its three inserts, the send buses' and the master's inserts (`BUS A`, `BUS B`, `MASTER`), the current instrument's own inserts, **every control of a built-in synth** (SUB, REESE, RAVE, MORPH, ACID, PAD, GRANULAR, ROM, 808, 909 — as `I04 CUTOFF`, PAD's layers as `I04 A LEVEL`), all of a plug-in instrument's parameters, and any MACRO modulators. `*` marks the ones with an envelope in this block. Type to search (Backspace, Esc clears); **AUTOMATED ONLY** shows just the ones with envelopes.
+* **Move a control and it's picked:** turn any built-in synth's control, a mixer effect's slider, a track's FADER or SEND A / B, and the list on the left picks it (keeping your search when it's in the list), so its envelope is there to draw next time you look.
 * **Right-click a control → AUTOMATE (DRAW ITS ENVELOPE)**: on any built-in synth's control, a mixer effect's slider, a track's FADER or SEND A / B. The AUTOMATION panel opens under the pattern with that control picked (moving to its track or instrument), ready to draw. An envelope on a synth's control moves it as the block plays; when it stops, the control goes back to its own setting.
 * **Right:** the selected control's envelope across the block, a line per row, beats and bars marked. While the block plays, a line moves across it.
 * **Double-click** to add a point (snapped), **double-click a point** to remove it, **drag** a point to move it (it can't pass its neighbours; hold Shift to leave the snap). A readout shows the line and the real value (Hz, ms, dB…). **Delete** removes the selected point.
@@ -788,7 +789,7 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **View → Follow MIDI Clock** makes another app or a drum machine lead: the tempo follows the clock on the MIDI input (24 a beat; a steady average, so a jittery clock still gives a steady tempo), **Start** plays the song from the top, **Continue** carries on from the last Song Position Pointer, **Stop** stops. Turn on the MIDI input device in Audio/MIDI Settings. The status line shows the tempo it's following. (Ableton Link isn't built in: its free licence is the GPL.)
 
-## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD and GRANULAR
+## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR, 808 and 909
 
 **Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones; SUB's, REESE's, MORPH's, ACID's, PAD's and GRANULAR's ten; for ROM, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
@@ -927,12 +928,36 @@ Up to 16 notes at once; when it's full, the oldest fades out in a few millisecon
 
 **DEVIL FISH** tab:
 
-* **DEVIL FISH ENVELOPES**: **ACC DECAY** (the accented notes' own filter decay - a 303's was fixed), **ATTACK** (a soft attack on plain notes, 0.3-30 ms; accents always hit at once), **SWEEP** (the accent sweep: down, a run of accents builds up, each one brighter than the last; up, every accent the same), **AMP DECAY** (the amp's own decay - all the way up, 5.00S, it holds while the note does), **RELEASE**.
+* **DEVIL FISH ENVELOPES**: **ACC DECAY** (the accented notes' own filter decay - a 303's was fixed), **ATTACK** (0.3 ms to 2 s: up to 30 ms it's the Devil Fish's soft attack on plain notes and accents still hit at once; longer, every note fades in, accents too), **SWEEP** (the accent sweep: down, a run of accents builds up, each one brighter than the last; up, every accent the same), **AMP DECAY** (the amp's own decay - all the way up, 5.00S, it holds while the note does), **RELEASE**.
 * **DEVIL FISH FILTER**: **TRACKING** (the cutoff follows the notes), **FILTER FM** (the output back into the cutoff, at audio rate - growl and grit), **RES BASS** (how much of the low end survives a high resonance).
 * **SLIDE**: **TIME** (how long a slide takes, 10 ms - 1 s; a 303's was about 60 ms) and which notes slide: **OVERLAP (KEYS)** - a note played while the last is still held (on the keys or MIDI) - or **TIED NOTES**: in the pattern, a note that runs straight into the next one, **with no OFF between**, slides into it with no new envelope (a 303's slide step). Put an OFF (or leave a gap) where a note should play fresh. The tracker's **3xx** slide works too, as on any synth.
 * **MUFFLER + DRIVE**: the **MUFFLER** - **OFF / SOFT / HARD** - clips the output, softly or hard; **DRIVE** pushes into it.
 
 **PRESETS...** has ten to start from: CLASSIC, SQUELCH, RUBBER BASS, SQUARE ACID, DEVIL SCREAM, SLOW SWEEP, MUFFLED SUB, SELF-OSC BLEEP, TIED SLIDES and HARDCORE ACID.
+
+### 808 and 909
+
+**808** and **909** are drum machines built in — the TR-808 and TR-909 sounds, made the way the originals make them (no samples). LOAD → **BUILT-IN SYNTH** → 808 or 909. One key per drum, **the same in every octave**:
+
+| Key | 808 | 909 |
+|---|---|---|
+| `C` | KICK — the long, deep boom | KICK — punchy, swept down from high |
+| `C#` | RIM SHOT | RIM SHOT |
+| `D` | SNARE | SNARE |
+| `D#` | CLAP | CLAP |
+| `E` / `F#` / `G#` | LOW / MID / HI TOM | LOW / MID / HI TOM |
+| `F` | CLOSED HAT | CLOSED HAT |
+| `G` | OPEN HAT | OPEN HAT |
+| `A` | CYMBAL | CRASH |
+| `A#` | COWBELL | RIDE |
+| `B` | CLAVE | KICK (again) |
+
+So on the laptop keys `Z` is the kick, `S` the rim, `X` the snare, `D` the clap, `V` the closed hat, `B` the open hat. A closed hat cuts off an open one, as on the machines.
+
+* Every drum has **LEVEL**, **TUNE** (±12 semitones), **DECAY**, **TONE** and **PAN**. TONE is what that drum's tone knob was: the 808 kick's edge, the 909 kick's **ATTACK** (its click), the snare's **SNAPPY** (the noise), the toms' **NOISE**, the hats' and cymbals' brightness, the clap's colour.
+* Three tabs: **KICK + SNARE**, **TOMS + MORE**, **HATS + CYMBALS** — and **OUTPUT**: **LEVEL**, **DRIVE** (soft clipping over the whole kit) and **ACCENT** (how much a note's volume — `Cxx`, or how hard you hit a key — changes the hit: 0, every hit the same).
+* **PRESETS...**: 808 CLASSIC, 808 LONG BOOM, 808 TIGHT, 808 DIRTY / 909 CLASSIC, 909 HARD, 909 DEEP, 909 SHORT.
+* Each drum's controls can be automated, or put on a knob (`Lxx`…), like any built-in synth. One instrument plays a whole kit on one track — or put the kick on its own track with its own EQ and effects by making a second 808.
 
 ### PAD
 

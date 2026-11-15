@@ -115,6 +115,7 @@ public:
     void setGridLines (int lines);
     void touchedControl (int target, int param);       // (v0.92) a control moved: the automation list picks it
     std::pair<int, int> lastTouched { -1, -1 };
+    bool gridShortLabel = false;
     void chooseCaptureQuantise();                      // CAPTURE QUANTISE: as played (Mxx) or every 1/2/4/8 lines
     void setCaptureQuantise (int lines);
     static juce::String quantiseName (int lines);
