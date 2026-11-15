@@ -141,26 +141,24 @@ def main():
 
     extra_css = """
 <style>
-/* the KEYS sheet: two columns of groups, compact */
+/* the KEYS sheet: two columns of groups, compact (PAPER style, from the manual's print.html) */
 @page { size: A4; margin: 10mm 10mm 13mm; }
-body { font-size: 13pt; line-height: 1.15; }
+body { font-size: 10pt; line-height: 1.3; }
 .keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 5mm; align-items: start; break-before: page; }
 .keys.first { break-before: auto; }
 .col { min-width: 0; }
-section.grp { break-inside: avoid; padding: 3mm 3.5mm 3.5mm; margin: 0 0 3mm; }
-section.grp h2 { font-size: 13pt; margin: 0 0 1mm; }
-section.grp h2::before, section.grp h2::after { height: 11px; }
-.accent { height: 4px; margin: 1mm 0 2.5mm; }
+section.grp { break-inside: avoid; padding: 3mm 3.5mm 3mm; margin: 0 0 3mm; }
+section.grp h2 { font-size: 10.5pt; font-weight: 800; letter-spacing: .07em; margin: 0; }
+.accent { height: 3px; width: 40px; margin: 1.5mm 0 2.5mm; }
 .tbl { margin: 0; }
-table { font-size: 12pt; }
-td { padding: 2px 6px; }
-td:first-child { white-space: normal; width: 40%; }
+table { font-size: 10pt; }
+td { padding: 1mm 2mm; border-bottom: 1px solid var(--line); }
+td:first-child { white-space: normal; width: 42%; font-weight: 400; }
 tr:nth-child(4n+1) td { background: transparent; }
-tr:nth-child(odd) td { background: #f2f2f2; }
-kbd { font-size: 0.72em; padding: 0 4px; border-bottom-width: 3px; margin: 0 1px; }
-.titlebar { margin-bottom: 4mm; }
-.titlebar .name { font-size: 24pt; }
-.status { max-width: none; margin: 0 0 4mm; font-size: 12pt; }
+kbd { font-size: 0.8em; padding: 0 5px; margin: 1px 1px; }
+.titlebar { margin-bottom: 3mm; padding: 3mm 6mm; }
+.titlebar .name { font-size: 22pt; }
+.status { max-width: none; margin: 0 0 4mm; font-size: 10pt; padding: 2.5mm 4mm; }
 .status.note { margin: 0 0 3mm; }
 </style>"""
     def group_html(g):

@@ -12,6 +12,6 @@ const { chromium } = require('playwright');
   console.log('fonts', await p.evaluate(() => [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family + ' ' + f.weight).join(', ')));
   await p.pdf({ path: process.argv[3], format: 'A4', printBackground: true, preferCSSPageSize: true,
     displayHeaderFooter: true, headerTemplate: '<span></span>',
-    footerTemplate: '<div style="width:100%;font-family:Courier New,monospace;font-size:9pt;color:#000;text-align:center;padding-bottom:3mm;">' + (process.argv[4] || 'PAULA\'S REVENGE MANUAL') + ' &middot; PAGE <span class="pageNumber"></span> OF <span class="totalPages"></span></div>' });
+    footerTemplate: '<div style="width:100%;font-family:Inter,Helvetica,Arial,sans-serif;font-weight:600;font-size:8pt;color:#4b5361;letter-spacing:.04em;text-align:center;padding-bottom:3mm;">' + (process.argv[4] || 'PAULA\'S REVENGE MANUAL') + ' &middot; PAGE <span class="pageNumber"></span> OF <span class="totalPages"></span></div>' });
   await b.close();
 })();

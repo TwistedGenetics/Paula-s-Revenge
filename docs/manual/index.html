@@ -3,117 +3,119 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
-/* Layout: the app's own window - title bar, a SEQUENCE-style chapter list on the left,
-   chapters as bevelled panels with striped title strips, screenshots in sunken frames.
-   One deliberate look (the app's light skin: black on light grey), so no dark variant. */
+/* The manual in the app's PAPER skin - one of the new, smooth skins: white panes on soft grey, rounded and flat, thin
+   borders, blue for what's on (white text on it), smooth type (Inter; numbers and keys in JetBrains Mono). Dark text
+   on light throughout, big and high-contrast. */
 :root {
-  --paper: #ffffff;       /* main background, like the pattern area */
-  --panel: #e6e6e6;       /* panel fill */
-  --light: #ffffff;       /* bevel highlight */
-  --shadow: #7a7a7a;      /* bevel shadow */
-  --ink: #000000;         /* text and lines */
-  --band: #c4c4c4;        /* cursor line / hover */
-  --pressed: #b0b0b0;     /* lit buttons */
-  --faint: #5c5c5c;       /* secondary text, still dark */
-  --trk1: #00849c; --trk2: #9b2a9b; --trk3: #b86400; --trk4: #3a8f2a; --hot: #c8231e;
-  --pixel: "Silkscreen", "Courier New", monospace;
-  --body: "VT323", "Courier New", monospace;
+  --bg: #f2f4f7;          /* the window */
+  --pane: #ffffff;        /* panes */
+  --soft: #e6eaf0;        /* keys, table heads */
+  --edge: #cfd5de;        /* thin borders */
+  --line: #e3e7ee;        /* rules between rows */
+  --ink: #16191f;         /* text */
+  --faint: #4b5361;       /* secondary text (still dark enough to read easily) */
+  --on: #1d4ed8;          /* chosen: blue, white text on it */
+  --onTint: #eef3ff;      /* a soft wash of it */
+  --trk1: #00849c; --trk2: #9b2a9b; --trk3: #b86400; --trk4: #3a8f2a;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --r: 12px;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
-html { background: var(--panel); }
+html { background: var(--bg); }
 body {
-  margin: 0; background: var(--panel); color: var(--ink);
-  font-family: var(--body); font-size: 25px; line-height: 1.22;
-  padding-left: max(12px, env(safe-area-inset-left, 0px));
-  padding-right: max(12px, env(safe-area-inset-right, 0px));
-  padding-block: 12px 40px;
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--sans); font-size: 19px; line-height: 1.55; font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
 }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
-a { color: var(--ink); }
-a:focus-visible, button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+a { color: var(--on); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--on); outline-offset: 2px; border-radius: 6px; }
 
-/* bevels */
-.raised { background: var(--panel); border: 3px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); }
-.sunken { border: 3px solid; border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+/* panes: the old bevels become flat white cards with a thin border and the faintest shadow */
+.raised { background: var(--pane); border: 1px solid var(--edge); border-radius: var(--r); box-shadow: 0 1px 2px rgba(22,25,31,.05), 0 4px 14px rgba(22,25,31,.04); }
+.sunken { background: var(--pane); border: 1px solid var(--edge); border-radius: 10px; }
 
 /* the title bar */
-.titlebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; margin-bottom: 12px; }
-.titlebar .name { font-family: var(--pixel); font-weight: 700; font-size: clamp(24px, 4vw, 40px); letter-spacing: 0.04em; white-space: nowrap; }
-.rules { flex: 1; min-width: 30px; height: 26px; background: repeating-linear-gradient(to bottom, var(--ink) 0 3px, transparent 3px 7px); }
-.titlebar .ver { font-family: var(--pixel); font-size: 20px; white-space: nowrap; }
-.titlebar .dl { font-family: var(--pixel); font-size: 20px; white-space: nowrap; color: var(--ink); text-decoration: none; padding: 4px 12px; border: 2px solid var(--ink); }
-.titlebar button.dl { background: transparent; cursor: pointer; }
-.titlebar .dl:hover, .titlebar .dl:focus-visible { text-decoration: underline; }
+.titlebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 14px 20px; margin-bottom: 16px; }
+.titlebar .name { font-weight: 800; font-size: clamp(26px, 3.6vw, 38px); letter-spacing: -0.02em; white-space: nowrap; }
+.rules { flex: 1; min-width: 20px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--trk1), var(--trk2), var(--trk3), var(--trk4)); opacity: .9; }
+.titlebar .ver { font-family: var(--mono); font-weight: 700; font-size: 16px; color: var(--faint); white-space: nowrap; }
+.titlebar .dl { font-family: var(--sans); font-weight: 600; font-size: 15px; color: #fff; background: var(--on); border: 0; border-radius: 8px; padding: 8px 14px; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.titlebar .dl:hover, .titlebar .dl:focus-visible { background: #1e40af; }
 
-.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+.app { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 16px; align-items: start; }
 
-/* chapter list, like the SEQUENCE panel */
-nav.seq { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); padding: 10px; }
-.strip { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
-.strip::before, .strip::after { content: ""; flex: 1; height: 15px; background: repeating-linear-gradient(to bottom, var(--ink) 0 2px, transparent 2px 5px); }
-.strip span { font-family: var(--pixel); font-size: 20px; letter-spacing: 0.06em; white-space: nowrap; }
-nav.seq ol { list-style: none; margin: 0; padding: 4px; background: var(--paper); max-height: calc(100vh - 140px); overflow-y: auto; }
-nav.seq li a { display: grid; grid-template-columns: 2.4em 1fr; gap: 6px; padding: 3px 8px; text-decoration: none; font-family: var(--pixel); font-size: 17px; line-height: 1.5; text-transform: uppercase; }
-nav.seq li a:hover { background: var(--band); }
-nav.seq li a .n { color: var(--faint); font-variant-numeric: tabular-nums; }
+/* chapter list */
+nav.seq { position: sticky; top: 12px; padding: 14px; }
+.strip { margin: 0 0 10px; }
+.strip span { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--faint); }
+nav.seq ol { list-style: none; margin: 0; padding: 4px; border: 0; max-height: calc(100vh - 120px); overflow-y: auto; }
+nav.seq li { margin: 0; }
+nav.seq li a { display: grid; grid-template-columns: 2.6em 1fr; gap: 6px; padding: 7px 10px; border-radius: 8px; text-decoration: none; color: var(--ink); font-weight: 500; font-size: 17px; line-height: 1.35; }
+nav.seq li a:hover { background: var(--onTint); color: var(--on); }
+nav.seq li a .n { font-family: var(--mono); font-size: 14px; color: var(--faint); padding-top: 2px; }
 
-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-section.ch { padding: 14px 20px 20px; scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 10px); }
-section.ch > h2 { margin: 0 0 6px; }
-h2 { font-family: var(--pixel); font-weight: 400; font-size: 26px; letter-spacing: 0.05em; text-wrap: balance; margin: 0; display: flex; gap: 12px; align-items: center; }
-h2::before, h2::after { content: ""; flex: 1; min-width: 20px; height: 18px; background: repeating-linear-gradient(to bottom, var(--ink) 0 3px, transparent 3px 6px); }
-.accent { height: 6px; margin: 2px 0 14px; }
+main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+section.ch { padding: 22px 28px 26px; scroll-margin-top: 12px; }
+h2 { font-weight: 800; font-size: 28px; letter-spacing: -0.015em; line-height: 1.2; margin: 0; text-transform: none; text-wrap: balance; }
+.accent { height: 4px; width: 64px; border-radius: 4px; margin: 10px 0 18px; }
 .t1 { background: var(--trk1); } .t2 { background: var(--trk2); } .t3 { background: var(--trk3); } .t4 { background: var(--trk4); }
-h3 { font-family: var(--pixel); font-weight: 400; font-size: 20px; letter-spacing: 0.05em; margin: 22px 0 6px; text-transform: uppercase; }
-p, ul, ol.steps { max-width: 68ch; margin: 0 0 12px; }
-ul, ol.steps { padding-left: 1.2em; }
-li { margin-bottom: 6px; }
+h3 { font-weight: 700; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); margin: 30px 0 8px; }
+p, ul, ol.steps { max-width: 70ch; margin: 0 0 14px; }
+ul, ol.steps { padding-left: 1.25em; }
+li { margin-bottom: 7px; }
 li::marker { color: var(--faint); }
 
-/* button names, like the app's buttons */
-.b { font-family: var(--pixel); font-size: 0.68em; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap;
-     display: inline-block; padding: 1px 7px 0; margin: 0 1px; background: var(--panel); vertical-align: 2px;
-     border: 2px solid; border-color: var(--light) var(--shadow) var(--shadow) var(--light); }
-.b.on { background: var(--pressed); border-color: var(--shadow) var(--light) var(--light) var(--shadow); }
+/* button names: the PAPER skin's keys - rounded, light, a thin edge; lit ones blue with white text */
+.b { font-family: var(--sans); font-weight: 700; font-size: .74em; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
+     display: inline-block; padding: 2px 9px; margin: 0 1px; vertical-align: 1px; color: var(--ink);
+     background: var(--soft); border: 1px solid var(--edge); border-radius: 7px; }
+.b.on { background: var(--on); border-color: var(--on); color: #fff; }
 /* keys */
-kbd { font-family: var(--pixel); font-size: 0.66em; display: inline-block; min-width: 1.6em; text-align: center; padding: 1px 6px 0; margin: 0 1px; vertical-align: 2px;
-      background: var(--paper); border: 2px solid var(--ink); border-bottom-width: 4px; white-space: nowrap; }
+kbd { font-family: var(--mono); font-weight: 700; font-size: .74em; display: inline-block; min-width: 1.7em; text-align: center;
+      padding: 1px 7px; margin: 0 1px; vertical-align: 1px; background: var(--pane); color: var(--ink);
+      border: 1px solid var(--edge); border-bottom-width: 3px; border-radius: 7px; white-space: nowrap; }
 /* pattern text: commands, notes */
-code { font-family: var(--body); font-size: 1em; background: var(--paper); padding: 0 5px; border: 1px solid var(--band); overflow-wrap: anywhere; }
+code { font-family: var(--mono); font-size: .86em; font-weight: 500; background: var(--bg); padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
 
-figure { margin: 12px 0 18px; }
-figure .frame { background: var(--paper); padding: 0; line-height: 0; }
+figure { margin: 14px 0 22px; }
+figure .frame { padding: 0; line-height: 0; overflow: hidden; border-radius: 12px; border: 1px solid var(--edge); box-shadow: 0 6px 22px rgba(22,25,31,.08); }
 figure img { width: 100%; height: auto; display: block; image-rendering: pixelated; }
-figcaption { font-family: var(--pixel); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 6px; color: var(--faint); }
+figcaption { font-size: 15px; font-weight: 500; color: var(--faint); margin-top: 8px; }
 
-/* the status line, used for tips */
-.status { display: flex; gap: 12px; align-items: baseline; background: var(--paper); padding: 8px 12px; margin: 10px 0 14px; max-width: 72ch; }
-.status .tag { font-family: var(--pixel); font-size: 15px; background: var(--ink); color: var(--paper); padding: 2px 6px; white-space: nowrap; }
+/* tips: a soft blue panel with a blue tag */
+.status { display: flex; gap: 12px; align-items: baseline; background: var(--onTint); border: 1px solid #d3defb; border-left: 4px solid var(--on); border-radius: 10px; padding: 12px 16px; margin: 12px 0 16px; max-width: 74ch; }
+.status .tag { font-size: 12px; font-weight: 800; letter-spacing: .06em; background: var(--on); color: #fff; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 
-.tbl { overflow-x: auto; margin: 8px 0 16px; background: var(--paper); }
-table { border-collapse: collapse; width: 100%; font-size: 24px; }
-th { font-family: var(--pixel); font-weight: 400; font-size: 16px; letter-spacing: 0.05em; text-align: left; background: var(--panel); padding: 6px 10px; border-bottom: 3px solid var(--ink); }
-td { padding: 5px 10px; vertical-align: top; border-bottom: 1px solid var(--band); }
-tr:nth-child(4n+1) td { background: #f2f2f2; }
-td:first-child { white-space: nowrap; }
+.tbl { overflow-x: auto; margin: 10px 0 18px; padding: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 17px; }
+th { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--faint); text-align: left; background: var(--bg); padding: 10px 14px; border-bottom: 1px solid var(--edge); }
+td { padding: 9px 14px; vertical-align: top; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+tr:nth-child(4n+1) td { background: transparent; }
+td:first-child { white-space: nowrap; font-weight: 600; }
 
-.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .two > div { min-width: 0; }
-.flow { font-family: var(--pixel); font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0 14px; }
-.flow span.stage { padding: 4px 8px; background: var(--paper); border: 2px solid var(--ink); }
+.flow { font-size: 15px; font-weight: 600; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 16px; }
+.flow span.stage { padding: 5px 11px; background: var(--pane); border: 1px solid var(--edge); border-radius: 999px; }
 
-footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin-top: 6px; text-align: center; }
+footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: center; }
 
 @media (max-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr); }
   nav.seq { position: static; }
-  nav.seq ol { max-height: 260px; }
-  body { font-size: 23px; }
+  nav.seq ol { max-height: 280px; }
+  body { font-size: 18px; }
   .titlebar .rules { display: none; }
   td:first-child { white-space: normal; }
-  section.ch { padding: 12px 12px 16px; }
+  section.ch { padding: 18px 16px 20px; }
 }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 </style>
@@ -121,7 +123,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.90</span>
+  <span class="ver">MANUAL &middot; V0.91</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -157,7 +159,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 000 -->
 <section class="ch raised" id="start">
-  <h2>GETTING STARTED</h2>
+  <h2>Getting started</h2>
   <div class="accent t1"></div>
   <p>Paula's Revenge is an 8-track sample tracker for jungle, drum &amp; bass and anything else that wants the crunchy sound of the Amiga's Paula chip and the old Akai samplers. You write music as lines of notes and commands that play from top to bottom, one block at a time, in the order the song lists them.</p>
   <h3>Install</h3>
@@ -181,7 +183,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 001 -->
 <section class="ch raised" id="screen">
-  <h2>THE SCREEN</h2>
+  <h2>The screen</h2>
   <div class="accent t2"></div>
   <figure>
     <div class="frame sunken"><img src="img/main.png" alt="The main screen: title bar, transport, sequence, block and instrument panels on the left, the pattern with four coloured tracks on the right, the output strip and bottom row underneath." width="1440" height="900"></div>
@@ -380,7 +382,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 002 -->
 <section class="ch raised" id="pattern">
-  <h2>WRITING PATTERNS</h2>
+  <h2>Writing patterns</h2>
   <div class="accent t3"></div>
   <p>Each track has a note, an instrument number and an effect command per line: <code>C-2 01 956</code> means note C-2, instrument 01, command <code>9</code> with value <code>56</code>. A second effect column appears when you switch <span class="b">FX2</span> on.</p>
   <h3>Notes and the cursor</h3>
@@ -439,7 +441,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 003 -->
 <section class="ch raised" id="commands">
-  <h2>EFFECT COMMANDS</h2>
+  <h2>Effect commands</h2>
   <div class="accent t4"></div>
   <p><b>Right-click an effect cell</b> for a list of every command with what it does. Click one, or type its letter, and it goes into the cell with a useful starting value, the cursor ready on the value. Put the cursor on any command to see it explained in the help strip under the pattern.</p>
   <figure>
@@ -523,7 +525,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 004 -->
 <section class="ch raised" id="song">
-  <h2>BLOCKS &amp; THE SONG</h2>
+  <h2>Blocks &amp; the song</h2>
   <div class="accent t1"></div>
   <p>A song is a list of positions, each playing a block. The same block can play at many positions; change it once and every position hears the change.</p>
   <h3>The sequence panel</h3>
@@ -548,7 +550,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 005 -->
 <section class="ch raised" id="samples">
-  <h2>INSTRUMENTS &amp; SAMPLES</h2>
+  <h2>Instruments &amp; samples</h2>
   <div class="accent t2"></div>
   <h3>Loading, opening and naming an instrument</h3>
   <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
@@ -676,7 +678,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 006 -->
 <section class="ch raised" id="params">
-  <h2>SOUND SHAPING</h2>
+  <h2>Sound shaping</h2>
   <div class="accent t3"></div>
   <p><span class="b">PARAMS</span> opens the current instrument's page. Everything starts off or neutral, so MODs and older songs sound exactly as they did.</p>
   <figure>
@@ -739,7 +741,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 007 -->
 <section class="ch raised" id="sound">
-  <h2>PAULA &amp; THE AKAIS</h2>
+  <h2>Paula &amp; the Akais</h2>
   <div class="accent t4"></div>
   <p>The output strip picks the machine you hear. None of these change your samples; switch between them any time.</p>
   <div class="tbl sunken"><table>
@@ -776,7 +778,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 008 -->
 <section class="ch raised" id="mixer">
-  <h2>THE MIXER</h2>
+  <h2>The mixer</h2>
   <div class="accent t1"></div>
   <p><span class="b">MIXER</span> on the transport row (<kbd>Cmd</kbd><kbd>2</kbd>) opens the mixer across the window; <kbd>Esc</kbd> or <kbd>Cmd</kbd><kbd>1</kbd> goes back. The keys still play the current instrument while it's open.</p>
   <figure>
@@ -899,7 +901,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 009 -->
 <section class="ch raised" id="plugins">
-  <h2>PLUG-INS</h2>
+  <h2>Plug-ins</h2>
   <div class="accent t2"></div>
   <h3>Effects in the mixer</h3>
   <p>On any insert slot's effect page press <span class="b">PLUG-IN...</span>. The first time, it looks for the plug-ins on your Mac, each one in a separate hidden copy of the app, so one that crashes can't take Paula's Revenge down. Double-click one to load it; <span class="b">OPEN PLUG-IN WINDOW</span> shows its own controls. <b>To find one, just type</b>: the list narrows to every word in the name, maker or format (<code>VALHALLA</code>, <code>U-HE ZEB</code>); Esc clears it. <b>Favourites:</b> right-click a plug-in (or <span class="b">FAVOURITE</span>) to star it &mdash; stars come first, and <span class="b">FAVOURITES ONLY</span> shows just them. The instrument list works the same way. Its settings are saved in the song. If a song uses a plug-in this Mac doesn't have, the slot shows <code>!NAME</code>, passes the audio through and keeps the settings.</p>
@@ -1078,7 +1080,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 010 -->
 <section class="ch raised" id="auto">
-  <h2>AUTOMATION</h2>
+  <h2>Automation</h2>
   <div class="accent t3"></div>
   <p>Every track has two automation knobs, <b>AUTO A</b> (<code>Vxx</code>) and <b>AUTO B</b> (<code>Jxx</code>). Point one at any effect control and the pattern moves it.</p>
   <ol class="steps">
@@ -1160,7 +1162,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 011 -->
 <section class="ch raised" id="midi">
-  <h2>MIDI OUT</h2>
+  <h2>MIDI out</h2>
   <div class="accent t4"></div>
   <p>An instrument can play your hardware (an MPC, a microKORG, an NTS-1) over MIDI. Press <span class="b">LOAD</span> and the <span class="b">MIDI OUT</span> tab (or right-click the instrument &rarr; MIDI OUT TO HARDWARE...), then double-click a MIDI output. (For a modular, see <a href="#cv">CV out</a>.)</p>
   <figure>
@@ -1224,7 +1226,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 011b -->
 <section class="ch raised" id="cv">
-  <h2>CV OUT TO A MODULAR</h2>
+  <h2>CV out (modular)</h2>
   <div class="accent t3"></div>
   <p>With a <b>DC-coupled</b> interface (an Expert Sleepers <b>ES-9</b>, or anything that can put out steady voltages) Paula's Revenge plays and clocks a Eurorack modular. Ordinary interfaces block DC, so CV won't work through them.</p>
   <ol class="steps">
@@ -1272,7 +1274,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 012 -->
 <section class="ch raised" id="chords">
-  <h2>CHORDS</h2>
+  <h2>Chords</h2>
   <div class="accent t2"></div>
   <p>A plug-in or MIDI-out instrument plays a whole chord from one note. Put <code>#xy</code> on the note's line and it plays <span class="b">chord slot xy</span> from the song's chord table, held. The note you type is the chord's root: <code>C-3</code> with <code>#01</code> (slot 01, MIN) plays C, D#, G.</p>
   <figure>
@@ -1357,7 +1359,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 012 -->
 <section class="ch raised" id="bounce">
-  <h2>BOUNCING</h2>
+  <h2>Bouncing</h2>
   <div class="accent t1"></div>
   <p>Turn any part of the pattern into a new sample. Highlight some notes (they can cover several tracks), then right-click inside the highlight, or press <kbd>Cmd</kbd><kbd>B</kbd>.</p>
   <figure>
@@ -1396,7 +1398,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 013 -->
 <section class="ch raised" id="render">
-  <h2>RENDERING</h2>
+  <h2>Rendering</h2>
   <div class="accent t2"></div>
   <p><span class="b">RENDER WAV</span> (File menu) asks what to render:</p>
   <figure>
@@ -1414,7 +1416,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 014 -->
 <section class="ch raised" id="files">
-  <h2>SAVING &amp; FILES</h2>
+  <h2>Saving &amp; files</h2>
   <div class="accent t3"></div>
   <ul>
     <li><span class="b">SAVE</span> (<kbd>Cmd</kbd><kbd>S</kbd>) writes straight to the song's file; the first time it asks for a name. <span class="b">SAVE AS</span> (<kbd>Cmd</kbd><kbd>Shift</kbd><kbd>S</kbd>) always asks, for versions. The song takes the file's name. <span class="b">SAVE*</span> with a star means unsaved changes. Saving happens in the background: the pattern and the music carry on. If the file was changed since you opened it (by your other computer), SAVE asks: <span class="b">SAVE A COPY</span> or <span class="b">REPLACE IT</span>.</li>
@@ -1439,7 +1441,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ LIVE -->
 <section class="ch raised" id="live">
-  <h2>LIVE MODE &amp; VISUALS</h2>
+  <h2>Live mode &amp; visuals</h2>
   <p><span class="b">LIVE</span> (bottom row, or <kbd>Cmd</kbd><kbd>7</kbd>) is for playing the song live: launching blocks in time, playing slices, and throwing effects over the whole mix.</p>
   <figure>
     <div class="frame sunken"><img src="img/live.png" alt="The LIVE page: BLOCKS and SLICES, the AT: NEXT BAR button, REC ARRANGE, VISUALS, PLAY, STOP and CLOSE along the top; sixteen big pads, one per block, the playing one lit and the next one outlined; the held effects REPEAT 1/4, 1/8, 1/16, STUTTER 1/32, TAPE STOP, FILTER DOWN and FILTER UP along the bottom." width="1440" height="900" loading="lazy"></div>
@@ -1460,7 +1462,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
 
 <!-- ============================================================ 015 -->
 <section class="ch raised" id="keys">
-  <h2>KEYS</h2>
+  <h2>Keys</h2>
   <div class="accent t4"></div>
   <div class="status sunken"><span class="tag">PRINT</span><span>Every shortcut on two pages, to keep by the keyboard: <a href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas-Revenge-Keys.pdf" target="_blank" rel="noopener">Paulas-Revenge-Keys.pdf</a> (also with each release on GitHub).</span></div>
   <div class="tbl sunken"><table>
@@ -1504,7 +1506,7 @@ footer { font-family: var(--pixel); font-size: 15px; color: var(--faint); margin
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.90</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.91</footer>
 </main>
 </div>
 <script>
