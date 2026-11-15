@@ -112,6 +112,9 @@ public:
     void exportSamples();
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
     void setFollowInstrument (bool on);
+    void chooseCaptureQuantise();                      // CAPTURE QUANTISE: as played (Mxx) or every 1/2/4/8 lines
+    void setCaptureQuantise (int lines);
+    static juce::String quantiseName (int lines);
     void showSeparationMenu();
     void showGrooveMenu();                            // GROOVE (bottom row): the song's feel, then how much
     void setGroove (int kind, int amount);                        // SEP: right-click a machine button (or the View menu)

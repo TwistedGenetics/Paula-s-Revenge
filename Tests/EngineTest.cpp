@@ -2426,6 +2426,21 @@ static void testCapture()
         CHECK (r2.places[0].line == 8 && r2.places[0].track == 2 && r2.places[0].micro == 0);
         CHECK (r2.places[1].line == 12 && r2.places[1].micro == 0x80 + 51);
     }
+    // QUANTISE: every line - straight onto the nearest line, no micro-moves
+    auto rq = placeCapture (song, log2, 0, 0, 2, 125, 6, offs, false, true, 1);
+    std::string gq;
+    for (auto& p : rq.places) gq += std::to_string (p.line) + ":" + std::to_string (p.micro) + " ";
+    std::printf ("capture (quantise 1): %s\n", gq.c_str());
+    CHECK (rq.places.size() == 2 && rq.skipped == 1);
+    if (rq.places.size() == 2) CHECK (rq.places[0].line == 8 && rq.places[0].micro == 0 && rq.places[1].line == 12 && rq.places[1].micro == 0);
+    // every 4 lines: 8.02 -> 8, 11.6 -> 12; 9.9 -> 8 (taken on track 2 -> the next track)
+    auto log3 = log2; log3.pop_back(); log3.insert (log3.begin() + 1, on (150, 45, 0, true, 9.9, 0));
+    auto r4 = placeCapture (song, log3, 0, 0, 0, 125, 6, offs, false, true, 4);
+    std::string g4;
+    for (auto& p : r4.places) g4 += std::to_string (p.line) + ":" + std::to_string (p.track) + ":" + std::to_string (p.micro) + " ";
+    std::printf ("capture (quantise 4): %s\n", g4.c_str());
+    CHECK (r4.places.size() == 3);
+    for (auto& p : r4.places) CHECK (p.line % 4 == 0 && p.micro == 0);
 }
 
 static void testCvOut()

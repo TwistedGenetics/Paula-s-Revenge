@@ -207,7 +207,8 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                                            "CAPTURE WHAT I PLAYED (CMD+R)",
                                            prv::ui::PatternEditor::recordNoteOffs() ? "NOTE-OFFS: ON (TURN OFF - NO OFFS RECORDED AT ALL)" : "NOTE-OFFS: OFF (TURN ON)",
                                            proc.fullVelocity.load() ? "FULL VEL: ON (TURN OFF - USE THE KEYBOARD'S VELOCITY)" : "FULL VEL: OFF (TURN ON - EVERY NOTE AT 127)",
-                                           prv::ui::PatternEditor::followInstrument() ? "FOLLOW INSTRUMENT: ON (TURN OFF)" : "FOLLOW INSTRUMENT: OFF (TURN ON)" },
+                                           prv::ui::PatternEditor::followInstrument() ? "FOLLOW INSTRUMENT: ON (TURN OFF)" : "FOLLOW INSTRUMENT: OFF (TURN ON)",
+                                           "CAPTURE QUANTISE: " + quantiseName (prv::ui::PatternEditor::captureQuantise()) + " (CHANGE...)" },
                      [safe] (int a)
         {
             if (safe == nullptr) return;
@@ -229,6 +230,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             else if (a == 3) safe->setNoteOffs (! prv::ui::PatternEditor::recordNoteOffs());
             else if (a == 4) safe->setFullVelocity (! safe->proc.fullVelocity.load());
             else if (a == 5) safe->setFollowInstrument (! prv::ui::PatternEditor::followInstrument());
+            else if (a == 6) juce::MessageManager::callAsync ([safe] { if (safe != nullptr) safe->chooseCaptureQuantise(); });   // (after this box has closed)
         });
     };
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
@@ -1433,6 +1435,34 @@ void PaulaEditor::setNoteOffs (bool on)
                   : "NOTE-OFFS OFF: NO OFFS ARE RECORDED (LIVE, STEP ENTRY OR CAPTURE)");
 }
 
+juce::String PaulaEditor::quantiseName (int q)
+{
+    if (q <= 0) return "OFF (AS PLAYED)";
+    return q == 1 ? "EVERY LINE" : "EVERY " + juce::String (q) + " LINES";
+}
+
+void PaulaEditor::chooseCaptureQuantise()
+{
+    static const int qs[] { 1, 2, 4, 8, 0 };
+    juce::StringArray items;
+    const int cur = prv::ui::PatternEditor::captureQuantise();
+    for (int q : qs) items.add ((q == cur ? "> " : "") + quantiseName (q)
+                                + (q == 0 ? " - OFF-BEAT NOTES GET MXX MICRO-MOVES" : " - NO MICRO-MOVES"));
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    choice.show (*this, "CAPTURE QUANTISE", items, [safe] (int a)
+    {
+        if (safe == nullptr || a < 0 || a >= 5) return;
+        safe->setCaptureQuantise (qs[a]);
+    });
+}
+
+void PaulaEditor::setCaptureQuantise (int q)
+{
+    prv::ui::PatternEditor::setCaptureQuantise (q);
+    setStatus (q > 0 ? "CAPTURE QUANTISE: " + quantiseName (q) + " - NOTES SNAP STRAIGHT ONTO THE GRID, NO MXX"
+                     : juce::String ("CAPTURE QUANTISE OFF: NOTES GO IN AS PLAYED, WITH MXX MICRO-MOVES FOR OFF-BEAT ONES"));
+}
+
 int PaulaEditor::captureNow()
 {
     // CAPTURE: the latest take of what was played (MIDI keyboard, laptop keys) into the pattern
@@ -1450,7 +1480,8 @@ int PaulaEditor::captureNow()
     std::vector<bool> offs ((size_t) prv::kMaxInstruments, false);
     for (int i = 0; i < prv::kMaxInstruments; ++i) offs[(size_t) i] = proc.song.instruments[(size_t) i].isPlugin();
     const auto res = prv::placeCapture (proc.song, log, st.block, st.line, st.track, proc.song.tempo, proc.song.speed, offs,
-                                        prv::ui::PatternEditor::detectChords(), prv::ui::PatternEditor::recordNoteOffs());
+                                        prv::ui::PatternEditor::detectChords(), prv::ui::PatternEditor::recordNoteOffs(),
+                                        prv::ui::PatternEditor::captureQuantise());
     int notes = 0;
     for (const auto& p : res.places) if (p.note != prv::kNoteOff) ++notes;
     if (res.places.empty())

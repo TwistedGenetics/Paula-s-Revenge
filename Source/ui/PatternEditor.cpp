@@ -2104,6 +2104,8 @@ int PatternEditor::followInstrumentAt (int line, int track) const
 
 bool PatternEditor::recordNoteOffs()          { return prv::prefs().getBoolValue ("recordNoteOffs", true); }
 void PatternEditor::setRecordNoteOffs (bool on) { prv::prefs().setValue ("recordNoteOffs", on); }
+int  PatternEditor::captureQuantise()           { const int q = prv::prefs().getIntValue ("captureQuantise", 1); return (q == 0 || q == 1 || q == 2 || q == 4 || q == 8) ? q : 1; }
+void PatternEditor::setCaptureQuantise (int q) { prv::prefs().setValue ("captureQuantise", q); prv::prefs().saveIfNeeded(); }
 
 void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
 {

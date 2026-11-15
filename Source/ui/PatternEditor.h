@@ -232,6 +232,8 @@ public:
     static bool recordNoteOffs();                                // NOTE-OFFS: recording writes OFFs at all (prefs, on)
     static void setRecordNoteOffs (bool);
     static void setDetectChords (bool);
+    static int  captureQuantise();                               // CAPTURE QUANTISE: 0 = as played (Mxx), 1/2/4/8 = every Nth line (prefs, 1)
+    static void setCaptureQuantise (int lines);
 private:
     float vu[prv::kMaxTracks] {};
     // LIVE FEEDBACK: each track's scope (under its header) and a flash on each new note

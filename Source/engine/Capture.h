@@ -50,5 +50,6 @@ struct CaptureResult
 // OFFs at all.
 CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& log,
                             int cursorBlock, int cursorLine, int cursorTrack, int bpm, int speed,
-                            const std::vector<bool>& offsFor, bool detectChords = false, bool noteOffs = true);
+                            const std::vector<bool>& offsFor, bool detectChords = false, bool noteOffs = true,
+                            int quantise = 0);   // 0 = as played (Mxx micro-moves); 1, 2, 4... = snapped to every Nth line, no Mxx
 } // namespace prv

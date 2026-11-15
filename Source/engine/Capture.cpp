@@ -10,7 +10,7 @@ namespace prv
 {
 CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& log,
                             int cursorBlock, int cursorLine, int cursorTrack, int bpm, int speed,
-                            const std::vector<bool>& offsFor, bool detectChords, bool noteOffs)
+                            const std::vector<bool>& offsFor, bool detectChords, bool noteOffs, int quantise)
 {
     CaptureResult res;
     if (log.empty() || song.blocks.empty()) return res;
@@ -142,6 +142,12 @@ CaptureResult placeCapture (const Song& song, const std::vector<CapturedNote>& l
             else if (line > 0) micro = (uint8_t) std::clamp (0x80 + (int) std::lround (-f * 128.0), 0x81, 0xFF);
         }
         const auto& blk = song.blocks[(size_t) p.block];
+        if (quantise > 0)
+        {
+            // QUANTISE: straight onto the grid (every Nth line from the block's top), no micro-move
+            micro = 0;
+            line = (int) std::lround (p.line / quantise) * quantise;
+        }
         if (line >= blk.lines) { ++res.skipped; continue; }
 
         // the cursor's track, else the next free one (a chord spreads across tracks)
