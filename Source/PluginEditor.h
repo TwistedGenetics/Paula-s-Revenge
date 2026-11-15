@@ -207,7 +207,6 @@ private:
     PixButton editBtn { juce::String::charToString ((juce::juce_wchar) 5) + " EDIT", true };
     PixButton captureBtn { "CAPTURE" };
     PixButton followBtn { "FOLLOW", true };
-    PixButton gridBtn { "GRID 4" };   // (v0.92) the pattern's highlighted lines: every 2, 4, 8 or 16
     PixButton loopBtn { "LOOP", true };
     PixButton panelsBtn { "PANELS", true };
     NumberBox tempoBox { "BPM", 32, 255, 125 }, speedBox { "SPD", 1, 31, 6 }, octBox { "OCT", 0, 6, 3 }, stepBox { "STEP", 0, 16, 1 };

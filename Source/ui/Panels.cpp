@@ -870,8 +870,10 @@ BlockPanel::BlockPanel (PaulaProcessor& p, std::function<void()> c)
     numDownBtn.onClick = [swapWith] { swapWith (-1); };
     numUpBtn.onClick = [swapWith] { swapWith (1); };
     doubleBtn.onClick = [this] { if (onDouble) onDouble(); };
+    gridBtn.onClick = [this] { if (onGrid) onGrid(); };
+    gridBtn.onRightClick = [this] { if (onGridMenu) onGridMenu(); };
     halveBtn.onClick = [this] { if (onHalve) onHalve(); };
-    for (auto* c2 : std::initializer_list<juce::Component*> { &doubleBtn, &halveBtn, &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel, &numDownBtn, &numUpBtn })
+    for (auto* c2 : std::initializer_list<juce::Component*> { &doubleBtn, &halveBtn, &gridBtn, &current, &lines, &newBtn, &cloneBtn, &delBtn, &countLabel, &numDownBtn, &numUpBtn })
         addAndMakeVisible (c2);
 }
 
@@ -918,7 +920,7 @@ void BlockPanel::paint (juce::Graphics& g)
     // the title carries the block's name when it has one and it fits
     const auto nm = juce::String (proc.song.blocks[(size_t) proc.song.safeBlock (proc.editorState.block)].name).toUpperCase().trim();
     juce::String title = "BLOCK";
-    if (nm.isNotEmpty() && PixelFont::textWidth ("BLOCK: " + nm, Theme::px) < getWidth() - Theme::px * 24) title = "BLOCK: " + nm;
+    if (nm.isNotEmpty() && PixelFont::textWidth ("BLOCK: " + nm, Theme::px) < getWidth() - Theme::px * 24 - gridBtn.getWidth() * 2) title = "BLOCK: " + nm;
     Theme::panelBox (g, getLocalBounds().toFloat(), title);
 }
 
@@ -926,7 +928,11 @@ void BlockPanel::resized()
 {
     const float px = Theme::px;
     auto r = getLocalBounds().reduced ((int) (px * 2));
-    r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
+    {
+        // GRID at the right end of the title bar (as SEQUENCE's SHOW ALL)
+        auto titleRow = r.removeFromTop ((int) (PixelFont::textHeight (px) + px * 2));
+        gridBtn.setBounds (titleRow.removeFromRight ((int) (px * 6 * 7 + px * 4)).withTrimmedTop (-(int) px).withTrimmedBottom ((int) (px * 0.5f)));
+    }
     const int rowH = (int) (px * 11);
     auto row1 = r.removeFromTop (rowH);
     countLabel.setBounds (row1.removeFromRight ((int) (px * 6 * 7)));

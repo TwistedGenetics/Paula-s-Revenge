@@ -238,14 +238,14 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     loopBtn.onClick      = [this] { pattern.setLoopOn (loopBtn.getToggleState()); pattern.grabKeyboardFocus(); refreshAll(); };
     followBtn.onClick    = [this, &st] { st.follow = followBtn.getToggleState(); refreshAll(); };
     // GRID: click steps 2 > 4 > 8 > 16; right-click picks one
-    gridBtn.onClick = [this]
+    blockPanel.onGrid = [this]
     {
         const int g = prv::ui::PatternEditor::gridLines();
         setGridLines (g >= 16 ? 2 : g * 2);
         pattern.grabKeyboardFocus();
     };
-    gridBtn.onRightClick = [this] { chooseGrid(); };
-    gridBtn.setButtonText ("GRID " + juce::String (prv::ui::PatternEditor::gridLines()));
+    blockPanel.onGridMenu = [this] { chooseGrid(); };
+    blockPanel.setGridLines (prv::ui::PatternEditor::gridLines());
     panelsBtn.onClick    = [this] { showPanels = panelsBtn.getToggleState(); resized(); };
     for (auto* b : { &tempoBox, &speedBox, &octBox, &stepBox }) b->compact = true;
     tempoBox.onChange = [this] (int v) { proc.history.settings ("BPM", true); proc.withLock ([&] { proc.song.tempo = v; }); };
@@ -477,7 +477,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
 
     for (auto* c : std::initializer_list<juce::Component*> {
             &helpBtn, &newBtn, &loadBtn, &saveBtn, &saveAsBtn, &undoBtn, &redoBtn, &fullVelBtn, &noteOffsBtn, &zoomOut, &zoomIn, &outMeter,
-            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &gridBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
+            &playSongBtn, &playBlockBtn, &stopBtn, &editBtn, &captureBtn, &loopBtn, &followBtn, &panelsBtn, &tempoBox, &speedBox, &octBox, &stepBox, &posLabel,
             &a500Btn, &a1200Btn, &a4000Btn, &cleanBtn, &s950Btn, &s1000Btn, &steppedBtn, &eightBitBtn, &crunchBtn, &ledBtn, &ledLabel, &volBox,
             &viewBtn, &mixerBtn, &statusLabel,
             &skinBtn, &specBtn, &fx2Btn, &recAutoBtn, &grooveBtn, &radioBtn, &autoBtn, &liveBtn, &spectrum,
@@ -1032,9 +1032,6 @@ void PaulaEditor::resized()
     radioBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     autoBtn.setBounds (status.removeFromLeft (charsW (10))); status.removeFromLeft (gap);
     liveBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
-    // (v0.92) GRID: the pattern's highlighted lines - when there's room left for the status line too (else View > Pattern Grid...)
-    gridBtn.setVisible (status.getWidth() >= charsW (7) + charsW (16));
-    if (gridBtn.isVisible()) { gridBtn.setBounds (status.removeFromLeft (charsW (7))); status.removeFromLeft (gap); }
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -1497,7 +1494,7 @@ void PaulaEditor::setGridLines (int g)
 {
     prv::ui::PatternEditor::setGridLines (g);
     const int now = prv::ui::PatternEditor::gridLines();
-    gridBtn.setButtonText ("GRID " + juce::String (now));
+    blockPanel.setGridLines (now);
     pattern.repaint(); automation.repaint();
     setStatus ("GRID: A HIGHLIGHTED LINE EVERY " + juce::String (now) + " LINES (CLICK GRID FOR THE NEXT, RIGHT-CLICK TO PICK)");
 }

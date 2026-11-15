@@ -175,7 +175,11 @@ private:
     PixButton newBtn { "NEW" }, cloneBtn { "CLONE" }, delBtn { "DEL" };
     PixButton numDownBtn { "NUM -" }, numUpBtn { "NUM +" };
     PixLabel  countLabel;
+    PixButton gridBtn { "GRID 4" };   // (v0.92) in the title bar: the pattern's highlighted lines
 public:
+    std::function<void()> onGrid, onGridMenu;   // GRID: click (the next), right-click (pick)
+    void setGridLines (int g) { gridBtn.setButtonText ("GRID " + juce::String (g)); }
+    PixButton& getGridButton() { return gridBtn; }   // (tests)
     std::function<void (const juce::String&)> pushStructUndo;
     std::function<void()> onDouble, onHalve;
     std::function<void (bool cut)> onCopyBlock;   // right-click menu (the pattern's block clipboard)
