@@ -113,6 +113,7 @@ public:
     void setFullVelocity (bool on);                   // FULL VEL: ignore the controller's velocity (play at 127)
     void setFollowInstrument (bool on);
     void setGridLines (int lines);
+    void chooseGrid();                                  // (v0.92) GRID's menu: every 2 / 4 / 8 / 16 lines
     void touchedControl (int target, int param);       // (v0.92) a control moved: the automation list picks it
     std::pair<int, int> lastTouched { -1, -1 };
     void chooseCaptureQuantise();                      // CAPTURE QUANTISE: as played (Mxx) or every 1/2/4/8 lines

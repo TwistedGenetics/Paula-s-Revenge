@@ -244,15 +244,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         setGridLines (g >= 16 ? 2 : g * 2);
         pattern.grabKeyboardFocus();
     };
-    gridBtn.onRightClick = [this]
-    {
-        juce::Component::SafePointer<PaulaEditor> safe (this);
-        std::vector<prv::ui::MenuItem> items;
-        for (int g : { 2, 4, 8, 16 })
-            items.push_back ({ (prv::ui::PatternEditor::gridLines() == g ? "> " : "  ") + juce::String ("EVERY ") + juce::String (g) + " LINES",
-                               [safe, g] { if (safe != nullptr) safe->setGridLines (g); } });
-        prv::ui::showMenu ("GRID: HIGHLIGHT A LINE", std::move (items));
-    };
+    gridBtn.onRightClick = [this] { chooseGrid(); };
     gridBtn.setButtonText ("GRID " + juce::String (prv::ui::PatternEditor::gridLines()));
     panelsBtn.onClick    = [this] { showPanels = panelsBtn.getToggleState(); resized(); };
     for (auto* b : { &tempoBox, &speedBox, &octBox, &stepBox }) b->compact = true;
@@ -1040,7 +1032,9 @@ void PaulaEditor::resized()
     radioBtn.setBounds (status.removeFromLeft (charsW (5))); status.removeFromLeft (gap);
     autoBtn.setBounds (status.removeFromLeft (charsW (10))); status.removeFromLeft (gap);
     liveBtn.setBounds (status.removeFromLeft (charsW (4))); status.removeFromLeft (gap);
-    gridBtn.setBounds (status.removeFromLeft (charsW (7))); status.removeFromLeft (gap);   // (v0.92) GRID: the pattern's highlighted lines
+    // (v0.92) GRID: the pattern's highlighted lines - when there's room left for the status line too (else View > Pattern Grid...)
+    gridBtn.setVisible (status.getWidth() >= charsW (7) + charsW (16));
+    if (gridBtn.isVisible()) { gridBtn.setBounds (status.removeFromLeft (charsW (7))); status.removeFromLeft (gap); }
     status.removeFromLeft (gap * 2);
     ledLabel.setVisible (false);
     statusLabel.setBounds (status);
@@ -1487,6 +1481,16 @@ void PaulaEditor::chooseCaptureQuantise()
         if (safe == nullptr || a < 0 || a >= 5) return;
         safe->setCaptureQuantise (qs[a]);
     });
+}
+
+void PaulaEditor::chooseGrid()
+{
+    juce::Component::SafePointer<PaulaEditor> safe (this);
+    std::vector<prv::ui::MenuItem> items;
+    for (int g : { 2, 4, 8, 16 })
+        items.push_back ({ (prv::ui::PatternEditor::gridLines() == g ? "> " : "  ") + juce::String ("EVERY ") + juce::String (g) + " LINES",
+                           [safe, g] { if (safe != nullptr) safe->setGridLines (g); } });
+    prv::ui::showMenu ("GRID: HIGHLIGHT A LINE", std::move (items));
 }
 
 void PaulaEditor::setGridLines (int g)
