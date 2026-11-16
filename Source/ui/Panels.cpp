@@ -1375,6 +1375,64 @@ void InstrumentPanel::showLoadInstrument (int r)
 // ---- right-click on an instrument
 namespace { Instrument instrumentClip; FxSlot instrumentFxClip[kInserts]; bool haveInstrumentClip = false; }
 
+// (v0.95) LAYER: this instrument plays every note of one track, on a track of its own (with its own mixer strip)
+void InstrumentPanel::showLayerMenu (int r)
+{
+    juce::Component::SafePointer<InstrumentPanel> safe (this);
+    const auto& song = proc.song;
+    const auto& in = song.instruments[(size_t) r];
+    const juce::String who = "INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+    std::vector<MenuItem> items;
+    if (in.layered())
+        items.push_back ({ "LAYER OFF", [safe, r] { if (safe != nullptr) safe->setLayer (r, -1, -1); } });
+    for (int t = 0; t < song.numTracks; ++t)
+        items.push_back ({ (in.layered() && in.layerFrom == t ? "> " : "") + juce::String ("FOLLOW TRACK ") + juce::String (t + 1) + "'S NOTES...",
+                           [safe, r, t] { if (safe != nullptr) juce::MessageManager::callAsync ([safe, r, t] { if (safe != nullptr) safe->showLayerTrackMenu (r, t); }); } });
+    showMenu (who + " LAYER: WHICH TRACK'S NOTES?", std::move (items));
+}
+
+void InstrumentPanel::showLayerTrackMenu (int r, int from)
+{
+    juce::Component::SafePointer<InstrumentPanel> safe (this);
+    const auto& song = proc.song;
+    std::vector<MenuItem> items;
+    for (int t = 0; t < song.numTracks; ++t)
+    {
+        if (t == from) continue;
+        bool empty = true;
+        for (const auto& b : song.blocks)
+            for (int l = 0; l < b.lines && empty; ++l) if (b.at (l, t).note != 0) empty = false;
+        items.push_back ({ "PLAY ON TRACK " + juce::String (t + 1) + (empty ? " (EMPTY)" : " (ITS OWN NOTES PLAY INSTEAD)"),
+                           [safe, r, from, t] { if (safe != nullptr) safe->setLayer (r, from, t); } });
+    }
+    if (song.numTracks < kMaxTracks)
+        items.push_back ({ "ON A NEW TRACK (TRACK " + juce::String (song.numTracks + 1) + ")", [safe, r, from]
+            {
+                if (safe == nullptr) return;
+                const int t = safe->proc.song.numTracks;
+                safe->proc.history.settings ("ADD A TRACK");
+                safe->proc.withLock ([&] { safe->proc.song.numTracks = t + 1; });
+                safe->setLayer (r, from, t);
+            } });
+    showMenu ("PLAY TRACK " + juce::String (from + 1) + "'S NOTES ON WHICH TRACK? (ITS MIXER STRIP)", std::move (items));
+}
+
+void InstrumentPanel::setLayer (int r, int from, int track)
+{
+    proc.history.instrument (r, from < 0 ? "LAYER OFF" : "LAYER");
+    proc.withLock ([&]
+    {
+        auto& in = proc.song.instruments[(size_t) r];
+        in.layerFrom = from; in.layerTrack = track;
+        if (from >= 0) for (int i = 0; i < kMaxInstruments; ++i)   // (one layer a track)
+            if (i != r && proc.song.instruments[(size_t) i].layerTrack == track) { proc.song.instruments[(size_t) i].layerFrom = -1; proc.song.instruments[(size_t) i].layerTrack = -1; }
+    });
+    const juce::String who = "INSTRUMENT " + juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
+    status (from < 0 ? who + ": LAYER OFF"
+                     : who + " NOW PLAYS EVERY NOTE OF TRACK " + juce::String (from + 1) + ", ON TRACK " + juce::String (track + 1) + " (TRNS SETS ITS OCTAVE)");
+    changed();
+}
+
 void InstrumentPanel::showInstrumentMenu (int r)
 {
     const auto name = juce::String::toHexString (r + 1).toUpperCase().paddedLeft ('0', 2);
@@ -1444,6 +1502,9 @@ void InstrumentPanel::showInstrumentMenu (int r)
         { "MIDI OUT TO HARDWARE...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (2); } } },
         { "CV OUT TO A MODULAR...", [safe, r] { if (safe != nullptr && safe->openSource) { safe->proc.editorState.instrument = r; safe->openSource (3); } } },
         { "SAMPLE (RECORD AUDIO)...", [safe] { if (safe != nullptr && safe->openSample) safe->openSample(); } },
+        { proc.song.instruments[(size_t) r].layered()
+              ? "LAYER: FOLLOWS TRACK " + juce::String (proc.song.instruments[(size_t) r].layerFrom + 1) + " ON TRACK " + juce::String (proc.song.instruments[(size_t) r].layerTrack + 1) + " (CHANGE / OFF)..."
+              : juce::String ("LAYER: PLAY ANOTHER TRACK'S NOTES (A SUB UNDER A BASSLINE)..."), [safe, r] { if (safe != nullptr) safe->showLayerMenu (r); } },
         { "PLAY C-3", [safe, r] { if (safe != nullptr) safe->proc.withLock ([&] { safe->proc.player.jamNoteOn (37, r); }); } },
         { "CHOP TO PHRASE...", [safe, r]
             {

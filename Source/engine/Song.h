@@ -253,6 +253,10 @@ struct Instrument
     std::string pluginKey, pluginName;
     std::vector<uint8_t> pluginState;
     int  pluginOutput = -1;                 // the track whose mixer strip it plays into; -1 = AUTO
+    // (v0.95) LAYER: it plays every note (and OFF) of track layerFrom, on track layerTrack - a SUB under a bassline, say.
+    // A note of its own on layerTrack plays instead; a note of layerFrom's that doesn't play (Kxx, ?xy) isn't layered
+    int  layerFrom = -1, layerTrack = -1;   // -1 = off
+    bool layered() const { return layerFrom >= 0 && layerTrack >= 0 && layerFrom != layerTrack; }
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
     bool chord = false;                     // (v0.13 songs: 0xy played chords; converted to #xy on loading)

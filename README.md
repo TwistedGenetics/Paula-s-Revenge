@@ -164,6 +164,7 @@ Signal flow per track: EQ → inserts → pre-fader sends → fader → post-fad
 
 ## Scrolling and the mouse
 
+* The cursor's line is a lighter band edged top and bottom, its track has a wash of the track's colour down the whole column (edged both sides), and the GRID's lines are a shade lighter than the rest — in every skin.
 * The pattern fills its area from line 0 at the top. The cursor moves freely and the view only scrolls when it gets within a few lines of the top or bottom edge; at the end of a block the last line sits on the bottom row. A click moves the cursor without moving the view.
 * With FOLLOW on, the cursor moves with playback but **the view doesn't scroll by itself**: the play line runs down the screen and can go off the bottom. Scroll yourself with the wheel or the arrows at the right of the pattern: **▲** / **▼** move a page (hold to keep going), **●** jumps to the play line. A new block starts at its top. When playback is stopped, the arrows move the cursor a page, and the view works as before.
 * The wheel moves one line (or list row, or zoom step) per notch however fast it's spun; trackpad swipes are scaled down. The wheel doesn't wrap from the last line back to the first.
@@ -464,6 +465,7 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
   * **STUTTER** — the first quarter of the highlight over and over to its end.
   * **RATCHET** — every note gets a roll that speeds up across the highlight (`R40` at the start down to `R10` at the end), in a free effect column (an occupied one is kept).
   * **RE-SEQUENCE THE SLICES** — the slice notes shuffled: the rhythm stays, which slice plays changes (a slice 1 on the downbeat stays put). Again for another order; undo goes back.
+  * **FILL WITH THE FIRST NOTE, EVERY...** — **EVERY LINE**, **2**, **3**, **4**, **8** or **16 LINES**: the first note in the highlight (with its instrument and effects) from the top of the highlight to the bottom, on each highlighted track; the lines between are emptied. Without a highlight, right-click a note → **FILL DOWN FROM HERE, EVERY...** fills from the cursor's note to the end of the block. One undo step.
 
 ## Conditions and FILL
 
@@ -699,7 +701,7 @@ Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time.
 **RENDER WAV** asks **SONG** or **STEMS**:
 
 * **SONG** writes the song once through as a 24-bit stereo WAV, mixer and all.
-* **STEMS** makes a folder next to the name you pick (`<name> STEMS`) with one 24-bit WAV per used track (after its EQ, inserts and fader), SEND A, SEND B and the master: `01 TRACK 1.wav` … `09 SEND A.wav`, `10 SEND B.wav`, `11 MASTER.wav`. Every file starts at the same moment and is the same length, so they line up when you drop them into Ableton. (The machine's output stage — A500 filter, LED and so on — is only on the master.)
+* **STEMS** makes a folder next to the name you pick (`<name> STEMS`) with one 24-bit WAV per used track (after its EQ, inserts and fader), SEND A, SEND B and the master: `01 TRACK 1.wav` … `16 TRACK 16.wav`, `17 SEND A.wav`, `18 SEND B.wav`, `19 MASTER.wav`. Every file starts at the same moment and is the same length, so they line up when you drop them into Ableton. (The machine's output stage — A500 filter, LED and so on — is only on the master.)
 * After the song ends, the render carries on until everything has been quiet (below −90 dB) for a second, up to 20 seconds, so reverb and delay tails aren't cut off.
 * Plug-in delay is taken off the start, so the render starts on the beat.
 * MIDI-out instruments play hardware, so they can't be in a WAV: the render finishes without them and the status line says which ones were left out. (Record the hardware back in, or sample it.)
@@ -794,6 +796,10 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 ## Built-in synths: SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR, 808 and 909
 
 **Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones; SUB's, REESE's, MORPH's, ACID's, PAD's and GRANULAR's ten; for ROM, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
+
+### LAYER: one instrument playing another track's notes
+
+Right-click an instrument → **LAYER: PLAY ANOTHER TRACK'S NOTES...** → **FOLLOW TRACK n'S NOTES...** → **PLAY ON TRACK m** (an empty one, or **ON A NEW TRACK**). From then on the instrument plays every note of track *n* — and its `OFF`s, its volume (`Cxx`) and its timing (`Mxx` micro-moves, `EDx` note delays) — on track *m*, through track *m*'s mixer strip, without a note of its own in the pattern. The classic use: a **SUB** under a bassline — put the bass on track 3, layer SUB on track 4, set SUB's **TRNS** to −12 for an octave down, and EQ / duck track 4 on its own. A note written on track *m* plays instead of the layered one there; a step of track *n*'s that doesn't play this time (`Kxx`, `?xy`) isn't layered either. Right-click the instrument again to change it or turn it **LAYER OFF**. It's saved in the song, one undo step.
 
 ### SUB
 

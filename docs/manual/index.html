@@ -618,6 +618,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
   </figure>
     <li><b>CHOP TO PATTERN</b> (right-click an instrument): the break is sliced by its hits (if it has no slices yet) and laid out as notes on the cursor's track, each slice on the line where it falls, with SLICE TO KEYS on.</li>
     <li><b>Right-click a highlight</b>: <span class="b">REVERSE THE LINES</span>, <span class="b">STUTTER</span> (the first quarter over and over), <span class="b">RATCHET</span> (rolls that speed up across it, <code>R40</code> to <code>R10</code>) and <span class="b">RE-SEQUENCE THE SLICES</span> (the rhythm stays, the slices shuffle; again for another order).</li>
+    <li><b>FILL</b>: right-click a highlight &rarr; <span class="b">FILL WITH THE FIRST NOTE, EVERY...</span> &mdash; every 1, 2, 3, 4, 8 or 16 lines, the first note repeated down the highlight (the lines between emptied). With no highlight, right-click a note &rarr; <span class="b">FILL DOWN FROM HERE, EVERY...</span> fills to the end of the block.</li>
     <li><span class="b">GROOVE</span> (bottom row): SWING 16THS, SWING 8THS, LAZY BREAK, PUSHED HATS or HUMANISE, at 25&ndash;100%. Some lines' notes play a little late as the song plays; the pattern isn't changed. Notes with their own <code>Mxx</code>, <code>EDx</code> or a slide keep their timing.</li>
   </ul>
   <h3>Time stretch</h3>
@@ -1039,6 +1040,8 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
     <div class="frame sunken"><img src="img/acid_devilfish.png" alt="ACID's DEVIL FISH tab: DEVIL FISH ENVELOPES (ACC DECAY, ATTACK, SWEEP, AMP DECAY, RELEASE), DEVIL FISH FILTER (TRACKING, FILTER FM, RES BASS), SLIDE (TIME, OVERLAP (KEYS) / TIED NOTES) and MUFFLER + DRIVE (OFF / SOFT / HARD, DRIVE)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
+  <h3>LAYER: one instrument playing another track's notes</h3>
+  <p>Right-click an instrument &rarr; <span class="b">LAYER: PLAY ANOTHER TRACK'S NOTES...</span>, pick the track to follow, then the track to play on (an empty one, or a new one). The instrument then plays every note of that track &mdash; its OFFs, volume and timing too &mdash; on its own track and mixer strip, with no notes of its own in the pattern. A SUB under a bassline: layer SUB on a spare track, set its <b>TRNS</b> to &minus;12, and EQ or duck that track on its own. A note written on the layer's track plays instead. Right-click the instrument again for <span class="b">LAYER OFF</span>.</p>
   <h3>The built-in 808 and 909 drum machines</h3>
   <p><b>808</b> and <b>909</b> are the two classic drum machines, built in and synthesised the way the originals make their sounds (no samples). LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; 808 or 909. One key per drum, the same in every octave, so on the laptop keys <kbd>Z</kbd> is the kick, <kbd>X</kbd> the snare, <kbd>V</kbd> the closed hat and <kbd>B</kbd> the open hat.</p>
   <div class="tbl sunken"><table>

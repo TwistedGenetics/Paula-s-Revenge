@@ -148,6 +148,51 @@ void PatternEditor::setTrackCount (int n)
     changed();
 }
 
+// (v0.95) FILL: the first note of the highlight (or the cursor's, to the end of the block) every n lines down it -
+// on each highlighted track; the lines between are emptied. One undo step
+void PatternEditor::fillEvery (int n)
+{
+    n = std::max (1, n);
+    const int blk = proc.song.safeBlock (st.block);
+    const auto& b = proc.song.blocks[(size_t) blk];
+    int l0 = st.line, l1 = b.lines - 1, t0 = st.track, t1 = st.track;
+    if (hasSelection() && sel.block == blk)
+    {
+        const int gpt = groupsPerTrack();
+        l0 = sel.l0; l1 = sel.l1; t0 = sel.c0 / gpt; t1 = sel.c1 / gpt;
+    }
+    t1 = std::min (t1, proc.song.numTracks - 1);
+    int filled = 0;
+    std::vector<std::pair<int, Cell>> src;
+    for (int t = t0; t <= t1; ++t)
+        for (int l = l0; l <= l1; ++l)
+            if (const auto& c = b.at (l, t); c.note != 0 && c.note != kNoteOff) { src.push_back ({ t, c }); break; }
+    if (src.empty()) { if (onStatus) onStatus ("FILL: PUT A NOTE AT THE TOP FIRST (OR HIGHLIGHT LINES WITH ONE IN)"); return; }
+    pushUndo (blk, "FILL EVERY " + juce::String (n));
+    proc.withLock ([&]
+    {
+        auto& bb = proc.song.blocks[(size_t) blk];
+        for (const auto& [t, c] : src)
+            for (int l = l0; l <= l1; ++l)
+            {
+                bb.at (l, t) = (l - l0) % n == 0 ? c : Cell {};
+                if ((l - l0) % n == 0) ++filled;
+            }
+    });
+    if (onStatus) onStatus ("FILLED: " + juce::String (noteName (src.front().second.note)) + " EVERY " + (n == 1 ? juce::String ("LINE") : juce::String (n) + " LINES")
+                            + ", LINES " + juce::String (l0) + "-" + juce::String (l1) + (src.size() > 1 ? " ON " + juce::String ((int) src.size()) + " TRACKS" : juce::String()));
+    changed();
+}
+
+void PatternEditor::showFillMenu()
+{
+    juce::Component::SafePointer<PatternEditor> safe (this);
+    std::vector<MenuItem> items;
+    for (int n : { 1, 2, 3, 4, 8, 16 })
+        items.push_back ({ n == 1 ? juce::String ("EVERY LINE") : "EVERY " + juce::String (n) + " LINES", [safe, n] { if (safe != nullptr) safe->fillEvery (n); } });
+    showMenu (hasSelection() ? "FILL THE HIGHLIGHT WITH ITS FIRST NOTE" : "FILL DOWN FROM THE CURSOR'S NOTE", std::move (items));
+}
+
 void PatternEditor::showTracksMenu()
 {
     juce::Component::SafePointer<PatternEditor> safe (this);
@@ -529,6 +574,13 @@ void PatternEditor::paint (juce::Graphics& g)
             }
         }
     }
+    // (v0.95) the GRID's lines and the cursor's line clear to see in every skin: at least this far from the background
+    auto atLeast = [&] (juce::Colour c, float amount)
+    {
+        const float d = std::abs (c.getPerceivedBrightness() - sk.bg.getPerceivedBrightness());
+        return d >= amount * 0.6f ? c : sk.bg.interpolatedWith (sk.text, amount);
+    };
+    const auto stripeCol = atLeast (sk.stripe, 0.10f), bandCol = atLeast (sk.band, 0.22f);
     for (int r = 0; r < visRows; ++r)
     {
         const int l = firstRow + r;
@@ -537,8 +589,14 @@ void PatternEditor::paint (juce::Graphics& g)
         auto rowRect = juce::Rectangle<float> (0, y, bounds.getWidth(), rh);
         const bool cursorRow = l == st.line;
 
-        if (cursorRow)         { g.setColour (sk.band);   g.fillRect (rowRect); }
-        else if (l % gridLines() == 0) { g.setColour (sk.stripe); g.fillRect (rowRect); }   // (GRID: every 2 / 4 / 8 / 16)
+        if (cursorRow)
+        {
+            g.setColour (bandCol); g.fillRect (rowRect);
+            g.setColour (sk.cursorEdge.withAlpha (0.55f));   // (edged, top and bottom)
+            g.fillRect (rowRect.withHeight (std::max (1.0f, px * 0.4f)));
+            g.fillRect (rowRect.withHeight (std::max (1.0f, px * 0.4f)).withBottomY (rowRect.getBottom()));
+        }
+        else if (l % gridLines() == 0) { g.setColour (stripeCol); g.fillRect (rowRect); }   // (GRID: every 2 / 4 / 8 / 16)
         if (playing && playBlock == blk && playLine == l && ! (st.follow && cursorRow))
         {
             g.setColour (sk.text);
@@ -625,6 +683,18 @@ void PatternEditor::paint (juce::Graphics& g)
             g.setColour (sk.cursorEdge);
             g.drawRect (cr, std::max (1.0f, px * (st.editMode ? 0.75f : 0.4f)));
         }
+    }
+
+    // (v0.95) the cursor's track: a wash of its colour down the whole column, edged both sides
+    if (st.track >= first && st.track < first + nVis && onlyTrack < 0)
+    {
+        const float cx = lnw + (float) (st.track - first) * tw - cw * 0.5f;
+        auto col = juce::Rectangle<float> (cx, headerH(), tw - cw * 0.5f, rowsArea());
+        const auto tc = sk.track[st.track % 16];
+        g.setColour (tc.withAlpha (0.13f)); g.fillRect (col);
+        g.setColour (tc.withAlpha (0.75f));
+        const float edge = std::max (1.0f, px * 0.5f);
+        g.fillRect (col.withWidth (edge)); g.fillRect (col.withWidth (edge).withRightX (col.getRight()));
     }
 
     // ---- mouse selection
@@ -1152,6 +1222,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
                 { "COPY TRACK", act ([] (PatternEditor& p) { p.copyTrack (false); p.lastCopy = LastCopy::Track; }) },
                 { "CUT TRACK", act ([] (PatternEditor& p) { p.copyTrack (true); p.lastCopy = LastCopy::Track; }) },
                 { "PASTE TRACK", act ([] (PatternEditor& p) { p.pasteTrack(); }) },
+                { "FILL DOWN FROM HERE, EVERY...", act ([] (PatternEditor& p) { p.clearSelection(); p.showFillMenu(); }) },
                 { proc.song.numTracks < kMaxTracks ? "ADD A TRACK / TAKE ONE AWAY..." : "TAKE A TRACK AWAY...", act ([] (PatternEditor& p) { p.showTracksMenu(); }) },
                 { "CLEAR THIS LINE", act ([] (PatternEditor& p)
                     {

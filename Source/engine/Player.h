@@ -144,6 +144,9 @@ public:
     PlayPos playPos() const;
     // (v0.93) a note recorded live and QUANTISEd onto a line playback hasn't reached yet: it was heard as it was played,
     // so that cell doesn't trigger again when playback gets there this time round (once; any thread)
+    // (tests) what a track's voice is playing
+    int  voiceNote (int ch) const   { return ch >= 0 && ch < kVoices ? voices[ch].note : 0; }
+    bool voiceActive (int ch) const { return ch >= 0 && ch < kVoices && voices[ch].active; }
     void skipOnce (int track, int block, int line)
     {
         if (track >= 0 && track < kMaxTracks) skipCell[track].store (block * 1024 + line + 1, std::memory_order_relaxed);

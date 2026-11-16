@@ -331,7 +331,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
         juce::Component::SafePointer<PaulaEditor> safe (this);
         choice.show (*this, "THE HIGHLIGHTED NOTES", { "BOUNCE: NO FX", "BOUNCE: INSTRUMENT FX ONLY", "BOUNCE: MIXER FX ONLY", "BOUNCE: ALL FX", "EFFECT COMMANDS...",
                                                         "REVERSE THE LINES", "STUTTER (THE FIRST QUARTER, OVER AND OVER)", "RATCHET (ROLLS THAT SPEED UP)", "RE-SEQUENCE THE SLICES (SHUFFLE)",
-                                                        "CONDITION (WHICH PASSES PLAY)..." },
+                                                        "CONDITION (WHICH PASSES PLAY)...", "FILL WITH THE FIRST NOTE, EVERY..." },
                      [safe, line, track, group] (int a)
         {
             if (safe == nullptr) return;
@@ -339,6 +339,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
             else if (a == 4) safe->pattern.openCommandMenu (line, track, group);
             else if (a >= 5 && a <= 8) { safe->pattern.breakTool (a - 5); safe->refreshAll(); }
             else if (a == 9) safe->showConditionMenu();
+            else if (a == 10) juce::MessageManager::callAsync ([safe] { if (safe != nullptr) safe->pattern.showFillMenu(); });
         });
     };
     pattern.onStatus = [this] (const juce::String& m) { setStatus (m); };

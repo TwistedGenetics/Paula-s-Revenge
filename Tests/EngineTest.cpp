@@ -124,6 +124,33 @@ static void testRender()
 
 // (v0.93) a live note QUANTISEd ahead of playback: that cell doesn't play this time round (it was heard as played),
 // and does the next time
+// (v0.95) LAYER: an instrument playing another track's notes on its own track - only where that track has none of its own
+static void testLayer()
+{
+    Song s = makeSong();
+    s.blocks[0].clear();
+    s.blocks[0].lines = 16;
+    s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 };
+    s.blocks[0].at (4, 0) = Cell { 49, 1, 0, 0 };
+    s.blocks[0].at (8, 0) = Cell { kNoteOff, 0, 0, 0 };
+    s.sequence = { 0 };
+    s.instruments[0].layerFrom = 0; s.instruments[0].layerTrack = 3;   // instrument 1 (a looped square) plays track 1's notes on track 4
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.options.model = PaulaOptions::Model::Clean;
+    p.playBlock (0);
+    const int lineLen = (int) (48000 * 2.5 / 125 * 6);
+    std::vector<float> L ((size_t) lineLen), R ((size_t) lineLen);
+    int notes4[16] {}, on4[16] {};
+    for (int l = 0; l < 12; ++l)
+    {
+        p.render (L.data(), R.data(), lineLen);
+        notes4[l] = p.voiceNote (3); on4[l] = p.voiceActive (3) ? 1 : 0;
+    }
+    std::printf ("layer on track 4: notes %d %d (lines 0, 4), sounding at line 2: %d, after the OFF (line 10): %d\n", notes4[0], notes4[4], on4[2], on4[10]);
+    CHECK (on4[2] == 1 && notes4[0] == 37 && notes4[4] == 49);
+    CHECK (on4[10] == 0);   // (OFF cuts: no envelope)
+}
+
 static void testSkipOnce()
 {
     Song s = makeSong();
@@ -7453,6 +7480,7 @@ int main()
     testPitch();
     testMod16();
     testSkipOnce();
+    testLayer();
     testModRoundTrip();
     test8SVX();
     testFuzz();

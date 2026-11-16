@@ -206,6 +206,9 @@ private:
 class InstrumentPanel : public juce::Component
 {
 public:
+    void showLayerMenu (int r);              // (v0.95) LAYER: follow a track's notes
+    void showLayerTrackMenu (int r, int from);
+    void setLayer (int r, int from, int track);   // from -1: off
     InstrumentPanel (PaulaProcessor&, std::function<void()> changed, std::function<void (const juce::String&)> status);
     void refresh();
     void paint (juce::Graphics&) override;

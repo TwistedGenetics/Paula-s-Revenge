@@ -706,22 +706,55 @@ void Player::processRow()
     }
     const int passNo = block >= 0 && block < kMaxBlocks ? blockPass[(size_t) block] : 1;
     const bool fillNow = fill.load (std::memory_order_relaxed);
+    // which steps play this time (Kxx chance, ?xy conditions) - decided before any of them, so a LAYER follows its track's
+    bool plays[kMaxTracks] {};
+    const int nt = std::min (song->numTracks, kMaxTracks);
+    for (int ch = 0; ch < nt; ++ch)
+    {
+        const Cell& c = b.at (line, ch);
+        uint8_t chance = 0, cond = 0;
+        plays[ch] = ! (c.has (C_K, chance) && (nextRandom() % 255u) >= chance)          // Kxx: this step doesn't play this time
+                 && ! (c.has (kCmdCond, cond) && ! conditionPlays (cond, passNo, fillNow));   // ?xy: not on this pass
+    }
+    // (v0.95) LAYER: an instrument playing another track's notes on its own track
+    int layerOf[kMaxTracks];
+    std::fill (std::begin (layerOf), std::end (layerOf), -1);
+    for (int i = 0; i < kMaxInstruments; ++i)
+    {
+        const auto& in = song->instruments[(size_t) i];
+        if (in.layered() && in.layerTrack < nt && in.layerFrom < nt && layerOf[in.layerTrack] < 0) layerOf[in.layerTrack] = i;
+    }
     for (int ch = 0; ch < kMaxTracks; ++ch)
     {
         if (ch < song->numTracks)
         {
-            const Cell& c = b.at (line, ch);
+            const Cell* cp = &b.at (line, ch);
+            Cell layerCell;
+            if (const int li = layerOf[ch]; li >= 0 && cp->note == 0 && cp->instr == 0)
+            {
+                const int from = song->instruments[(size_t) li].layerFrom;
+                const Cell& s = b.at (line, from);
+                if (plays[from] && s.note != 0 && (s.note == kNoteOff || s.note <= kNoteMax))
+                {
+                    // the note (or OFF), with its volume and its timing (a micro-move, a note delay) - this track's own effects stay
+                    layerCell = *cp;
+                    layerCell.note = s.note;
+                    layerCell.instr = s.note == kNoteOff ? 0 : (uint8_t) (li + 1);
+                    auto timing = [] (uint8_t cm, uint8_t pa) { return cm == 0xC || cm == C_M || (cm == 0xE && (pa >> 4) == 0xD); };
+                    if (layerCell.cmd == 0 && layerCell.param == 0 && timing (s.cmd, s.param)) { layerCell.cmd = s.cmd; layerCell.param = s.param; }
+                    else if (layerCell.cmd2 == 0 && layerCell.param2 == 0 && timing (s.cmd, s.param)) { layerCell.cmd2 = s.cmd; layerCell.param2 = s.param; }
+                    if (layerCell.cmd2 == 0 && layerCell.param2 == 0 && timing (s.cmd2, s.param2)) { layerCell.cmd2 = s.cmd2; layerCell.param2 = s.param2; }
+                    cp = &layerCell;
+                }
+            }
+            const Cell& c = *cp;
             if (const int sk = skipCell[(size_t) ch].load (std::memory_order_relaxed); sk != 0)
             {
                 if (sk == block * 1024 + line + 1) { skipCell[(size_t) ch].store (0, std::memory_order_relaxed); continue; }   // (heard already)
                 else if ((sk - 1) / 1024 != block || (sk - 1) % 1024 < line) skipCell[(size_t) ch].store (0, std::memory_order_relaxed);   // (gone past it)
             }
             dubLine (ch, c);
-            uint8_t chance = 0, cond = 0;
-            if (c.has (C_K, chance) && (nextRandom() % 255u) >= chance)
-                continue;   // Kxx: this step doesn't play this time
-            if (c.has (kCmdCond, cond) && ! conditionPlays (cond, passNo, fillNow))
-                continue;   // ?xy: not on this pass (or not with / without FILL)
+            if (cp == &b.at (line, ch) && ! plays[ch]) continue;   // (Kxx / ?xy: not this time)
             processCell (ch, c);
         }
         else voices[ch].active = false;

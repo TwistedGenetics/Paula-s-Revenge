@@ -32,6 +32,8 @@ public:
     void showOtherHalf();             // the next page of tracks: 5-8, 9-12... (BIG VIEW: 4 a page, else 8; the cursor goes to the same place there)
     void setTrackCount (int n);       // (v0.94) TRACKS: 1-16 (an undo step; a track taken away keeps its notes, hidden)
     void showTracksMenu();            // ADD A TRACK / TAKE ONE AWAY
+    void fillEvery (int lines);       // (v0.95) FILL: the highlight's (or cursor's) first note every n lines
+    void showFillMenu();              // FILL: every 1, 2, 3, 4, 8 or 16 lines
     std::function<void()> onTracksChanged;   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
     float viewTopLine() const { return viewTop; }
     void mouseDown (const juce::MouseEvent&) override;

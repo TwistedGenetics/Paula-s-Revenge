@@ -15,7 +15,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 33;   // (v33: 16 tracks - tracks 9-16 in their own section at the end; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
+    constexpr int kVersion = 33;   // (v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -551,6 +551,8 @@ juce::MemoryBlock writeSong (const Song& songIn)
         for (int t = kLegacyTracks; t < kMaxTracks; ++t) raw.writeShortBigEndian ((short) song.trackPan[t]);
         for (int t = kOldMixTracks; t < kMixTracks; ++t) writeStrip (raw, song.mixer.ch[t]);
         for (int t = kOldMixTracks; t < kMixTracks; ++t) for (const auto& k : song.mixer.trackAuto[t]) writeTarget (raw, k);
+        // LAYER: each instrument's track it follows and the track it plays on (0 = off)
+        for (const auto& in : song.instruments) { raw.writeByte ((char) (in.layerFrom + 1)); raw.writeByte ((char) (in.layerTrack + 1)); }
     }
 
     juce::MemoryOutputStream packed;
@@ -1231,6 +1233,12 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         for (int t = kLegacyTracks; t < kMaxTracks; ++t) s.trackPan[t] = juce::jlimit (-1, 255, (int) in.readShortBigEndian());
         for (int t = kOldMixTracks; t < kMixTracks; ++t) readStrip (in, s.mixer.ch[t], version);
         for (int t = kOldMixTracks; t < kMixTracks; ++t) for (auto& k : s.mixer.trackAuto[t]) readTarget (in, k);
+        for (auto& ins : s.instruments)
+        {
+            if (in.isExhausted()) break;
+            ins.layerFrom = std::clamp ((int) (uint8_t) in.readByte() - 1, -1, kMaxTracks - 1);
+            ins.layerTrack = std::clamp ((int) (uint8_t) in.readByte() - 1, -1, kMaxTracks - 1);
+        }
     }
     if (version < 13)
     {
