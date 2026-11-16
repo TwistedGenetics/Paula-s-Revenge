@@ -15,7 +15,8 @@
 
 namespace prv
 {
-constexpr int kMaxTracks      = 8;
+constexpr int kMaxTracks      = 16;   // (v0.94: was 8; a song has numTracks of them, 8 to start with)
+constexpr int kLegacyTracks   = 8;    // the tracks songs kept before v0.94 (their part of the file still holds 8)
 constexpr int kMaxInstruments = 63;
 constexpr int kMaxLines       = 256;
 constexpr int kMaxBlocks      = 256;
@@ -339,11 +340,11 @@ struct SongSection
 struct Song
 {
     std::string name = "UNTITLED";
-    int numTracks = 8;                 // 4 or 8 typically
+    int numTracks = 8;                 // 1..16 (8 to start with; TRACKS + / - in the BLOCK panel)
     int tempo     = 125;               // BPM (32..255)
     int speed     = 6;                 // ticks per line (1..31)
     bool ledFilterAtStart = false;
-    int  trackPan[kMaxTracks] = { -1, -1, -1, -1, -1, -1, -1, -1 };  // -1 = automatic, else 0..255 (128 = centre)
+    int  trackPan[kMaxTracks] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };  // -1 = automatic, else 0..255 (128 = centre)
     std::vector<Block> blocks;
     std::vector<int> sequence;         // block indices
     std::vector<SongSection> sections; // sorted by pos, at most one per position

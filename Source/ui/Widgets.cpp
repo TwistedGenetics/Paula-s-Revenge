@@ -285,6 +285,7 @@ void Theme::setSkinId (SkinId id)
             for (int i = 0; i < 8; ++i) k.track[i] = C (v[i]);
         }
     }
+    for (int i = 8; i < 16; ++i) k.track[i] = k.track[i - 8];   // (tracks 9-16: the same colours as 1-8)
     skin = k;
     PixelFont::smooth = k.smoothType;
     PixelFont::sans = k.sans;

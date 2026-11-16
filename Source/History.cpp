@@ -154,7 +154,8 @@ void History::apply (Entry& e)
         {
             auto& s = *e.settings;
             proc.withLock ([&] {
-                song.tempo = s.tempo; song.speed = s.speed;   // (the name comes from the file; every song has 8 tracks)
+                song.tempo = s.tempo; song.speed = s.speed;   // (the name comes from the file)
+                song.numTracks = juce::jlimit (1, prv::kMaxTracks, s.numTracks);
                 song.ledFilterAtStart = s.led;
                 std::copy (std::begin (s.trackPan), std::end (s.trackPan), song.trackPan);
                 song.chords = s.chords; song.chordsLegacy = s.chordsLegacy;

@@ -43,6 +43,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     enginePage.onAutomate = [this] (int target, int param) { automateControl (target, param); };
     mixer.onAutomate      = [this] (int target, int param) { automateControl (target, param); };
     enginePage.onTouched  = [this] (int target, int param) { touchedControl (target, param); };
+    pattern.onTracksChanged = [this] { refreshAll(); resized(); };
     mixer.onTouched       = [this] (int target, int param) { touchedControl (target, param); };
     automation.onResize = [this, &st] (int h) { st.autoHeight = juce::jmax ((int) (prv::ui::Theme::px * 60), h); resized(); };
 
@@ -562,8 +563,8 @@ void PaulaEditor::historyRestored (const juce::String& what)
 void PaulaEditor::automateControl (int target, int param)
 {
     auto& st = proc.editorState;
-    if (target >= 0 && target < prv::kTrackSlots) st.track = target / prv::kInserts;
-    else if (target >= prv::kMixerSlots && target < prv::kTotalSlots) st.instrument = (target - prv::kMixerSlots) / prv::kInserts;
+    if (prv::isTrackSlot (target)) st.track = prv::trackOfSlot (target);
+    else if (prv::isInstrumentSlot (target)) st.instrument = (target - prv::kMixerSlots) / prv::kInserts;
     else if (target >= prv::kModStripBase && target < prv::kModStripBase + prv::kMixTracks) st.track = target - prv::kModStripBase;
     else if (target >= prv::kAutoInstrumentBase && target < prv::kAutoInstrumentBase + prv::kMaxInstruments) st.instrument = target - prv::kAutoInstrumentBase;
     st.track = juce::jlimit (0, std::max (0, proc.song.numTracks - 1), st.track);

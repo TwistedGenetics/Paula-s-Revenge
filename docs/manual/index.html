@@ -123,7 +123,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
 <header class="titlebar raised">
   <span class="name">PAULA'S REVENGE</span>
   <span class="rules" aria-hidden="true"></span>
-  <span class="ver">MANUAL &middot; V0.93</span>
+  <span class="ver">MANUAL &middot; V0.94</span>
   <button type="button" class="dl" id="dlPdf" hidden>DOWNLOAD PDF</button>
   <a class="dl" id="dlGit" href="https://github.com/TwistedGenetics/Paula-s-Revenge/raw/main/docs/manual/Paulas%20Revenge%20Manual.pdf" target="_blank" rel="noopener">PDF ON GITHUB</a>
   <span class="ver" id="dlMsg" role="status"></span>
@@ -197,12 +197,12 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
       <tr><td>Sequence</td><td>The song order. Click a position to go there, drag to highlight positions, and set which block plays where.</td></tr>
       <tr><td>Block</td><td><span class="b">GRID</span> at the right of its title: the pattern's highlighted lines, every 2, 4, 8 or 16 (click for the next, right-click to pick, or <b>View &rarr; Pattern Grid...</b>). Pick, add, clone or delete blocks; set the number of lines (1–256); <span class="b">X2</span> doubles a block, <span class="b">1/2</span> halves it.</td></tr>
       <tr><td>Instruments</td><td>63 slots. <span class="b">LOAD</span>, <span class="b">EDIT</span>, <span class="b">EQ/FX</span>, <span class="b">PARAMS</span>; <kbd>Delete</kbd> clears the instrument picked (CLEAR and RENAME are on its right-click). The instrument's VOL, finetune, transpose, loop, and a little waveform.</td></tr>
-      <tr><td>Pattern</td><td>8 tracks. Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track. Under that, each track's scope (click it to mute, right-click to solo).</td></tr>
+      <tr><td>Pattern</td><td>8 tracks to start with, up to 16: <span class="b">+</span> at the top right adds one (right-click it to take one away). Click a track name to mute it, right-click to solo; drag in the bar under the name to pan the track. Under that, each track's scope (click it to mute, right-click to solo).</td></tr>
       <tr><td>Output strip</td><td>The machine you hear (A500, A1200, A4000, CLEAN, S950, S1000), its options, the master <span class="b">VOL</span> and an L/R meter. Stereo separation (SEP): right-click a machine button.</td></tr>
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, GROOVE, RADIO, AUTOMATION, LIVE and the status line.</td></tr>
     </tbody>
   </table></div>
-  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to the black-on-white WORKBENCH skin, as in this manual (more skins below). Every song has 8 tracks (a 4-channel MOD fills tracks 1–4). <span class="b">BIG VIEW</span> shows 4 at a time with large text, with a tall <span class="b">TRACKS 5-8 &#9654;</span> tab beside them; click it for tracks 5–8, and <span class="b">&#9664; TRACKS 1-4</span> brings you back (<kbd>Tab</kbd> past track 4 flips too). The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
+  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to the black-on-white WORKBENCH skin, as in this manual (more skins below). A song has 8 tracks to start with and up to 16: <span class="b">+</span> at the top right of the pattern adds one; right-click it (or a note, or <b>View &rarr; Add a Track</b>) to add one, have all 16, take the last away or go back to 8. A track taken away keeps its notes, hidden, till it's back. Tracks show a page at a time: <span class="b">BIG VIEW</span> shows 4 with large text, with a tall tab beside them to the next page (<span class="b">TRACKS 5-8 &#9654;</span>, <span class="b">TRACKS 9-12 &#9654;</span>&hellip; and back to <span class="b">&#9664; TRACKS 1-4</span>); without BIG VIEW a page is 8. Moving the cursor past a page's last track turns the page. Tracks 9&ndash;16 have their own mixer strips, shown with <span class="b">TRACKS 9-16 &#9654;</span> on the mixer; a MOD saved with them is a 16-channel module. The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
   <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
   <h3>Right-click menus</h3>
   <p>Right-click almost anything for the things you can do to it. Everything they do can be undone.</p>
@@ -756,7 +756,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
       <tr><td><span class="b">S1000</span></td><td>Akai S1000: 16-bit, interpolated playback, clean 44.1 kHz-style output</td></tr>
       <tr><td><span class="b">STEPPED</span></td><td>Paula's stepped playback, exactly as the chip makes it (off = smooth)</td></tr>
       <tr><td><span class="b">8-BIT</span></td><td>Samples play at 8-bit resolution</td></tr>
-      <tr><td><span class="b">8CH GRIT</span></td><td>OctaMED's 8-channel sound on all 8 tracks. The Amiga has 4 channels, so 8-channel trackers mixed two tracks into each (1+5, 2+6, 3+7, 4+8) at half level and squashed them back to 8 bits; this does the squashing, then brings the level back up. On for the Amiga models. Every track plays at full level either way, and a safety limiter stops eight loud tracks clipping (it holds its level for a moment rather than following each wave, so a loud sub comes through clean instead of buzzing)</td></tr>
+      <tr><td><span class="b">8CH GRIT</span></td><td>OctaMED's 8-channel sound on every track. The Amiga has 4 channels, so 8-channel trackers mixed two tracks into each (1+5, 2+6, 3+7, 4+8; 9+13, 10+14&hellip; on tracks 9&ndash;16) at half level and squashed them back to 8 bits; this does the squashing, then brings the level back up. On for the Amiga models. Every track plays at full level either way, and a safety limiter stops eight loud tracks clipping (it holds its level for a moment rather than following each wave, so a loud sub comes through clean instead of buzzing)</td></tr>
       <tr><td><span class="b">LED</span></td><td>The Amiga's "LED" low-pass filter (12 dB/oct at 3.2 kHz) at the start of the song (<code>E00</code> / <code>E01</code> switch it while playing)</td></tr>
       <tr><td>SEP</td><td>Right-click a machine button (or View &rarr; Stereo Separation...): how far tracks lean to the Amiga sides (1, 4, 5, 8 left; 2, 3, 6, 7 right). 20% to start; 0% = all centred, 100% = the full Amiga split</td></tr>
       <tr><td>VOL</td><td>The master volume after everything, 0&ndash;200% (100 = as it is), beside the meter</td></tr>
@@ -1525,7 +1525,7 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.93</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.94</footer>
 </main>
 </div>
 <script>

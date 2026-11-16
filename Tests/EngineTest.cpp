@@ -164,6 +164,21 @@ static void testPitch()
     CHECK (std::abs (hz - kPaulaClock / periodFor (37, 0) / 32.0) < 3.0);
 }
 
+// (v0.94) a song using tracks 9-16 saves as a 16-channel module and loads back with 16 tracks
+static void testMod16()
+{
+    Song s = makeSong();
+    s.numTracks = 16;
+    s.blocks[0].at (5, 13) = Cell { 37, 1, 0, 0 };
+    std::vector<uint8_t> bytes;
+    auto w = saveMOD (s, bytes);
+    CHECK (w.ok && bytes.size() > 1084 && bytes[1080] == '1' && bytes[1081] == '6' && bytes[1082] == 'C' && bytes[1083] == 'H');
+    Song t;
+    auto r = loadModule (bytes, t);
+    std::printf ("16-track MOD: saved %d bytes, loaded %d tracks, track 14 line 5 note %d\n", (int) bytes.size(), t.numTracks, (int) t.blocks[0].at (5, 13).note);
+    CHECK (r.ok && t.numTracks == 16 && t.blocks[0].at (5, 13).note == 37);
+}
+
 static void testModRoundTrip()
 {
     Song s = makeSong();
@@ -4189,7 +4204,7 @@ static void testModulation()
     std::printf ("LFO 1/4 at beat 0.25: %.3f, at 0.75: %.3f; cutoff offset %.3f\n", top, bottom, me.slotOffset[0][1]);
     CHECK (std::abs (top - 1.0f) < 0.01f && std::abs (bottom + 1.0f) < 0.01f && me.slotModded[0] && std::abs (me.slotOffset[0][1] + 0.5f) < 0.01f);
     // free-running, with RETRIG from track 2's notes
-    ms.mod[0].p[2] = 0; ms.mod[0].p[3] = 1; ms.mod[0].p[5] = 2.0f / 8.0f;   // NOTES FROM TRACK 2
+    ms.mod[0].p[2] = 0; ms.mod[0].p[3] = 1; ms.mod[0].p[5] = 2.0f / (float) kMixTracks;   // NOTES FROM TRACK 2
     CHECK (modNotesFrom (ms.mod[0]) == 1 && modParamText (ModSource::Lfo, 5, ms.mod[0].p) == "TRACK 2");
     me.setTransport (0, false);
     for (int k = 0; k < 10; ++k) me.run (ms, 480, 120);
@@ -7436,6 +7451,7 @@ int main()
     testMED();
     testRender();
     testPitch();
+    testMod16();
     testSkipOnce();
     testModRoundTrip();
     test8SVX();

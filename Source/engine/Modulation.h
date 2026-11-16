@@ -15,6 +15,7 @@ const std::vector<FxParamInfo>& modParams (ModSource);
 std::string modParamText (ModSource, int i, const float* p);
 void initModulator (Modulator&, ModSource);               // the source with its defaults (routes kept)
 bool modBipolar (ModSource);                              // swings both ways (LFO, RANDOM)
+void migrateModTracks (Modulator&);                      // (a song from before 16 tracks: its TRACK choices kept)
 int  modNotesFrom (const Modulator&);                     // the track whose notes it follows (-1 = any)
 std::string modSummary (const Modulator&);               // "LFO SINE 1/4", "FOLLOWER TRACK 1" ...
 double modBeats (float v);                                // a synced rate's length in beats (1/32 .. 4 BARS)

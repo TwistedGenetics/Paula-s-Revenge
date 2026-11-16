@@ -44,6 +44,15 @@ PatternEditor::PatternEditor (PaulaProcessor& p, PaulaProcessor::EditorState& st
     viewDownBtn.onClick = [this] { scrollView (std::max (1, fullRows() - 2)); };
     viewPlayBtn.onClick = [this] { showPlayLine(); };
     halfBtn.onClick = [this] { showOtherHalf(); };
+    addTrackBtn.onClick = [this]
+    {
+        if (proc.song.numTracks < kMaxTracks) setTrackCount (proc.song.numTracks + 1);
+        else showTracksMenu();
+        grabKeyboardFocus();
+    };
+    addTrackBtn.onRightClick = [this] { showTracksMenu(); };
+    addTrackBtn.setWantsKeyboardFocus (false); addTrackBtn.setMouseClickGrabsKeyboardFocus (false);
+    addChildComponent (addTrackBtn);
     halfBtn.setWantsKeyboardFocus (false); halfBtn.setMouseClickGrabsKeyboardFocus (false);
     addChildComponent (halfBtn);
     for (auto* b : { &viewUpBtn, &viewDownBtn }) { b->setRepeatSpeed (400, 120); }
@@ -112,10 +121,43 @@ float PatternEditor::halfTabW() const
 
 void PatternEditor::showOtherHalf()
 {
-    st.track = st.track >= 4 ? st.track - 4 : std::min (proc.song.numTracks - 1, st.track + 4);
-    if (onStatus) onStatus (st.track >= 4 ? "TRACKS 5-8" : "TRACKS 1-4");
+    // the next page of tracks (from the last, back to the first), the cursor on the same place there
+    const int nt = proc.song.numTracks, pg = pageTracks();
+    const int first = firstTrack(), next = first + pg >= nt ? 0 : first + pg;
+    st.track = std::min (nt - 1, next + (st.track - first));
+    const int f2 = firstTrack();
+    if (onStatus) onStatus ("TRACKS " + juce::String (f2 + 1) + "-" + juce::String (std::min (nt, f2 + pg)));
     changed();
     grabKeyboardFocus();
+}
+
+// (v0.94) TRACKS: a song has 1 to 16; one more (empty, or as it was when taken away), or the last one taken away (its
+// notes stay in the song, hidden, till it's back)
+void PatternEditor::setTrackCount (int n)
+{
+    n = juce::jlimit (1, kMaxTracks, n);
+    const int was = proc.song.numTracks;
+    if (n == was) return;
+    proc.history.settings (n > was ? "ADD A TRACK" : "TAKE A TRACK AWAY");
+    proc.withLock ([&] { proc.song.numTracks = n; });
+    if (n < was) for (int t = n; t < was; ++t) proc.player.mute[t] = false;
+    st.track = juce::jlimit (0, n - 1, n > was ? n - 1 : st.track);
+    if (onStatus) onStatus (n > was ? "TRACK " + juce::String (n) + " ADDED - " + juce::String (n) + " TRACKS" + (n >= kMaxTracks ? " (THE MOST)" : "")
+                                    : "TRACK " + juce::String (was) + " TAKEN AWAY (ITS NOTES ARE KEPT - ADD IT BACK TO HAVE THEM) - " + juce::String (n) + " TRACKS");
+    if (onTracksChanged) onTracksChanged();
+    changed();
+}
+
+void PatternEditor::showTracksMenu()
+{
+    juce::Component::SafePointer<PatternEditor> safe (this);
+    const int nt = proc.song.numTracks;
+    std::vector<MenuItem> items;
+    if (nt < kMaxTracks) items.push_back ({ "ADD A TRACK (TRACK " + juce::String (nt + 1) + ")", [safe, nt] { if (safe != nullptr) safe->setTrackCount (nt + 1); } });
+    if (nt < kMaxTracks) items.push_back ({ "ALL 16 TRACKS", [safe] { if (safe != nullptr) safe->setTrackCount (kMaxTracks); } });
+    if (nt > 1) items.push_back ({ "TAKE AWAY TRACK " + juce::String (nt) + " (ITS NOTES ARE KEPT)", [safe, nt] { if (safe != nullptr) safe->setTrackCount (nt - 1); } });
+    if (nt > 8) items.push_back ({ "BACK TO 8 TRACKS (9-" + juce::String (nt) + "'S NOTES ARE KEPT)", [safe] { if (safe != nullptr) safe->setTrackCount (8); } });
+    showMenu ("TRACKS: " + juce::String (nt) + " OF 16", std::move (items));
 }
 
 void PatternEditor::placeArrows()
@@ -124,20 +166,31 @@ void PatternEditor::placeArrows()
     halfBtn.setVisible (halfTabShown());
     if (halfTabShown())
     {
-        const bool upper = firstTrack() >= 4;
-        // as much of "TRACKS 5-8 >" as fits the room beside the tracks (the text stays full size)
+        // the next page of tracks ("TRACKS 5-8 >", "TRACKS 9-12 >"...), from the last back to the first ("< TRACKS 1-4")
+        const int nt = proc.song.numTracks, pg = pageTracks(), first = firstTrack();
+        const bool upper = first + pg >= nt;
+        const int nf = upper ? 0 : first + pg, nl = std::min (nt, nf + pg);
+        const juce::String nums = juce::String (nf + 1) + (nl > nf + 1 ? "-" + juce::String (nl) : juce::String());
+        // as much of it as fits the room beside the tracks (the text stays full size)
         const float w = halfTabW() - Theme::px * 3;
-        const juce::String arrow = upper ? "\x08" : "\x01", nums = upper ? "1-4" : "5-8";
+        const juce::String arrow = upper ? "\x08" : "\x01";
         juce::String t;
-        if (w >= PixelFont::textWidth ("TRACKS", Theme::px)) t = upper ? arrow + "\nTRACKS\n" + nums : "TRACKS\n" + nums + "\n" + arrow;
+        if (w >= PixelFont::textWidth ("TRACKS", Theme::px) && w >= PixelFont::textWidth (nums, Theme::px)) t = upper ? arrow + "\nTRACKS\n" + nums : "TRACKS\n" + nums + "\n" + arrow;
         else if (w >= PixelFont::textWidth (nums, Theme::px)) t = upper ? arrow + "\n" + nums : nums + "\n" + arrow;
-        else t = upper ? arrow + "\n\n1\n-\n4" : "5\n-\n8\n\n" + arrow;
+        else
+        {
+            juce::String down;   // (one character a line)
+            for (int i = 0; i < nums.length(); ++i) down += (i > 0 ? "\n" : "") + nums.substring (i, i + 1);
+            t = upper ? arrow + "\n\n" + down : down + "\n\n" + arrow;
+        }
         if (halfBtn.getButtonText() != t) halfBtn.setButtonText (t);
         const float x = lineNumW() + trackW() * (float) visibleTracks() + Theme::px;
         halfBtn.setBounds ((int) x, (int) (fontPx() * 0.5f), (int) halfTabW(), (int) (headerH() + rowsArea() - fontPx()));   // (a tall tab beside the tracks)
     }
-    // the ▲ ● ▼ column at the right of the rows
+    // the ▲ ● ▼ column at the right of the rows; above it, + : a track more (right-click: the TRACKS menu)
     const float aw = arrowsW();
+    addTrackBtn.setVisible (onlyTrack < 0);
+    addTrackBtn.setBounds ((int) ((float) getWidth() - aw), (int) (fontPx() * 0.5f), (int) aw, (int) std::max (fontPx() * 6, tabH() - fontPx()));
     const float top = headerH();
     const float h = std::max (aw, rowsArea());
     const int x = (int) ((float) getWidth() - aw);
@@ -202,18 +255,23 @@ bool PatternEditor::isOnVu (juce::Point<float> p) const
 int PatternEditor::trackChars() const { return st.showFx2 ? 17 : 13; }   // "C-3 01 C20 L40" + gap + VU bar
 int PatternEditor::numColumns() const { return st.showFx2 ? 9 : 6; }
 
+// (v0.94) up to 16 tracks: shown a page at a time - 4 in BIG VIEW, else 8 - the page the cursor's track is on
+int PatternEditor::pageTracks() const { return st.fourTrackView ? 4 : 8; }
+
 int PatternEditor::visibleTracks() const
 {
     if (onlyTrack >= 0) return 1;
     const int nt = proc.song.numTracks;
-    return st.fourTrackView ? std::min (4, nt) : nt;
+    if (nt <= pageTracks()) return nt;
+    return std::max (1, std::min (pageTracks(), nt - firstTrack()));
 }
 
 int PatternEditor::firstTrack() const
 {
     if (onlyTrack >= 0) return onlyTrack;
-    if (visibleTracks() >= proc.song.numTracks) return 0;
-    return st.track >= 4 ? 4 : 0;
+    const int nt = proc.song.numTracks, pg = pageTracks();
+    if (nt <= pg) return 0;
+    return (juce::jlimit (0, nt - 1, st.track) / pg) * pg;
 }
 
 float PatternEditor::fontPx() const
@@ -1094,6 +1152,7 @@ void PatternEditor::mouseDown (const juce::MouseEvent& e)
                 { "COPY TRACK", act ([] (PatternEditor& p) { p.copyTrack (false); p.lastCopy = LastCopy::Track; }) },
                 { "CUT TRACK", act ([] (PatternEditor& p) { p.copyTrack (true); p.lastCopy = LastCopy::Track; }) },
                 { "PASTE TRACK", act ([] (PatternEditor& p) { p.pasteTrack(); }) },
+                { proc.song.numTracks < kMaxTracks ? "ADD A TRACK / TAKE ONE AWAY..." : "TAKE A TRACK AWAY...", act ([] (PatternEditor& p) { p.showTracksMenu(); }) },
                 { "CLEAR THIS LINE", act ([] (PatternEditor& p)
                     {
                         const int blk = p.proc.song.safeBlock (p.st.block);

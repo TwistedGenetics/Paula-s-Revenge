@@ -114,6 +114,16 @@ void initModulator (Modulator& m, ModSource s)
 
 bool modBipolar (ModSource s) { return s == ModSource::Lfo || s == ModSource::Random; }
 
+// (v0.94) a song from before 16 tracks: its track choices were made among 8 (NOTES FROM: ANY + 8; a FOLLOWER's
+// TRACK: 8) - the same tracks among 16
+void migrateModTracks (Modulator& m)
+{
+    const auto& ps = modParams (m.source);
+    for (size_t i = 0; i < ps.size() && i < (size_t) kModParams; ++i)
+        if (ps[i].name == "NOTES FROM") m.p[i] = (float) choice (m.p[i], 9) / (float) kMixTracks;
+    if (m.source == ModSource::Follower) m.p[0] = (float) choice (m.p[0], 8) / (float) (kMixTracks - 1);
+}
+
 int modNotesFrom (const Modulator& m)
 {
     const auto& ps = modParams (m.source);

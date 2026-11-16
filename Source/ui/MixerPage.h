@@ -109,6 +109,7 @@ public:
     bool showsInstrument() const;    // (v0.79: that page is up - Tab goes on to PARAMS)
     int  channelInstrument() const { return chInstrument; }   // (-1: a mixer track)
     void openEffect (int slot);
+    int  stepMixerSlot (int slot, int dir) const;   // < > on an effect page: the next of the mixer's slots
     void showMods (int mod = -1);    // the MODULATION page (on that modulator)
     ModPage& modPageView() { return *modPage; }   // (tests)
     void editMixer (const juce::String& label, bool merge, std::function<void (MixerSettings&)> fn, bool effectsChanged = false);
@@ -144,6 +145,9 @@ private:
     // header
     PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" }, modsBtn { "MODULATION" };
     PixButton duckBtn { "DUCK..." }, lowEndBtn { "LOW-END CHECK", true };
+    PixButton stripPageBtn { "TRACKS 9-16" };   // (v0.94) more than 8 tracks: their strips 8 at a time
+    int stripPage = 0;                           // 0: tracks 1-8, 1: 9-16
+    bool stripShown (int track) const;
     bool lowEndOn = false;
     int lowEndTicks = 0;
     std::vector<prv::LowEndLine> lowEndShown;

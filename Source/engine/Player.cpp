@@ -1955,7 +1955,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             float tls[kMaxTracks] = {}, trs[kMaxTracks] = {};
             for (int t = 0; t < nt; ++t) addVoice (t, 1.0f, sidePan (t), tls[t], trs[t]);
             if (options.crunches())
-                for (int a = 0; a < 4; ++a)
+                for (int a = 0; a < nt; a = (a % 8 == 3) ? a + 5 : a + 1)   // (1+5, 2+6, 3+7, 4+8; then 9+13, 10+14...)
                 {
                     const int b = a + 4;
                     if (b >= nt) { tls[a] = grit (tls[a]); trs[a] = grit (trs[a]); continue; }
@@ -1987,7 +1987,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 if (voices[t].instr == tapIns) addVoice (t, 1.0f, sidePan (t), tapL[i], tapR[i]);
         if (options.crunches())
         {
-            for (int a = 0; a < 4; ++a)
+            for (int a = 0; a < nt; a = (a % 8 == 3) ? a + 5 : a + 1)   // (each 8 tracks' pairs)
             {
                 const int b = a + 4;
                 float pl = 0, pr = 0;

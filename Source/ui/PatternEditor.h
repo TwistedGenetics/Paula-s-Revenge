@@ -29,7 +29,10 @@ public:
     void scrollView (int lines);
     void showPlayLine();
     int  playLineOffScreen() const;
-    void showOtherHalf();             // BIG VIEW: tracks 5-8 / 1-4 (the cursor goes to the same place there)   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
+    void showOtherHalf();             // the next page of tracks: 5-8, 9-12... (BIG VIEW: 4 a page, else 8; the cursor goes to the same place there)
+    void setTrackCount (int n);       // (v0.94) TRACKS: 1-16 (an undo step; a track taken away keeps its notes, hidden)
+    void showTracksMenu();            // ADD A TRACK / TAKE ONE AWAY
+    std::function<void()> onTracksChanged;   // playing: -1 = above the view, +1 = below, 0 = on it (or not playing)
     float viewTopLine() const { return viewTop; }
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -257,6 +260,7 @@ public:
 private:
 
     // geometry
+    int pageTracks() const;           // tracks a page: 4 (BIG VIEW) or 8
     int visibleTracks() const;
     int trackChars() const;
     int numColumns() const;
@@ -270,6 +274,7 @@ private:
     float halfTabMinW() const { return halfTabShown() ? Theme::px * (PixelFont::kCellW + 4) : 0.0f; }   // one character wide
     float halfTabW() const;           // what's left beside the tracks (at least one character wide)
     PixButton halfBtn { "TRACKS\n5-8\n\x01" };
+    PixButton addTrackBtn { "+" };    // (v0.94) a track more
     PixButton viewUpBtn { juce::String::charToString ((juce::juce_wchar) 3) }, viewPlayBtn { juce::String::charToString ((juce::juce_wchar) 5) },
               viewDownBtn { juce::String::charToString ((juce::juce_wchar) 4) };
     int viewRepeat = 0;

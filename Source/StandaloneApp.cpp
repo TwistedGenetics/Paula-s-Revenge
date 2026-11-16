@@ -40,6 +40,8 @@ enum CommandIDs
     cmdSeparation    = 0x2023,
     cmdFollowClock   = 0x2024,
     cmdGrid          = 0x2027,   // (v0.92) the pattern's highlighted lines
+    cmdAddTrack      = 0x2028,   // (v0.94) up to 16 tracks
+    cmdRemoveTrack   = 0x2029,
     cmdSkin0         = 0x2100,   // .. 0x211f: the SKINs, one each (their own range: nothing else uses it)
     cmdCrt           = 0x2034,
     cmdScopes        = 0x2035,
@@ -347,6 +349,9 @@ public:
         m.addCommandItem (&commands, cmdFullVelocity);
         m.addCommandItem (&commands, cmdFollowInstr);
         m.addCommandItem (&commands, cmdGrid);
+        m.addSeparator();
+        m.addCommandItem (&commands, cmdAddTrack);
+        m.addCommandItem (&commands, cmdRemoveTrack);
         m.addCommandItem (&commands, cmdSeparation);
         m.addCommandItem (&commands, cmdFollowClock);
         m.addSeparator();
@@ -376,7 +381,7 @@ public:
     {
         JUCEApplication::getAllCommands (c);   // includes Quit (Cmd+Q)
         c.addArray ({ cmdAudioSettings, cmdFullScreen, cmdFollowOutput, cmdCapture, cmdSample,
-                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock, cmdGrid,
+                      cmdNew, cmdLoad, cmdSave, cmdSaveAs, cmdSaveMod, cmdRenderWav, cmdExportSamples, cmdNoteOffs, cmdFullVelocity, cmdFollowInstr, cmdSeparation, cmdFollowClock, cmdGrid, cmdAddTrack, cmdRemoveTrack,
                       cmdSharedFolder, cmdOpenShared, cmdSaveShared, cmdDiagnostics, cmdLogFolder });
         c.addArray ({ cmdCrt, cmdScopes, cmdPalette, cmdLane, cmdPads });
         for (int i = 0; i < prv::ui::Theme::kSkins; ++i) c.add (skinCmd (i));
@@ -486,6 +491,8 @@ public:
         else if (id == cmdSaveShared)   info.setInfo ("Save to Shared Folder", "Save the song into the shared folder, for your other computer", "File", 0);
         else if (id == cmdDiagnostics)  info.setInfo ("Save Diagnostics Report...", "A text file on the desktop: dropouts, the audio device, the log - to send in", "Help", 0);
         else if (id == cmdLogFolder)    info.setInfo ("Show the Log Folder", "Where the diagnostics log is kept", "Help", 0);
+        else if (id == cmdAddTrack) info.setInfo ("Add a Track", "One more track (up to 16)", "View", 0);
+        else if (id == cmdRemoveTrack) info.setInfo ("Take the Last Track Away", "One track fewer (its notes are kept)", "View", 0);
         else if (id == cmdGrid) info.setInfo ("Pattern Grid...", "A highlighted line every 2, 4, 8 or 16 lines (GRID)", "View", 0);
         else if (id == cmdSeparation) info.setInfo ("Stereo Separation...", "How far the Amiga layout spreads the tracks left and right (SEP)", "View", 0);
         else if (id == cmdFollowInstr)
@@ -539,6 +546,8 @@ public:
                 case cmdDiagnostics:   ed->saveDiagnostics(); return true;
                 case cmdLogFolder:     prv::Diagnostics::get().logFile().revealToUser(); return true;
                 case cmdGrid:          ed->chooseGrid(); return true;
+                case cmdAddTrack:      ed->getPattern().setTrackCount (ed->paulaProcessor().song.numTracks + 1); return true;
+                case cmdRemoveTrack:   ed->getPattern().setTrackCount (ed->paulaProcessor().song.numTracks - 1); return true;
                 case cmdFollowInstr:   ed->setFollowInstrument (! prv::ui::PatternEditor::followInstrument()); commands.commandStatusChanged(); return true;
                 default: break;
             }

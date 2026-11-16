@@ -102,12 +102,12 @@ IOResult loadMOD (const std::vector<uint8_t>& bytes, Song& out)
         res.warnings.push_back ("No format tag found - loading as a 15-sample SoundTracker module.");
     }
     if (channels < 1 || channels > 32) { res.error = "Unsupported channel count."; return res; }
-    if (channels > kMaxTracks) res.warnings.push_back ("Module has " + std::to_string (channels) + " channels - only the first 8 are kept.");
+    if (channels > kMaxTracks) res.warnings.push_back ("Module has " + std::to_string (channels) + " channels - only the first 16 are kept.");
 
     Song s;
     s.name = r.str (0, 20);
     if (s.name.empty()) s.name = "UNTITLED";
-    s.numTracks = kMaxTracks;   // (every song has 8 tracks; a 4-channel MOD fills tracks 1-4)
+    s.numTracks = std::clamp (channels, kLegacyTracks, kMaxTracks);   // (8 tracks at least; a 4-channel MOD fills tracks 1-4)
 
     int sampleLen[31] = {};
     for (int i = 0; i < numSamples; ++i)
@@ -355,8 +355,8 @@ IOResult loadMED (const std::vector<uint8_t>& bytes, Song& out)
                 blk.at (row, t) = c;
             }
     }
-    s.numTracks = kMaxTracks;   // (every song has 8 tracks)
-    if (droppedTracks) res.warnings.push_back ("Song has more than 8 tracks - only the first 8 are kept.");
+    s.numTracks = std::max (kLegacyTracks, maxTracks);   // (8 at least, up to 16)
+    if (droppedTracks) res.warnings.push_back ("Song has more than 16 tracks - only the first 16 are kept.");
     if (unknownCmds) res.warnings.push_back ("Some MED-only commands have no equivalent and were left out.");
 
     // --- samples
@@ -419,7 +419,14 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
         for (int l = 0; l < b.lines && ! upperUsed; ++l)
             for (int t = 4; t < kMaxTracks; ++t)
                 if (! b.at (l, t).isEmpty()) { upperUsed = true; break; }
-    const int channels = upperUsed ? 8 : 4;
+    // (v0.94) tracks 9-16 used: a 16-channel module ("16CH", as FastTracker 2 / OpenMPT play)
+    bool topUsed = false;
+    for (const auto& b : song.blocks)
+        for (int l = 0; l < b.lines && ! topUsed; ++l)
+            for (int t = kLegacyTracks; t < std::min (song.numTracks, kMaxTracks); ++t)
+                if (! b.at (l, t).isEmpty()) { topUsed = true; break; }
+    const int channels = topUsed ? 16 : upperUsed ? 8 : 4;
+    if (topUsed) res.warnings.push_back ("Tracks 9-16 are used: saved as a 16-channel module (16CH) - ProTracker and the real Amiga play only 4 channels.");
 
     bool tooLong = false, instrTooHigh = false, bigSample = false, rateChanged = false, fxDropped = false;
     for (const auto& b : song.blocks) if (b.lines > 64) tooLong = true;
@@ -491,6 +498,7 @@ IOResult saveMOD (const Song& song, std::vector<uint8_t>& out)
     for (int i = 0; i < 128; ++i)
         put8 (out, (uint8_t) (i < (int) song.sequence.size() ? std::min (song.sequence[(size_t) i], numPatterns - 1) : 0));
     if (channels == 4) { out.push_back ('M'); out.push_back ('.'); out.push_back ('K'); out.push_back ('.'); }
+    else if (channels == 16) { out.push_back ('1'); out.push_back ('6'); out.push_back ('C'); out.push_back ('H'); }
     else               { out.push_back ('8'); out.push_back ('C'); out.push_back ('H'); out.push_back ('N'); }
 
     for (int p = 0; p < numPatterns; ++p)

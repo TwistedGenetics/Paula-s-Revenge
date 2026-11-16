@@ -12,25 +12,30 @@
 
 namespace prv
 {
-constexpr int kMixTracks = 8;      // = kMaxTracks
+constexpr int kMixTracks = 16;     // = kMaxTracks
+constexpr int kOldMixTracks = 8;   // (the slot numbers of tracks 1-8 come first; tracks 9-16's after the instruments')
 constexpr int kInserts   = 3;
 constexpr int kSends     = 2;
 constexpr int kReturns   = 2;
 constexpr int kFxParams  = 12;     // (a slot's own record in the song keeps the first 6; v24 adds the rest)
 constexpr int kFxSavedParams = 6;
-// slot numbering across the whole mixer: tracks, then returns, then master
-constexpr int kTrackSlots  = kMixTracks * kInserts;
+// slot numbering across the whole mixer: tracks 1-8, then returns, then master, then the instruments', then tracks 9-16
+// (the numbers are in songs - automation, modulation - so the ones from before 16 tracks stay where they were)
+constexpr int kTrackSlots  = kOldMixTracks * kInserts;   // tracks 1-8's
 constexpr int kReturnSlots = kReturns * kInserts;
 constexpr int kMixerSlots  = kTrackSlots + kReturnSlots + kInserts;   // the mixer's own slots
 // each instrument has its own inserts too, before the strip of the track it plays on
 constexpr int kMixInstruments  = 63;   // = kMaxInstruments
 constexpr int kInstrumentSlots = kMixInstruments * kInserts;
-constexpr int kTotalSlots  = kMixerSlots + kInstrumentSlots;
-inline int trackSlot (int track, int k)  { return track * kInserts + k; }
+constexpr int kExtraTrackSlots = kMixerSlots + kInstrumentSlots;   // where tracks 9-16's start
+constexpr int kTotalSlots  = kExtraTrackSlots + (kMixTracks - kOldMixTracks) * kInserts;
+inline int trackSlot (int track, int k)  { return track < kOldMixTracks ? track * kInserts + k : kExtraTrackSlots + (track - kOldMixTracks) * kInserts + k; }
+inline bool isTrackSlot (int slot)       { return (slot >= 0 && slot < kTrackSlots) || (slot >= kExtraTrackSlots && slot < kTotalSlots); }
+inline int trackOfSlot (int slot)        { return slot < kTrackSlots ? slot / kInserts : kOldMixTracks + (slot - kExtraTrackSlots) / kInserts; }   // (a track slot)
 inline int returnSlot (int ret, int k)   { return kTrackSlots + ret * kInserts + k; }
 inline int masterSlot (int k)            { return kTrackSlots + kReturnSlots + k; }
 inline int instrumentSlot (int ins, int k) { return kMixerSlots + ins * kInserts + k; }
-inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < kTotalSlots; }
+inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < kExtraTrackSlots; }
 
 // (new types go at the end: the numbers are in the songs)
 enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin,

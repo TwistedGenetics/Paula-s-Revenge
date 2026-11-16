@@ -15,7 +15,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 32;   // (v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
+    constexpr int kVersion = 33;   // (v33: 16 tracks - tracks 9-16 in their own section at the end; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -117,6 +117,18 @@ namespace
     }
 }
 
+static void writeStrip (juce::MemoryOutputStream& raw, const ChannelStrip& c)
+{
+    raw.writeFloatBigEndian (c.volumeDb);
+    for (const auto& b : c.eq.band)   // (v20: 8 points, each used / on / its type)
+    {
+        raw.writeByte ((char) ((b.used ? 1 : 0) | (b.on ? 2 : 0))); raw.writeByte ((char) b.type);
+        raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
+    }
+    for (const auto& sl : c.inserts) writeSlot (raw, sl);
+    for (int k = 0; k < kSends; ++k) { raw.writeFloatBigEndian (c.send[k]); raw.writeByte (c.sendPre[k] ? 1 : 0); }
+}
+
 juce::MemoryBlock writeSong (const Song& songIn)
 {
     // STRETCH: the original samples are saved (the stretch is made again when it loads)
@@ -143,7 +155,7 @@ juce::MemoryBlock writeSong (const Song& songIn)
     {
         raw.writeShortBigEndian ((short) b.lines);
         for (int l = 0; l < b.lines; ++l)
-            for (int t = 0; t < kMaxTracks; ++t)
+            for (int t = 0; t < kLegacyTracks; ++t)   // (tracks 9-16: v33's section at the end)
             {
                 const auto& c = b.at (l, t);
                 raw.writeByte ((char) c.note); raw.writeByte ((char) c.instr);
@@ -169,7 +181,7 @@ juce::MemoryBlock writeSong (const Song& songIn)
     }
 
     // v3 extras, appended so older sections keep their layout
-    for (int t = 0; t < kMaxTracks; ++t) raw.writeShortBigEndian ((short) song.trackPan[t]);
+    for (int t = 0; t < kLegacyTracks; ++t) raw.writeShortBigEndian ((short) song.trackPan[t]);
     auto writeEnv = [&raw] (const Envelope& e)
     {
         raw.writeByte (e.on ? 1 : 0);
@@ -208,17 +220,7 @@ juce::MemoryBlock writeSong (const Song& songIn)
     // v7: mixer
     {
         const auto& m = song.mixer;
-        for (const auto& c : m.ch)
-        {
-            raw.writeFloatBigEndian (c.volumeDb);
-            for (const auto& b : c.eq.band)   // (v20: 8 points, each used / on / its type)
-            {
-                raw.writeByte ((char) ((b.used ? 1 : 0) | (b.on ? 2 : 0))); raw.writeByte ((char) b.type);
-                raw.writeFloatBigEndian (b.freq); raw.writeFloatBigEndian (b.gain); raw.writeFloatBigEndian (b.q);
-            }
-            for (const auto& sl : c.inserts) writeSlot (raw, sl);
-            for (int k = 0; k < kSends; ++k) { raw.writeFloatBigEndian (c.send[k]); raw.writeByte (c.sendPre[k] ? 1 : 0); }
-        }
+        for (int t = 0; t < kOldMixTracks; ++t) writeStrip (raw, m.ch[t]);
         for (const auto& r : m.ret)
         {
             raw.writeFloatBigEndian (r.volumeDb);
@@ -230,7 +232,7 @@ juce::MemoryBlock writeSong (const Song& songIn)
         for (const auto& sl : m.master.inserts) writeSlot (raw, sl);
     }
     // v9: automation knobs and plug-in instruments
-    for (const auto& t : song.mixer.trackAuto) for (const auto& k : t) writeTarget (raw, k);
+    for (int t = 0; t < kOldMixTracks; ++t) for (const auto& k : song.mixer.trackAuto[t]) writeTarget (raw, k);
     for (const auto& in : song.instruments)
     {
         raw.writeByte (in.plugin ? 1 : 0);
@@ -534,6 +536,23 @@ juce::MemoryBlock writeSong (const Song& songIn)
         }
     }
 
+    // v33: 16 tracks - how many the song has, and tracks 9-16's notes, pans, mixer strips and AUTO knobs
+    {
+        raw.writeByte ((char) std::clamp (song.numTracks, 1, kMaxTracks));
+        for (const auto& b : song.blocks)
+            for (int l = 0; l < b.lines; ++l)
+                for (int t = kLegacyTracks; t < kMaxTracks; ++t)
+                {
+                    const auto& c = b.at (l, t);
+                    raw.writeByte ((char) c.note); raw.writeByte ((char) c.instr);
+                    raw.writeByte ((char) c.cmd);  raw.writeByte ((char) c.param);
+                    raw.writeByte ((char) c.cmd2); raw.writeByte ((char) c.param2);
+                }
+        for (int t = kLegacyTracks; t < kMaxTracks; ++t) raw.writeShortBigEndian ((short) song.trackPan[t]);
+        for (int t = kOldMixTracks; t < kMixTracks; ++t) writeStrip (raw, song.mixer.ch[t]);
+        for (int t = kOldMixTracks; t < kMixTracks; ++t) for (const auto& k : song.mixer.trackAuto[t]) writeTarget (raw, k);
+    }
+
     juce::MemoryOutputStream packed;
     {
         juce::GZIPCompressorOutputStream gz (packed, 6);
@@ -618,6 +637,35 @@ void placeInstrument (Song& song, int index, InstrumentFile&& f)
     }
 }
 
+static void readStrip (juce::MemoryInputStream& in, ChannelStrip& c, int version)
+{
+    c.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
+    c.eq = ChannelEq {};
+    if (version >= 20)
+        for (auto& b : c.eq.band)
+        {
+            const int f = (int) (uint8_t) in.readByte();
+            b.used = (f & 1) != 0; b.on = b.used && (f & 2) != 0;
+            b.type = (EqType) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) EqType::Count - 1);
+            b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
+            b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
+            b.q = readFloat (in, 0.1f, 10.0f, 1.0f);
+            if (! b.used) b = {};
+        }
+    else
+    {
+        // the old five fixed bands: the ones in use become points where they were
+        for (int k = 0; k < kEqOldBands; ++k)
+        {
+            const bool on = in.readByte() != 0;
+            const float f = readFloat (in, 10.0f, 22000.0f, 1000.0f), g = readFloat (in, -24.0f, 24.0f, 0.0f), q = readFloat (in, 0.1f, 10.0f, 0.7f);
+            c.eq.band[k] = eqBandFromOld (k, on, f, g, q);
+        }
+    }
+    for (auto& sl : c.inserts) readSlot (in, sl, version);
+    for (int k = 0; k < kSends; ++k) { c.send[k] = readFloat (in, 0.0f, 1.0f, 0.0f); c.sendPre[k] = in.readByte() != 0; }
+}
+
 bool readSong (const void* data, size_t size, Song& out, juce::String& error)
 {
     juce::MemoryInputStream packed (data, size, false);
@@ -632,8 +680,8 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
 
     Song s;
     s.name = readStr (in);
-    in.readByte();               // (the number of tracks: every song has 8 now)
-    s.numTracks = kMaxTracks;
+    in.readByte();               // (the number of tracks: 8 before v33; v33's section at the end says how many)
+    s.numTracks = kLegacyTracks;
     s.tempo = juce::jlimit (32, 255, (int) in.readShortBigEndian());
     s.speed = juce::jlimit (1, 31, (int) (uint8_t) in.readByte());
     s.ledFilterAtStart = in.readByte() != 0;
@@ -644,7 +692,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     {
         b.lines = juce::jlimit (1, kMaxLines, (int) (uint16_t) in.readShortBigEndian());
         for (int l = 0; l < b.lines; ++l)
-            for (int t = 0; t < kMaxTracks; ++t)
+            for (int t = 0; t < kLegacyTracks; ++t)
             {
                 auto& c = b.at (l, t);
                 c.note = (uint8_t) in.readByte(); c.instr = (uint8_t) in.readByte();
@@ -683,7 +731,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     if (version >= 3 && ! in.isExhausted())
     {
         auto readF = [&in] { const float f = in.readFloatBigEndian(); return std::isfinite (f) ? f : 0.0f; };
-        for (int t = 0; t < kMaxTracks; ++t) s.trackPan[t] = juce::jlimit (-1, 255, (int) in.readShortBigEndian());
+        for (int t = 0; t < kLegacyTracks; ++t) s.trackPan[t] = juce::jlimit (-1, 255, (int) in.readShortBigEndian());
         auto readEnv = [&in, &readF] (Envelope& e)
         {
             e.on = in.readByte() != 0;
@@ -745,34 +793,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     if (version >= 7 && ! in.isExhausted())
     {
         auto& m = s.mixer;
-        for (auto& c : m.ch)
-        {
-            c.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
-            c.eq = ChannelEq {};
-            if (version >= 20)
-                for (auto& b : c.eq.band)
-                {
-                    const int f = (int) (uint8_t) in.readByte();
-                    b.used = (f & 1) != 0; b.on = b.used && (f & 2) != 0;
-                    b.type = (EqType) std::clamp ((int) (uint8_t) in.readByte(), 0, (int) EqType::Count - 1);
-                    b.freq = readFloat (in, 10.0f, 22000.0f, 1000.0f);
-                    b.gain = readFloat (in, -24.0f, 24.0f, 0.0f);
-                    b.q = readFloat (in, 0.1f, 10.0f, 1.0f);
-                    if (! b.used) b = {};
-                }
-            else
-            {
-                // the old five fixed bands: the ones in use become points where they were
-                for (int k = 0; k < kEqOldBands; ++k)
-                {
-                    const bool on = in.readByte() != 0;
-                    const float f = readFloat (in, 10.0f, 22000.0f, 1000.0f), g = readFloat (in, -24.0f, 24.0f, 0.0f), q = readFloat (in, 0.1f, 10.0f, 0.7f);
-                    c.eq.band[k] = eqBandFromOld (k, on, f, g, q);
-                }
-            }
-            for (auto& sl : c.inserts) readSlot (in, sl, version);
-            for (int k = 0; k < kSends; ++k) { c.send[k] = readFloat (in, 0.0f, 1.0f, 0.0f); c.sendPre[k] = in.readByte() != 0; }
-        }
+        for (int t = 0; t < kOldMixTracks; ++t) readStrip (in, m.ch[t], version);
         for (auto& r : m.ret)
         {
             r.volumeDb = readFloat (in, -60.0f, 6.0f, 0.0f);
@@ -786,7 +807,7 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     if (version >= 9 && ! in.isExhausted())
     {
         bool ok = true;
-        for (auto& t : s.mixer.trackAuto) for (auto& k : t) ok = ok && readTarget (in, k);
+        for (int t = 0; t < kOldMixTracks; ++t) for (auto& k : s.mixer.trackAuto[t]) ok = ok && readTarget (in, k);
         for (auto& ins : s.instruments)
         {
             if (! ok) break;
@@ -1188,6 +1209,28 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
     {
         // v0.11 chords were two intervals in 0xy: keep playing them that way
         for (const auto& ins : s.instruments) if (ins.chord) s.chordsLegacy = true;
+    }
+    if (version < 33) for (auto& md : s.mixer.mods.mod) migrateModTracks (md);   // (track choices made among 8)
+    // v33: 16 tracks
+    if (version >= 33 && ! in.isExhausted())
+    {
+        s.numTracks = std::clamp ((int) (uint8_t) in.readByte(), 1, kMaxTracks);
+        for (auto& b : s.blocks)
+            for (int l = 0; l < b.lines; ++l)
+                for (int t = kLegacyTracks; t < kMaxTracks; ++t)
+                {
+                    auto& c = b.at (l, t);
+                    c.note = (uint8_t) in.readByte(); c.instr = (uint8_t) in.readByte();
+                    c.cmd = (uint8_t) in.readByte(); c.param = (uint8_t) in.readByte();
+                    c.cmd2 = (uint8_t) in.readByte(); c.param2 = (uint8_t) in.readByte();
+                    if (c.cmd >= kNumCommands) c.cmd = 0;
+                    if (c.cmd2 >= kNumCommands) c.cmd2 = 0;
+                    if (c.instr > kMaxInstruments) c.instr = 0;
+                    if (c.note > kNoteMax && c.note != kNoteOff) c.note = 0;
+                }
+        for (int t = kLegacyTracks; t < kMaxTracks; ++t) s.trackPan[t] = juce::jlimit (-1, 255, (int) in.readShortBigEndian());
+        for (int t = kOldMixTracks; t < kMixTracks; ++t) readStrip (in, s.mixer.ch[t], version);
+        for (int t = kOldMixTracks; t < kMixTracks; ++t) for (auto& k : s.mixer.trackAuto[t]) readTarget (in, k);
     }
     if (version < 13)
     {

@@ -696,7 +696,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         {
             // (an instrument's inserts go round its own three; the mixer's go round the mixer)
             if (isInstrumentSlot (fxSlot)) { const int b = fxSlot - fxSlot % kInserts + (kMixerSlots % kInserts); openEffect (b + ((fxSlot - b) + kInserts - 1) % kInserts); }
-            else openEffect ((fxSlot + kMixerSlots - 1) % kMixerSlots);
+            else openEffect (stepMixerSlot (fxSlot, -1));
         }
     };
     nextBtn.onClick = [this]
@@ -705,7 +705,7 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
         else if (currentPage == Page::Effect)
         {
             if (isInstrumentSlot (fxSlot)) { const int b = fxSlot - fxSlot % kInserts + (kMixerSlots % kInserts); openEffect (b + ((fxSlot - b) + 1) % kInserts); }
-            else openEffect ((fxSlot + 1) % kMixerSlots);
+            else openEffect (stepMixerSlot (fxSlot, +1));
         }
     };
     for (auto* c : std::initializer_list<juce::Component*> { &closeBtn, &backBtn, &resetAllBtn, &prevBtn, &nextBtn })
@@ -713,6 +713,8 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
 
     // ---- strips
     for (int t = 0; t < kMixTracks; ++t) strips.push_back (std::make_unique<MixStrip> (*this, MixStrip::Kind::Track, t));
+    stripPageBtn.onClick = [this] { stripPage = stripPage == 0 ? 1 : 0; updateVisibility(); };
+    addChildComponent (stripPageBtn);
     for (int r = 0; r < kReturns; ++r)   strips.push_back (std::make_unique<MixStrip> (*this, MixStrip::Kind::Return, r));
     strips.push_back (std::make_unique<MixStrip> (*this, MixStrip::Kind::Master, 0));
     for (auto& s : strips) addChildComponent (*s);
@@ -1057,7 +1059,7 @@ void MixerPage::modulate()
 juce::String MixerPage::slotOwner (int slot)
 {
     if (isInstrumentSlot (slot)) return "INSTRUMENT " + juce::String::toHexString ((slot - kMixerSlots) / kInserts + 1).toUpperCase().paddedLeft ('0', 2);
-    if (slot < kTrackSlots) return "TRACK " + juce::String (slot / kInserts + 1);
+    if (isTrackSlot (slot)) return "TRACK " + juce::String (trackOfSlot (slot) + 1);
     slot -= kTrackSlots;
     if (slot < kReturnSlots) return juce::String ("SEND ") + (char) ('A' + slot / kInserts);
     return "MASTER";
@@ -1227,15 +1229,27 @@ void MixerPage::openChannel (int track)
     refresh();
 }
 
+// the mixer's own slots in order (the song's tracks, the sends, the master), stepped through by < >
+int MixerPage::stepMixerSlot (int slot, int dir) const
+{
+    std::vector<int> order;
+    for (int t = 0; t < proc.song.numTracks; ++t) for (int k = 0; k < kInserts; ++k) order.push_back (trackSlot (t, k));
+    for (int r = 0; r < kReturns; ++r) for (int k = 0; k < kInserts; ++k) order.push_back (returnSlot (r, k));
+    for (int k = 0; k < kInserts; ++k) order.push_back (masterSlot (k));
+    const auto it = std::find (order.begin(), order.end(), slot);
+    const int i = it == order.end() ? 0 : (int) (it - order.begin());
+    const int n = (int) order.size();
+    return order[(size_t) (((i + dir) % n + n) % n)];
+}
+
 void MixerPage::openEffect (int slot)
 {
     fxSlot = juce::jlimit (0, kTotalSlots - 1, slot);
     browsingPlugins = false;
     // LEARN is for the slot's own track, or the pattern's current track for returns / the master
-    learnTrackBox.setValue ((fxSlot < kTrackSlots ? fxSlot / kInserts : proc.editorState.track) + 1);
-    // skip the inserts of tracks the song doesn't have
-    if (fxSlot < kTrackSlots && fxSlot / kInserts >= proc.song.numTracks)
-        fxSlot = slot > fxSlot ? kTrackSlots : trackSlot (proc.song.numTracks - 1, kInserts - 1);
+    learnTrackBox.setValue ((isTrackSlot (fxSlot) ? trackOfSlot (fxSlot) : proc.editorState.track) + 1);
+    // skip the inserts of tracks the song doesn't have (to the first send's)
+    if (isTrackSlot (fxSlot) && trackOfSlot (fxSlot) >= proc.song.numTracks) fxSlot = returnSlot (0, 0);
     effectReturn = currentPage == Page::Channel ? Page::Channel : (currentPage == Page::Effect ? effectReturn : Page::Strips);
     currentPage = Page::Effect;
     updateVisibility();
@@ -1257,8 +1271,12 @@ void MixerPage::updateVisibility()
     prevBtn.setVisible (! strip && ! insPage && ! mods);
     nextBtn.setVisible (! strip && ! insPage && ! mods);
     const int nt = proc.song.numTracks;
+    if (nt <= 8) stripPage = 0;
+    stripPageBtn.setVisible (strip && nt > 8);
+    stripPageBtn.setButtonText (stripPage == 0 ? "TRACKS 9-" + juce::String (nt) + " " + juce::String::charToString ((juce::juce_wchar) 1)
+                                               : juce::String::charToString ((juce::juce_wchar) 8) + " TRACKS 1-8");
     for (int i = 0; i < (int) strips.size(); ++i)
-        strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || i < nt));
+        strips[(size_t) i]->setVisible (strip && (i >= kMixTracks || stripShown (i)));
     eqGraph.setVisible (ch);
     if (! fx) { instSpectrum.setVisible (false); instSpectrum.setInstrument (-1); }
     for (auto* c : std::initializer_list<juce::Component*> { &ptType, &ptOn, &ptRemove, &eqSpecBtn, &ptFreq, &ptGain, &ptQ, &eqFlatBtn })
@@ -1287,7 +1305,7 @@ void MixerPage::refresh()
     const int nt = proc.song.numTracks;
     if (currentPage == Page::Strips)
         for (int i = 0; i < kMixTracks; ++i)
-            if (strips[(size_t) i]->isVisible() != (i < nt)) { updateVisibility(); break; }
+            if (strips[(size_t) i]->isVisible() != stripShown (i)) { updateVisibility(); break; }
     if (currentPage == Page::Channel && chTrack >= nt) chTrack = 0;
 
     for (auto& s : strips) if (s->isVisible()) s->refresh();
@@ -1918,6 +1936,7 @@ void MixerPage::resized()
         modsBtn.setBounds (head.removeFromRight (charsW (10))); head.removeFromRight (gap);
         lowEndBtn.setBounds (head.removeFromRight (charsW (13))); head.removeFromRight (gap);
         duckBtn.setBounds (head.removeFromRight (charsW (7))); head.removeFromRight (gap);
+        if (stripPageBtn.isVisible()) { stripPageBtn.setBounds (head.removeFromRight (charsW (12))); head.removeFromRight (gap); }
     }
     else
     {
@@ -2033,6 +2052,14 @@ void MixerPage::paintLowEnd (juce::Graphics& g)
         PixelFont::drawLeft (g, juce::String (l.title), row.removeFromLeft (titleW), px, pal.ink);
         PixelFont::drawLeft (g, fit (juce::String (l.detail), row.getWidth()), row, px, pal.ink);
     }
+}
+
+// (v0.94) more than 8 tracks: the strips page shows 8 of them at a time (TRACKS 9-16 / TRACKS 1-8)
+bool MixerPage::stripShown (int track) const
+{
+    const int nt = proc.song.numTracks;
+    if (track < 0 || track >= nt) return false;
+    return nt <= 8 || track / 8 == stripPage;
 }
 
 void MixerPage::layoutStrips (juce::Rectangle<int> r)

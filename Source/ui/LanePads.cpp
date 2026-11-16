@@ -11,11 +11,11 @@ ArrangeLane::ArrangeLane (PaulaProcessor& p) : proc (p)
 
 float ArrangeLane::colW() const    { return PixelFont::textWidth ("0000000", Theme::px); }   // (room for a short section name)
 float ArrangeLane::headerH() const { return PixelFont::textHeight (Theme::px) * 2 + Theme::px * 4; }   // (section names over position numbers)
-int ArrangeLane::tracksShown() const { return juce::jlimit (1, 8, proc.song.numTracks); }
+int ArrangeLane::tracksShown() const { return juce::jlimit (1, kMaxTracks, proc.song.numTracks); }
 
 int ArrangeLane::preferredHeight() const
 {
-    return (int) std::ceil (headerH() + (float) tracksShown() * Theme::px * 5.0f + Theme::px * 2);
+    return (int) std::ceil (headerH() + (float) std::min (tracksShown(), 8) * Theme::px * 5.0f + Theme::px * 2);   // (more than 8: thinner rows)
 }
 
 int ArrangeLane::visibleColumns() const

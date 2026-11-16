@@ -33,6 +33,7 @@ void MixerSettings::initReturns()
 FxSlot& MixerSettings::slot (int i)
 {
     if (i < kTrackSlots) return ch[i / kInserts].inserts[i % kInserts];
+    if (i >= kExtraTrackSlots) { const int j = std::min (i - kExtraTrackSlots, (kMixTracks - kOldMixTracks) * kInserts - 1); return ch[kOldMixTracks + j / kInserts].inserts[j % kInserts]; }
     if (i >= kMixerSlots)
     {
         const int j = std::min (i - kMixerSlots, kInstrumentSlots - 1);

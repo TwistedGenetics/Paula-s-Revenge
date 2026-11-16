@@ -59,7 +59,7 @@ struct Theme
         juce::Colour washA, washB;
         juce::Colour bg, text, dim, stripe, band, cursor, cursorEdge, rule, hot, specBar;
         juce::Colour accentSel, accentMod, accentRec;
-        juce::Colour track[8];
+        juce::Colour track[16];   // (9-16 the same as 1-8)
     };
     static Skin skin;
     static void setSkin (bool dark);         // WORKBENCH or DARK

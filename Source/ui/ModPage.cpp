@@ -256,7 +256,7 @@ void ModPage::showTargetMenu()
     {
         const auto& s = proc.song.mixer.slot (slot);
         if (s.type == FxType::None) continue;
-        if (slot < kTrackSlots && slot / kInserts >= proc.song.numTracks) continue;
+        if (isTrackSlot (slot) && trackOfSlot (slot) >= proc.song.numTracks) continue;
         ++listed;
         const juce::String owner = MixerPage::slotOwner (slot) + " INSERT " + juce::String (slot % kInserts + 1) + ": "
                                  + (s.type == FxType::Plugin ? juce::String (s.pluginName).toUpperCase() : juce::String (fxName (s.type)));
