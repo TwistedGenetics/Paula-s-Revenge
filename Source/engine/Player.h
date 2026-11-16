@@ -9,6 +9,7 @@
 #include "DelayLine.h"
 #include "Blep.h"
 #include <atomic>
+#include <array>
 
 namespace prv
 {
@@ -141,6 +142,13 @@ public:
     struct PlayPos { bool playing = false; int seqPos = 0, block = 0; double line = 0; int speed = 6;
                      int pass = 0; };   // pass: +1 each time playback goes back (the song's end, a looping block, loop lines)
     PlayPos playPos() const;
+    // (v0.93) a note recorded live and QUANTISEd onto a line playback hasn't reached yet: it was heard as it was played,
+    // so that cell doesn't trigger again when playback gets there this time round (once; any thread)
+    void skipOnce (int track, int block, int line)
+    {
+        if (track >= 0 && track < kMaxTracks) skipCell[track].store (block * 1024 + line + 1, std::memory_order_relaxed);
+    }
+    std::array<std::atomic<int>, kMaxTracks> skipCell {};
 
     // Live note preview (keyboard / MIDI). Uses its own voices. start/end
     // (in samples) limit playback to a region; loopRegion loops it.

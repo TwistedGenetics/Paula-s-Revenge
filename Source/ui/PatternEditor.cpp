@@ -697,7 +697,7 @@ void PatternEditor::tick()
         if (onInputNote && onInputNote (in.note, in.on)) continue;   // (RECORD CHORD on the CHORDS page)
         if (! in.on) { recordRelease (in.note, in.pos); continue; }
         if (! st.editMode) continue;
-        recordNote (in.note, in.timeMs);
+        recordNote (in.note, in.timeMs, &in.pos);
     }
 
     const float oldTop = viewTop;
@@ -1513,7 +1513,8 @@ void PatternEditor::enterNote (int note)
     proc.withLock ([&] { proc.player.jamNoteOn (note, st.instrument); });
     proc.keyNoteInput (note, true);
     if (! st.editMode) return;
-    recordNote (note, juce::Time::getMillisecondCounterHiRes());
+    const auto now = proc.player.playPos();
+    recordNote (note, juce::Time::getMillisecondCounterHiRes(), &now);
 }
 
 void PatternEditor::padDown()
@@ -1537,10 +1538,23 @@ void PatternEditor::padUp()
 bool PatternEditor::detectChords()        { return prv::prefs().getBoolValue ("detectChords", true); }
 void PatternEditor::setDetectChords (bool on) { prv::prefs().setValue ("detectChords", on); }
 
-void PatternEditor::recordNote (int note, double timeMs)
+void PatternEditor::recordNote (int note, double timeMs, const Player::PlayPos* at)
 {
     note = juce::jlimit (1, (int) kNoteMax, note);
     const int blk = proc.song.safeBlock (st.block);
+    // (v0.93) QUANTISE, recording while playing: onto the nearest line (or every 2nd / 4th / 8th) of the block playing -
+    // a note hit a little early lands on the beat it was meant for, not the line before (OFF: the line playing, as before)
+    if (at != nullptr && at->playing && proc.song.safeBlock (at->block) == blk && captureQuantise() > 0)
+    {
+        const int q = captureQuantise();
+        const int snapped = (int) std::lround (at->line / q) * q;
+        if (snapped >= 0 && snapped < proc.song.blocks[(size_t) blk].lines)
+        {
+            st.line = snapped;
+            // ahead of playback: heard already, so not played again when playback gets there
+            if (snapped > (int) std::floor (at->line)) proc.player.skipOnce (st.track, blk, snapped);
+        }
+    }
     // recording while playing: an OFF just written on this track, on this line (or just before) -
     // the new note ends the old one anyway, and the OFF would only overlap it, so it goes (step
     // entry's OFFs are asked for, and stay)

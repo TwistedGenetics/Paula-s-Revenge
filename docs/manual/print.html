@@ -161,7 +161,7 @@ footer { display: none; }
 </style>
 
 <div class="cover">
-  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.92</span></header>
+  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.93</span></header>
   <div class="tracks"><div class="t1"></div><div class="t2"></div><div class="t3"></div><div class="t4"></div></div>
   <div class="raised big">USER MANUAL<br>AN 8-TRACK AMIGA-STYLE SAMPLE TRACKER<br>FOR JUNGLE, DRUM &amp; BASS AND BREAKS</div>
   <figure><div class="frame sunken"><img src="img/main.png" alt="The main screen" width="1440" height="900"></div><figcaption>The main screen, light skin</figcaption></figure>
@@ -260,7 +260,7 @@ footer { display: none; }
       <tr><td>A CHORDS slot</td><td>Copy, paste, clear (all the picked slots), colour, play, record chords, note</td></tr>
       <tr><td>Any level meter: the bar at the right of each track, the L / R meter, the mixer's meters</td><td>Their colour, one for all of them: green, amber, cyan, red, blue, pink, cream / black, or each track's colour (kept for next time)</td></tr>
       <tr><td>The spectrum strip</td><td>Its colour: the same choices, or rainbow (the track colours, as it starts)</td></tr>
-      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture, NOTE-OFFS, FULL VEL, FOLLOW INSTRUMENT, CAPTURE QUANTISE</td></tr>
+      <tr><td><span class="b">EDIT</span></td><td>Recording: note-offs in step entry, detect chords, capture, NOTE-OFFS, FULL VEL, FOLLOW INSTRUMENT, QUANTISE</td></tr>
       <tr><td><span class="b">DARK</span></td><td>The skins, and CRT</td></tr>
       <tr><td>A HELP page</td><td>Copy the chapter, or all of HELP</td></tr>
     </tbody>
@@ -452,7 +452,7 @@ footer { display: none; }
   <p>The app is always listening to the MIDI keyboard and the laptop keys, even with EDIT off &mdash; the last two minutes. Noodle away; if you like what you played, press <span class="b">CAPTURE</span> in the title bar or <kbd>Cmd</kbd><kbd>R</kbd> (or <span class="b">Capture What I Played</span> in the View menu, or right-click <span class="b">EDIT</span>) and it is written into the pattern, one undo step.</p>
   <ul>
     <li>Played while the song or block was playing: the notes go where they were played, snapped to the grid.</li>
-    <li><b>CAPTURE QUANTISE</b> (right-click <span class="b">EDIT</span> &rarr; <span class="b">CAPTURE QUANTISE...</span>; remembered) sets the grid. <span class="b">EVERY LINE</span> (to start with) puts each note straight on the nearest line, with no <code>Mxx</code>. <span class="b">EVERY 2</span>, <span class="b">4</span> or <span class="b">8 LINES</span> snaps to a coarser grid, counted from the top of the block. <span class="b">OFF (AS PLAYED)</span> keeps your timing: notes more than a third of a tick early or late get an <code>Mxx</code> micro-move.</li>
+    <li><b>QUANTISE</b> (right-click <span class="b">EDIT</span> &rarr; <span class="b">QUANTISE...</span>; remembered) works for live recording and CAPTURE. <span class="b">EVERY LINE</span> (to start with) puts each note on the nearest line, with no <code>Mxx</code>: a note hit a hair early lands on the beat, not the line before. <span class="b">EVERY 2</span>, <span class="b">4</span> or <span class="b">8 LINES</span> snaps to a coarser grid. A live note snapped ahead of playback isn't played again when playback gets there. <span class="b">OFF</span>: live notes go on the line playing; CAPTURE keeps your timing with <code>Mxx</code>.</li>
     <li><b>One take is one time round.</b> Each time playback goes back to the start (the end of the song, a looping block, the loop lines) a new take begins, so loops never pile up. CAPTURE takes the latest time round that had notes in it: play on the 2nd time round, let it go round 5 more times, and it still writes the 2nd. A note held over the wrap gets its <code>OFF</code> where you let go, early in the block, so it rings over the loop as played.</li>
     <li>Played while stopped: the notes since the last pause of more than 4 seconds go in from the cursor, at the song's tempo.</li>
     <li>Notes start on the cursor's track; held notes spread over the tracks to the right. Chords that match the chord table go in as one note + <code>#xy</code> (see <a href="#chords">Playing chords in</a>). Plug-in and MIDI-out instruments get note-offs (not between legato notes, and none with NOTE-OFFS off).</li>
@@ -1564,7 +1564,7 @@ footer { display: none; }
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.92</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.93</footer>
 </main>
 </div>
 </body></html>

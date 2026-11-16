@@ -217,7 +217,7 @@ public:
     // a PAD: plays the current instrument at C of the octave (EDIT on: written, as a key would be)
     void padDown();
     void padUp();
-    void recordNote (int note, double timeMs);                   // a played note, EDIT on (tests call it too)
+    void recordNote (int note, double timeMs, const Player::PlayPos* at = nullptr);   // a played note, EDIT on (tests call it too); at: where playback was
     void recordRelease (int note, const Player::PlayPos& pos);   // (tests call it too)
     static bool detectChords();                                  // DETECT CHORDS (prefs, on by default)
     static bool followInstrument();                              // FOLLOW INSTRUMENT: a click on a note picks its instrument (prefs, on)

@@ -711,6 +711,11 @@ void Player::processRow()
         if (ch < song->numTracks)
         {
             const Cell& c = b.at (line, ch);
+            if (const int sk = skipCell[(size_t) ch].load (std::memory_order_relaxed); sk != 0)
+            {
+                if (sk == block * 1024 + line + 1) { skipCell[(size_t) ch].store (0, std::memory_order_relaxed); continue; }   // (heard already)
+                else if ((sk - 1) / 1024 != block || (sk - 1) % 1024 < line) skipCell[(size_t) ch].store (0, std::memory_order_relaxed);   // (gone past it)
+            }
             dubLine (ch, c);
             uint8_t chance = 0, cond = 0;
             if (c.has (C_K, chance) && (nextRandom() % 255u) >= chance)

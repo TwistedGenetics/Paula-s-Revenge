@@ -122,6 +122,29 @@ static void testRender()
     }
 }
 
+// (v0.93) a live note QUANTISEd ahead of playback: that cell doesn't play this time round (it was heard as played),
+// and does the next time
+static void testSkipOnce()
+{
+    Song s = makeSong();
+    s.blocks[0].clear();
+    s.blocks[0].lines = 8;
+    s.blocks[0].at (4, 0) = Cell { 37, 1, 0, 0 };
+    s.sequence = { 0 };
+    Player p; p.setSampleRate (48000); p.setSong (&s);
+    p.options.model = PaulaOptions::Model::Clean;
+    p.playBlock (0);
+    p.skipOnce (0, 0, 4);
+    const int lineLen = (int) (48000 * 2.5 / 125 * 6);   // samples a line at 125 BPM, speed 6
+    std::vector<float> L ((size_t) lineLen), R ((size_t) lineLen);
+    auto lineEnergy = [&] { p.render (L.data(), R.data(), lineLen); double e = 0; for (float x : L) e += x * x; return e; };
+    double first = 0, second = 0;
+    for (int l = 0; l < 8; ++l) { const double e = lineEnergy(); if (l >= 4) first += e; }
+    for (int l = 0; l < 8; ++l) { const double e = lineEnergy(); if (l >= 4) second += e; }
+    std::printf ("skip once: lines 4-7 energy %.3f the first time round, %.3f the second\n", first, second);
+    CHECK (first < 1e-6 && second > 0.01);
+}
+
 static void testPitch()
 {
     // A looped 32-sample square at C-3 (period ~214) should be ~16574/32 = 518 Hz
@@ -7413,6 +7436,7 @@ int main()
     testMED();
     testRender();
     testPitch();
+    testSkipOnce();
     testModRoundTrip();
     test8SVX();
     testFuzz();

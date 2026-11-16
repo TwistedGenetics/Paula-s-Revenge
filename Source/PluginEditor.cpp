@@ -210,7 +210,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
                                            prv::ui::PatternEditor::recordNoteOffs() ? "NOTE-OFFS: ON (TURN OFF - NO OFFS RECORDED AT ALL)" : "NOTE-OFFS: OFF (TURN ON)",
                                            proc.fullVelocity.load() ? "FULL VEL: ON (TURN OFF - USE THE KEYBOARD'S VELOCITY)" : "FULL VEL: OFF (TURN ON - EVERY NOTE AT 127)",
                                            prv::ui::PatternEditor::followInstrument() ? "FOLLOW INSTRUMENT: ON (TURN OFF)" : "FOLLOW INSTRUMENT: OFF (TURN ON)",
-                                           "CAPTURE QUANTISE: " + quantiseName (prv::ui::PatternEditor::captureQuantise()) + " (CHANGE...)" },
+                                           "QUANTISE: " + quantiseName (prv::ui::PatternEditor::captureQuantise()) + " (CHANGE...)" },
                      [safe] (int a)
         {
             if (safe == nullptr) return;
@@ -1471,9 +1471,9 @@ void PaulaEditor::chooseCaptureQuantise()
     juce::StringArray items;
     const int cur = prv::ui::PatternEditor::captureQuantise();
     for (int q : qs) items.add ((q == cur ? "> " : "") + quantiseName (q)
-                                + (q == 0 ? " - OFF-BEAT NOTES GET MXX MICRO-MOVES" : " - NO MICRO-MOVES"));
+                                + (q == 0 ? " - CAPTURE KEEPS YOUR TIMING (MXX)" : ""));
     juce::Component::SafePointer<PaulaEditor> safe (this);
-    choice.show (*this, "CAPTURE QUANTISE", items, [safe] (int a)
+    choice.show (*this, "QUANTISE: LIVE RECORDING AND CAPTURE SNAP NOTES TO", items, [safe] (int a)
     {
         if (safe == nullptr || a < 0 || a >= 5) return;
         safe->setCaptureQuantise (qs[a]);
@@ -1502,8 +1502,8 @@ void PaulaEditor::setGridLines (int g)
 void PaulaEditor::setCaptureQuantise (int q)
 {
     prv::ui::PatternEditor::setCaptureQuantise (q);
-    setStatus (q > 0 ? "CAPTURE QUANTISE: " + quantiseName (q) + " - NOTES SNAP STRAIGHT ONTO THE GRID, NO MXX"
-                     : juce::String ("CAPTURE QUANTISE OFF: NOTES GO IN AS PLAYED, WITH MXX MICRO-MOVES FOR OFF-BEAT ONES"));
+    setStatus (q > 0 ? "QUANTISE: " + quantiseName (q) + " - LIVE RECORDING AND CAPTURE PUT NOTES ON THE NEAREST ONE, NO MXX"
+                     : juce::String ("QUANTISE OFF: LIVE NOTES GO ON THE LINE PLAYING; CAPTURE KEEPS YOUR TIMING WITH MXX MICRO-MOVES"));
 }
 
 int PaulaEditor::captureNow()
