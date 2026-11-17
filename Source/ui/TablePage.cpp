@@ -238,8 +238,8 @@ void TablePage::applyPreset (int i)
 }
 
 // ---- drawing
-float TablePage::textPx() const { return Theme::px * 1.5f; }
-float TablePage::rowH() const { return textPx() * 10.0f; }
+float TablePage::textPx() const { return gridPx > 0 ? gridPx : Theme::px * 1.5f; }
+float TablePage::rowH() const { return gridRowH > 0 ? gridRowH : textPx() * 10.0f; }
 
 juce::Rectangle<float> TablePage::cellRect (int r, int c) const
 {
@@ -329,29 +329,29 @@ void TablePage::paint (juce::Graphics& g)
     // the help for the cursor's cell
     Theme::panelBox (g, helpArea, "ROW " + hx (row) + " " + juce::String (heads[col]), pal);
     auto h = helpArea.reduced (px * 4).withTrimmedTop (px * 10);
-    const auto words = juce::StringArray::fromTokens (helpFor(), " ", "");
-    juce::String lineText;
     const float lineH = PixelFont::textHeight (px) + px * 4;
-    for (const auto& w : words)
+    auto para = [&] (const juce::String& text)
     {
-        const auto trial = lineText.isEmpty() ? w : lineText + " " + w;
-        if (PixelFont::textWidth (trial, px) > h.getWidth() && lineText.isNotEmpty())
+        // word-wrapped to the box (never cut short): what doesn't fit below is left out whole
+        juce::String lineText;
+        for (const auto& w : juce::StringArray::fromTokens (text, " ", ""))
         {
-            PixelFont::drawLeft (g, lineText, h.removeFromTop (lineH), px, pal.ink);
-            lineText = w;
+            const auto trial = lineText.isEmpty() ? w : lineText + " " + w;
+            if (PixelFont::textWidth (trial, px) > h.getWidth() && lineText.isNotEmpty())
+            {
+                if (h.getHeight() >= lineH) PixelFont::drawLeft (g, lineText, h.removeFromTop (lineH), px, pal.ink);
+                lineText = w;
+            }
+            else lineText = trial;
         }
-        else lineText = trial;
-    }
-    if (lineText.isNotEmpty()) PixelFont::drawLeft (g, lineText, h.removeFromTop (lineH), px, pal.ink);
-    h.removeFromTop (lineH);
-    for (const juce::String s : { juce::String ("ON: EVERY NOTE OF THE INSTRUMENT PLAYS WITH IT"),
-                                  juce::String ("$XX IN THE PATTERN: A NOTE WITH INSTRUMENT XX'S TABLE"),
-                                  juce::String ("SPEED: TICKS A ROW (0 = A LINE)"),
-                                  juce::String ("DELETE CLEARS A CELL; ARROWS MOVE") })
-    {
-        if (h.getHeight() < lineH) break;
-        PixelFont::drawLeft (g, s, h.removeFromTop (lineH), px, pal.ink);
-    }
+        if (lineText.isNotEmpty() && h.getHeight() >= lineH) PixelFont::drawLeft (g, lineText, h.removeFromTop (lineH), px, pal.ink);
+        if (h.getHeight() >= lineH) h.removeFromTop (lineH * 0.5f);
+    };
+    para (helpFor());
+    para ("ON: EVERY NOTE OF THE INSTRUMENT PLAYS WITH ITS TABLE.");
+    para ("$XX IN THE PATTERN: THAT NOTE PLAYS WITH INSTRUMENT XX'S TABLE.");
+    para ("SPEED: TICKS A ROW (0 = A ROW A LINE).");
+    para ("DELETE CLEARS A CELL. ARROWS MOVE. SPACE PLAYS.");
 }
 
 void TablePage::resized()
@@ -380,7 +380,9 @@ void TablePage::resized()
     auto playRow = r.removeFromBottom (rH);
     playBtn.setBounds (playRow.removeFromLeft (charsW (14)));
     r.removeFromBottom (gap * 2);
-    // the grid on the left (as tall as 16 rows and a heading allow), the help on the right
+    // the grid on the left: its text as big as lets all 16 rows and the heading fit (up to 1.5x), the help on the right
+    gridRowH = std::min (Theme::px * 15.0f, ((float) r.getHeight() - px * 4) / (float) (kTableRows + 1));
+    gridPx = std::max (Theme::px, std::min (Theme::px * 1.5f, gridRowH / 9.0f));
     const float tp = textPx();
     const float gridW = tp * 6 * 23 + tp * 4;
     const float needH = rowH() * (kTableRows + 1) + px * 4;

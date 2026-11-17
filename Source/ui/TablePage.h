@@ -54,6 +54,7 @@ private:
     int  shownRow = -1;            // the row playing, as drawn
     InstrumentTable clip;          // COPY / PASTE
     bool hasClip = false;
+    float gridPx = 0, gridRowH = 0;   // (set in resized: the grid's text size and row height, so all 16 rows fit)
     float textPx() const;
     float rowH() const;
     InstrumentTable& table();
