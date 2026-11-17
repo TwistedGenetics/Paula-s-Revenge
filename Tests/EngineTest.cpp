@@ -2002,6 +2002,15 @@ static void testSlices()
     in.sliceKeys = false;
     const auto sx = level ({ 37, 1, cmdLetter ('S'), 0x01 });
     CHECK (std::abs (sx.first / s1.first - 2.0) < 0.1 && std::abs (sx.second - 1000) <= 20);
+    // (v0.98) PLAY THRU: S01 starts at slice 2 and plays on to the end (3000 samples, not 1000) - SLICE TO KEYS too
+    in.sliceThru = true;
+    const auto thru = level ({ 37, 1, cmdLetter ('S'), 0x01 });
+    in.sliceKeys = true;
+    const auto thruKey = level ({ 39, 1, 0, 0 });   // D-3: slice 3, on to the end (2000)
+    in.sliceKeys = false;
+    in.sliceThru = false;
+    std::printf ("PLAY THRU: S01 level %.3f len %d; D-3 len %d\n", thru.first, thru.second, thruKey.second);
+    CHECK (std::abs (thru.first / s1.first - 2.0) < 0.1 && thru.second >= 2900 && std::abs (thruKey.second - 2000) <= 25);
     // without slice points S still divides into 16
     in.slices.clear();
     const auto s16 = level ({ 37, 1, cmdLetter ('S'), 0x00 });

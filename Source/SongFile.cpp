@@ -16,7 +16,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 35;   // (v35: SXX PARTS; v34: the Mega Synth filters - MODEL, SLOPE, DRIVE, MIX, CHARACTER, NOTCH / PEAK / ALL PASS; v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
+    constexpr int kVersion = 36;   // (v36: PLAY THRU; v35: SXX PARTS; v34: the Mega Synth filters - MODEL, SLOPE, DRIVE, MIX, CHARACTER, NOTCH / PEAK / ALL PASS; v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -566,6 +566,8 @@ juce::MemoryBlock writeSong (const Song& songIn)
     raw.writeFloatBigEndian (song.mixer.duck.depth); raw.writeFloatBigEndian (song.mixer.duck.releaseMs);
     // v35: each instrument's SXX PARTS
     for (const auto& in : song.instruments) raw.writeByte ((char) in.sxxPartCount());
+    // v36: each instrument's PLAY THRU
+    for (const auto& in : song.instruments) raw.writeByte ((char) (in.sliceThru ? 1 : 0));
 
     juce::MemoryOutputStream packed;
     {
@@ -1278,6 +1280,12 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             if (in.isExhausted()) break;
             ins.sxxParts = (int) (uint8_t) in.readByte();
             ins.sxxParts = ins.sxxPartCount();
+        }
+    if (version >= 36 && ! in.isExhausted())
+        for (auto& ins : s.instruments)
+        {
+            if (in.isExhausted()) break;
+            ins.sliceThru = (in.readByte() & 1) != 0;
         }
     if (version < 13)
     {

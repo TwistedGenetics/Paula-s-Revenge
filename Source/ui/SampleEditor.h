@@ -94,6 +94,8 @@ public:
     // or the waveform's right-click menu)
     void setSxxParts (int parts);
     void showSxxMenu();
+    // (v0.98) PLAY THRU on / off: slices and Sxx parts play on to END (one undo step)
+    void setPlayThru (bool on);
     int  sxxTagAt (juce::Point<float>) const;   // the Sxx tag under the mouse (-1: none)
 
 private:
@@ -143,7 +145,7 @@ private:
 
     // slicer panel (replaces the button rows while open)
     PixButton slAuto { "AUTO" }, slEven { "EVEN" }, slAdd { "ADD AT CURSOR" }, slRemove { "REMOVE" }, slClear { "CLEAR ALL" },
-              slKeys { "SLICE TO KEYS", true }, slPlay { "PLAY SLICE" }, slSxx { "SXX: 16 PARTS" }, slDone { "DONE" };
+              slKeys { "SLICE TO KEYS", true }, slPlay { "PLAY SLICE" }, slSxx { "SXX: 16 PARTS" }, slThru { "PLAY THRU", true }, slDone { "DONE" };
     NumberBox slSens { "SENS", 1, 100, 50 }, slCount { "COUNT", 2, 64, 8 };
     std::vector<juce::Component*> slicerControls();
     juce::Rectangle<float> slicerInfoArea, slicerHelpArea;

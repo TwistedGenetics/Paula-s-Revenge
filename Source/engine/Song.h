@@ -266,6 +266,9 @@ struct Instrument
     // (v0.97) SXX PARTS: with no slice points, Sxx plays one of this many equal parts of START..END - 16 (a bar of 16ths
     // on a one-bar break), 32, 48 or 64 (four bars of 16ths: S00..S3F). Sxx past the last part goes round again.
     int  sxxParts = 16;
+    // (v0.98) PLAY THRU: a slice (SLICE TO KEYS, Sxx) or an Sxx part starts at its point but plays on to END - and round
+    // the loop if there is one - instead of stopping at the slice's end
+    bool sliceThru = false;
     int  sxxPartCount() const { return sxxParts == 32 || sxxParts == 48 || sxxParts == 64 ? sxxParts : 16; }
     bool layered() const { return layerFrom >= 0 && layerTrack >= 0 && layerFrom != layerTrack; }
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range

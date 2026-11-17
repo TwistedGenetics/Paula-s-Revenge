@@ -154,6 +154,8 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     slClear.onClick  = [this] { clearSlices(); };
     slKeys.onClick   = [this] { setSliceKeys (slKeys.getToggleState()); };
     slSxx.onClick    = [this] { showSxxMenu(); };
+    slThru.setClickingTogglesState (false);
+    slThru.onClick   = [this] { setPlayThru (! inst().sliceThru); };
     slPlay.onClick   = [this] { selectSlice (selectedSlice >= 0 ? selectedSlice : std::max (0, sliceAt (cursor)), true); };
     slDone.onClick   = [this] { showSlicer (false); };
     for (auto* c : slicerControls()) addChildComponent (c);
@@ -250,6 +252,7 @@ void SampleEditor::syncLoopControls()
     loopEndBox.setEnabled (in.isLooped());
     slKeys.setToggleState (in.sliceKeys, juce::dontSendNotification);
     slSxx.setButtonText ("SXX: " + juce::String (in.sxxPartCount()) + " PARTS");
+    slThru.setToggleState (in.sliceThru, juce::dontSendNotification);
 }
 
 void SampleEditor::clampView()
@@ -528,7 +531,7 @@ std::vector<juce::Component*> SampleEditor::mainControls()
 
 std::vector<juce::Component*> SampleEditor::slicerControls()
 {
-    return { &slAuto, &slSens, &slEven, &slCount, &slAdd, &slRemove, &slClear, &slKeys, &slPlay, &slSxx, &slDone };
+    return { &slAuto, &slSens, &slEven, &slCount, &slAdd, &slRemove, &slClear, &slKeys, &slPlay, &slSxx, &slThru, &slDone };
 }
 
 std::vector<juce::Component*> SampleEditor::stretchControls()
@@ -623,10 +626,11 @@ void SampleEditor::resized()
 
     // slicer panel uses the same space too (help text on rows 0, 1 and 5)
     slicerInfoArea = rows[0].toFloat().getUnion (rows[1].toFloat());
-    slicerHelpArea = rows[5].toFloat().getUnion (rows[6].toFloat());
+    slicerHelpArea = rows[6].toFloat();   // (row 5: SXX PARTS and PLAY THRU)
     layoutRow (rows[2], { &slAuto, &slSens, &slEven, &slCount });
     layoutRow (rows[3], { &slAdd, &slRemove, &slClear });
-    layoutRow (rows[4], { &slKeys, &slPlay, &slSxx });
+    layoutRow (rows[4], { &slKeys, &slPlay });
+    layoutRow (rows[5], { &slSxx, &slThru });
     layoutRow (rows[7], { &slDone });
 
     auto area = inner.toFloat();
@@ -930,12 +934,12 @@ void SampleEditor::paint (juce::Graphics& g)
 
     if (slicerOpen)
     {
-        const juce::String t1 = juce::String (in.numSlices()) + " SLICES" + (in.sliceKeys ? " - KEYS PLAY SLICES (C-3 = 1)" : " - S00 PLAYS SLICE 1");
+        const juce::String t1 = juce::String (in.numSlices()) + " SLICES" + (in.sliceKeys ? " - KEYS PLAY SLICES (C-3 = 1)" : " - S00 PLAYS SLICE 1") + (in.sliceThru ? " - THRU" : "");
         const juce::String t2 = "DRAG A NUMBERED TAB TO MOVE IT";
-        const juce::String t3 = "DOUBLE-CLICK THE WAVE TO ADD";
-        const juce::String t4 = "ALT+CLICK A TAB TO REMOVE IT";
+        const juce::String t3 = "DOUBLE-CLICK ADDS, ALT+CLICK A TAB REMOVES";
+        const juce::String t4;
         auto r1 = slicerInfoArea.withHeight (slicerInfoArea.getHeight() / 2), r2 = slicerInfoArea.withTrimmedTop (slicerInfoArea.getHeight() / 2);
-        auto r3 = slicerHelpArea.withHeight (slicerHelpArea.getHeight() / 2), r4 = slicerHelpArea.withTrimmedTop (slicerHelpArea.getHeight() / 2);
+        auto r3 = slicerHelpArea, r4 = juce::Rectangle<float>();
         for (auto [t, r] : { std::pair { t1, r1 }, std::pair { t2, r2 }, std::pair { t3, r3 }, std::pair { t4, r4 } })
         {
             float tp = px;
@@ -1026,6 +1030,8 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
             { "FADE IN", click (&SampleEditor::fadeInBtn) }, { "FADE OUT", click (&SampleEditor::fadeOutBtn) },
             { "SET LOOP", click (&SampleEditor::loopSelBtn) }, { "SELECT ALL", click (&SampleEditor::selAllBtn) },
             { "SXX: " + juce::String (inst().sxxPartCount()) + " PARTS...", [safe] { if (safe != nullptr) safe->showSxxMenu(); } },
+            { juce::String (inst().sliceThru ? "PLAY THRU: ON (SLICES PLAY ON TO END) - TURN OFF" : "PLAY THRU: OFF (SLICES STOP AT THEIR END) - TURN ON"),
+              [safe] { if (safe != nullptr) safe->setPlayThru (! safe->inst().sliceThru); } },
         });
         return;
     }
@@ -1862,5 +1868,14 @@ void SampleEditor::showSxxMenu()
     {
         if (safe != nullptr && a >= 0 && a < 4) safe->setSxxParts (counts[a]);
     });
+}
+
+void SampleEditor::setPlayThru (bool on)
+{
+    editInPlace (on ? "PLAY THRU ON" : "PLAY THRU OFF", false, [on] (Instrument& in) { in.sliceThru = on; });
+    slThru.setToggleState (on, juce::dontSendNotification);
+    repaint();
+    if (onStatus) onStatus (on ? "PLAY THRU ON: A SLICE OR SXX STARTS AT ITS POINT AND PLAYS ON TO THE END"
+                               : juce::String ("PLAY THRU OFF: A SLICE OR SXX STOPS AT ITS END"));
 }
 } // namespace prv::ui

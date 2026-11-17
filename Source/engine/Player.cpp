@@ -587,6 +587,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
         v.note = std::clamp (37 + in.transpose, 1, (int) kNoteMax);
         v.period = v.outPeriod = periodFor (v.note, v.finetune);
         v.regionStart = a; v.regionEnd = b; v.pos = a;
+        if (in.sliceThru) v.regionStart = v.regionEnd = -1;   // (PLAY THRU: on to END)
     }
     else if (start >= 0 && start < len)
     {
@@ -896,6 +897,8 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
         }
         v.pos = v.regionStart;
     }
+    // (v0.98) PLAY THRU: a slice / Sxx part starts at its point and plays on to END (and the loop), not stopping at its end
+    if ((keySlice >= 0 || cell.has (C_S, p)) && in.sliceThru && v.regionStart >= 0) { v.pos = v.regionStart; v.regionStart = v.regionEnd = -1; }
     if (cell.has (C_X, p) && (p >> 4) == 3 && (p & 15))
         v.pos = lo + std::floor ((nextRandom() % 1000u) / 1000.0 * (p & 15) / 16.0 * (hi - lo));
     if (cell.has (C_U, p) && (p & 1))
