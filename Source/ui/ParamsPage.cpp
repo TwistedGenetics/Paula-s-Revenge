@@ -511,7 +511,8 @@ void ParamsPage::refresh()
     const bool more = in.filter == FilterType::Notch || in.filter == FilterType::Peak || in.filter == FilterType::AllPass;
     fMore.setToggleState (more, juce::dontSendNotification);
     fMore.setButtonText (in.filter == FilterType::Notch ? "NOTCH" : in.filter == FilterType::Peak ? "PEAK" : in.filter == FilterType::AllPass ? "ALL P" : "MORE");
-    modelBtn.setButtonText ("MODEL: " + juce::String (filterModelName (in.filterModel)));
+    modelName = juce::String (filterModelName (in.filterModel));
+    fitModelText();
     const bool mega = usesMegaFilter (in, in.filter), charM = filterIsCharModel (in.filterModel);
     const auto ty = in.filter == FilterType::Off ? FilterType::LowPass : in.filter;
     int sl = juce::jlimit (0, 3, in.filterSlope);
@@ -647,6 +648,7 @@ void ParamsPage::resized()
         auto mrow = in.removeFromTop (rowH); in.removeFromTop (gap * 2);
         slopeBtn.setBounds (mrow.removeFromRight (std::max (w, (int) (PixelFont::textWidth ("24 DB", px) + px * 6)))); mrow.removeFromRight (gap);
         modelBtn.setBounds (mrow);
+        fitModelText();
         in = stack (in, { &cutoff, &reso });
         auto half = [&] (PixSlider& a, PixSlider& b)
         {
@@ -783,5 +785,15 @@ bool ParamsPage::keyStateChanged (bool)
         else ++it;
     }
     return false;
+}
+} // namespace prv::ui
+
+namespace prv::ui
+{
+// "MODEL: SWITCHED CAPACITOR" when it fits, just the model's name when it doesn't (never cut short)
+void ParamsPage::fitModelText()
+{
+    const juce::String full = "MODEL: " + modelName;
+    modelBtn.setButtonText (modelBtn.getWidth() <= 0 || PixelFont::textWidth (full, Theme::px) + Theme::px * 6 <= (float) modelBtn.getWidth() ? full : modelName);
 }
 } // namespace prv::ui

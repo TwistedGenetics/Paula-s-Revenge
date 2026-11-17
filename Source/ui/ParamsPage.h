@@ -83,6 +83,8 @@ private:
     // (v0.96) the Mega Synth filters: NOTCH / PEAK / ALL PASS, the MODEL, its SLOPE, DRIVE, MIX and CHARACTER
 public:
     PixButton fMore { "MORE", true }, modelBtn { "MODEL: PAULA SVF" }, slopeBtn { "12 DB" };
+    juce::String modelName { "PAULA SVF" };
+    void fitModelText();
     PixSlider fDrive { "DRV" }, fMix { "MIX" }, fChar { "CHR" };
     void setFilterModel (int model);   // (tests too)
     void showModelMenu();
