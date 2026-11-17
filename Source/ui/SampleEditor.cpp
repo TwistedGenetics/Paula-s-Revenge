@@ -813,6 +813,11 @@ void SampleEditor::paint (juce::Graphics& g)
             const double lo = in.rangeStart(), hi = in.rangeEnd();
             const int parts = in.sxxPartCount();
             const float h = px * 9;
+            // the tags every 1, 2, 4, 8 or 16 parts - whichever is the first to fit - so they land on beats and bars
+            const float tagW = PixelFont::textWidth ("S00", px) + px * 4;
+            const float partW = (float) (sampleToX (lo + (hi - lo) / parts) - sampleToX (lo));
+            int step = 1;
+            while (step < 16 && partW * step < tagW) step *= 2;
             float lastRight = -1e9f;
             for (int k = 0; k < parts; ++k)
             {
@@ -822,7 +827,7 @@ void SampleEditor::paint (juce::Graphics& g)
                 if (k > 0) g.fillRect (x - 0.5f, waveArea.getY(), std::max (1.0f, px * (k % 16 == 0 ? 0.75f : 0.5f)), waveArea.getHeight());
                 const juce::String label = "S" + juce::String::toHexString (k).toUpperCase().paddedLeft ('0', 2);
                 const float w = PixelFont::textWidth (label, px) + px * 3;
-                if (x < lastRight || x + w > waveArea.getRight()) continue;   // no room for its number
+                if (k % step != 0 || x < lastRight || x + w > waveArea.getRight()) continue;   // no room for its number
                 const juce::Rectangle<float> tab (x, waveArea.getBottom() - h, w, h);
                 g.setColour (sk.track[3].withAlpha (0.85f));
                 g.fillRect (tab);
@@ -1838,7 +1843,7 @@ void SampleEditor::setSxxParts (int parts)
     slSxx.setButtonText ("SXX: " + juce::String (parts) + " PARTS");
     repaint();
     if (onStatus)
-        onStatus ("SXX PARTS: " + juce::String (parts) + " - S00 TO S" + juce::String::toHexString (parts - 1).toUpperCase()
+        onStatus ("SXX PARTS: " + juce::String (parts) + " - S00 TO S" + juce::String::toHexString (parts - 1).toUpperCase().paddedLeft ('0', 2)
                   + (inst().numSlices() > 0 ? juce::String (" (WHEN IT HAS NO SLICES)") : juce::String (" - A " + juce::String (parts / 16) + "-BAR BREAK IN 16THS")));
 }
 
@@ -1850,7 +1855,7 @@ void SampleEditor::showSxxMenu()
     static const char* what[] = { "1 BAR OF 16THS", "2 BARS OF 16THS", "3 BARS OF 16THS", "4 BARS OF 16THS" };
     juce::StringArray items;
     for (int i = 0; i < 4; ++i)
-        items.add (juce::String (counts[i]) + " PARTS (" + what[i] + ", S00-S" + juce::String::toHexString (counts[i] - 1).toUpperCase() + ")"
+        items.add (juce::String (counts[i]) + " PARTS (" + what[i] + ", S00-S" + juce::String::toHexString (counts[i] - 1).toUpperCase().paddedLeft ('0', 2) + ")"
                    + (counts[i] == now ? "  - NOW" : ""));
     juce::Component::SafePointer<SampleEditor> safe (this);
     menuHook() ("SXX WITH NO SLICES: HOW MANY PARTS?", items, [safe] (int a)
