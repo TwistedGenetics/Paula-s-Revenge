@@ -889,6 +889,105 @@ private:
     Lfo lfo;
     Smooths<7> sm;
 };
+// ================================================================ PHAT CRUSHER
+// After Camel Audio's CamelCrusher / CamelPhat: TUBE (warm, uneven-harmonic drive) and MECH (a harder, buzzier
+// clip) in series and oversampled, a resonant low-pass (the "analogue filter"), then a one-knob compressor -
+// PHAT makes it slower and heavier with a low-end lift - then VOLUME and MIX (the dry is delayed to line up).
+class PhatCrusherFx : public Effect
+{
+public:
+    void prepare (double s) override
+    {
+        sr = s; sm.setTime (0.03, sr);
+        for (auto& d : dry) d.setMax (64);
+        reset();
+    }
+    void reset() override
+    {
+        for (auto& o : os) o.reset();
+        for (auto& f : svf) f.reset();
+        for (auto& f : dcBlock) f.reset();
+        for (auto& f : low) f.reset();
+        for (auto& d : dry) d.clear();
+        env = 0; sm.unprime();
+    }
+    void process (float* L, float* R, int n, const float* p, double) override
+    {
+        sm[0].set (p[0]); sm[1].set (p[1]); sm[2].set ((float) phatCutoffHz (p[2])); sm[3].set (p[3]); sm[4].set (p[4]);
+        sm[5].set ((float) std::pow (10.0, phatVolumeDb (p[6]) / 20.0)); sm[6].set (p[7]);
+        const bool phat = p[5] > 0.5f;
+        for (auto& f : dcBlock) f.setLowpass (12.0, sr);
+        for (auto& f : low) f.setLowpass (110.0, sr);
+        const float att = (float) std::exp (-1.0 / ((phat ? 0.012 : 0.002) * sr));
+        const float rel = (float) std::exp (-1.0 / ((phat ? 0.25 : 0.12) * sr));
+        for (int k = 0; k < n; ++k)
+        {
+            const float tube = sm[0].next(), mech = sm[1].next(), cut = sm[2].next(), res = sm[3].next(), comp = sm[4].next();
+            const float vol = sm[5].next(), mix = sm[6].next();
+            const float kt = 1.0f + 24.0f * tube * tube, bias = 0.3f * tube;
+            const float km = 1.0f + 60.0f * mech * mech;
+            const float tubeTrim = 1.0f / (1.0f + 2.5f * tube), mechTrim = 1.0f / (1.0f + 2.0f * mech);
+            const float tb0 = std::tanh (bias);
+            const auto crush = [=] (float x)
+            {
+                // TUBE: a biased tanh - its uneven harmonics are the warmth; the offset it makes is taken off after
+                float y = tube > 0.001f ? (std::tanh (kt * x + bias) - tb0) * tubeTrim : x;
+                if (mech > 0.001f)
+                {
+                    // MECH: a hard knee with a little fold over the top - raspy, gated-fuzz edges
+                    const float v = km * y;
+                    const float c = std::clamp (v, -1.0f, 1.0f);
+                    y = (c + 0.25f * mech * std::sin (3.0f * v)) * mechTrim;
+                }
+                return y;
+            };
+            const float g = Svf::gFor (cut, sr), kq = 2.0f - 1.9f * res;
+            float* io[2] = { L + k, R + k };
+            float out[2];
+            for (int c = 0; c < 2; ++c)
+            {
+                const float x = *io[c];
+                dry[c].write (x);
+                float y = os[c].process (x, crush);
+                y = y - dcBlock[c].lp (y);
+                if (cut < 19900.0f || res > 0.01f)
+                {
+                    float lp, bp, hp;
+                    svf[c].tick (y, g, kq, lp, bp, hp);
+                    y = cut >= 19900.0f ? y + (lp - y) * res : lp;   // (wide open: only the resonance's colour)
+                }
+                if (phat) y += 0.8f * low[c].lp (y);   // the low-end lift
+                out[c] = y;
+            }
+            // the one-knob compressor: the threshold falls and the ratio rises as COMPRESS turns up (made up after)
+            if (comp > 0.001f)
+            {
+                const float lvl = std::max (std::abs (out[0]), std::abs (out[1]));
+                env = lvl > env ? lvl + (env - lvl) * att : lvl + (env - lvl) * rel;
+                const float thDb = -30.0f * comp, ratio = 1.0f + (phat ? 9.0f : 5.0f) * comp;
+                const float eDb = 20.0f * std::log10 (std::max (env, 1.0e-6f));
+                const float over = std::max (0.0f, eDb - thDb);
+                const float grDb = -over * (1.0f - 1.0f / ratio);
+                const float makeDb = -thDb * (1.0f - 1.0f / ratio) * 0.5f;
+                const float gg = std::pow (10.0f, (grDb + makeDb) / 20.0f);
+                out[0] *= gg; out[1] *= gg;
+            }
+            for (int c = 0; c < 2; ++c)
+            {
+                const float d = dry[c].readInt (Oversampler2x::kLatency + 1);   // (readInt (1) is the sample just written)
+                *io[c] = d * (1.0f - mix) + out[c] * vol * mix;
+            }
+        }
+    }
+private:
+    double sr = 48000;
+    Oversampler2x os[2];
+    Svf svf[2];
+    OnePole dcBlock[2], low[2];
+    Delay dry[2];
+    float env = 0;
+    Smooths<7> sm;
+};
 } // namespace
 
 std::unique_ptr<Effect> makeStudioEffect2 (FxType t)
@@ -909,6 +1008,7 @@ std::unique_ptr<Effect> makeStudioEffect2 (FxType t)
         case FxType::AutoFilter: return std::make_unique<AutoFilterFx>();
         case FxType::Dimension:  return std::make_unique<DimensionFx>();
         case FxType::Morph:      return std::make_unique<MorphFx>();
+        case FxType::PhatCrusher: return std::make_unique<PhatCrusherFx>();
         default:                 return nullptr;
     }
 }

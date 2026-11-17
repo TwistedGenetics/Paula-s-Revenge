@@ -88,6 +88,8 @@ public:
     void keyNoteOff (int note);
     void setSelKeys (bool on);
     void updateJamRange();
+    // (v0.96) with no slices, the 16 parts Sxx plays (S00..S0F) are drawn faintly over the wave
+    bool showSxx = true;
 
 private:
     PaulaProcessor& proc;

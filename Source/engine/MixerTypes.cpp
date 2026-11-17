@@ -125,7 +125,7 @@ bool MixerSettings::isFlat() const
     if (master.volumeDb != 0.0f) return false;
     for (const auto& s : master.inserts) if (s.active()) return false;
     for (int i = 0; i < kMixInstruments; ++i) if (instrumentChain (i)) return false;
-    if (mods.any() || anyInstMacro()) return false;
+    if (mods.any() || anyInstMacro() || duck.on()) return false;
     return true;   // (returns only hear what's sent to them)
 }
 
@@ -187,6 +187,7 @@ std::string fxName (FxType t)
         case FxType::AutoFilter: return "AUTO-FILTER";
         case FxType::Dimension:  return "DIMENSION";
         case FxType::Morph:      return "MORPH FILTER";
+        case FxType::PhatCrusher: return "PHAT CRUSHER";
         default:                 return "EMPTY";
     }
 }
@@ -220,6 +221,7 @@ std::string fxShortName (FxType t)
         case FxType::AutoFilter: return "AFLT";
         case FxType::Dimension:  return "DIM";
         case FxType::Morph:      return "MRPH";
+        case FxType::PhatCrusher: return "PHAT";
         default:                 return "---";
     }
 }
@@ -268,6 +270,9 @@ const std::vector<FxParamInfo>& fxParams (FxType t)
     static const std::vector<FxParamInfo> dimension { { "MODE", 0.0f }, { "WIDTH", 1.0f }, { "MIX", 1.0f } };
     static const std::vector<FxParamInfo> morphf { { "MODEL", 0.0f }, { "MORPH", 0.3f }, { "FREQ", 0.5f }, { "EMPHASIS", 0.5f }, { "LFO RATE", 0.4f }, { "SYNC", 1.0f, true },
                                                    { "LFO DEPTH", 0.3f }, { "ENV AMOUNT", 0.5f }, { "ENV SPEED", 0.4f }, { "DRIVE", 0.0f }, { "MIX", 1.0f } };
+    // (v0.96) PHAT CRUSHER: after CamelCrusher / CamelPhat - two distortions, a resonant low-pass, a one-knob compressor
+    static const std::vector<FxParamInfo> phat { { "TUBE", 0.3f }, { "MECH", 0.0f }, { "CUTOFF", 1.0f }, { "RES", 0.2f },
+                                                 { "COMPRESS", 0.3f }, { "PHAT", 0.0f, true }, { "VOLUME", 0.75f }, { "MIX", 1.0f } };
     switch (t)
     {
         case FxType::Vast:       return vast;
@@ -288,6 +293,7 @@ const std::vector<FxParamInfo>& fxParams (FxType t)
         case FxType::AutoFilter: return autofilter;
         case FxType::Dimension:  return dimension;
         case FxType::Morph:      return morphf;
+        case FxType::PhatCrusher: return phat;
         case FxType::Filter:     return filter;
         case FxType::Drive:      return drive;
         case FxType::Compressor: return comp;
@@ -305,6 +311,9 @@ void initFxSlot (FxSlot& s, FxType t)
     const auto& ps = fxParams (t);
     for (int i = 0; i < (int) ps.size() && i < kFxParams; ++i) s.p[i] = ps[(size_t) i].def;
 }
+
+double phatCutoffHz (float v) { return 150.0 * std::pow (20000.0 / 150.0, (double) std::clamp (v, 0.0f, 1.0f)); }
+double phatVolumeDb (float v) { return 32.0 * (double) std::clamp (v, 0.0f, 1.0f) - 24.0; }   // -24 .. +8 dB (0 dB at 75%)
 
 double delaySeconds (const float* p, double bpm) { return delaySeconds (p[0], p[1] > 0.5f, bpm); }
 
@@ -336,7 +345,7 @@ std::vector<FxType> fxTypesIn (FxCategory c)
         case FxCategory::Delay:          return { FxType::TapeEcho, FxType::DubDelay, FxType::BbdDelay, FxType::MultiTap, FxType::Grain, FxType::Delay };
         case FxCategory::Modulation:     return { FxType::Ensemble, FxType::Dimension, FxType::Flanger, FxType::Phaser, FxType::Rotary,
                                                   FxType::Tremolo, FxType::FreqShift, FxType::Chorus };
-        case FxCategory::DriveCrush:     return { FxType::Drive };
+        case FxCategory::DriveCrush:     return { FxType::PhatCrusher, FxType::Drive };
         case FxCategory::FilterDynamics: return { FxType::Filter, FxType::AutoFilter, FxType::Morph, FxType::Compressor };
         default:                         return {};
     }
@@ -513,6 +522,14 @@ const std::vector<FxPreset>& fxFactoryPresets (FxType t)
                          { "MODE 3",           FxType::Dimension, { 0.67f, 1.0f, 1.0f } },
                          { "MODE 4",           FxType::Dimension, { 1.00f, 1.0f, 1.0f } } };
     // MORPH FILTER: MODEL (12 models: 0 = AH > EE ... ), MORPH, FREQ, EMPHASIS, LFO RATE, SYNC, LFO DEPTH, ENV AMOUNT, ENV SPEED, DRIVE, MIX
+    //                                                                 TUBE   MECH   CUTOFF RES    COMP   PHAT VOL    MIX
+    static const P phatp { { "WARM BUS",        FxType::PhatCrusher, { 0.25f, 0.00f, 1.00f, 0.10f, 0.35f, 0, 0.75f, 1.00f } },
+                           { "PHAT BREAK",      FxType::PhatCrusher, { 0.40f, 0.10f, 0.90f, 0.15f, 0.55f, 1, 0.72f, 1.00f } },
+                           { "CRUSHED KICK",    FxType::PhatCrusher, { 0.55f, 0.30f, 0.80f, 0.20f, 0.60f, 1, 0.68f, 1.00f } },
+                           { "REESE GRIT",      FxType::PhatCrusher, { 0.45f, 0.45f, 0.60f, 0.40f, 0.40f, 0, 0.70f, 1.00f } },
+                           { "MECH FUZZ",       FxType::PhatCrusher, { 0.10f, 0.80f, 0.70f, 0.25f, 0.30f, 0, 0.66f, 1.00f } },
+                           { "DARK SQUASH",     FxType::PhatCrusher, { 0.35f, 0.00f, 0.35f, 0.30f, 0.80f, 1, 0.75f, 1.00f } },
+                           { "PARALLEL SMASH",  FxType::PhatCrusher, { 0.70f, 0.40f, 1.00f, 0.10f, 0.90f, 1, 0.65f, 0.40f } } };
     static const P mrph { { "TALKING BREAK",   FxType::Morph, { 3 / 11.0f, 0.5f, 0.5f, 0.55f, 0.375f, 1, 0.80f, 0.50f, 0.4f, 0.1f, 1.0f } },
                           { "VOWEL ENVELOPE",  FxType::Morph, { 0 / 11.0f, 0.1f, 0.5f, 0.50f, 0.40f, 1, 0.00f, 0.85f, 0.3f, 0.0f, 1.0f } },
                           { "PHASE SLIDE",     FxType::Morph, { 4 / 11.0f, 0.5f, 0.5f, 0.60f, 0.50f, 1, 1.00f, 0.50f, 0.4f, 0.0f, 0.7f } },
@@ -536,6 +553,7 @@ const std::vector<FxPreset>& fxFactoryPresets (FxType t)
         case FxType::AutoFilter: return afilt;
         case FxType::Dimension:  return dim;
         case FxType::Morph:      return mrph;
+        case FxType::PhatCrusher: return phatp;
         case FxType::Vast:       return vast;
         case FxType::Space:      return space;
         case FxType::TapeEcho:   return tape;
@@ -690,6 +708,10 @@ std::string fxParamText (FxType t, int i, const float* params)
             return pct (v);
         case FxType::Dimension:
             if (i == 0) return fmt ("%.0f", 1.0 + choiceOf (v, 4));
+            return pct (v);
+        case FxType::PhatCrusher:
+            if (i == 2) return v >= 0.995f ? std::string ("OPEN") : hz (phatCutoffHz (v));
+            if (i == 6) return fmt (v >= 0.75f ? "+%.1f DB" : "%.1f DB", phatVolumeDb (v));
             return pct (v);
         case FxType::Morph:
             if (i == 0) return morph::modelName (choiceOf (v, morph::kModels));

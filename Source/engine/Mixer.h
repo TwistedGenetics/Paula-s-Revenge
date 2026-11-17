@@ -75,6 +75,7 @@ public:
     // meters (peaks since the UI last read them)
     std::atomic<float> trackPeak[kMixTracks] {}, returnPeak[kReturns] {}, masterPeakL { 0 }, masterPeakR { 0 };
 
+    std::atomic<float> duckLowest { 1.0f };   // (v0.96) the SIDECHAIN DUCK's lowest gain since the UI last read it
     ModEngine mods;   // MODULATION (the player gives it notes and the song position)
 
     bool hasEffect (int slot) const { return slot >= 0 && slot < kTotalSlots && fx[slot] != nullptr; }
@@ -102,6 +103,8 @@ private:
     float stripMulNow[kMixTracks][kModStripParams];   // the modulated VOLUME / SENDS the last block ended on
     bool  anyModLeft = false;                          // modulation was on last block
     float stripAuto[kMixTracks][kModStripParams];      // automated VOLUME / SENDS (< 0 = not)
+    float duckEnv = 0.0f;                     // the SIDECHAIN DUCK's envelope of its triggers
+    std::vector<float> duckGain;              // its gain for each sample of the block
     float throwTo[kMixTracks] {}, throwNow[kMixTracks] {};   // DUB THROW: where it's going, where it is
     int   autoOn[kTotalSlots];                 // automated on/off: -1 = follow BYPASS, 0 = off, 1 = on
     std::vector<float> sendL[kReturns], sendR[kReturns];

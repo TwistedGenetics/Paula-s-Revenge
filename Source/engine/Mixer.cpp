@@ -20,6 +20,7 @@ MixerEngine::MixerEngine()
 {
     clearAutomation();
     for (int r = 0; r < kReturns; ++r) { sendL[r].assign (kMaxBlock, 0.0f); sendR[r].assign (kMaxBlock, 0.0f); }
+    duckGain.assign (kMaxBlock, 1.0f);
     for (int i = 0; i < kMixerSlots; ++i) slotDelay[i].setMax (kMaxSlotDelay);   // (instrument inserts: no delay kept)
     for (int i = kExtraTrackSlots; i < kTotalSlots; ++i) slotDelay[i].setMax (kMaxSlotDelay);   // (tracks 9-16)
     for (auto& d : trackAlign) d.setMax (kMaxTrackDelay);
@@ -67,6 +68,7 @@ void MixerEngine::reset()
     mods.reset();
     for (auto& t : throwTo) t = 0.0f;
     for (auto& t : throwNow) t = 0.0f;
+    duckEnv = 0.0f;
     dubEver = false;
     for (auto& t : stripMulNow) for (auto& v : t) v = 1.0f;
     for (auto& e : eq) e.reset();
@@ -231,6 +233,31 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         anyModLeft = modsOn;
     }
 
+    // SIDECHAIN DUCK: the triggers' level as they come in (before anything) sets how far the ducked tracks dip.
+    // It reaches full depth with the triggers at -12 dB, attacks in a millisecond and lets go over RELEASE.
+    const auto& dk = m.duck;
+    const bool duckOn = dk.on();
+    if (duckOn)
+    {
+        const float att = 1.0f - std::exp (-1.0f / (0.001f * (float) sr));
+        const float rel = 1.0f - std::exp (-1.0f / (std::clamp (dk.releaseMs, 5.0f, 5000.0f) * 0.001f * (float) sr));
+        const float depth = std::clamp (dk.depth, 0.0f, 1.0f);
+        float env = duckEnv, lowest = 1.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            float pk = 0.0f;
+            for (int t = 0; t < numTracks && t < kMixTracks; ++t)
+                if ((dk.from >> t) & 1u) pk = std::max (pk, std::max (std::abs (tL[t][i]), std::abs (tR[t][i])));
+            env += (pk - env) * (pk > env ? att : rel);
+            const float gg = 1.0f - depth * std::min (1.0f, env * 4.0f);
+            duckGain[(size_t) i] = gg;
+            lowest = std::min (lowest, gg);
+        }
+        duckEnv = env < 1.0e-6f ? 0.0f : env;
+        if (lowest < duckLowest.load (std::memory_order_relaxed)) duckLowest.store (lowest, std::memory_order_relaxed);
+    }
+    else duckEnv = 0.0f;
+
     for (int t = 0; t < numTracks && t < kMixTracks; ++t)
     {
         const auto& c = m.ch[t];
@@ -240,6 +267,8 @@ void MixerEngine::process (const MixerSettings& m, float* const* tL, float* cons
         if (tapsLive && chTap.source.load (std::memory_order_relaxed) == t) chTap.push (L, R, n);
         runInserts (c.inserts, trackSlot (t, 0), L, R, n, bpm);
         trackAlign[t].process (L, R, n, maxLat - lat[t] + extraDelay);
+        if (duckOn && ((dk.to >> t) & 1u) && ! ((dk.from >> t) & 1u))
+            for (int i = 0; i < n; ++i) { L[i] *= duckGain[(size_t) i]; R[i] *= duckGain[(size_t) i]; }
         const float* sa = stripAuto[t];
         const float g = dbToGain (sa[0] >= 0 ? faderPosToDb (sa[0]) : c.volumeDb);
         // modulated VOLUME / SENDS glide across the block from where the last one ended

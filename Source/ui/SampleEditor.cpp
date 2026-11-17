@@ -803,6 +803,29 @@ void SampleEditor::paint (juce::Graphics& g)
                 lastRight = tab.getRight() + px;
             }
         }
+        // (v0.96) no slices: Sxx plays one of 16 equal parts of START..END - faint lines and their numbers,
+        // as Renoise shows its slices (S00 at START; the labels thin out when there's no room)
+        else if (in.hasData() && ! drawMode && showSxx)
+        {
+            const double lo = in.rangeStart(), hi = in.rangeEnd();
+            const float h = px * 9;
+            float lastRight = -1e9f;
+            for (int k = 0; k < 16; ++k)
+            {
+                const float x = sampleToX (lo + std::floor (k * (hi - lo) / 16.0));
+                if (x < waveArea.getX() - 1.0f || x > waveArea.getRight()) continue;
+                g.setColour (sk.track[3].withAlpha (k % 4 == 0 ? 0.75f : 0.45f));
+                if (k > 0) g.fillRect (x - 0.5f, waveArea.getY(), std::max (1.0f, px * 0.5f), waveArea.getHeight());
+                const juce::String label = "S" + juce::String::toHexString (k).toUpperCase().paddedLeft ('0', 2);
+                const float w = PixelFont::textWidth (label, px) + px * 3;
+                if (x < lastRight || x + w > waveArea.getRight()) continue;   // no room for its number
+                const juce::Rectangle<float> tab (x, waveArea.getBottom() - h, w, h);
+                g.setColour (sk.track[3].withAlpha (0.85f));
+                g.fillRect (tab);
+                PixelFont::drawCentred (g, label, tab, px, sk.bg);
+                lastRight = tab.getRight() + px;
+            }
+        }
         // START / END: what's outside is shaded, the markers have handles at the middle
         if (in.hasData() && ! drawMode)
         {

@@ -210,7 +210,7 @@ p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
       <tr><td>Bottom row</td><td><span class="b">BIG VIEW</span>, <span class="b">PANELS</span>, <span class="b">DARK</span>, <span class="b">SPECTRUM</span>, <span class="b">FX2</span>, <span class="b">REC AUTO</span>, GROOVE, RADIO, AUTOMATION, LIVE and the status line.</td></tr>
     </tbody>
   </table></div>
-  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to the black-on-white WORKBENCH skin, as in this manual (more skins below). A song has 8 tracks to start with and up to 16: <span class="b">+</span> at the top right of the pattern adds one; right-click it (or a note, or <b>View &rarr; Add a Track</b>) to add one, have all 16, take the last away or go back to 8. A track taken away keeps its notes, hidden, till it's back. Tracks show a page at a time: <span class="b">BIG VIEW</span> shows 4 with large text, with a tall tab beside them to the next page (<span class="b">TRACKS 5-8 &#9654;</span>, <span class="b">TRACKS 9-12 &#9654;</span>&hellip; and back to <span class="b">&#9664; TRACKS 1-4</span>); without BIG VIEW a page is 8. Moving the cursor past a page's last track turns the page. Tracks 9&ndash;16 have their own mixer strips, shown with <span class="b">TRACKS 9-16 &#9654;</span> on the mixer; a MOD saved with them is a 16-channel module. The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
+  <p>The app opens with the dark skin. <span class="b">DARK</span> switches to the black-on-white WORKBENCH skin (more skins below). The pictures in this manual are all in the PAPER skin, to match the page. A song has 8 tracks to start with and up to 16: <span class="b">+</span> at the top right of the pattern adds one; right-click it (or a note, or <b>View &rarr; Add a Track</b>) to add one, have all 16, take the last away or go back to 8. A track taken away keeps its notes, hidden, till it's back. Tracks show a page at a time: <span class="b">BIG VIEW</span> shows 4 with large text, with a tall tab beside them to the next page (<span class="b">TRACKS 5-8 &#9654;</span>, <span class="b">TRACKS 9-12 &#9654;</span>&hellip; and back to <span class="b">&#9664; TRACKS 1-4</span>); without BIG VIEW a page is 8. Moving the cursor past a page's last track turns the page. Tracks 9&ndash;16 have their own mixer strips, shown with <span class="b">TRACKS 9-16 &#9654;</span> on the mixer; a MOD saved with them is a 16-channel module. The song's name (in the window's title bar, and at the top when there's room) is its file's name: save it as <code>amen roller.prv</code> and it's AMEN ROLLER.</p>
   <p>The status line at the bottom right says what just happened, and what the command under the cursor does.</p>
   <h3>Right-click menus</h3>
   <p>Right-click almost anything for the things you can do to it. Everything they do can be undone.</p>
@@ -379,7 +379,7 @@ p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
   <p>Sixteen pads, one instrument each, like a drum machine's. Press a pad to choose its instrument and play it at C of the octave (<b>OCT</b>); with <b>EDIT</b> on it's written at the cursor, just as a key would be, and the cursor steps on. Pad 1 is at the bottom left. A pad lights whenever its instrument plays, on any track. <span class="b">-</span> and <span class="b">+</span> change the <b>bank</b>: A is instruments 1&ndash;16, B 17&ndash;32, C 33&ndash;48, D 49&ndash;63.</p>
   <p>With the sidebar showing, the pads are two rows of eight under the pattern, in the spectrum's place. With the sidebar off (<span class="b">PANELS</span>) they're four by four beside the pattern. Either way the pattern keeps its size &mdash; its text never shrinks to make room. Turn them on from the sidebar menu, <span class="b">View &gt; Pads</span>, or <kbd>Cmd+K</kbd> and <b>PADS</b>.</p>
   <figure>
-    <div class="frame sunken"><img src="img/pads.png" alt="The HARDWARE skin with the pads as two rows of eight under the pattern, the first five lit in their instruments' colours, and the lane above the pattern." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/pads.png" alt="The pads as two rows of eight under the pattern, the first five lit in their instruments' colours, and the lane above the pattern." width="1440" height="900" loading="lazy"></div>
     <figcaption>Pads under the pattern (with the sidebar), lit as their instruments play</figcaption>
   </figure>
   <figure>
@@ -551,7 +551,7 @@ p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
   <p class="tip"><b>The limit:</b> <code>9FF</code> reaches only 65,280 samples past START, about 1.5&nbsp;s at 44.1&nbsp;kHz. For anything later in a long break use <code>Pxx</code> (start at <code>xx</code>/256 of the <i>whole</i> sample, so <code>P80</code> is halfway) or slices with <code>Sxx</code>.</p>
 
   <h4>Slices instead of offsets</h4>
-  <p>Slice the break in the sample editor (or let it cut by its hits), then <code>Sxx</code> plays slice <code>xx</code>+1 and stops at the slice's end, so no hit bleeds into the next. With no slice points, <code>Sxx</code> treats the sample as 16 equal parts, so <code>S00</code>&ndash;<code>S0F</code> are the 16ths of a one-bar break, ready to rearrange.</p>
+  <p>Slice the break in the sample editor (or let it cut by its hits), then <code>Sxx</code> plays slice <code>xx</code>+1 and stops at the slice's end, so no hit bleeds into the next. With no slice points, <code>Sxx</code> treats the sample as 16 equal parts, so <code>S00</code>&ndash;<code>S0F</code> are the 16ths of a one-bar break, ready to rearrange. The sample editor shows those 16 parts with their <b>S00</b>&ndash;<b>S0F</b> tags, so you can see which hit each one is.</p>
   <pre class="pat">000 C-3 01 S00 ---
 002 C-3 01 S02 ---
 004 C-3 01 S04 ---
@@ -705,6 +705,11 @@ track 2:  009 A-4 05 C08 8E0</pre>
     <li><kbd>Space</kbd> stops whatever plays, the song too; when nothing does, it plays the sample.</li>
     <li><b>Loop:</b> drag the <span class="b">S</span> and <span class="b">E</span> handles at the top of the wave; you hear the loop while you drag. <span class="b">PING-PONG</span> plays it forwards then backwards.</li>
   </ul>
+  <p><b>No slices: the Sxx parts.</b> With no slice points, <code>Sxx</code> plays one of 16 equal parts of the sample between START and END. The editor shows them, as Renoise shows its slices: faint lines across the wave and <b>S00</b>&ndash;<b>S0F</b> tags along the bottom (when there isn't room for all 16 tags, some are left out; zoom in to see them all). Move START or END and the parts move too. Add a slice point and the slices take over.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/sxx_parts.png" alt="The sample editor with a one-bar break and no slices: 16 faint lines across the wave and tags S00, S02, S04 and on to S0E along the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A break with no slices: the 16 parts Sxx plays</figcaption>
+  </figure>
   <h3>Rates</h3>
   <p>Each instrument has a RATE: the speed it plays at on <code>C-3</code>. Samples load at their own rate, so they sound as recorded. <span class="b">RATE</span> changes it without touching the data (lower rate, lower and slower); <span class="b">RESAMPLE</span> converts the data to a new rate and keeps the pitch, with <span class="b">RAW</span> for the rough, unfiltered old-sampler way.</p>
   <h3>Slicing</h3>
@@ -926,7 +931,20 @@ track 2:  009 A-4 05 C08 8E0</pre>
   </table></div>
   <div class="flow"><span class="stage">EQ</span>&rarr;<span class="stage">INSERTS</span>&rarr;<span class="stage">PRE SENDS</span>&rarr;<span class="stage">FADER</span>&rarr;<span class="stage">POST SENDS</span>&rarr;<span class="stage">MASTER</span>&rarr;<span class="stage">PAULA / AKAI OUTPUT</span></div>
   <h3>Duck and the low-end check</h3>
-  <p><span class="b">DUCK...</span> (top of the strips page) makes room for the kick in one go: pick the kick's track, what dips under it (every other track, or just the bass), and how hard &mdash; <b>LIGHT</b> (about &minus;4&nbsp;dB), <b>MEDIUM</b> (&minus;8&nbsp;dB) or <b>HARD</b> (the pump). It's a FOLLOWER on the kick's track turning those tracks' VOLUME down on every hit, back up over a line and a half (three when HARD). One undo step; MODULATION shows it to fine-tune. Ask again to change it or take it off.</p>
+  <p><span class="b">DUCK</span> (top of the strips page) opens the <b>SIDECHAIN DUCK</b> panel under the strips. You choose which tracks make the duck and which tracks get ducked:</p>
+  <figure>
+    <div class="frame sunken"><img src="img/duck.png" alt="The mixer's strips with the SIDECHAIN DUCK panel under them: TRIGGERS with tracks 1 and 2 lit, DUCKED with tracks 3, 4 and 6 to 12 lit, DEPTH -14.0 DB, RELEASE 220 MS, the NOW meter at -14 dB, ALL THE OTHERS and CLEAR." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The SIDECHAIN DUCK: the kick and the break push everything else down, but not track 5</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+      <tr><td><b>TRIGGERS</b></td><td>The top row: click the tracks whose hits make the others dip &mdash; the kick, or the kick and the break. Any number of them.</td></tr>
+      <tr><td><b>DUCKED</b></td><td>The bottom row: click the tracks that dip &mdash; the bass, the pads, the reese. <span class="b">ALL THE OTHERS</span> lights every track that isn't a trigger. A track is one or the other, never both.</td></tr>
+      <tr><td><b>DEPTH</b></td><td>How far they dip at a full hit: about &minus;14&nbsp;dB at 80%, <b>SILENT</b> at the top. The dip is full with the triggers at &minus;12&nbsp;dB or louder.</td></tr>
+      <tr><td><b>RELEASE</b></td><td>How quickly they come back after each hit, 20&nbsp;ms to 1&nbsp;s: short for a tight duck, long for the pump.</td></tr>
+      <tr><td><b>NOW</b></td><td>The meter: how far down the ducked tracks are right now.</td></tr>
+      <tr><td><span class="b">CLEAR</span></td><td>Takes the duck off. Every change is one undo step; the duck is saved in the song.</td></tr>
+  </table></div>
+  <p>The ducked tracks dip after their inserts and before their fader and sends, so their reverb and echo dip with them. A duck made with an older version (a FOLLOWER modulator) is still under MODULATION and still works. DUCK and LOW-END CHECK share the space under the strips.</p>
   <p><span class="b">LOW-END CHECK</span> opens a panel under the strips that listens to the master while the song plays and says, with a lamp (green fine, amber worth a look, red fix it):</p>
   <figure>
     <div class="frame sunken"><img src="img/low_end.png" alt="The mixer's strips with the LOW-END CHECK panel under them: a red lamp by BASS OUT OF PHASE - IT CANCELS IN MONO - UTILITY: MONO 120HZ ON THE BASS, and green lamps by SUB LEVEL OK, CLEAR LOW MIDS and NO CLIPPING." width="1440" height="900" loading="lazy"></div>
@@ -961,7 +979,7 @@ track 2:  009 A-4 05 C08 8E0</pre>
         <li><b>Right-click</b> a point for its type (BELL, LOW / HIGH SHELF, HIGH- / LOW-PASS), SWITCH OFF, RESET GAIN and REMOVE POINT; <kbd>Delete</kbd> removes the selected one.</li>
         <li>Under the graph: the selected point's type, ON, REMOVE POINT, FREQ, GAIN and Q. <span class="b">EQ FLAT</span> removes them all. Songs from before v0.25 keep their bands that were on.</li>
       </ul></li>
-    <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect: 23 built in. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
+    <li><b>Effect page:</b> <span class="b">EFFECT: &hellip;</span> opens the menu of effects in groups &mdash; REVERB, DELAY, MODULATION, DRIVE &amp; CRUSH, FILTER &amp; DYNAMICS, PLUG-IN (VST3 / AU), EMPTY &mdash; then the effect: 25 built in. <span class="b">PRESETS...</span> has the factory presets and yours. Every page has <span class="b">BYPASS</span> and <span class="b">DEFAULTS</span>; more than 6 controls go in two columns.</li>
     <li><b>Returns:</b> SEND A starts with a reverb and SEND B with a delay, fully wet, silent until a track sends to them.</li>
     <li><b>Dub throws:</b> <code>!xy</code> on a note's line throws that track into the dub echo on SEND B &mdash; <code>x</code> how much (1&ndash;F), <code>y</code> for how many lines (0 = just that hit, until the track's next note). <code>!0y</code> rides the echo's feedback up (<code>!0F</code> nearly endless), <code>!00</code> puts it back. Type <code>!</code> with Shift+1. The first <code>!</code> in a song makes SEND B a dub echo &mdash; DUB DELAY into SPRING &mdash; if SEND B is still as a new song has it (an undo step of its own). The throw fades in and out over a few milliseconds, so it never clicks, and the echoes ring on after it.</li>
     <li><b>Delay compensation:</b> plug-ins that give their sound back late (lookahead limiters, linear-phase EQs) are lined up, so every track stays in time, sends included. The strips page title shows the total delay.</li>
@@ -995,6 +1013,7 @@ track 2:  009 A-4 05 C08 8E0</pre>
       <tr><td><span class="b">BBD DELAY</span></td><td>An analog bucket-brigade echo up to 1&nbsp;s: darker the longer it is. <b>MOD RATE</b>, <b>MOD DEPTH</b>, <b>AGE</b> (hiss, duller), <b>DRIVE</b>.</td></tr>
       <tr><td><span class="b">MULTI-TAP</span></td><td>Up to 8 <b>TAPS</b> in a <b>PATTERN</b> (STRAIGHT, DOTTED, TRIPLET, SWING, SPEED UP, SLOW DOWN, SCATTER), each quieter by <b>DECAY</b>, bounced by <b>SPREAD</b>.</td></tr>
       <tr><td><span class="b">GRAIN DELAY</span></td><td><b>MODE</b> REVERSE plays each stretch backwards; GRAINS sprays grains from the past. <b>PITCH</b> &minus;12 to +12, <b>SPRAY</b>, <b>DENSITY</b>, <b>FEEDBACK</b>.</td></tr>
+      <tr><td><span class="b">PHAT CRUSHER</span></td><td>In the spirit of Camel Audio's CamelCrusher / CamelPhat. <b>TUBE</b> (warm, uneven harmonics) and <b>MECH</b> (harder, buzzy, raspy) distortion, blend either or both; a resonant low-pass (<b>CUTOFF</b>, <b>RES</b>); a one-knob compressor, <b>COMPRESS</b>, with <b>PHAT</b> for a slower, heavier squash and a low-end lift; <b>VOLUME</b> and <b>MIX</b> (parallel crunch). Presets: WARM BUS, PHAT BREAK, CRUSHED KICK, REESE GRIT, MECH FUZZ, DARK SQUASH, PARALLEL SMASH.</td></tr>
       <tr><td><span class="b">DIMENSION</span></td><td>4 modes of wide, clean stereo that sums back to mono cleanly.</td></tr>
       <tr><td><span class="b">FLANGER</span></td><td><b>RATE</b>, <b>DEPTH</b>, <b>MANUAL</b>, <b>FEEDBACK</b> (&plusmn;), <b>STEREO</b>; <b>THRU-ZERO</b> sweeps through the dry sound for the tape-flanging cancel.</td></tr>
       <tr><td><span class="b">PHASER</span></td><td>4, 8 or 12 <b>STAGES</b>, <b>RATE</b>, <b>DEPTH</b>, <b>CENTRE</b>, <b>FEEDBACK</b> (&plusmn;), <b>STEREO</b>.</td></tr>

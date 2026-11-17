@@ -41,7 +41,7 @@ inline bool isInstrumentSlot (int slot)  { return slot >= kMixerSlots && slot < 
 enum class FxType : uint8_t { None = 0, Filter, Drive, Compressor, Delay, Reverb, Chorus, Plugin,
                               Vast, Space, TapeEcho, Ensemble,
                               Rooms, Spring, DubDelay, BbdDelay, Grain, MultiTap, Flanger, Phaser, Rotary, Tremolo,
-                              FreqShift, AutoFilter, Dimension, Morph, Count };
+                              FreqShift, AutoFilter, Dimension, Morph, PhatCrusher, Count };
 inline bool isBuiltinFx (FxType t) { return t != FxType::None && t != FxType::Plugin && t < FxType::Count; }
 
 // the EFFECT menu's groups
@@ -163,6 +163,16 @@ inline bool autoValueOn (float v01) { return v01 > 0.5f / 255.0f; }
 constexpr int kTrackKnobs = 2;        // V = A, J = B
 constexpr int kInstrumentKnobs = 4;   // L, Q, H, W on a plug-in instrument's notes
 
+// (v0.96) SIDECHAIN DUCK: the tracks in `from` (the kick, the break...) turn the tracks in `to` down on every hit,
+// by depth (0..1), letting them back up over releaseMs. Bit t = track t. A track in both is only a trigger.
+struct DuckSettings
+{
+    uint32_t from = 0, to = 0;
+    float depth = 0.6f, releaseMs = 150.0f;
+    bool on() const { return from != 0 && to != 0 && depth > 0.0f; }
+    bool operator== (const DuckSettings& o) const { return from == o.from && to == o.to && depth == o.depth && releaseMs == o.releaseMs; }
+};
+
 struct MixerSettings
 {
     ChannelStrip ch[kMixTracks];
@@ -172,6 +182,7 @@ struct MixerSettings
     FxSlot       inst[kMixInstruments][kInserts];      // each instrument's own inserts
     ModSettings  mods;                                  // MODULATION: 16 modulators and their routes
     InstMacro    instMacro[kMixInstruments][kInstMacros];   // each instrument's 4 MACRO knobs
+    DuckSettings duck;                                  // (v0.96) the SIDECHAIN DUCK
     bool anyInstMacro() const { for (const auto& in : instMacro) for (const auto& m : in) if (m.routes() > 0) return true; return false; }
     bool instrumentChain (int ins) const               // anything in an instrument's inserts?
     {
@@ -220,6 +231,8 @@ void initFxSlot (FxSlot&, FxType);   // the type with its default parameters
 
 // the mappings the effects and their value text share
 int    fxChoice (float v, int n);          // a 0..1 value as one of n choices
+double phatCutoffHz (float v);             // PHAT CRUSHER: 150 HZ .. 20 KHZ
+double phatVolumeDb (float v);             // PHAT CRUSHER: -24 .. +8 DB
 double vastModRateHz (float v);            // 0.02 .. 8 HZ
 double spaceDecaySeconds (float v);        // 0.3 .. 40 S
 double tapeToneHz (float v);               // 1.2 .. 16 KHZ

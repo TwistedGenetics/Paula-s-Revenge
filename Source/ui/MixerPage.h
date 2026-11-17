@@ -96,10 +96,17 @@ public:
     void tick();            // everything else, 30 times a second
     void tickMeters();      // the strips' meters, 60 times a second
     void showStrips();
-    // DUCK...: a FOLLOWER on the kick's track turning other tracks down on every hit (strength 0 LIGHT, 1 MEDIUM,
-    // 2 HARD; -1 takes it off). LOW-END CHECK: the panel under the strips saying how the bass sits.
-    void askDuck();
-    bool makeDuck (int kickTrack, unsigned trackMask, int strength);
+    // (v0.96) DUCK: the SIDECHAIN DUCK panel under the strips - which tracks are the triggers (the kick), which tracks
+    // dip, how far and for how long. LOW-END CHECK: the panel under the strips saying how the bass sits.
+    void setDuckPanel (bool on);
+    bool duckPanelOpen() const { return duckOn; }
+    void toggleDuckTrack (bool trigger, int track);   // (as clicking its number)
+    void duckAllOthers();                            // every track that isn't a trigger dips
+    void clearDuck();
+    void setDuckDepth (float v01);                   // (as the sliders: 0..1)
+    void setDuckRelease (float v01);
+    static float duckReleaseMs (float v01);          // 20 .. 1000 ms
+    static float duckReleaseSlider (float ms);
     void setLowEnd (bool on);
     bool lowEndOpen() const { return lowEndOn; }
     const std::vector<prv::LowEndLine>& lowEndLines() const { return lowEndShown; }
@@ -144,11 +151,19 @@ private:
 
     // header
     PixButton closeBtn { "CLOSE" }, backBtn { "BACK" }, resetAllBtn { "RESET MIXER" }, modsBtn { "MODULATION" };
-    PixButton duckBtn { "DUCK..." }, lowEndBtn { "LOW-END CHECK", true };
+    PixButton duckBtn { "DUCK", true }, lowEndBtn { "LOW-END CHECK", true };
     PixButton stripPageBtn { "TRACKS 9-16" };   // (v0.94) more than 8 tracks: their strips 8 at a time
     int stripPage = 0;                           // 0: tracks 1-8, 1: 9-16
     bool stripShown (int track) const;
     bool lowEndOn = false;
+    bool duckOn = false;
+    std::unique_ptr<PixButton> duckFromBtn[kMixTracks], duckToBtn[kMixTracks];
+    MiniBar duckDepth { "DEPTH" }, duckRelease { "RELEASE" };
+    PixButton duckOthersBtn { "ALL THE OTHERS" }, duckClearBtn { "CLEAR" };
+    juce::Rectangle<float> duckArea, duckFromLabel, duckToLabel, duckMeterArea;
+    float duckShownDb = 0.0f;
+    void refreshDuck();
+    void paintDuck (juce::Graphics&);
     int lowEndTicks = 0;
     std::vector<prv::LowEndLine> lowEndShown;
     juce::Rectangle<float> lowEndArea;

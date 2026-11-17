@@ -667,8 +667,31 @@ MixerPage::MixerPage (PaulaProcessor& p) : proc (p), eqGraph (p)
     addChildComponent (*modPage);
     modsBtn.onClick = [this] { showMods(); };
     addChildComponent (modsBtn);
-    duckBtn.onClick = [this] { askDuck(); };
+    duckBtn.setClickingTogglesState (false);
+    duckBtn.onClick = [this] { setDuckPanel (! duckOn); };
     addChildComponent (duckBtn);
+    for (int t = 0; t < kMixTracks; ++t)
+    {
+        duckFromBtn[t] = std::make_unique<PixButton> (juce::String (t + 1), true);
+        duckToBtn[t] = std::make_unique<PixButton> (juce::String (t + 1), true);
+        duckFromBtn[t]->setClickingTogglesState (false);
+        duckToBtn[t]->setClickingTogglesState (false);
+        duckFromBtn[t]->onClick = [this, t] { toggleDuckTrack (true, t); };
+        duckToBtn[t]->onClick = [this, t] { toggleDuckTrack (false, t); };
+        addChildComponent (*duckFromBtn[t]);
+        addChildComponent (*duckToBtn[t]);
+    }
+    duckDepth.format = [] (float v) { return v >= 0.995f ? juce::String ("SILENT") : juce::String (20.0 * std::log10 (1.0 - v), 1) + " DB"; };
+    duckDepth.defaultValue = 0.6f;
+    duckDepth.onDragStart = [this] { proc.history.mixer ("DUCK DEPTH", true); };
+    duckDepth.onChange = [this] (float v) { proc.withLock ([&] { proc.song.mixer.duck.depth = v; }); };
+    duckRelease.format = [] (float v) { return juce::String (juce::roundToInt (duckReleaseMs (v))) + " MS"; };
+    duckRelease.defaultValue = duckReleaseSlider (150.0f);
+    duckRelease.onDragStart = [this] { proc.history.mixer ("DUCK RELEASE", true); };
+    duckRelease.onChange = [this] (float v) { proc.withLock ([&] { proc.song.mixer.duck.releaseMs = duckReleaseMs (v); }); };
+    duckOthersBtn.onClick = [this] { duckAllOthers(); };
+    duckClearBtn.onClick = [this] { clearDuck(); };
+    for (auto* c : std::initializer_list<juce::Component*> { &duckDepth, &duckRelease, &duckOthersBtn, &duckClearBtn }) addChildComponent (c);
     lowEndBtn.setClickingTogglesState (false);
     lowEndBtn.onClick = [this] { setLowEnd (! lowEndOn); };
     addChildComponent (lowEndBtn);
@@ -1264,6 +1287,12 @@ void MixerPage::updateVisibility()
     modsBtn.setVisible (strip);
     duckBtn.setVisible (strip);
     lowEndBtn.setVisible (strip);
+    for (int t = 0; t < kMixTracks; ++t)
+    {
+        duckFromBtn[t]->setVisible (strip && duckOn && t < proc.song.numTracks);
+        duckToBtn[t]->setVisible (strip && duckOn && t < proc.song.numTracks);
+    }
+    for (auto* c : std::initializer_list<juce::Component*> { &duckDepth, &duckRelease, &duckOthersBtn, &duckClearBtn }) c->setVisible (strip && duckOn);
     modPage->setVisible (mods);
     modulateBtn.setVisible (false);
     backBtn.setVisible (! strip);
@@ -1309,6 +1338,12 @@ void MixerPage::refresh()
     if (currentPage == Page::Channel && chTrack >= nt) chTrack = 0;
 
     for (auto& s : strips) if (s->isVisible()) s->refresh();
+    if (currentPage == Page::Strips && duckOn)
+    {
+        for (int t = 0; t < kMixTracks; ++t)
+            if (duckFromBtn[t]->isVisible() != (t < nt)) { updateVisibility(); break; }
+        refreshDuck();
+    }
     if (currentPage == Page::Channel) refreshChannel();
     if (currentPage == Page::Effect) refreshEffect();
     if (currentPage == Page::Mods) modPage->refresh();
@@ -1553,6 +1588,14 @@ void MixerPage::tickMeters()
 void MixerPage::tick()
 {
     if (lowEndOn && currentPage == Page::Strips && ++lowEndTicks >= 15) { lowEndTicks = 0; updateLowEnd(); }
+    {
+        // the DUCK panel's meter: how far the ducked tracks are down now (it falls back over a few frames)
+        const float lowest = proc.player.mixer().duckLowest.exchange (1.0f);
+        const float db = lowest < 0.999f ? (float) (20.0 * std::log10 (std::max (1.0e-4f, lowest))) : 0.0f;
+        const float shown = std::min (db, duckShownDb * 0.8f);
+        if (duckOn && currentPage == Page::Strips && std::abs (shown - duckShownDb) > 0.05f) repaint (duckMeterArea.toNearestInt().expanded (2));
+        duckShownDb = shown > -0.05f ? 0.0f : shown;
+    }
     if (proc.player.latencySamples() != shownDelay) { shownDelay = proc.player.latencySamples(); repaint (titleArea.toNearestInt()); }
     if (learner.armed && currentPage == Page::Effect)
     {
@@ -1784,6 +1827,7 @@ juce::String MixerPage::effectInfo (FxType t)
         case FxType::AutoFilter: return "AUTO-FILTER - SWEPT BY AN LFO AND THE SOUND";
         case FxType::Dimension:  return "DIMENSION - WIDE, CLEAN STEREO SPACE (4 MODES)";
         case FxType::Morph:      return "MORPH FILTER - VOWELS, COMBS, PHASES: ONE SHAPE INTO ANOTHER";
+        case FxType::PhatCrusher: return "PHAT CRUSHER - TUBE AND MECH DRIVE, FILTER, ONE-KNOB SQUASH";
         case FxType::Plugin:     return "VST3 / AU PLUG-IN - ITS OWN WINDOW HAS THE CONTROLS";
         default:                 return "EMPTY SLOT - PICK ONE WITH EFFECT ABOVE";
     }
@@ -1810,6 +1854,7 @@ void MixerPage::paint (juce::Graphics& g)
     if (currentPage == Page::Strips)
     {
         if (lowEndOn) paintLowEnd (g);
+        if (duckOn) paintDuck (g);
         return;
     }
     if (currentPage == Page::Channel)
@@ -1935,7 +1980,7 @@ void MixerPage::resized()
         resetAllBtn.setBounds (head.removeFromRight (charsW (11))); head.removeFromRight (gap);
         modsBtn.setBounds (head.removeFromRight (charsW (10))); head.removeFromRight (gap);
         lowEndBtn.setBounds (head.removeFromRight (charsW (13))); head.removeFromRight (gap);
-        duckBtn.setBounds (head.removeFromRight (charsW (7))); head.removeFromRight (gap);
+        duckBtn.setBounds (head.removeFromRight (charsW (4))); head.removeFromRight (gap);
         if (stripPageBtn.isVisible()) { stripPageBtn.setBounds (head.removeFromRight (charsW (12))); head.removeFromRight (gap); }
     }
     else
@@ -1954,64 +1999,103 @@ void MixerPage::resized()
 }
 
 // ---- DUCK and the LOW-END CHECK
-void MixerPage::askDuck()
+float MixerPage::duckReleaseMs (float v) { return 20.0f * std::pow (50.0f, std::clamp (v, 0.0f, 1.0f)); }
+float MixerPage::duckReleaseSlider (float ms) { return std::clamp (std::log (std::max (20.0f, ms) / 20.0f) / std::log (50.0f), 0.0f, 1.0f); }
+
+void MixerPage::setDuckPanel (bool on)
 {
-    if (! menuHook()) return;
-    const int n = std::clamp (proc.song.numTracks, 1, kMixTracks);
-    juce::StringArray kicks;
-    for (int t = 0; t < n; ++t) kicks.add ("TRACK " + juce::String (t + 1) + (proc.song.mixer.duckFrom (t) >= 0 ? " (DUCKING NOW)" : ""));
-    juce::Component::SafePointer<MixerPage> safe (this);
-    menuHook() ("DUCK: WHICH TRACK HAS THE KICK?", kicks, [safe, n] (int kick)
-    {
-        if (safe == nullptr || kick < 0) return;
-        juce::StringArray what { "EVERY OTHER TRACK" };
-        for (int t = 0; t < n; ++t) if (t != kick) what.add ("JUST TRACK " + juce::String (t + 1));
-        const bool has = safe->proc.song.mixer.duckFrom (kick) >= 0;
-        if (has) what.add ("TAKE THIS DUCK OFF");
-        menuHook() ("DUCK WHAT UNDER TRACK " + juce::String (kick + 1) + "'S KICK?", what, [safe, n, kick, has] (int w)
-        {
-            if (safe == nullptr || w < 0) return;
-            if (has && w == n) { safe->makeDuck (kick, 0, -1); return; }
-            unsigned mask = 0xFFu >> (8 - n);
-            if (w > 0) { int t = w - 1; if (t >= kick) ++t; mask = 1u << t; }
-            menuHook() ("HOW HARD?", { "LIGHT (-4 DB: JUST ROOM FOR THE KICK)", "MEDIUM (-8 DB)", "HARD (PUMPING)" }, [safe, kick, mask] (int h)
-            {
-                if (safe != nullptr && h >= 0) safe->makeDuck (kick, mask, h);
-            });
-        });
-    });
+    duckOn = on;
+    if (on && lowEndOn) { lowEndOn = false; lowEndBtn.setToggleState (false, juce::dontSendNotification); }
+    duckBtn.setToggleState (on, juce::dontSendNotification);
+    if (on && onStatus)
+        onStatus (proc.song.mixer.duck.on() ? juce::String ("DUCK: THE TOP ROW'S HITS TURN THE BOTTOM ROW DOWN")
+                                            : juce::String ("DUCK: PICK THE KICK'S TRACK ON TOP, THEN WHAT DIPS UNDER IT"));
+    updateVisibility();
+    refresh();
 }
 
-bool MixerPage::makeDuck (int kick, unsigned mask, int strength)
+void MixerPage::toggleDuckTrack (bool trigger, int t)
 {
-    kick = std::clamp (kick, 0, kMixTracks - 1);
-    if (strength < 0)
+    if (t < 0 || t >= kMixTracks) return;
+    const auto bit = 1u << t;
+    const bool wasOn = ((trigger ? proc.song.mixer.duck.from : proc.song.mixer.duck.to) & bit) != 0;
+    edit (trigger ? "DUCK TRIGGER" : "DUCKED TRACK", false, [&] (MixerSettings& m)
     {
-        const int m = proc.song.mixer.duckFrom (kick);
-        if (m < 0) return false;
-        edit ("TAKE THE DUCK OFF", false, [m] (MixerSettings& s) { s.mods.mod[m] = Modulator {}; });
-        if (onStatus) onStatus ("DUCK FROM TRACK " + juce::String (kick + 1) + " TAKEN OFF");
-        return true;
+        auto& d = m.duck;
+        if (trigger) { d.from ^= bit; if (! wasOn) d.to &= ~bit; }   // (a new trigger doesn't duck itself)
+        else         { d.to ^= bit;   if (! wasOn) d.from &= ~bit; }
+    });
+    const auto& d = proc.song.mixer.duck;
+    if (onStatus)
+    {
+        if (d.from == 0) onStatus ("DUCK: NO TRIGGER YET - CLICK THE KICK'S TRACK IN THE TOP ROW");
+        else if (d.to == 0) onStatus ("DUCK: NOTHING DIPS YET - CLICK TRACKS IN THE BOTTOM ROW, OR ALL THE OTHERS");
+        else onStatus ("TRACK " + juce::String (t + 1) + (trigger ? (wasOn ? " NO LONGER TRIGGERS THE DUCK" : " TRIGGERS THE DUCK")
+                                                                  : (wasOn ? " NO LONGER DIPS" : " DIPS UNDER THE TRIGGERS")));
     }
-    strength = std::clamp (strength, 0, 2);
-    static const float depth[] = { 0.37f, 0.6f, 0.9f };
-    // it comes back up over a line and a half (LIGHT, MEDIUM) or three lines (HARD: the pump)
-    const double lineMs = 1000.0 * proc.song.speed * 2.5 / std::max (1.0, (double) proc.song.tempo);
-    const float rel = (float) (lineMs * (strength == 2 ? 3.0 : 1.5));
-    int m = -1;
-    edit ("DUCK", false, [&] (MixerSettings& s) { m = s.setUpDuck (kick, mask, depth[strength], rel); });
-    if (m < 0) { if (onStatus) onStatus ("CAN'T DUCK: ALL 16 MODULATORS ARE IN USE"); return false; }
-    static const char* names[] = { "LIGHT", "MEDIUM", "HARD" };
-    int count = 0;
-    for (int t = 0; t < kMixTracks; ++t) if (t != kick && (mask & (1u << t))) ++count;
-    if (onStatus) onStatus ("DUCK " + juce::String (names[strength]) + ": " + (count == 1 ? "1 TRACK DIPS" : juce::String (count) + " TRACKS DIP")
-                            + " ON EVERY HIT ON TRACK " + juce::String (kick + 1) + " - MODULATION, MOD " + juce::String (m + 1) + " TO FINE-TUNE");
-    return true;
+}
+
+void MixerPage::duckAllOthers()
+{
+    const int n = std::clamp (proc.song.numTracks, 1, kMixTracks);
+    if (proc.song.mixer.duck.from == 0) { if (onStatus) onStatus ("DUCK: PICK THE TRIGGER FIRST - THE KICK'S TRACK IN THE TOP ROW"); return; }
+    edit ("DUCK ALL THE OTHERS", false, [n] (MixerSettings& m)
+    {
+        m.duck.to = ((1u << n) - 1u) & ~m.duck.from;
+    });
+    if (onStatus) onStatus ("DUCK: EVERY TRACK BUT THE TRIGGERS DIPS");
+}
+
+void MixerPage::clearDuck()
+{
+    edit ("CLEAR THE DUCK", false, [] (MixerSettings& m) { m.duck.from = 0; m.duck.to = 0; });
+    if (onStatus) onStatus ("DUCK CLEARED (UNDO TO GET IT BACK)");
+}
+
+void MixerPage::setDuckDepth (float v)   { edit ("DUCK DEPTH", true, [v] (MixerSettings& m) { m.duck.depth = std::clamp (v, 0.0f, 1.0f); }); }
+void MixerPage::setDuckRelease (float v) { edit ("DUCK RELEASE", true, [v] (MixerSettings& m) { m.duck.releaseMs = duckReleaseMs (v); }); }
+
+void MixerPage::refreshDuck()
+{
+    const auto& d = proc.song.mixer.duck;
+    for (int t = 0; t < kMixTracks; ++t)
+    {
+        duckFromBtn[t]->setToggleState (((d.from >> t) & 1u) != 0, juce::dontSendNotification);
+        duckToBtn[t]->setToggleState (((d.to >> t) & 1u) != 0 && ! ((d.from >> t) & 1u), juce::dontSendNotification);
+    }
+    duckDepth.setValue (d.depth);
+    duckRelease.setValue (duckReleaseSlider (d.releaseMs));
+}
+
+void MixerPage::paintDuck (juce::Graphics& g)
+{
+    if (duckArea.isEmpty()) return;
+    const float px = Theme::px;
+    const auto pal = Theme::palFor (*this);
+    const auto& d = proc.song.mixer.duck;
+    Theme::panelBox (g, duckArea, d.on() ? juce::String ("SIDECHAIN DUCK - ON") : juce::String ("SIDECHAIN DUCK - OFF (PICK A TRIGGER AND WHAT DIPS)"), pal);
+    PixelFont::drawLeft (g, "TRIGGERS", duckFromLabel, px, pal.ink);
+    PixelFont::drawLeft (g, "DUCKED", duckToLabel, px, pal.ink);
+    // the meter: how far down the ducked tracks are right now
+    if (! duckMeterArea.isEmpty())
+    {
+        auto m = duckMeterArea;
+        const auto text = m.removeFromLeft (px * 6 * 5 + px * 2);
+        PixelFont::drawLeft (g, "NOW", text, px, pal.ink);
+        g.setColour (pal.faint.withAlpha (0.35f));
+        g.fillRect (m);
+        const float f = std::clamp (-duckShownDb / 24.0f, 0.0f, 1.0f);
+        g.setColour (juce::Colour (0xffe0a020));
+        g.fillRect (m.withWidth (m.getWidth() * f));
+        Theme::bevel (g, m, true, std::max (1.0f, px * 0.5f), pal);
+        PixelFont::drawCentred (g, duckShownDb < -0.05f ? juce::String (duckShownDb, 1) + " DB" : juce::String ("0 DB"), m, px, pal.ink);
+    }
 }
 
 void MixerPage::setLowEnd (bool on)
 {
     lowEndOn = on;
+    if (on && duckOn) { duckOn = false; duckBtn.setToggleState (false, juce::dontSendNotification); updateVisibility(); }
     lowEndBtn.setToggleState (on, juce::dontSendNotification);
     if (on) updateLowEnd();
     resized();
@@ -2073,6 +2157,34 @@ void MixerPage::layoutStrips (juce::Rectangle<int> r)
         r.removeFromBottom ((int) (px * 2));
     }
     else lowEndArea = {};
+    if (duckOn)
+    {
+        // the DUCK panel under the strips: its title, TRIGGERS, DUCKED, then DEPTH, RELEASE and the rest
+        const int lineH = (int) (px * 11), titleH = (int) (px * 10), g2 = (int) std::max (2.0f, px * 1.5f);
+        duckArea = r.removeFromBottom (titleH + (lineH + g2) * 3 + (int) (px * 6)).toFloat();
+        r.removeFromBottom ((int) (px * 2));
+        auto in = duckArea.toNearestInt().reduced ((int) (px * 3));
+        in.removeFromTop (titleH);
+        const int labelW = (int) (px * 6 * 9 + px * 4);
+        const int nt = std::clamp (proc.song.numTracks, 1, kMixTracks);
+        const int bw = std::min ((int) (px * 6 * 3 + px * 6), (in.getWidth() - labelW - g2 * nt) / nt);
+        for (int row = 0; row < 2; ++row)
+        {
+            auto line = in.removeFromTop (lineH);
+            in.removeFromTop (g2);
+            (row == 0 ? duckFromLabel : duckToLabel) = line.removeFromLeft (labelW).toFloat();
+            for (int t = 0; t < nt; ++t) { (row == 0 ? duckFromBtn : duckToBtn)[t]->setBounds (line.removeFromLeft (bw)); line.removeFromLeft (g2); }
+        }
+        auto line = in.removeFromTop (lineH);
+        auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+        duckClearBtn.setBounds (line.removeFromRight (charsW (5))); line.removeFromRight (g2);
+        duckOthersBtn.setBounds (line.removeFromRight (charsW (14))); line.removeFromRight (g2 * 3);
+        const int w = std::max (10, (line.getWidth() - g2 * 4) / 3);
+        duckDepth.setBounds (line.removeFromLeft (w)); line.removeFromLeft (g2 * 2);
+        duckRelease.setBounds (line.removeFromLeft (w)); line.removeFromLeft (g2 * 2);
+        duckMeterArea = line.toFloat();
+    }
+    else duckArea = {};
     const int gap = (int) std::max (2.0f, px);
     std::vector<MixStrip*> shown;
     for (auto& s : strips) if (s->isVisible()) shown.push_back (s.get());

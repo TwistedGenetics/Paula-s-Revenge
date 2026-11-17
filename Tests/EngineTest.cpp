@@ -152,6 +152,113 @@ static void testLayer()
 }
 
 // (v0.96) the Mega Synth filters: every model and type stays bounded; the classic models' low passes cut the top
+// ---------------------------------------------------------------- v0.96: the SIDECHAIN DUCK and the PHAT CRUSHER
+static double rmsOf (const std::vector<float>& v, int a, int b);
+static void testSidechainDuck()
+{
+    std::printf ("\n== SIDECHAIN DUCK\n");
+    // tracks: 0 a kick (bursts), 1 a steady tone (ducked), 2 a steady tone (not ducked), 3 a second trigger (silent)
+    const int n = 256, blocks = 160;
+    auto run = [&] (DuckSettings d, std::vector<float>& t1, std::vector<float>& t2)
+    {
+        MixerEngine mx; mx.prepare (48000);
+        MixerSettings m; m.duck = d;
+        mx.syncEffectsNow (m);
+        t1.clear(); t2.clear();
+        for (int b = 0; b < blocks; ++b)
+        {
+            std::vector<float> l[4], r[4];
+            for (int t = 0; t < 4; ++t) { l[t].assign (n, 0.0f); r[t].assign (n, 0.0f); }
+            for (int i = 0; i < n; ++i)
+            {
+                const int at = b * n + i;
+                const float kick = (at % 12000) < 2400 ? 0.8f * (float) std::sin (at * 0.02) : 0.0f;   // a hit every 250 ms
+                l[0][(size_t) i] = r[0][(size_t) i] = kick;
+                l[1][(size_t) i] = r[1][(size_t) i] = 0.3f * (float) std::sin (at * 0.05);
+                l[2][(size_t) i] = r[2][(size_t) i] = 0.3f * (float) std::sin (at * 0.05);
+            }
+            float* tl[4] = { l[0].data(), l[1].data(), l[2].data(), l[3].data() };
+            float* tr[4] = { r[0].data(), r[1].data(), r[2].data(), r[3].data() };
+            std::vector<float> oL (n), oR (n);
+            mx.process (m, tl, tr, 4, nullptr, nullptr, oL.data(), oR.data(), n, 120);
+            t1.insert (t1.end(), l[1].begin(), l[1].end());   // (tracks are processed in place: after the duck)
+            t2.insert (t2.end(), l[2].begin(), l[2].end());
+        }
+    };
+    std::vector<float> a1, a2;
+    DuckSettings d; d.from = 1u << 0; d.to = 1u << 1; d.depth = 0.75f; d.releaseMs = 60.0f;
+    CHECK (d.on() && ! DuckSettings {}.on());
+    run (d, a1, a2);
+    const float under = rmsOf (a1, 600, 2000), between = rmsOf (a1, 9000, 11500), free2 = rmsOf (a2, 600, 2000);
+    std::printf ("ducked track under the hit %.4f, between hits %.4f, the other track %.4f\n", under, between, free2);
+    CHECK (under < between * 0.35f && between > 0.16f && free2 > 0.19f);
+    // a track that's both a trigger and a target only triggers; nothing in TO: nothing happens
+    d.to = (1u << 1) | (1u << 0);
+    run (d, a1, a2); CHECK (rmsOf (a1, 600, 2000) < 0.1f);
+    d.to = 0; CHECK (! d.on());
+    run (d, a1, a2); CHECK (rmsOf (a1, 600, 2000) > 0.19f);
+    // the second (silent) trigger ducks nothing; the kick still does
+    d.from = (1u << 3); d.to = (1u << 1);
+    run (d, a1, a2); CHECK (rmsOf (a1, 600, 2000) > 0.19f);
+    d.from |= 1u; run (d, a1, a2); CHECK (rmsOf (a1, 600, 2000) < 0.1f);
+    MixerSettings m; CHECK (m.isFlat()); m.duck = d; CHECK (! m.isFlat());
+}
+
+static void testPhatCrusher()
+{
+    std::printf ("\n== PHAT CRUSHER\n");
+    CHECK (fxName (FxType::PhatCrusher) == "PHAT CRUSHER" && fxShortName (FxType::PhatCrusher) == "PHAT");
+    CHECK (fxParams (FxType::PhatCrusher).size() == 8 && fxCategory (FxType::PhatCrusher) == FxCategory::DriveCrush);
+    CHECK (fxParamText (FxType::PhatCrusher, 2, std::vector<float> (12, 1.0f).data()) == "OPEN");
+    {
+        float p[12] {}; p[6] = 0.75f;
+        CHECK (fxParamText (FxType::PhatCrusher, 6, p) == "+0.0 DB");
+    }
+    auto render = [] (const float* params, double hz, float amp, double& rms, double& hfRatio)
+    {
+        auto fx = makeEffect (FxType::PhatCrusher);
+        fx->prepare (48000);
+        const int n = 48000;
+        std::vector<float> L (n), R (n);
+        for (int i = 0; i < n; ++i) L[(size_t) i] = R[(size_t) i] = amp * (float) std::sin (6.283185307 * hz * i / 48000.0);
+        for (int at = 0; at < n; at += 256) fx->process (L.data() + at, R.data() + at, std::min (256, n - at), params, 120);
+        double e = 0, d = 0;
+        for (int i = 24000; i < n; ++i) { e += L[(size_t) i] * L[(size_t) i]; const float df = L[(size_t) i] - L[(size_t) i - 1]; d += df * df; }
+        rms = std::sqrt (e / 24000); hfRatio = std::sqrt (d / std::max (1e-12, e));
+        bool fin = true; for (float v : L) fin = fin && std::isfinite (v) && std::abs (v) < 8.0f;
+        return fin;
+    };
+    float clean[12] {}, tube[12] {}, mech[12] {}, dark[12] {}, squash[12] {};
+    auto def = [] (float* p) { const auto& ps = fxParams (FxType::PhatCrusher); for (size_t i = 0; i < ps.size(); ++i) p[i] = ps[i].def; };
+    def (clean); clean[0] = 0; clean[3] = 0; clean[4] = 0;
+    def (tube); tube[0] = 0.8f; tube[3] = 0; tube[4] = 0;
+    def (mech); mech[0] = 0; mech[1] = 0.8f; mech[3] = 0; mech[4] = 0;
+    def (dark); dark[0] = 0; dark[2] = 0.2f; dark[3] = 0; dark[4] = 0;
+    def (squash); squash[0] = 0; squash[3] = 0; squash[4] = 1.0f; squash[5] = 1;
+    double r0, h0, r1, h1, r2, h2, r3, h3, r4, h4;
+    CHECK (render (clean, 220, 0.3f, r0, h0));
+    CHECK (render (tube, 220, 0.3f, r1, h1));
+    CHECK (render (mech, 220, 0.3f, r2, h2));
+    CHECK (render (dark, 3000, 0.3f, r3, h3));
+    double rq, hq, rl, hl;
+    CHECK (render (squash, 220, 0.5f, rq, hq));
+    CHECK (render (squash, 220, 0.05f, rl, hl));
+    std::printf ("clean %.3f (hf %.3f), tube %.3f (hf %.3f), mech %.3f (hf %.3f), dark 3k %.4f; squash loud %.3f quiet %.3f\n",
+                 r0, h0, r1, h1, r2, h2, r3, rq, rl);
+    CHECK (std::abs (r0 - 0.3 / std::sqrt (2.0)) < 0.02);      // (nothing on: it passes clean)
+    CHECK (h1 > h0 * 1.3 && h2 > h0 * 2.0 && h2 > h1);           // (both add harmonics; MECH more)
+    CHECK (r3 < 0.05);                                           // (CUTOFF down: 3 kHz is gone)
+    CHECK (rq / rl < 6.0);                                       // (COMPRESS: 20 dB in is far less out)
+    (void) r4; (void) h4; (void) h3;
+    // presets exist and all play safely
+    CHECK (fxFactoryPresets (FxType::PhatCrusher).size() >= 5);
+    for (const auto& pr : fxFactoryPresets (FxType::PhatCrusher))
+    {
+        float pp[12] {}; for (size_t i = 0; i < pr.p.size() && i < 12; ++i) pp[i] = pr.p[i];
+        double a, b; CHECK (render (pp, 110, 0.7f, a, b) && a > 0.02);
+    }
+}
+
 static void testMegaFilters()
 {
     std::printf ("\n== MEGA SYNTH FILTERS\n");
@@ -7519,6 +7626,8 @@ int main()
     testMod16();
     testSkipOnce();
     testMegaFilters();
+    testSidechainDuck();
+    testPhatCrusher();
     testLayer();
     testModRoundTrip();
     test8SVX();

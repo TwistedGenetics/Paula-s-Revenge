@@ -561,6 +561,9 @@ juce::MemoryBlock writeSong (const Song& songIn)
         raw.writeByte ((char) in.filter); raw.writeByte ((char) in.filterModel); raw.writeByte ((char) in.filterSlope);
         raw.writeFloatBigEndian (in.filterDrive); raw.writeFloatBigEndian (in.filterMix); raw.writeFloatBigEndian (in.filterChar);
     }
+    // v34: the SIDECHAIN DUCK
+    raw.writeIntBigEndian ((int) song.mixer.duck.from); raw.writeIntBigEndian ((int) song.mixer.duck.to);
+    raw.writeFloatBigEndian (song.mixer.duck.depth); raw.writeFloatBigEndian (song.mixer.duck.releaseMs);
 
     juce::MemoryOutputStream packed;
     {
@@ -1259,6 +1262,14 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             ins.filterMix = readFloat (in, 0.0f, 1.0f, 1.0f);
             ins.filterChar = readFloat (in, 0.0f, 1.0f, 0.5f);
         }
+    if (hasV34 && ! in.isExhausted())
+    {
+        auto& d = s.mixer.duck;
+        d.from = (uint32_t) in.readIntBigEndian() & 0xFFFFu;
+        d.to = (uint32_t) in.readIntBigEndian() & 0xFFFFu;
+        d.depth = readFloat (in, 0.0f, 1.0f, 0.6f);
+        d.releaseMs = readFloat (in, 5.0f, 5000.0f, 150.0f);
+    }
     if (version < 13)
     {
         // chords are #xy now (0xy is an arpeggio again): convert the old ones so they sound the same
