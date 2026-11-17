@@ -690,6 +690,12 @@ Every track has a **second effect column** so a note can carry two effects; **FX
 * **Humanise:** `X12` (volume) on every hat; `X34` for random start points; `K80` for ghost notes that come and go.
 * **Variations without copying:** `?14` crash every 4 bars, `?44` fills every 4th time, `?01` / `?02` with FILL (F2), `Bxx` on a `?44` line to jump to a fill.
 
+* **More (in the manual):** a pitched-up snare roll (`Rxy` faster while `Ixx` rises), restarting the break from any hit with PLAY THRU, ghost snares with `C08`–`C14` and `Kxx`, a four-bar break in 64 Sxx parts, the high-pass build (`Hxx` up each bar, `H00` on the drop), a rising `1xx`, the gap before the drop (`ECx` + `EE2`), a beat repeat (`E60` … `E63`), the 808 slide on SUB, a written-in stepped wobble (`Lxx` every line), a hand-drawn pump (`C10` then `A40`), Haas width (`M04` on one of two hard-panned copies), the runaway dub echo (`!F0`, `!0F`, `!00`), buzz rolls (`E91`), gated pads (`N02`), switching a synth's on/off control from the pattern (`V01` / `V00`), `?03` / `?04` / `?12` / `?22` for intros and call and response, `D00` half-length bars, and a whole combo fill.
+
+## Tutorials (in the manual)
+
+The manual's **Tutorials** chapter walks through a track from nothing, each with the pattern lines to type: **1** a jungle loop in five minutes (the BREAK page, FIT TO TEMPO, CLASSIC '94, EDIT ME); **2** chopping a break by hand with `Sxx` (SXX PARTS, PLAY THRU); **3** sub and reese (SUB, REESE, LAYER, DUCK, PHAT CRUSHER, MONO); **4** hardcore stabs (RAVE, off-beat stabs, dub throws, conditions); **5** a squelchy acid line (ACID, accents, tied slides, AUTO A with `Vxx` / `Yxx`); **6** atmospheres (PAD, VAST on SEND A, width from detuned copies with `Txx`); **7** from loop to arrangement (sections, FILL with `?01` / `?02`, builds, LIVE and REC ARRANGE); **8** mixdown and render (LOW-END CHECK, the machine, RENDER WAV and STEMS, RESAMPLE).
+
 ## The Paula sound (and the Akais)
 
 | Control | What it does |

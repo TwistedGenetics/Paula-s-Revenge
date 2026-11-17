@@ -187,21 +187,22 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
     <li><a href="#pattern"><span class="n">002</span><span>Writing patterns</span></a></li>
     <li><a href="#commands"><span class="n">003</span><span>Effect commands</span></a></li>
     <li><a href="#tricks"><span class="n">004</span><span>FX tricks</span></a></li>
-    <li><a href="#song"><span class="n">005</span><span>Blocks &amp; the song</span></a></li>
-    <li><a href="#samples"><span class="n">006</span><span>Instruments &amp; samples</span></a></li>
-    <li><a href="#params"><span class="n">007</span><span>Sound shaping</span></a></li>
-    <li><a href="#sound"><span class="n">008</span><span>Paula &amp; the Akais</span></a></li>
-    <li><a href="#mixer"><span class="n">009</span><span>The mixer</span></a></li>
-    <li><a href="#plugins"><span class="n">010</span><span>Plug-ins</span></a></li>
-    <li><a href="#auto"><span class="n">011</span><span>Automation</span></a></li>
-    <li><a href="#midi"><span class="n">012</span><span>MIDI out</span></a></li>
-    <li><a href="#cv"><span class="n">013</span><span>CV out (modular)</span></a></li>
-    <li><a href="#chords"><span class="n">014</span><span>Chords</span></a></li>
-    <li><a href="#bounce"><span class="n">015</span><span>Bouncing</span></a></li>
-    <li><a href="#render"><span class="n">016</span><span>Rendering</span></a></li>
-    <li><a href="#files"><span class="n">017</span><span>Saving &amp; files</span></a></li>
-    <li><a href="#live"><span class="n">018</span><span>Live mode &amp; visuals</span></a></li>
-    <li><a href="#keys"><span class="n">019</span><span>Keys</span></a></li>
+    <li><a href="#tutorials"><span class="n">005</span><span>Tutorials</span></a></li>
+    <li><a href="#song"><span class="n">006</span><span>Blocks &amp; the song</span></a></li>
+    <li><a href="#samples"><span class="n">007</span><span>Instruments &amp; samples</span></a></li>
+    <li><a href="#params"><span class="n">008</span><span>Sound shaping</span></a></li>
+    <li><a href="#sound"><span class="n">009</span><span>Paula &amp; the Akais</span></a></li>
+    <li><a href="#mixer"><span class="n">010</span><span>The mixer</span></a></li>
+    <li><a href="#plugins"><span class="n">011</span><span>Plug-ins</span></a></li>
+    <li><a href="#auto"><span class="n">012</span><span>Automation</span></a></li>
+    <li><a href="#midi"><span class="n">013</span><span>MIDI out</span></a></li>
+    <li><a href="#cv"><span class="n">014</span><span>CV out (modular)</span></a></li>
+    <li><a href="#chords"><span class="n">015</span><span>Chords</span></a></li>
+    <li><a href="#bounce"><span class="n">016</span><span>Bouncing</span></a></li>
+    <li><a href="#render"><span class="n">017</span><span>Rendering</span></a></li>
+    <li><a href="#files"><span class="n">018</span><span>Saving &amp; files</span></a></li>
+    <li><a href="#live"><span class="n">019</span><span>Live mode &amp; visuals</span></a></li>
+    <li><a href="#keys"><span class="n">020</span><span>Keys</span></a></li>
   </ol>
 </nav>
 
@@ -211,7 +212,8 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 <section class="ch raised" id="start">
   <h2>Getting started</h2>
   <div class="accent t1"></div>
-  <p>Paula's Revenge is an 8-track sample tracker for jungle, drum &amp; bass and anything else that wants the crunchy sound of the Amiga's Paula chip and the old Akai samplers. You write music as lines of notes and commands that play from top to bottom, one block at a time, in the order the song lists them.</p>
+  <p>Paula's Revenge is a sample tracker of up to 16 tracks for jungle, drum &amp; bass and anything else that wants the crunchy sound of the Amiga's Paula chip and the old Akai samplers. You write music as lines of notes and commands that play from top to bottom, one block at a time, in the order the song lists them.</p>
+  <p class="tip"><b>New to trackers?</b> Read the screen and pattern chapters, then work through the <a href="#tutorials">Tutorials</a>: eight walk-throughs from a first loop to a rendered track. The <a href="#tricks">FX tricks</a> chapter is the cookbook to dip into afterwards.</p>
   <h3>Install</h3>
   <ol class="steps">
     <li>Open <b>Releases</b> on the right of the GitHub repo page. Each release has both versions: <code>PaulasRevenge-macOS.zip</code> for a Mac and <code>PaulasRevenge-Windows.zip</code> for a PC (Windows 10 or 11, 64-bit).</li>
@@ -688,7 +690,300 @@ track 2:  009 A-4 05 C08 8E0</pre>
   <h4>Endings and breakdowns</h4>
   <p><code>Dxx</code> leaves the block early, starting the next one at line <code>xx</code> (for a half-bar block without changing its length). <code>F00</code> stops the song. A tempo change (<code>F20</code>&ndash;<code>FF</code> set the BPM in hex: <code>FAC</code> is 172) on the first line of the breakdown block halves the energy in one step.</p>
 
+  <h3>More break tricks</h3>
+
+  <h4>The pitched-up snare roll</h4>
+  <p>A roll that rises as it speeds up: the classic hardcore build into a drop. Each line plays the snare a little higher with <code>Ixx</code> while <code>Rxy</code> gets faster.</p>
+  <pre class="pat">048 D-3 02 R41 I80
+052 D-3 02 R31 I83
+056 D-3 02 R21 I86
+060 D-3 02 R1A I89
+062 D-3 02 R1A I8C</pre>
+
+  <h4>Restart the break from any hit</h4>
+  <p>Turn on <b>PLAY THRU</b> in the slicer. Each <code>Sxx</code> now starts at its slice and lets the break run on, so a single <code>S04</code> mid-bar restarts the whole break from the snare. Two or three restarts a bar is the classic &ldquo;skippy&rdquo; jungle edit with hardly any typing.</p>
+  <pre class="pat">000 C-3 02 S00 ---
+006 C-3 02 S04 ---
+010 C-3 02 S02 ---</pre>
+
+  <h4>Half-time and double-time without new chops</h4>
+  <p>On a break chopped with <code>Sxx</code>, play the parts on every second line instead of every line: <code>S00</code> on 0, <code>S01</code> on 2, <code>S02</code> on 4&hellip; and the break plays at half speed, each hit at its own pitch. On the BREAK page, RE-EDIT's <b>HALF-TIME</b> and <b>DOUBLE-TIME</b> do it to a chopped break in one click.</p>
+
+  <h4>Ghost notes that come and go</h4>
+  <p>Fill the gaps with extra snares, very quiet (<code>C08</code>&ndash;<code>C14</code>), and give each a chance with <code>Kxx</code>. They fade in and out of the groove, so the break breathes.</p>
+  <pre class="pat">003 C-3 02 S04 C0C K60
+007 C-3 02 S04 C10 K40
+011 C-3 02 S04 C08 K80
+015 C-3 02 S04 C14 K30</pre>
+
+  <h4>A four-bar break in 64 parts</h4>
+  <p>Set the sample's <b>SXX PARTS</b> to 64. <code>S00</code>&ndash;<code>S3F</code> are now the 16ths of all four bars, so you can borrow the snare from bar 3 (<code>S24</code>) or the fill from bar 4 (<code>S38</code>&ndash;<code>S3F</code>) and drop it anywhere.</p>
+
+  <h3>Builds and drops</h3>
+
+  <h4>The high-pass build</h4>
+  <p>Raise <code>Hxx</code> on the drum track every bar of the build, so the low end drains out. On the drop's first line <code>H00</code> brings it all back at once.</p>
+  <pre class="pat">000 C-3 01 H20 ---     bar 1
+016 C-3 01 H50 ---     bar 2
+032 C-3 01 H90 ---     bar 3
+048 C-3 01 HC0 R21     bar 4: thin and rolling</pre>
+
+  <h4>The rising pitch</h4>
+  <p>A long note (a noise sweep, a pad, a hoover) with <code>1xx</code> on every line slides up and up into the drop. Bigger numbers rise faster. <code>2xx</code> is the same downwards: a tape-stop-style dive after the last hit of a breakdown.</p>
+
+  <h4>The gap before the drop</h4>
+  <p><code>ECx</code> cuts every track a few ticks into the last line of the build. <code>EE2</code> on that line holds it for two more lines. A beat of near-silence, then the drop.</p>
+
+  <h4>A beat repeat</h4>
+  <p><code>E60</code> marks a line as a loop start, and <code>E6x</code> a few lines later plays those lines <code>x</code> more times. Put <code>E60</code> on line 56 and <code>E63</code> on line 59 for the last beat of a bar three more times over.</p>
+
+  <h3>Bass</h3>
+
+  <h4>The 808 slide</h4>
+  <p>Load SUB with the <b>808 DROP</b> preset, set <b>MODE</b> to LEGATO and <b>DROP ON</b> to <b>EVERY NOTE</b>. Notes that overlap slide into each other and still get the 808's pitch drop. <code>Gxx</code> sets how long each slide takes.</p>
+  <pre class="pat">000 F-1 03 --- ---
+008 F-2 03 G03 ---     up an octave, fast
+010 F-1 03 G06 ---     and back down
+016 D#1 03 G10 ---     a slow slide</pre>
+
+  <h4>A stepped wobble, written in</h4>
+  <p>No LFO needed: change the low-pass every line and the wobble lands exactly where you write it. Uneven steps sound more alive than a smooth sine.</p>
+  <pre class="pat">000 F-1 04 L30 Q60
+001 --- -- L90 ---
+002 --- -- LE0 ---
+003 --- -- L60 ---
+004 --- -- L30 ---
+006 --- -- LC0 ---</pre>
+
+  <h4>A pump without the duck</h4>
+  <p>On a pad or bass: <code>C10</code> on each kick's line drops it right down, then <code>A40</code> on the next lines slides it back up over two or three lines. The same pump as a sidechain, but drawn by hand, so each beat can pump differently.</p>
+  <pre class="pat">000 --- -- C10 ---     kick: duck
+001 --- -- A40 ---     and back up...
+002 --- -- A40 ---
+003 --- -- A40 ---     ...full again
+004 --- -- C10 ---</pre>
+
+  <h3>Width and space</h3>
+
+  <h4>Haas width</h4>
+  <p>The same hit on two tracks, panned hard left (<code>800</code>) and hard right (<code>8FF</code>), with <code>M04</code> on the right one. It lands about 3&nbsp;ms later at 170&nbsp;BPM: too soon to hear as an echo, so the hit just sounds wide. Great on claps and stabs. Keep it off the kick and sub.</p>
+
+  <h4>Ping-pong hats</h4>
+  <p>Alternate <code>840</code> and <code>8C0</code> on hats for movement, or put <code>X24</code> on every hat for a random pan each hit.</p>
+
+  <h4>The runaway dub echo</h4>
+  <p><code>!F0</code> throws a hit into the dub echo until the track's next note. <code>!0F</code> on a later line rides the echo's feedback right up, so it builds on itself; <code>!00</code> brings it back before it gets out of hand. Do it on the last stab of a breakdown.</p>
+
+  <h3>Glitch and texture</h3>
+
+  <h4>Buzz rolls</h4>
+  <p><code>E91</code> retriggers every tick: a hat or snare turns into a buzzing tone. The buzz follows the tempo: the faster the song, the higher it sounds. Follow it with <code>ECx</code> to snap it off.</p>
+
+  <h4>Choppy pads</h4>
+  <p><code>N02</code> on every line of a held synth chord (written again each line) releases it after 2 ticks: a gated, trancey stutter. Change the number line by line for a rhythm.</p>
+
+  <h4>Switch an effect in for one bar</h4>
+  <p>Right-click an on/off control on a built-in synth (SUB's BEAT buttons, say) and make it the track's <b>AUTO A</b>. Now <code>V01</code> switches it on and <code>V00</code> off, from the pattern: crush the last bar, or kick in a wobble for the fill only.</p>
+
+  <h4>One-hit lo-fi, every hit different</h4>
+  <p><code>Z06</code> on a snare, <code>Z0A</code> on the next, <code>Z04</code> on the last: each hit crushed a different amount. With <b>S950</b> on the output strip, the whole mix gets the Akai's grit on top.</p>
+
+  <h3>Arrangement tricks</h3>
+
+  <h4>First time only, and never again</h4>
+  <p><code>?03</code> plays a step only the first time its block plays: an intro crash, a vocal tag. <code>?04</code> is everything but the first time: the hats that come in on the second time round.</p>
+
+  <h4>Call and response</h4>
+  <p><code>?12</code> on one stab and <code>?22</code> on another: the first plays on odd passes, the second on even ones. Two-bar call and response from a one-bar block.</p>
+
+  <h4>A half-length bar</h4>
+  <p><code>D00</code> on line 32 of a 64-line block leaves it halfway, so the next block starts on the beat: a two-bar turnaround without a new block length.</p>
+
+  <h4>The live remix</h4>
+  <p>In <b>LIVE</b> mode, launch blocks on the pads, hold <b>REPEAT 1/16</b> (<kbd>7</kbd>) for a stutter, <b>FILTER DOWN</b> (<kbd>G</kbd>) for a breakdown and <b>TAPE STOP</b> (<kbd>T</kbd>) to end. With <b>REC ARRANGE</b> on, the blocks you launch become the sequence.</p>
+
+  <h3>Combos: a whole fill</h3>
+  <p>Many tricks together on the last bar before a drop: a pitched roll, a reversed cymbal, a dub throw and the gap.</p>
+  <pre class="pat">track 1:  048 C-3 02 S04 R41
+track 1:  052 C-3 02 S04 R31 I83
+track 1:  056 C-3 02 S04 R21 I86
+track 1:  060 C-3 02 S04 R1A I89
+track 1:  063 --- -- EC2 EE1  cut, hold
+track 2:  052 A-3 08 U01 C08  reverse cymbal
+track 2:  053 --- -- A40 ---  swelling up
+track 2:  054 --- -- A40 ---
+track 2:  055 --- -- A40 ---
+track 3:  062 A-3 05 !F0 ---  stab to echo</pre>
+
   <p class="status"><span class="tag">SOURCES</span><span>Tricks gathered from the ProTracker command reference, the OpenMPT Tracker Handbook (techniques: the rolling and phased breaks, swing by speed and by note delay), MusicRadar's tracker tips, the trackerninja Renoise tips, and the Renoise forum's "90s composer tricks" thread (hand-made echoes and detuned layers), all written up for Paula's Revenge's commands.</span></p>
+</section>
+
+<!-- ============================================================ TUTORIALS -->
+<section class="ch raised" id="tutorials">
+  <h2>Tutorials</h2>
+  <div class="accent t1"></div>
+  <p>Eight walk-throughs, from an empty song to a finished track. Each one builds on the last, but each also works on its own. They use the jungle and drum &amp; bass habits the app was built for: 170&nbsp;BPM, a break on track&nbsp;1, the bass under it, the stabs and pads over it.</p>
+  <p class="status"><span class="tag">BEFORE YOU START</span><span>Set <b>BPM</b> to <b>170</b> and <b>SPD</b> to <b>6</b> on the transport row. At speed&nbsp;6, four lines are a beat and <b>16 lines are a bar</b>, so a 64-line block is four bars. The snippets are <b>LINE &nbsp;NOTE INS &nbsp;FX1 &nbsp;FX2</b>, as in the pattern; line numbers are decimal and command values are hex. You need a break of your own (a one-bar Amen, Think or Funky Drummer loop) &mdash; the app comes with none.</span></p>
+
+  <!-- ---------------------------------------------------------- 1 -->
+  <h3>1. A jungle loop in five minutes</h3>
+  <p><b>You'll learn:</b> loading a break, the BREAK page, fitting it to the tempo, and letting the app write the first edit for you.</p>
+  <ol class="steps">
+    <li>Click instrument <b>01</b>, press <b>LOAD</b> &rarr; <b>SAMPLE</b> and pick your break. Every sample you highlight plays, so you can audition as you go. Double-click (or <kbd>Enter</kbd>) to load it.</li>
+    <li>Press <kbd>Cmd</kbd><kbd>6</kbd> for the <b>BREAK</b> page. Set <b>BARS</b> to how long the loop is (usually 1), then press <b>AUTO</b>. The hits are found and tagged <b>K</b> (kick), <b>S</b> (snare), <b>H</b> (hat), <b>O</b> (other). Wrong guess? Right-click a slice and say what it is.</li>
+    <li>Leave <b>FIT TO TEMPO</b> on and press <b>MAKE BLOCK</b>. A new block appears with the break chopped onto track&nbsp;1, each slice on the line where it falls, and BEAT SYNC set so it plays in time at 170.</li>
+    <li>Press <b>PLAY</b> (or <kbd>Space</kbd>). That's your break, as played, at jungle tempo.</li>
+    <li>Now make it jungle: under <b>REBUILD</b> press <b>CLASSIC '94</b>. The kick gets pushed, a ghost snare goes in before the second half, and a snare lands on the last 16th.</li>
+    <li>On the <b>LAB</b> row, click <b>STYLE</b> until it says <b>'94 ROLLERS</b>, set <b>WILD</b> to about 40 and press <b>EDIT ME</b>. Press it again for a different edit. Each press is one undo step, so <kbd>Cmd</kbd><kbd>Z</kbd> brings back one you liked.</li>
+    <li>Click a bar in the grid at the bottom and press <b>RE-ROLL BAR</b> to rewrite just that bar. <b>MUTATE</b> changes a few hits and keeps the rest, so press it a few times to let the edit evolve.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> <b>4 VARIATIONS</b> makes four new blocks after this one, each a different rebuild, the last ending in a ghost roll. That's the drum track for a whole 16-bar section in one click.</p>
+
+  <!-- ---------------------------------------------------------- 2 -->
+  <h3>2. Chopping a break by hand with Sxx</h3>
+  <p><b>You'll learn:</b> the 16 Sxx parts, writing your own chops, ghost notes, rolls and PLAY THRU.</p>
+  <ol class="steps">
+    <li>Load the same break again into instrument <b>02</b> (a fresh copy, without the slices the BREAK page gave 01) and press <b>EDIT</b>. With no slices, the editor shows the 16 parts <code>Sxx</code> plays as faint lines with <b>S00</b>&ndash;<b>S0F</b> tags. On a one-bar break each part is a 16th. On its <b>PARAMS</b>, turn on <b>BEAT SYNC</b> with <b>LINES</b> 16, so the bar of break lasts exactly a bar at 170.</li>
+    <li>Make a new 16-line block (BLOCK <b>NEW</b>, then <b>LINES</b> 16). On track 1, type <code>C-3</code> with instrument 02 on every line you want a hit, and put an <code>Sxx</code> in FX1 to choose which 16th of the break plays there (two effects on a line need <b>FX2</b> on, bottom row):</li>
+  </ol>
+  <pre class="pat">000 C-3 02 S00 ---     kick
+002 C-3 02 S02 ---
+004 C-3 02 S04 ---     snare
+006 C-3 02 S06 ---
+007 C-3 02 S04 C10     ghost snare (quiet)
+008 C-3 02 S00 ---     kick again, early
+010 C-3 02 S0A ---
+011 C-3 02 S00 ---     double kick
+012 C-3 02 S0C ---     snare
+014 C-3 02 S04 R31     snare roll into the next bar</pre>
+  <ol class="steps" start="3">
+    <li>Play it with <kbd>Space</kbd>. Change a number and listen. That's the whole art of chopping: the rhythm comes from <i>which line</i>, the feel from <i>which part</i>.</li>
+    <li>Your hits differ? Watch the editor while it plays, or look at where the tags fall on the wave, and adjust the numbers.</li>
+    <li>A longer break: in the sample editor click any Sxx tag and pick <b>32 PARTS</b> for two bars or <b>64 PARTS</b> for four. <code>S00</code>&ndash;<code>S3F</code> are now the 16ths of a four-bar break, with a stronger line on each bar.</li>
+    <li>Turn on <b>PLAY THRU</b> in the slicer (SLICE). Now each <code>Sxx</code> starts at its part but plays on to the end of the break. Use it for the classic &ldquo;restart the break from the snare&rdquo; edit, and cut it with the next note or <code>ECx</code>.</li>
+  </ol>
+  <pre class="pat">000 C-3 02 S00 ---     the break runs on...
+008 C-3 02 S04 ---     ...restarts at the snare
+012 C-3 02 S0C EC3     cut after 3 ticks
+014 C-3 02 S04 U01     the snare backwards</pre>
+  <p class="tip"><b>Try next:</b> highlight the block and right-click &rarr; <b>RE-SEQUENCE THE SLICES</b>. The rhythm stays but which part plays changes. Again for another; undo goes back.</p>
+
+  <!-- ---------------------------------------------------------- 3 -->
+  <h3>3. Sub and reese: the bass</h3>
+  <p><b>You'll learn:</b> SUB, REESE, glides, LAYER, and ducking the bass under the break.</p>
+  <ol class="steps">
+    <li>Click instrument <b>03</b>, press <b>LOAD</b> &rarr; <b>BUILT-IN SYNTH</b> &rarr; <b>SUB</b>. In <b>PRESETS...</b> pick <b>CLEAN SUB</b>. Set <b>MODE</b> to <b>LEGATO</b> so overlapping notes slide.</li>
+    <li>On track 2 write a bassline. Jungle bass moves slowly: a note or two a bar, held, with the odd slide. Use <code>Gxx</code> to glide into a note without a new attack:</li>
+  </ol>
+  <pre class="pat">000 F-1 03 --- ---
+012 D#1 03 G08 ---     glide down over 8 ticks
+016 F-1 03 --- ---
+028 OFF -- --- ---     a gap before the turnaround
+030 G#1 03 G04 ---
+032 F-1 03 --- ---
+056 C-2 03 G10 ---     a slow slide up</pre>
+  <ol class="steps" start="3">
+    <li>Instrument <b>04</b>: LOAD &rarr; BUILT-IN SYNTH &rarr; <b>REESE</b>, preset <b>DARK ROLLER</b>. Rather than copying the bassline, right-click 04 &rarr; <b>LAYER: PLAY ANOTHER TRACK'S NOTES...</b> &rarr; <b>FOLLOW TRACK 2'S NOTES...</b> &rarr; <b>PLAY ON TRACK 3</b>. Set instrument 04's <b>TRNS</b> to <b>12</b>. The reese now plays the bassline an octave up on its own track.</li>
+    <li>Open the <b>MIXER</b> (<kbd>Cmd</kbd><kbd>2</kbd>) and press <b>DUCK</b>. In <b>TRIGGERS</b> click <b>1</b> (the break); in <b>DUCKED</b> click <b>2</b> and <b>3</b>. Set <b>DEPTH</b> to about 60% and <b>RELEASE</b> to about 150&nbsp;ms. Every kick and snare now pushes the bass down, so the drums punch through.</li>
+    <li>Make the reese dirtier: click an insert slot on track 3, pick <b>PHAT CRUSHER</b> (DRIVE &amp; CRUSH) and its preset <b>REESE GRIT</b>. Lower <b>MIX</b> for parallel crunch.</li>
+    <li>Keep the low end mono: on REESE's page press <b>OUTPUT &amp; KNOBS...</b> and set <b>UTILITY</b> &rarr; <b>MONO</b> to <code>&lt;120HZ</code>. The reese stays wide, the sub under it stays solid.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> on REESE's <b>MOVEMENT</b> tab, set <b>WOBBLE</b> SYNC to <b>1/8</b> with <b>TARGET</b> CUTOFF for a tempo-locked wobble. Or swap SUB for the <b>808 DROP</b> preset for a pitched 808 sub.</p>
+
+  <!-- ---------------------------------------------------------- 4 -->
+  <h3>4. Hardcore stabs and rave chords</h3>
+  <p><b>You'll learn:</b> RAVE, one-key chords, off-beat stabs, pitch tricks, and dub throws.</p>
+  <ol class="steps">
+    <li>Instrument <b>05</b>: LOAD &rarr; BUILT-IN SYNTH &rarr; <b>RAVE</b>, preset <b>STAB</b>. Its <b>CHORD</b> is MINOR, so one key plays the whole minor chord. Try <b>HOOVER STACK</b> and <b>BELGIAN</b> too.</li>
+    <li>On track 4 put stabs on the off-beats and let the last one ring into a dub echo:</li>
+  </ol>
+  <pre class="pat">002 A-3 05 --- ---
+006 A-3 05 --- ---
+010 C-4 05 --- ---
+014 A-3 05 N06 ---     cut short: a stab, not a pad
+024 F-3 05 --- ---
+030 G-3 05 !C2 ---     into the dub echo</pre>
+  <ol class="steps" start="3">
+    <li>The first <code>!</code> you type turns SEND B into a dub echo (DUB DELAY into a SPRING), so the throw just works.</li>
+    <li>The &ldquo;chipmunk&rdquo; stab: on the break track, <code>0C0</code> flips a hit between its pitch and an octave up every tick. <code>I8C</code> plays one hit a whole octave up.</li>
+    <li>Variation without copying: put <code>?44</code> on a stab so it only plays every fourth time round, and <code>K80</code> on another so it plays half the time.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> with a plug-in or MIDI-out instrument, use <code>#xy</code> to play a chord slot from the CHORDS page (<kbd>Cmd</kbd><kbd>3</kbd>) and <b>RECORD CHORD</b> to play your progression in.</p>
+
+  <!-- ---------------------------------------------------------- 5 -->
+  <h3>5. A squelchy acid line</h3>
+  <p><b>You'll learn:</b> ACID, accents, slides, and riding a knob from the pattern.</p>
+  <ol class="steps">
+    <li>Instrument <b>06</b>: LOAD &rarr; BUILT-IN SYNTH &rarr; <b>ACID</b>, preset <b>CLASSIC</b>. Turn <b>RESONANCE</b> up to taste.</li>
+    <li>On track 5 write 16ths. A note that runs straight into the next with <b>no OFF</b> between slides into it (set <b>SLIDE</b> to <b>TIED NOTES</b> on the DEVIL FISH tab). A <code>C40</code> on a note's line accents it:</li>
+  </ol>
+  <pre class="pat">000 C-2 06 C40 ---     accent
+001 OFF -- --- ---
+002 C-2 06 --- ---
+003 C-3 06 --- ---     tied: slides up an octave
+004 OFF -- --- ---
+006 D#2 06 C40 ---
+007 OFF -- --- ---
+008 C-2 06 --- ---
+010 G-2 06 C40 ---
+011 A#2 06 --- ---     tied: slides
+012 OFF -- --- ---
+014 C-3 06 C40 ---
+015 OFF -- --- ---</pre>
+  <ol class="steps" start="3">
+    <li>Right-click ACID's <b>CUTOFF</b> and make it the track's <b>AUTO A</b>. Now <code>Vxx</code> on track 5 sets the cutoff from the pattern. Put <code>Y60</code> on a line so the next change glides over 96 ticks (16 lines at speed 6), then the new value on the line after. The filter sweeps open in time with the song.</li>
+  </ol>
+  <pre class="pat">000 C-2 06 C40 V20     cutoff low
+032 --- -- --- Y60     the next change glides
+033 --- -- --- VE0     open, over 16 lines</pre>
+  <p class="tip"><b>Try next:</b> <b>SWEEP</b> on DEVIL FISH turned down makes a run of accents build up, each one brighter than the last. <code>X07</code> on a few notes moves them up or down by up to 7 semitones at random, so the line never repeats exactly.</p>
+
+  <!-- ---------------------------------------------------------- 6 -->
+  <h3>6. Atmospheres: pads, space and dub</h3>
+  <p><b>You'll learn:</b> PAD, the reverb send, long notes, width and detune.</p>
+  <ol class="steps">
+    <li>Instrument <b>07</b>: LOAD &rarr; BUILT-IN SYNTH &rarr; <b>PAD</b>, preset <b>JUNGLE ATMOS</b>. Hold <b>HOLD TO PLAY</b> to hear it.</li>
+    <li>On track 6 write a chord change every four bars: a long note, held until the next. Pads should breathe: let the release ring and leave space.</li>
+  </ol>
+  <pre class="pat">000 A-3 07 --- ---
+056 OFF -- --- ---     let it go before the change
+064 F-3 07 --- ---</pre>
+  <ol class="steps" start="3">
+    <li>In the mixer, drag track 6's <b>A</b> sideways to send it to SEND A (a reverb to start with). Open SEND A's first insert and pick <b>VAST</b>: <b>DENSITY</b> high and <b>FEEDBACK</b> near 90% for a huge wash.</li>
+    <li>Put the pad on the duck too (DUCK &rarr; DUCKED &rarr; <b>6</b>), with a long <b>RELEASE</b> (400&nbsp;ms or more), so it swells between the kicks.</li>
+    <li>For width without effects, copy the pad's notes to a spare track, put <code>T7A</code> on one track and <code>T86</code> on the other, and pan them left and right.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> <b>GRANULAR</b> with preset <b>CHOIR CLOUD</b> under the pad, or load a vocal into GRANULAR and turn on <b>FREEZE</b> to hold a single moment of it as a drone.</p>
+
+  <!-- ---------------------------------------------------------- 7 -->
+  <h3>7. From loop to arrangement</h3>
+  <p><b>You'll learn:</b> sections, fills, conditional steps, builds, drops and jamming the arrangement live.</p>
+  <ol class="steps">
+    <li>In the sequence, list your blocks in order. Click at the right of a row (<b>+ SECTION</b>) to name sections: INTRO, BUILD, DROP, BREAKDOWN, DROP 2, OUTRO. <b>LOOP SECTION</b> loops one while you work on it.</li>
+    <li>Fills on demand: on the break track, put a snare roll on lines marked <code>?01</code> and the kick it replaces on <code>?02</code>. Hold <kbd>F2</kbd> while it plays and the fill drops in.</li>
+  </ol>
+  <pre class="pat">track 1:  048 C-3 02 S00 ?02  kick, not in FILL
+track 2:  048 C-3 02 S04 ?01  FILL: a snare...
+track 2:  052 C-3 02 S04 ?01 R31  ...rolling
+track 2:  056 C-3 02 S04 ?01 R21
+track 2:  060 C-3 02 S04 ?01 R1A</pre>
+  <ol class="steps" start="3">
+    <li>A build: on the last block before the drop, raise the high-pass on the break each bar with <code>Hxx</code> (<code>H20</code>, <code>H50</code>, <code>H90</code>, <code>HC0</code>), roll the snare faster with <code>Rxy</code>, then <code>EE3</code> on the last line holds that line for three extra lines before the drop hits. On the drop block's first line, <code>H00</code> opens it again.</li>
+    <li>A crash every four bars without copying blocks: <code>?14</code> on the crash.</li>
+    <li>Jam it out: press <b>LIVE</b> (<kbd>Cmd</kbd><kbd>7</kbd>). Each pad launches a block, taking over at the next bar (<b>AT:</b> changes when). Press <b>REC ARRANGE</b>, play the blocks in the order that feels right, press it again, and that becomes the song's sequence.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> in LIVE mode, hold <b>REPEAT 1/8</b> (<kbd>6</kbd>) over the last beat before a drop, or <b>TAPE STOP</b> (<kbd>T</kbd>) at the end of the breakdown.</p>
+
+  <!-- ---------------------------------------------------------- 8 -->
+  <h3>8. Mixdown and render</h3>
+  <p><b>You'll learn:</b> checking the low end, balancing, the Paula sound, and getting WAVs out.</p>
+  <ol class="steps">
+    <li>Play the loudest part and open the mixer's <b>LOW-END CHECK</b>. Fix what it flags: <b>BASS NOT MONO</b> &rarr; the bass instrument's UTILITY MONO; <b>SUB SWAMPS THE MIX</b> &rarr; turn the sub down or duck it harder; <b>MUDDY</b> &rarr; cut 200&ndash;500&nbsp;Hz on the pads and breaks in their channel EQ.</li>
+    <li>Set levels with the faders, drums first. Then the bass up until it sits under them, then everything else.</li>
+    <li>Choose the machine on the output strip: <b>A500</b> for the warm, dull 90s sound, <b>A1200</b> brighter, <b>S950</b> or <b>S1000</b> for the Akai crunch, <b>CLEAN</b> for none.</li>
+    <li>File &rarr; <b>Render WAV...</b> &rarr; <b>SONG</b> for one stereo WAV, or <b>STEMS</b> for one WAV per track plus the two sends and the master, all lined up, ready to drop into Ableton.</li>
+  </ol>
+  <p class="tip"><b>Try next:</b> highlight a few lines of the finished drop and press <kbd>Shift</kbd><kbd>Cmd</kbd><kbd>B</kbd> (RESAMPLE). They're bounced into a new instrument, already sliced and ready to chop again: the jungle way of building tunes from your own tunes.</p>
 </section>
 
 <!-- ============================================================ 004 -->
