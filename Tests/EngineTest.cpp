@@ -5436,7 +5436,7 @@ static void testTg101()
     }
     // the ARPEGGIO: UP over two octaves at 120 BPM in 1/16s - 8 steps a second, low to high, then round again
     {
-        auto v = tg101Preset (0); v[ArpMode] = ArpUp; v[ArpRate] = 2; v[ArpOct] = 2; v[ArpGate] = 50;
+        auto v = tg101Preset (0); v[ArpMode] = ArpUp; v[ArpRate] = 2; v[ArpOct] = 1; v[ArpGate] = 50;
         auto a = fresh (v); a->noteOn (48, 100, 0); a->noteOn (55, 100, 0);
         std::vector<int> seq; int last = -2;
         for (int b = 0; b < 100; ++b) { a->render (L.data(), R.data(), 480); if (a->arpSteps() != last) { last = a->arpSteps(); seq.push_back (a->keyNow()); } }
@@ -5445,7 +5445,7 @@ static void testTg101()
         std::printf ("\n");
         CHECK (a->arpSteps() >= 8 && a->arpSteps() <= 9 && seq.size() >= 6 && seq[0] == 48 && seq[1] == 55 && seq[2] == 60 && seq[3] == 67 && seq[4] == 48);
         // DOWN, and the keys up: it stops
-        v[ArpMode] = ArpDown; v[ArpOct] = 1;
+        v[ArpMode] = ArpDown; v[ArpOct] = 0;
         auto b = fresh (v); b->noteOn (48, 100, 0); b->noteOn (52, 100, 0); b->noteOn (55, 100, 0);
         std::vector<int> dn; last = -2;
         for (int k = 0; k < 40; ++k) { b->render (L.data(), R.data(), 480); if (b->arpSteps() != last) { last = b->arpSteps(); dn.push_back (b->keyNow()); } }

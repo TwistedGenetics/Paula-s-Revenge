@@ -34,7 +34,7 @@ const std::vector<SynthParam>& tg101Params()
         { "FINE",      "0:VCO + MIXER|VCO>VCO", -50, 50, 0,     0, "C",  "" },
         { "VIBRATO",   "0:VCO + MIXER|VCO>VCO", 0, 100, 0,      0, "%",  "" },      // (the LFO into the pitch: vibrato)
         { "PW",        "0:VCO + MIXER|VCO>VCO", 0, 100, 0,      0, "%",  "" },      // (MAN: the width; LFO / ENV: how far they move it)
-        { "PWM",       "0:VCO + MIXER|VCO>VCO", 0, 2, 1,        3, "",   "LFO|MAN|ENV" },
+        { "PWM",       "0:VCO + MIXER|VCO>VCO", 0, 2, 1,        3, "",   "PWM: LFO|PWM: MAN|PWM: ENV" },
         { "PULSE",     "0:VCO + MIXER|VCO>SOURCE MIXER", 0, 100, 0,   0, "%", "" },
         { "SAW",       "0:VCO + MIXER|VCO>SOURCE MIXER", 0, 100, 100, 0, "%", "" },
         { "SUB",       "0:VCO + MIXER|VCO>SOURCE MIXER", 0, 100, 0,   0, "%", "" },
@@ -51,20 +51,20 @@ const std::vector<SynthParam>& tg101Params()
         { "DECAY",     "1:VCF + ENV|VCF>ENV", 2, 10000, 400,    1, "MS", "" },
         { "SUSTAIN",   "1:VCF + ENV|VCF>ENV", 0, 100, 40,       0, "%",  "" },
         { "RELEASE",   "1:VCF + ENV|VCF>ENV", 2, 10000, 60,     1, "MS", "" },
-        { "TRIGGER",   "1:VCF + ENV|VCF>ENV", 0, 2, 0,          3, "",   "GATE+TRIG|GATE|LFO" },
-        { "VCA",       "1:VCF + ENV|VCF>ENV", 0, 1, 0,          3, "",   "ENV|GATE" },
+        { "TRIGGER",   "1:VCF + ENV|VCF>ENV", 0, 2, 0,          3, "",   "GATE+TRIG|GATE ONLY|LFO TRIG" },
+        { "VCA",       "1:VCF + ENV|VCF>ENV", 0, 1, 0,          3, "",   "VCA: ENV|VCA: GATE" },
         // LFO + PORTAMENTO + OUTPUT
         { "RATE",      "2:LFO + PORTA|LFO>LFO", 0.1f, 30, 4,    1, "HZ", "" },
         { "WAVE",      "2:LFO + PORTA|LFO>LFO", 0, 3, 0,        3, "",   "TRI|SQUARE|RANDOM|NOISE" },
         { "SYNC",      "2:LFO + PORTA|LFO>LFO", 0, 5, 0,        3, "",   "FREE|1 BAR|1/2|1/4|1/8|1/16" },
-        { "GLIDE",     "2:LFO + PORTA|LFO>PORTAMENTO", 0, 2, 0, 3, "",   "OFF|ON|AUTO" },
+        { "GLIDE",     "2:LFO + PORTA|LFO>PORTAMENTO", 0, 2, 0, 3, "",   "GLIDE OFF|GLIDE ON|GLIDE AUTO" },
         { "TIME",      "2:LFO + PORTA|LFO>PORTAMENTO", 5, 3000, 120, 1, "MS", "" },
         // ARPEGGIO
-        { "MODE",      "3:ARPEGGIO|ARP>ARPEGGIO", 0, 3, 0,      3, "",   "OFF|UP|DOWN|UP+DOWN" },
+        { "MODE",      "3:ARPEGGIO|ARP>ARPEGGIO", 0, 3, 0,      3, "",   "ARP OFF|UP|DOWN|UP+DOWN" },
         { "STEP",      "3:ARPEGGIO|ARP>ARPEGGIO", 0, 5, 2,      3, "",   "1/4|1/8|1/16|1/32|1/8T|1/16T" },
-        { "OCTAVES",   "3:ARPEGGIO|ARP>ARPEGGIO", 1, 3, 1,      2, "",   "" },
+        { "OCTAVES",   "3:ARPEGGIO|ARP>ARPEGGIO", 0, 2, 0,      3, "",   "1 OCTAVE|2 OCTAVES|3 OCTAVES" },
         { "GATE",      "3:ARPEGGIO|ARP>ARPEGGIO", 10, 100, 60,  0, "%",  "" },
-        { "HOLD",      "3:ARPEGGIO|ARP>ARPEGGIO", 0, 1, 0,      3, "",   "OFF|ON" },
+        { "HOLD",      "3:ARPEGGIO|ARP>ARPEGGIO", 0, 1, 0,      3, "",   "HOLD OFF|HOLD ON" },
         { "VELOCITY",  "2:LFO + PORTA|LFO>OUTPUT", 0, 100, 0,   0, "%",  "" },
         { "DRIVE",     "2:LFO + PORTA|LFO>OUTPUT", 0, 100, 0,   0, "%",  "" },
         { "LEVEL",     "2:LFO + PORTA|LFO>OUTPUT", 0, 100, 75,  0, "%",  "" },
@@ -108,7 +108,7 @@ std::vector<float> tg101Preset (int i)
         case 9: set ({ { SawLvl, 0 }, { NoiseLvl, 100 }, { SubLvl, 40 }, { SubType, SubOct2 }, { Freq, 3500 }, { Res, 30 }, { EnvAmt, 40 },
                        { Decay, 140 }, { Sustain, 0 }, { Release, 140 } }); break;
         case 10: set ({ { SawLvl, 90 }, { PulseLvl, 50 }, { PwmSource, PwmLfo }, { Pw, 40 }, { Freq, 1200 }, { Res, 50 }, { EnvAmt, 55 },
-                        { Decay, 150 }, { Sustain, 0 }, { Release, 60 }, { ArpMode, ArpUp }, { ArpRate, 2 }, { ArpOct, 2 }, { ArpGate, 55 } }); break;
+                        { Decay, 150 }, { Sustain, 0 }, { Release, 60 }, { ArpMode, ArpUp }, { ArpRate, 2 }, { ArpOct, 1 }, { ArpGate, 55 } }); break;
         case 11: set ({ { SawLvl, 0 }, { PulseLvl, 100 }, { PwmSource, PwmManual }, { Pw, 0 }, { SubLvl, 80 }, { SubType, SubOct1 }, { Freq, 4000 },
                         { Res, 0 }, { EnvAmt, 0 }, { VcaMode, VcaGate }, { Level, 55 } }); break;
         case 12: set ({ { SawLvl, 100 }, { Freq, 400 }, { Res, 90 }, { EnvAmt, 85 }, { Attack, 300 }, { Decay, 1500 }, { Sustain, 60 }, { Release, 800 } }); break;
@@ -280,7 +280,7 @@ void Tg101Synth::renderHi (float* dst, int n)
     const int arpMode = (int) std::lround (p[ArpMode]);
     const bool hold = std::lround (p[ArpHold]) == 1;
     const double arpStep = songBpm / 60.0 * kStepsPerBeat[std::clamp ((int) std::lround (p[ArpRate]), 0, 5)] / sr;
-    const int arpOct = std::clamp ((int) std::lround (p[ArpOct]), 1, 3);
+    const int arpOct = std::clamp ((int) std::lround (p[ArpOct]) + 1, 1, 3);   // (OCTAVES: 0-2 is 1-3)
     const double arpGate = std::clamp (p[ArpGate] * 0.01f, 0.1f, 1.0f);
     const float velSens = p[VelSens] * 0.01f;
     const float drive = 1.0f + p[Drive] * 0.01f * 8.0f;

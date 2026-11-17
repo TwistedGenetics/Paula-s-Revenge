@@ -171,7 +171,7 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 </style>
 
 <div class="cover">
-  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.99</span></header>
+  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V1.00</span></header>
   <div class="tracks"><div class="t1"></div><div class="t2"></div><div class="t3"></div><div class="t4"></div></div>
   <div class="raised big">USER MANUAL<br>AN 8-TRACK AMIGA-STYLE SAMPLE TRACKER<br>FOR JUNGLE, DRUM &amp; BASS AND BREAKS</div>
   <figure><div class="frame sunken"><img src="img/main.png" alt="The main screen" width="1440" height="900"></div><figcaption>The main screen, light skin</figcaption></figure>
@@ -1018,7 +1018,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <h2>Instruments &amp; samples</h2>
   <div class="accent t2"></div>
   <h3>Loading, opening and naming an instrument</h3>
-  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, PAD, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
+  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, PAD, GRANULAR), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
   <figure>
     <div class="frame sunken"><img src="img/load_kinds.png" alt="LOAD's question over the main screen: LOAD INTO INSTRUMENT 04: WHAT KIND? with SAMPLE, BUILT-IN SYNTH, VST3 / AU SYNTH, SAVED INSTRUMENT, MIDI OUT, CV OUT, RECORD AUDIO and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>LOAD asks what kind of instrument first</figcaption>
@@ -1445,7 +1445,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
   <h3>Presets for the built-in synths</h3>
-  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine and five layered ones; ten each for SUB, REESE, MORPH, ACID, PAD and GRANULAR; for ROM, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
+  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine and five layered ones; ten each for SUB, REESE, MORPH, ACID, PAD and GRANULAR; fourteen for TG 101; for ROM, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
   <figure>
     <div class="frame sunken"><img src="img/synth_presets.png" alt="RAVE's PRESETS menu: SAVE THESE SETTINGS AS MY PRESET..., the nine sounds STAB to BELGIAN, MY DARK SCREAM, DELETE ONE OF MY PRESETS... and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>RAVE's presets, with one of yours</figcaption>
@@ -1557,6 +1557,24 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <div class="frame sunken"><img src="img/acid_devilfish.png" alt="ACID's DEVIL FISH tab: DEVIL FISH ENVELOPES (ACC DECAY, ATTACK, SWEEP, AMP DECAY, RELEASE), DEVIL FISH FILTER (TRACKING, FILTER FM, RES BASS), SLIDE (TIME, OVERLAP (KEYS) / TIED NOTES) and MUFFLER + DRIVE (OFF / SOFT / HARD, DRIVE)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
+  <h3>The built-in TG 101 synth (a classic monosynth)</h3>
+  <p><b>TG 101</b> is a one-voice monosynth in the style of the SH-101 &mdash; our own model of the sound, built and tuned by ear, not a copy of any circuit or code. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; TG 101. One note at a time: a saw, a pulse and a sub-oscillator, mixed into a resonant 4-pole low-pass, one envelope, an LFO, portamento and an arpeggio. Like ACID it runs at four times the song's rate, so the filter can scream without whistling. Four tabs; <b>PRESETS...</b> has fourteen sounds.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/tg101_vco.png" alt="TG 101's VCO + MIXER tab: VCO (RANGE 16' 8' 4' 2', TUNE, FINE, VIBRATO, PW, PWM: LFO / MAN / ENV) and SOURCE MIXER (PULSE, SAW, SUB, SUB TYPE -1 OCT / -2 OCT / -2 PULSE, NOISE)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>VCO + MIXER: the oscillator and the source mixer, as on the front panel</figcaption>
+  </figure>
+  <ul>
+    <li><span class="b">VCO + MIXER</span> &mdash; <b>RANGE</b> (16' 8' 4' 2': the octave), <b>TUNE</b> (&plusmn;12 semitones), <b>FINE</b>, <b>VIBRATO</b> (the LFO on the pitch). <b>PW</b> and <b>PWM</b>: <b>PWM: MAN</b> sets the pulse's width by hand (0 = a square, up to a thin pulse); <b>PWM: LFO</b> and <b>PWM: ENV</b> move it, PW saying how far &mdash; the chorus-like PWM sound. The <b>SOURCE MIXER</b>: <b>PULSE</b>, <b>SAW</b>, <b>SUB</b> and <b>NOISE</b>; the sub is a square an octave down, two octaves down, or a narrow pulse two octaves down, locked to the VCO.</li>
+    <li><span class="b">VCF + ENV</span> &mdash; <b>FREQ</b>, <b>RES</b> (at the top it whistles on its own: with <b>KYBD</b> 100 you can play the whistle), <b>ENV</b>, <b>LFO</b> (wobble), <b>KYBD</b>, <b>BENDER</b>. <b>ATTACK</b>, <b>DECAY</b>, <b>SUSTAIN</b>, <b>RELEASE</b>. <b>GATE+TRIG</b> starts the envelope on every note; <b>GATE ONLY</b> keeps it going through legato notes; <b>LFO TRIG</b> re-fires it every LFO cycle while a note is held &mdash; one long note becomes a pulsing rhythm. <b>VCA: GATE</b> is plain on / off: the organ sound.</li>
+    <li><span class="b">LFO + PORTA</span> &mdash; LFO <b>RATE</b>, <b>TRI / SQUARE / RANDOM / NOISE</b> (RANDOM is the stepped sample-and-hold bleep), <b>SYNC</b> to the song (1 BAR down to 1/16). <b>GLIDE OFF / ON / AUTO</b> (AUTO glides only into a note played while the last is still held) and <b>TIME</b>. <b>VELOCITY</b>, <b>DRIVE</b>, <b>LEVEL</b>.</li>
+    <li><span class="b">ARPEGGIO</span> &mdash; <b>UP</b>, <b>DOWN</b> or <b>UP+DOWN</b> over the notes held, <b>STEP</b> 1/4 to 1/32 (triplets too) at the song's tempo, <b>1-3 OCTAVES</b>, <b>GATE</b>, <b>HOLD ON</b> (it keeps going with the keys up until the song stops). Give it a chord with the chord command (<code>#</code>) or notes for the same instrument on two or three tracks.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/tg101_arp.png" alt="TG 101's ARPEGGIO tab with the ARP RAVE preset: UP, STEP 1/16, 2 OCTAVES, GATE 55%, HOLD OFF." width="1440" height="900" loading="lazy"></div>
+    <figcaption>ARP RAVE: a chord held on one line turns into a 1/16 arpeggio over two octaves</figcaption>
+  </figure>
+  <p><b>Presets:</b> TG BASS, RUBBER SUB BASS, RAVE STAB, ACID 101, BLEEP, PWM LEAD, SQUELCH LEAD, SQUARE WOBBLE (the LFO synced to 1/8s), ZAP TOM (just the filter whistling), NOISE SNARE, ARP RAVE, ORGAN GATE, RES SWEEP and MINI HOOVER.</p>
+  <p><b>Try:</b> <b>SQUARE WOBBLE</b> on a rolling bass line &mdash; the wobble locks to the tempo. <b>ZAP TOM</b> on <code>C-2</code>, <code>G-2</code>, <code>C-3</code> for tuned zaps between the breaks. <b>ARP RAVE</b> with <code>#</code> (a minor chord) held for a bar, and <b>LFO TRIG</b> on any pad sound for an instant gated stab.</p>
   <h3>LAYER: one instrument playing another track's notes</h3>
   <p>Right-click an instrument &rarr; <span class="b">LAYER: PLAY ANOTHER TRACK'S NOTES...</span>, pick the track to follow, then the track to play on (an empty one, or a new one). The instrument then plays every note of that track &mdash; its OFFs, volume and timing too &mdash; on its own track and mixer strip, with no notes of its own in the pattern. A SUB under a bassline: layer SUB on a spare track, set its <b>TRNS</b> to &minus;12, and EQ or duck that track on its own. A note written on the layer's track plays instead. Right-click the instrument again for <span class="b">LAYER OFF</span>.</p>
   <h3>The built-in 808 and 909 drum machines</h3>
@@ -2045,7 +2063,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.99</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V1.00</footer>
 </main>
 </div>
 </body></html>
