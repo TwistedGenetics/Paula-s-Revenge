@@ -2006,6 +2006,13 @@ static void testSlices()
     in.slices.clear();
     const auto s16 = level ({ 37, 1, cmdLetter ('S'), 0x00 });
     CHECK (std::abs (s16.second - 250) <= 10);
+    // (v0.97) SXX PARTS: 64 parts are a quarter as long; S40 goes round to S00; anything else counts as 16
+    in.sxxParts = 64;
+    const auto s64 = level ({ 37, 1, cmdLetter ('S'), 0x00 }), s64b = level ({ 37, 1, cmdLetter ('S'), 0x21 }), s64w = level ({ 37, 1, cmdLetter ('S'), 0x40 });
+    std::printf ("SXX PARTS 64: S00 len %d, S21 len %d level %.3f, S40 len %d level %.3f (S00 %.3f)\n", s64.second, s64b.second, s64b.first, s64w.second, s64w.first, s64.first);
+    CHECK (std::abs (s64.second - 62) <= 6 && std::abs (s64b.second - 62) <= 6 && std::abs (s64w.first - s64.first) < 1e-3);
+    in.sxxParts = 20; CHECK (in.sxxPartCount() == 16);
+    in.sxxParts = 16;
     // keyboard / MIDI notes follow slice to keys too
     in.slices = { 0, 1000, 2000, 3000 }; in.sliceKeys = true;
     {

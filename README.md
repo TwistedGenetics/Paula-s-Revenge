@@ -517,6 +517,7 @@ A short block can play differently each time round, like the conditional steps o
 * **SLICE TO KEYS**: notes play slices instead of the whole sample: `C-3` = slice 1, `C#3` = slice 2, `D-3` = slice 3 and so on, each at its own pitch and stopping at the end of its slice. This works in patterns, from the computer keys and from MIDI. Every note plays a slice: past the last one they wrap round to slice 1 again, and below `C-3` they count back from the last (with 8 slices, `B-2` is slice 8 and `C-2` slice 5) — so a note typed in the wrong octave is never silent. To pitch one hit up or down, add `Ixx` to that note (`I8C` = an octave up, `I7B` = 5 semitones down).
 * Without SLICE TO KEYS, `Sxx` plays slice xx+1 of the instrument's slices (`S00` = slice 1). Instruments with no slice points still split into 16 equal parts, as before.
 * **No slices: the `Sxx` parts are shown.** With no slice points, the sample editor draws the 16 equal parts `Sxx` plays — faint lines across the wave between START and END, with **S00**…**S0F** tags along the bottom (as Renoise shows its slices). When the wave is too narrow for all 16 tags, only some are labelled; zoom in to see them all. Move START or END and the parts move with them. Add a slice point and the parts give way to the slices.
+* **SXX PARTS** — how many parts: **16** (a one-bar break in 16ths), **32**, **48** or **64** (a four-bar break in 16ths, `S00`…`S3F`). Click an Sxx tag on the waveform, **SXX: 16 PARTS** in the slicer, or **SXX: … PARTS...** in the waveform's right-click menu. The bars are marked with stronger lines. Each instrument keeps its own (saved in the song and in instrument files; songs from before keep 16). `Sxx` past the last part goes round again: with 32 parts, `S20` is `S00`.
 
 ## Stereo samples
 
@@ -659,7 +660,7 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 | `Pxx` | Start at xx/256 of the sample |
 | `Qxx` | Filter resonance |
 | `Rxy` | Roll: retrigger every x ticks; y `1–7` quieter, `9–F` louder each time |
-| `Sxx` | Play slice xx+1 of the instrument's slice points, or of 16 equal parts if it has none (stops at the slice end) |
+| `Sxx` | Play slice xx+1 of the instrument's slice points, or of its SXX PARTS (16 equal parts, or 32, 48, 64) if it has none (stops at the slice end) |
 | `Txx` | Micro-tune: `80` = 0, each step = 1 cent |
 | `U01` / `U00` | Play backwards / forwards |
 | `Wxx` | Band-pass filter, cutoff xx |

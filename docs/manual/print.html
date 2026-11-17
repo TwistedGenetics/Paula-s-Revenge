@@ -171,7 +171,7 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 </style>
 
 <div class="cover">
-  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.96</span></header>
+  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.97</span></header>
   <div class="tracks"><div class="t1"></div><div class="t2"></div><div class="t3"></div><div class="t4"></div></div>
   <div class="raised big">USER MANUAL<br>AN 8-TRACK AMIGA-STYLE SAMPLE TRACKER<br>FOR JUNGLE, DRUM &amp; BASS AND BREAKS</div>
   <figure><div class="frame sunken"><img src="img/main.png" alt="The main screen" width="1440" height="900"></div><figcaption>The main screen, light skin</figcaption></figure>
@@ -550,7 +550,7 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
       <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
       <tr><td><code>Pxx</code></td><td>Start at xx/256 of the sample</td></tr>
       <tr><td><code>Rxy</code></td><td>Roll: retrigger every x ticks, y <code>1</code>–<code>7</code> quieter or <code>9</code>–<code>F</code> louder each time</td></tr>
-      <tr><td><code>Sxx</code></td><td>Play slice xx+1</td></tr>
+      <tr><td><code>Sxx</code></td><td>Play slice xx+1 (no slices: one of the SXX PARTS)</td></tr>
       <tr><td><code>Txx</code></td><td>Micro-tune: <code>80</code> = 0, each step 1 cent</td></tr>
       <tr><td><code>U01</code> <code>U00</code></td><td>Play backwards / forwards</td></tr>
       <tr><td><code>Xxy</code></td><td>Randomise: x <code>0</code> note ±y, <code>1</code> volume, <code>2</code> pan, <code>3</code> start</td></tr>
@@ -748,6 +748,11 @@ track 2:  009 A-4 05 C08 8E0</pre>
     <li><b>Loop:</b> drag the <span class="b">S</span> and <span class="b">E</span> handles at the top of the wave; you hear the loop while you drag. <span class="b">PING-PONG</span> plays it forwards then backwards.</li>
   </ul>
   <p><b>No slices: the Sxx parts.</b> With no slice points, <code>Sxx</code> plays one of 16 equal parts of the sample between START and END. The editor shows them, as Renoise shows its slices: faint lines across the wave and <b>S00</b>&ndash;<b>S0F</b> tags along the bottom (when there isn't room for all 16 tags, some are left out; zoom in to see them all). Move START or END and the parts move too. Add a slice point and the slices take over.</p>
+  <p><b>SXX PARTS:</b> a longer break needs more parts. Click an Sxx tag (or <span class="b">SXX: 16 PARTS</span> in the slicer, or the waveform's right-click menu) and pick <b>16</b> (one bar of 16ths), <b>32</b>, <b>48</b> or <b>64</b> (four bars of 16ths, <code>S00</code>&ndash;<code>S3F</code>). Each bar starts with a stronger line. Each instrument keeps its own; older songs keep 16. Past the last part, <code>Sxx</code> goes round again.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/sxx_64.png" alt="The sample editor with a four-bar break, no slices and SXX PARTS at 64: 64 faint lines with a stronger one at each bar, and tags from S00 to S3F along the bottom." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A four-bar break in 64 parts: S00 to S3F</figcaption>
+  </figure>
   <figure>
     <div class="frame sunken"><img src="img/sxx_parts.png" alt="The sample editor with a one-bar break and no slices: 16 faint lines across the wave and tags S00, S02, S04 and on to S0E along the bottom." width="1440" height="900" loading="lazy"></div>
     <figcaption>A break with no slices: the 16 parts Sxx plays</figcaption>
@@ -1715,7 +1720,7 @@ track 2:  009 A-4 05 C08 8E0</pre>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.96</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.97</footer>
 </main>
 </div>
 </body></html>

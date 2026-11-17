@@ -90,6 +90,11 @@ public:
     void updateJamRange();
     // (v0.96) with no slices, the 16 parts Sxx plays (S00..S0F) are drawn faintly over the wave
     bool showSxx = true;
+    // (v0.97) SXX PARTS: 16, 32, 48 or 64 (one undo step); the menu (SXX: n PARTS in the slicer, a click on an Sxx tag,
+    // or the waveform's right-click menu)
+    void setSxxParts (int parts);
+    void showSxxMenu();
+    int  sxxTagAt (juce::Point<float>) const;   // the Sxx tag under the mouse (-1: none)
 
 private:
     PaulaProcessor& proc;
@@ -138,7 +143,7 @@ private:
 
     // slicer panel (replaces the button rows while open)
     PixButton slAuto { "AUTO" }, slEven { "EVEN" }, slAdd { "ADD AT CURSOR" }, slRemove { "REMOVE" }, slClear { "CLEAR ALL" },
-              slKeys { "SLICE TO KEYS", true }, slPlay { "PLAY SLICE" }, slDone { "DONE" };
+              slKeys { "SLICE TO KEYS", true }, slPlay { "PLAY SLICE" }, slSxx { "SXX: 16 PARTS" }, slDone { "DONE" };
     NumberBox slSens { "SENS", 1, 100, 50 }, slCount { "COUNT", 2, 64, 8 };
     std::vector<juce::Component*> slicerControls();
     juce::Rectangle<float> slicerInfoArea, slicerHelpArea;

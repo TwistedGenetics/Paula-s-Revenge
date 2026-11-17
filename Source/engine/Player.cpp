@@ -889,9 +889,10 @@ void Player::triggerNote (Voice& v, const Cell& cell, int ch)
         }
         else
         {
-            const int sl = p & 15;
-            v.regionStart = lo + std::floor (sl * (hi - lo) / 16.0);
-            v.regionEnd = lo + std::floor ((sl + 1) * (hi - lo) / 16.0);
+            // (SXX PARTS: 16, 32, 48 or 64 equal parts of START..END)
+            const int parts = in.sxxPartCount(), sl = p % parts;
+            v.regionStart = lo + std::floor (sl * (hi - lo) / (double) parts);
+            v.regionEnd = lo + std::floor ((sl + 1) * (hi - lo) / (double) parts);
         }
         v.pos = v.regionStart;
     }

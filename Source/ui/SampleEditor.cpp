@@ -153,6 +153,7 @@ SampleEditor::SampleEditor (PaulaProcessor& p) : proc (p)
     slRemove.onClick = [this] { removeSlice (selectedSlice >= 0 ? selectedSlice : sliceAt (hasSel() ? selA : cursor)); };
     slClear.onClick  = [this] { clearSlices(); };
     slKeys.onClick   = [this] { setSliceKeys (slKeys.getToggleState()); };
+    slSxx.onClick    = [this] { showSxxMenu(); };
     slPlay.onClick   = [this] { selectSlice (selectedSlice >= 0 ? selectedSlice : std::max (0, sliceAt (cursor)), true); };
     slDone.onClick   = [this] { showSlicer (false); };
     for (auto* c : slicerControls()) addChildComponent (c);
@@ -248,6 +249,7 @@ void SampleEditor::syncLoopControls()
     loopStartBox.setEnabled (in.isLooped());
     loopEndBox.setEnabled (in.isLooped());
     slKeys.setToggleState (in.sliceKeys, juce::dontSendNotification);
+    slSxx.setButtonText ("SXX: " + juce::String (in.sxxPartCount()) + " PARTS");
 }
 
 void SampleEditor::clampView()
@@ -526,7 +528,7 @@ std::vector<juce::Component*> SampleEditor::mainControls()
 
 std::vector<juce::Component*> SampleEditor::slicerControls()
 {
-    return { &slAuto, &slSens, &slEven, &slCount, &slAdd, &slRemove, &slClear, &slKeys, &slPlay, &slDone };
+    return { &slAuto, &slSens, &slEven, &slCount, &slAdd, &slRemove, &slClear, &slKeys, &slPlay, &slSxx, &slDone };
 }
 
 std::vector<juce::Component*> SampleEditor::stretchControls()
@@ -624,7 +626,7 @@ void SampleEditor::resized()
     slicerHelpArea = rows[5].toFloat().getUnion (rows[6].toFloat());
     layoutRow (rows[2], { &slAuto, &slSens, &slEven, &slCount });
     layoutRow (rows[3], { &slAdd, &slRemove, &slClear });
-    layoutRow (rows[4], { &slKeys, &slPlay });
+    layoutRow (rows[4], { &slKeys, &slPlay, &slSxx });
     layoutRow (rows[7], { &slDone });
 
     auto area = inner.toFloat();
@@ -803,19 +805,21 @@ void SampleEditor::paint (juce::Graphics& g)
                 lastRight = tab.getRight() + px;
             }
         }
-        // (v0.96) no slices: Sxx plays one of 16 equal parts of START..END - faint lines and their numbers,
-        // as Renoise shows its slices (S00 at START; the labels thin out when there's no room)
+        // (v0.96) no slices: Sxx plays one of 16 (SXX PARTS: up to 64) equal parts of START..END - faint lines and
+        // their numbers, as Renoise shows its slices (S00 at START; a bar's start stronger; the labels thin out when
+        // there's no room)
         else if (in.hasData() && ! drawMode && showSxx)
         {
             const double lo = in.rangeStart(), hi = in.rangeEnd();
+            const int parts = in.sxxPartCount();
             const float h = px * 9;
             float lastRight = -1e9f;
-            for (int k = 0; k < 16; ++k)
+            for (int k = 0; k < parts; ++k)
             {
-                const float x = sampleToX (lo + std::floor (k * (hi - lo) / 16.0));
+                const float x = sampleToX (lo + std::floor (k * (hi - lo) / parts));
                 if (x < waveArea.getX() - 1.0f || x > waveArea.getRight()) continue;
-                g.setColour (sk.track[3].withAlpha (k % 4 == 0 ? 0.75f : 0.45f));
-                if (k > 0) g.fillRect (x - 0.5f, waveArea.getY(), std::max (1.0f, px * 0.5f), waveArea.getHeight());
+                g.setColour (sk.track[3].withAlpha (k % 16 == 0 ? 0.95f : k % 4 == 0 ? 0.7f : 0.4f));
+                if (k > 0) g.fillRect (x - 0.5f, waveArea.getY(), std::max (1.0f, px * (k % 16 == 0 ? 0.75f : 0.5f)), waveArea.getHeight());
                 const juce::String label = "S" + juce::String::toHexString (k).toUpperCase().paddedLeft ('0', 2);
                 const float w = PixelFont::textWidth (label, px) + px * 3;
                 if (x < lastRight || x + w > waveArea.getRight()) continue;   // no room for its number
@@ -1016,9 +1020,13 @@ void SampleEditor::mouseDown (const juce::MouseEvent& e)
             { "MAX VOL", click (&SampleEditor::normBtn) }, { "REVERSE", click (&SampleEditor::reverseBtn) },
             { "FADE IN", click (&SampleEditor::fadeInBtn) }, { "FADE OUT", click (&SampleEditor::fadeOutBtn) },
             { "SET LOOP", click (&SampleEditor::loopSelBtn) }, { "SELECT ALL", click (&SampleEditor::selAllBtn) },
+            { "SXX: " + juce::String (inst().sxxPartCount()) + " PARTS...", [safe] { if (safe != nullptr) safe->showSxxMenu(); } },
         });
         return;
     }
+
+    // (v0.97) a click on an Sxx tag: how many parts
+    if (sxxTagAt (e.position) >= 0) { showSxxMenu(); return; }
 
     // START / END handles (middle)
     dragPlayMarker = 0;
@@ -1804,5 +1812,50 @@ void SampleEditor::setSliceKeys (bool on)
     editInPlace (on ? "SLICE TO KEYS ON" : "SLICE TO KEYS OFF", false, [on] (Instrument& in) { in.sliceKeys = on; });
     if (on && selKeysBtn.getToggleState()) setSelKeys (false);   // keys play slices, not the selection
     if (onStatus) onStatus (on ? "NOTES PLAY SLICES: C-3 = SLICE 1, C#3 = SLICE 2 ... (IN PATTERNS TOO)" : juce::String ("NOTES PLAY THE WHOLE SAMPLE"));
+}
+
+// ---- (v0.97) SXX PARTS
+int SampleEditor::sxxTagAt (juce::Point<float> pt) const
+{
+    const auto& in = inst();
+    if (! showSxx || drawMode || in.numSlices() > 0 || ! in.hasData()) return -1;
+    const float px = Theme::px, h = px * 9;
+    if (pt.y < waveArea.getBottom() - h || pt.y > waveArea.getBottom()) return -1;
+    const double lo = in.rangeStart(), hi = in.rangeEnd();
+    const int parts = in.sxxPartCount();
+    for (int k = parts - 1; k >= 0; --k)
+    {
+        const float x = sampleToX (lo + std::floor (k * (hi - lo) / parts));
+        if (pt.x >= x && pt.x <= x + PixelFont::textWidth ("S00", px) + px * 3) return k;
+    }
+    return -1;
+}
+
+void SampleEditor::setSxxParts (int parts)
+{
+    parts = parts == 32 || parts == 48 || parts == 64 ? parts : 16;
+    editInPlace ("SXX PARTS", false, [parts] (Instrument& in) { in.sxxParts = parts; });
+    slSxx.setButtonText ("SXX: " + juce::String (parts) + " PARTS");
+    repaint();
+    if (onStatus)
+        onStatus ("SXX PARTS: " + juce::String (parts) + " - S00 TO S" + juce::String::toHexString (parts - 1).toUpperCase()
+                  + (inst().numSlices() > 0 ? juce::String (" (WHEN IT HAS NO SLICES)") : juce::String (" - A " + juce::String (parts / 16) + "-BAR BREAK IN 16THS")));
+}
+
+void SampleEditor::showSxxMenu()
+{
+    if (! menuHook()) return;
+    const int now = inst().sxxPartCount();
+    static const int counts[] = { 16, 32, 48, 64 };
+    static const char* what[] = { "1 BAR OF 16THS", "2 BARS OF 16THS", "3 BARS OF 16THS", "4 BARS OF 16THS" };
+    juce::StringArray items;
+    for (int i = 0; i < 4; ++i)
+        items.add (juce::String (counts[i]) + " PARTS (" + what[i] + ", S00-S" + juce::String::toHexString (counts[i] - 1).toUpperCase() + ")"
+                   + (counts[i] == now ? "  - NOW" : ""));
+    juce::Component::SafePointer<SampleEditor> safe (this);
+    menuHook() ("SXX WITH NO SLICES: HOW MANY PARTS?", items, [safe] (int a)
+    {
+        if (safe != nullptr && a >= 0 && a < 4) safe->setSxxParts (counts[a]);
+    });
 }
 } // namespace prv::ui

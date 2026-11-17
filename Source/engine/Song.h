@@ -263,6 +263,10 @@ struct Instrument
     // (v0.95) LAYER: it plays every note (and OFF) of track layerFrom, on track layerTrack - a SUB under a bassline, say.
     // A note of its own on layerTrack plays instead; a note of layerFrom's that doesn't play (Kxx, ?xy) isn't layered
     int  layerFrom = -1, layerTrack = -1;   // -1 = off
+    // (v0.97) SXX PARTS: with no slice points, Sxx plays one of this many equal parts of START..END - 16 (a bar of 16ths
+    // on a one-bar break), 32, 48 or 64 (four bars of 16ths: S00..S3F). Sxx past the last part goes round again.
+    int  sxxParts = 16;
+    int  sxxPartCount() const { return sxxParts == 32 || sxxParts == 48 || sxxParts == 64 ? sxxParts : 16; }
     bool layered() const { return layerFrom >= 0 && layerTrack >= 0 && layerFrom != layerTrack; }
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range
     AutoTarget knobs[kInstrumentKnobs];     // its own knobs (L, Q, H, W); target is this instrument
