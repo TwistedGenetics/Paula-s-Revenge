@@ -222,6 +222,7 @@ public:
     std::function<void()> openBrowser, openSampleEditor, openParams, openSample;   // openSample: SAMPLE (record audio)
     std::function<void (int kind)> openSource;   // the right-click's VST / AU (1), MIDI OUT (2), CV OUT (3)
     std::function<void()> openBreak;   // the BREAK page
+    std::function<void()> openTable;   // (v0.99) its TABLE page
     std::function<void()> openLoadMenu;   // (v0.79) LOAD: what kind of instrument - a sample, a built-in synth, a plug-in...
 
     std::function<void()> openEqFx;    // EQ/FX: the instrument's own EQ and effects

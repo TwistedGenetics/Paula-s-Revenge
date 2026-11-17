@@ -46,6 +46,8 @@ std::string commandName (int c)
         case '?': return "CONDITION";
         case '@': return "PHRASE";
         case '!': return "DUB THROW";
+        case '$': return "TABLE";
+        case '>': return "HOP";
         default: return "UNUSED";
     }
 }
@@ -95,6 +97,8 @@ std::string describeCommand (int c, uint8_t p)
     switch (commandChar (c))
     {
         case '@': return head + (p ? fmt ("PLAY THE INSTRUMENT'S PHRASE %02X", (int) p) : std::string ("PLAY THE SAMPLE, NOT A PHRASE"));
+        case '$': return head + (p ? fmt ("PLAY WITH INSTRUMENT %02X'S TABLE", (int) p) : std::string ("NO TABLE FOR THIS NOTE"));
+        case '>': return head + (x ? fmt ("TABLE: BACK TO ROW %X, %d MORE TIME%s", y, x, x == 1 ? "" : "S") : fmt ("TABLE: BACK TO ROW %X, FOR EVER", y));
         case '!':
             if (x == 0) return head + (y ? fmt ("DUB ECHO FEEDBACK UP TO %d/15 (!00 PUTS IT BACK)", y) : std::string ("DUB ECHO FEEDBACK BACK TO ITS OWN SETTING"));
             return head + fmt ("THROW THIS TRACK INTO THE DUB ECHO AT %d%%, ", x * 100 / 15) + (y ? fmt ("FOR %d LINE%s", y, y == 1 ? "" : "S") : std::string ("TO ITS NEXT NOTE"));
@@ -145,6 +149,7 @@ const std::vector<CommandInfo>& commandList()
     static const std::vector<CommandInfo> list {
         { kCmdChord, 0x01, false, "#", "CHORD",        "PLAYS CHORD XY FROM THE SONG'S CHORD TABLE, HELD - PLUG-IN / MIDI-OUT INSTRUMENTS; ON A SAMPLE, JUST THE NOTE" },
         { kCmdPhrase, 0x01, false, "@", "PHRASE",      "THIS NOTE PLAYS THE INSTRUMENT'S PHRASE XX (@01-@10); @00 PLAYS ITS SAMPLE, NOT A PHRASE" },
+        { kCmdTable, 0x01, false, "$", "TABLE",       "THIS NOTE PLAYS WITH INSTRUMENT XX'S TABLE (ITS ARPS, RATCHETS, STEPS); $00: NO TABLE" },
         { kCmdDub, 0xC0, false, "!", "DUB THROW",     "THROWS THIS HIT INTO THE DUB ECHO (SEND B): X HOW MUCH (1-F), Y FOR HOW MANY LINES (0 = TO THE NEXT NOTE); !0Y RIDES THE ECHO'S FEEDBACK UP" },
         { kCmdCond, 0x12, false, "?", "CONDITION",    "PLAYS ON PASS X OF EVERY Y (?12 1ST OF 2, ?44 4TH OF 4); ?01 ONLY IN A FILL, ?02 NOT IN ONE, ?03 FIRST TIME ONLY, ?04 NOT THE FIRST" },
         { 0x0, 0x37, false, "0",  "ARPEGGIO",          "NOTE, +X, +Y SEMITONES IN TURN EACH TICK" },

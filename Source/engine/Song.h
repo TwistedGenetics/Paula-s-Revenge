@@ -36,12 +36,14 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kAmigaC3Rate = 16574.27;
 
 // Effect commands: 0-F are the ProTracker set; G-Z (16..35) are extended; 36 is # (CHORD), 37 ? (CONDITION).
-constexpr int kNumCommands = 40;
+constexpr int kNumCommands = 42;
 constexpr uint8_t kCmdChord = 36;   // #xy: plays chord slot xy from the song's chord table
 constexpr uint8_t kCmdCond  = 37;   // ?xy: the step plays only on pass x of every y (?01 FILL, ?02 NOT FILL, ?03 FIRST, ?04 NOT FIRST)
 constexpr uint8_t kCmdPhrase = 38;  // @xx: the note plays the instrument's phrase xx (@00: its sample, no phrase)
 constexpr uint8_t kCmdDub   = 39;   // !xy: DUB THROW - x (1-F) this track into the dub echo (SEND B), y lines (0 = to the next note); !0y: the echo's feedback ride
-inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c == kCmdPhrase ? '@' : c == kCmdDub ? '!' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
+constexpr uint8_t kCmdTable = 40;   // (v0.99) $xx: the note plays with instrument xx's TABLE ($00: no table)
+constexpr uint8_t kCmdHop   = 41;   // (v0.99) >xy in a TABLE: go to row y - x more times (x 0: for ever)
+inline char commandChar (int c) { return c == kCmdChord ? '#' : c == kCmdCond ? '?' : c == kCmdPhrase ? '@' : c == kCmdDub ? '!' : c == kCmdTable ? '$' : c == kCmdHop ? '>' : c < 10 ? (char) ('0' + c) : (char) ('A' + c - 10); }
 // ?xy: does the step play on this pass of its block (1 = the first time it plays), with FILL held or not
 inline bool conditionPlays (uint8_t p, int passNo, bool fill)
 {
@@ -57,6 +59,8 @@ inline int  commandFromChar (char ch)
     if (ch == '?') return kCmdCond;
     if (ch == '@') return kCmdPhrase;
     if (ch == '!') return kCmdDub;
+    if (ch == '$') return kCmdTable;
+    if (ch == '>') return kCmdHop;
     if (ch >= '0' && ch <= '9') return ch - '0';
     if (ch >= 'a' && ch <= 'z') ch = (char) (ch - 'a' + 'A');
     if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 10;
@@ -162,6 +166,37 @@ static_assert (kMaxInstruments == kMixInstruments, "each instrument has its own 
 // block (made for it, not in the song's sequence). Its notes are moved by how far the note played
 // is from C-3 (TRANSPOSE off: played as written).
 constexpr int kMaxPhrases = 16;
+
+// (v0.99) a TABLE, as on the M8: 16 rows that step along with every note the instrument plays, one row every SPEED
+// ticks - each row can move the note (semitones from the note played), set its level (00-40, 40 = as it is) and
+// carry two commands (`>xy` loops back). It runs alongside the note, so one note can arpeggiate, ratchet, flam,
+// pan or open its filter in steps.
+constexpr int kTableRows = 16;
+constexpr int kTableNoNote = -128;   // (an empty NOTE: the row leaves the pitch as it is)
+constexpr int kTableNoVol = 255;     // (an empty VOL)
+struct TableRow
+{
+    int note = kTableNoNote;   // semitones from the note played (-48..+48), or empty
+    int vol = kTableNoVol;     // 00-40, or empty
+    uint8_t cmd = 0, param = 0, cmd2 = 0, param2 = 0;
+    bool fx1Empty() const { return cmd == 0 && param == 0; }
+    bool fx2Empty() const { return cmd2 == 0 && param2 == 0; }
+    bool isEmpty() const { return note == kTableNoNote && vol == kTableNoVol && fx1Empty() && fx2Empty(); }
+    bool operator== (const TableRow& o) const { return note == o.note && vol == o.vol && cmd == o.cmd && param == o.param && cmd2 == o.cmd2 && param2 == o.param2; }
+};
+struct InstrumentTable
+{
+    bool on = false;
+    int  speed = 1;                       // ticks a row (1 = every tick; 0 = a row a LINE, at the song's speed)
+    TableRow rows[kTableRows];
+    bool used() const { for (const auto& r : rows) if (! r.isEmpty()) return true; return false; }
+    bool operator== (const InstrumentTable& o) const
+    {
+        if (on != o.on || speed != o.speed) return false;
+        for (int i = 0; i < kTableRows; ++i) if (! (rows[i] == o.rows[i])) return false;
+        return true;
+    }
+};
 struct Phrase
 {
     int  block = -1, track = 0;
@@ -269,6 +304,7 @@ struct Instrument
     // (v0.98) PLAY THRU: a slice (SLICE TO KEYS, Sxx) or an Sxx part starts at its point but plays on to END - and round
     // the loop if there is one - instead of stopping at the slice's end
     bool sliceThru = false;
+    InstrumentTable table;   // (v0.99) its TABLE
     int  sxxPartCount() const { return sxxParts == 32 || sxxParts == 48 || sxxParts == 64 ? sxxParts : 16; }
     bool layered() const { return layerFrom >= 0 && layerTrack >= 0 && layerFrom != layerTrack; }
     int  bendRange = 2;                     // semitones, to match the synth's pitch bend range

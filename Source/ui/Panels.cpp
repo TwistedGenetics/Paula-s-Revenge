@@ -1520,6 +1520,7 @@ void InstrumentPanel::showInstrumentMenu (int r)
             } },
         { "CHOP TO PATTERN (TRACK " + juce::String (proc.editorState.track + 1) + ")", [safe, r] { if (safe != nullptr) safe->chopToPattern (r); } },
         { "BREAK PAGE...", [safe, r] { if (safe != nullptr && safe->openBreak) { safe->proc.editorState.instrument = r; safe->openBreak(); } } },
+        { "TABLE... (ARPS, RATCHETS, STEPS)", [safe, r] { if (safe != nullptr && safe->openTable) { safe->proc.editorState.instrument = r; safe->openTable(); } } },
     });
 }
 

@@ -510,6 +510,7 @@ p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
       <tr><td><code>Oxx</code></td><td>Overdrive (on plug-in / MIDI-out instruments: the mod wheel)</td></tr>
       <tr><td><code>Pxx</code></td><td>Start at xx/256 of the sample</td></tr>
       <tr><td><code>Rxy</code></td><td>Roll: retrigger every x ticks, y <code>1</code>–<code>7</code> quieter or <code>9</code>–<code>F</code> louder each time</td></tr>
+      <tr><td><code>$xx</code></td><td>Play with instrument xx's TABLE ($00: none)</td></tr>
       <tr><td><code>Sxx</code></td><td>Play slice xx+1 (no slices: one of the SXX PARTS); with PLAY THRU, on to the end</td></tr>
       <tr><td><code>Txx</code></td><td>Micro-tune: <code>80</code> = 0, each step 1 cent</td></tr>
       <tr><td><code>U01</code> <code>U00</code></td><td>Play backwards / forwards</td></tr>
@@ -1155,6 +1156,29 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <div class="frame sunken"><img src="img/macros.png" alt="An instrument's EQ AND EFFECTS page: BUILT-IN EFFECTS with DRIVE in slot 1, IN THIS ORDER, and MACROS with MACRO 1 at 80% and 1 TARGET, MACROS 2 to 4 with TARGETS... buttons." width="1440" height="900" loading="lazy"></div>
     <figcaption>MACRO 1 turning DRIVE up</figcaption>
   </figure>
+  <h3>Tables</h3>
+  <p>A <b>TABLE</b> is the M8's trick: 16 rows that step along <b>with every note</b> an instrument plays. One note can arpeggiate, ratchet, flam, pan or open its filter in steps, and none of it is written in the pattern. Every instrument has one, samples and synths alike. Right-click an instrument &rarr; <b>TABLE...</b>, or <kbd>Cmd</kbd><kbd>9</kbd>.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/table.png" alt="The TABLE page: instrument 01 PLUCK, ON, SPEED 2 TICKS, PRESETS, COPY, PASTE, CLEAR; sixteen rows of NOTE, VOL, FX1 and FX2 - a minor arpeggio +00 +03 +07 with a HOP back, then -12 with VOL 20 and E90; the help for the cursor's cell on the right; HOLD TO PLAY below." width="1440" height="900" loading="lazy"></div>
+    <figcaption>A table: a minor arpeggio, then an octave-down ratchet, looped</figcaption>
+  </figure>
+  <div class="tbl sunken"><table>
+      <tr><td><b>NOTE</b></td><td>Semitones from the note played: <code>+07</code> a fifth up, <code>-12</code> an octave down. Empty: the pitch stays.</td></tr>
+      <tr><td><b>VOL</b></td><td>The note's level, <code>00</code>&ndash;<code>40</code> hex (<code>40</code> = as played). Empty: it stays.</td></tr>
+      <tr><td><b>FX1, FX2</b></td><td>A command each (right-click for the list). <code>E90</code> plays the note <b>again</b> (ratchets, flams); <code>9xx</code> / <code>Pxx</code> again from a point; <code>Sxx</code> a slice from here on; <code>Cxx</code>, <code>EC0</code> (cut), <code>8xx</code>, <code>1xx</code> / <code>2xx</code>, <code>Txx</code>, the filter (<code>L H W Q</code>), <code>Oxx</code>, <code>Zxx</code>, <code>Rxy</code>, <code>Nxx</code>, <code>U01</code>, and on a track <code>Vxx</code> / <code>Jxx</code>.</td></tr>
+      <tr><td><code>&gt;xy</code> HOP</td><td>Back to row <code>y</code>: <code>x</code> = 0 for ever, or <code>x</code> more times and then on.</td></tr>
+      <tr><td><b>SPEED</b></td><td>Ticks a row: 1 every tick (fast arps), 6 a line at speed 6, <b>0</b> a row a line. Without a HOP the 16 rows play once and it holds where it ended.</td></tr>
+      <tr><td><span class="b">ON</span></td><td>Every note of the instrument plays with it. Off, it's kept, for <code>$xx</code>.</td></tr>
+      <tr><td><code>$xx</code></td><td>In the pattern: this note plays with instrument <code>xx</code>'s table; <code>$00</code> none. Keep tables on spare instruments and pick one per note.</td></tr>
+  </table></div>
+  <p><b>Typing:</b> arrows move; NOTE takes digits (<kbd>-</kbd> first for down), <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> nudges, <kbd>Alt</kbd> an octave; VOL two hex digits; FX a command letter (or <kbd>&gt;</kbd>) then two hex digits. <kbd>Delete</kbd> clears. <b>HOLD TO PLAY</b> (or <kbd>Space</kbd>) hears it, and the row playing lights up, from the song too. <b>PRESETS...</b> has 14 to start from (arps, trills, FLAM, RATCHET x4, BUZZ ROLL, 808 ZAP, FILTER PLUCK, PAN SWEEP, GATE, FADE OUT&hellip;); <b>COPY</b> / <b>PASTE</b> moves a table between instruments.</p>
+  <p class="tip"><b>On a synth</b>, NOTE bends the pitch within its BEND range, smoothly; further than that it plays the note again, moved. VOL sets how hard those notes are struck. A table can't hear the note's OFF, so a held synth note's release comes from its own envelope.</p>
+  <pre class="pat">ROW NOTE VOL FX1 FX2
+ 00  +00  40 ---  ---     a flam into a ratchet:
+ 01  ---  18 E90  ---     a quiet hit...
+ 02  ---  40 E90  ---     ...then full
+ 03  +12  30 E90  ---     up an octave
+ 04  ---  ---  ---  &gt;12   back to row 2, once more</pre>
   <h3>Phrases</h3>
   <p>A phrase is a little pattern stored with an instrument: its note plays the phrase instead of the sample, as in Renoise. An instrument can have up to <b>16</b>. <span class="b">PHRASES...</span> at the bottom left of the PARAMS page turns it over to them; <span class="b">SOUND</span> turns it back.</p>
   <ul>

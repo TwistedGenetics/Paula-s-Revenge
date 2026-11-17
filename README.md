@@ -617,6 +617,7 @@ Same numbering as ProTracker, so MOD files load straight in.
 | `#xy` | **Chord**: plays chord slot `xy` from the song's chord table, held, on plug-in / MIDI-out instruments (on a sample instrument, just the note). Type `#` with Shift+3; first in the right-click list. See Chords |
 | `?xy` | **Condition**: the step plays only on pass `x` of every `y` times its block plays (`?12` the 1st of every 2, `?44` the 4th of every 4). `?01` only in a FILL (hold **F2**), `?02` not in a FILL, `?03` only the first time, `?04` every time but the first. Highlight notes and right-click → **CONDITION...** for the usual ones |
 | `@xx` | **Phrase**: the note plays the instrument's phrase `xx` (`@01`–`@10`); `@00` plays its sample, not a phrase. See Phrases |
+| `$xx` | **Table**: the note plays with instrument `xx`'s TABLE (`$00`: none). See Tables |
 | `!xy` | **Dub throw**: throws this track into the dub echo on SEND B - `x` how much (`1`–`F`), `y` for how many lines (`0` = until the track's next note). `!0y` rides the echo's feedback up (`!0F` nearly endless, `!00` back to its own setting). Type `!` with Shift+1. See Dub throws |
 | `0xy` | Arpeggio (+x, +y semitones) |
 | `1xx` / `2xx` | Slide pitch up / down |
@@ -798,6 +799,26 @@ Each track has two automation knobs, **AUTO A** and **AUTO B**. Point one at any
 * **SNAP: LINES / BEATS / OFF**, **COPY** / **PASTE** (between controls and blocks) and **CLEAR** (the envelope).
 
 Envelopes belong to their block: a block played twice plays its envelopes twice, and DOUBLE / HALVE take them along. Before the first point the control sits at the first point's value, after the last at the last's. When the block stops (or the next block has no envelope for that control) the control goes back to its own setting. They're undoable, saved in the song (v0.37 or later), and used by RENDER. An envelope and `V` / `J` on the same control: the latest wins.
+
+## Tables
+
+A **TABLE** is the M8's trick: 16 rows that step along **with every note** an instrument plays, so one note can arpeggiate, ratchet, flam, pan or open its filter in steps — without writing any of it in the pattern. Every instrument has one (samples and synths alike).
+
+**Right-click an instrument → TABLE...**, `Cmd+9`, or Cmd+K → PAGE: TABLE opens its page; again (or **CLOSE**, or Esc) goes back.
+
+* **The rows** (`00`–`0F`): each has
+  * **NOTE** — semitones from the note played (`+07` a fifth up, `-12` an octave down). Empty (`---`): the pitch stays as the last row left it.
+  * **VOL** — the note's level, `00`–`40` (hex, `40` = as played). Empty: it stays.
+  * **FX1**, **FX2** — a command each (right-click for the list). In a table: `E90` plays the note **again** (a ratchet, a flam), `9xx` / `Pxx` again from a point in the sample, `Sxx` a slice from here on, `Cxx` volume, `EC0` cut, `8xx` pan, `1xx` / `2xx` a step of pitch, `Txx`, `Lxx` / `Hxx` / `Wxx` / `Qxx` the filter, `Oxx`, `Zxx`, `Rxy`, `Nxx`, `U01`, `X1y` / `X2y`, and on a track `Vxx` / `Jxx` (its AUTO knobs). Jumps, tempo and the like mean nothing in a table.
+  * **`>xy` (HOP)** — back to row `y`: `x` = `0` for ever (a loop), or `x` more times and then on (`>34` plays rows 4 onwards four times in all).
+* **SPEED** (`-` / `+`): ticks a row — **1** steps every tick (fast arps), **6** a line at speed 6; **0** is **A LINE** (a row a line, whatever the song's speed). Without a HOP a table plays its 16 rows once and holds where it ended.
+* **ON**: every note of the instrument plays with its table. Off, it's kept but not played — except by `$xx`.
+* **`$xx`** in the pattern: this note plays with **instrument xx's** table (on or not); `$00`: no table for this note. Keep a few tables on spare instruments and pick one per note.
+* **Typing**: arrows move (Tab across); NOTE takes digits (`7`, `1` `2`; `-` first for down), **Shift+↑/↓** nudges, **Alt+↑/↓** an octave; VOL takes two hex digits; FX a command letter (or `>`) then two hex digits. **Delete** clears a cell, right-click a NOTE or VOL to clear it, the wheel changes them. Every change is an undo step; tables are saved in the song and in saved instruments.
+* **HOLD TO PLAY** (or Space) plays the instrument's note through its table (at the octave you're on), with the song stopped or playing; the row playing lights up, from the song too.
+* **PRESETS...**: MINOR ARP, MAJOR ARP, OCTAVE TRILL, POWER CHORD ARP, FLAM, RATCHET x4, BUZZ ROLL, STUTTER x3 THEN ON, 808 ZAP (PITCH DROP), FILTER PLUCK, PAN SWEEP, GATE (ON, OFF), FADE OUT, OCTAVE BOUNCE. **COPY** / **PASTE** a whole table between instruments; **CLEAR** empties it.
+* On a **synth**, NOTE bends the pitch within its BEND range (smooth, like the M8); further than that it plays the note again, moved. VOL sets how hard the notes the table plays are struck.
+* A table can't hear the note's OFF: it runs on until its rows end (or for ever with `>0y`), so a held synth note's release still comes from its own envelope.
 
 ## Phrases
 

@@ -16,7 +16,7 @@ namespace prv
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 36;   // (v36: PLAY THRU; v35: SXX PARTS; v34: the Mega Synth filters - MODEL, SLOPE, DRIVE, MIX, CHARACTER, NOTCH / PEAK / ALL PASS; v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
+    constexpr int kVersion = 37;   // (v37: TABLES; v36: PLAY THRU; v35: SXX PARTS; v34: the Mega Synth filters - MODEL, SLOPE, DRIVE, MIX, CHARACTER, NOTCH / PEAK / ALL PASS; v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -568,6 +568,23 @@ juce::MemoryBlock writeSong (const Song& songIn)
     for (const auto& in : song.instruments) raw.writeByte ((char) in.sxxPartCount());
     // v36: each instrument's PLAY THRU
     for (const auto& in : song.instruments) raw.writeByte ((char) (in.sliceThru ? 1 : 0));
+    // v37: each instrument's TABLE (a flag, then - when it has one - ON, SPEED and its 16 rows)
+    for (const auto& in : song.instruments)
+    {
+        const auto& t = in.table;
+        const bool has = t.on || t.used() || t.speed != 1;
+        raw.writeByte ((char) (has ? 1 : 0));
+        if (! has) continue;
+        raw.writeByte ((char) (t.on ? 1 : 0));
+        raw.writeByte ((char) std::clamp (t.speed, 0, 64));
+        for (const auto& r : t.rows)
+        {
+            raw.writeByte ((char) (r.note == kTableNoNote ? -128 : std::clamp (r.note, -48, 48)));
+            raw.writeByte ((char) (r.vol == kTableNoVol ? 255 : std::clamp (r.vol, 0, 64)));
+            raw.writeByte ((char) r.cmd); raw.writeByte ((char) r.param);
+            raw.writeByte ((char) r.cmd2); raw.writeByte ((char) r.param2);
+        }
+    }
 
     juce::MemoryOutputStream packed;
     {
@@ -1286,6 +1303,26 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         {
             if (in.isExhausted()) break;
             ins.sliceThru = (in.readByte() & 1) != 0;
+        }
+    if (version >= 37 && ! in.isExhausted())
+        for (auto& ins : s.instruments)
+        {
+            if (in.isExhausted()) break;
+            if (in.readByte() == 0) continue;
+            auto& t = ins.table;
+            t.on = (in.readByte() & 1) != 0;
+            t.speed = std::clamp ((int) (uint8_t) in.readByte(), 0, 64);
+            for (auto& r : t.rows)
+            {
+                const int n = (int) (int8_t) in.readByte();
+                r.note = n == -128 ? kTableNoNote : std::clamp (n, -48, 48);
+                const int vo = (int) (uint8_t) in.readByte();
+                r.vol = vo == 255 ? kTableNoVol : std::clamp (vo, 0, 64);
+                r.cmd = (uint8_t) in.readByte(); r.param = (uint8_t) in.readByte();
+                r.cmd2 = (uint8_t) in.readByte(); r.param2 = (uint8_t) in.readByte();
+                if (r.cmd >= kNumCommands) { r.cmd = 0; r.param = 0; }
+                if (r.cmd2 >= kNumCommands) { r.cmd2 = 0; r.param2 = 0; }
+            }
         }
     if (version < 13)
     {

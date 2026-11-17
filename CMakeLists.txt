@@ -179,6 +179,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/ChordPicker.cpp
     Source/ui/CommandPalette.cpp
     Source/ui/BreakPage.cpp
+    Source/ui/TablePage.cpp
     Source/ui/SamplePage.cpp
     Source/ui/CvPage.cpp
     Source/ui/EqGraph.cpp

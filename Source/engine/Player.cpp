@@ -246,7 +246,9 @@ void Player::synthBend (Voice& v)
     auto* s = rack.at (v.synthInstr);
     if (s == nullptr) return;
     const int range = std::max (1, song->instruments[(size_t) v.synthInstr].bendRange);
-    const double semis = 12.0 * std::log2 (periodFor (v.synthNote - 23, 0) / std::max (kMinPeriod, v.outPeriod)) + 1200.0 * std::log2 (v.pitchMul) / 100.0;
+    // (a TABLE's NOTE: bent, within the synth's BEND range; past it the note itself is moved - synthShift)
+    const double semis = 12.0 * std::log2 (periodFor (v.synthNote - v.synthShift - 23, 0) / std::max (kMinPeriod, v.outPeriod)) + 1200.0 * std::log2 (v.pitchMul) / 100.0
+                       + (v.tblSemis - v.synthShift);
     const int bend = std::clamp ((int) std::lround (8192.0 + semis / range * 8191.0), 0, 16383);
     if (bend != v.lastBend) { s->pitchBend (bend, chunkPos); v.lastBend = bend; }
 }
@@ -600,6 +602,7 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
     v.active = true;
     startShaping (v);
     uiJamInstr[slot] = instrIndex;
+    startTable (v, -1, in.table.on && in.table.used() ? instrIndex : -1);   // (v0.99) its TABLE runs from the keys too
 }
 
 void Player::jamNoteFrom (int note, int instrIndex, int pos)
@@ -669,6 +672,8 @@ void Player::doTick()
         lastRowOrder = order;
     }
     else for (int ch = 0; ch < kMaxTracks; ++ch) tickEffects (ch);
+    // (v0.99) TABLES step on every tick: the tracks' notes, and notes played from the keys
+    for (int i = 0; i < kVoices; ++i) if (voices[i].tblInstr >= 0) stepTable (voices[i], i < kMaxTracks ? i : -1);
     ++rowTicks;
     advanceAutomation();
 
@@ -797,6 +802,16 @@ void Player::setInstrument (Voice& v, int instrNumber)
 }
 
 void Player::triggerNote (Voice& v, const Cell& cell, int ch)
+{
+    // (v0.99) TABLE: whose table this note plays with - then the note - then the table, from its first row
+    const int tbl = v.instr >= 0 ? tableSource (v, cell) : -1;
+    triggerNoteInner (v, cell, ch);
+    if (v.instr >= 0 && (v.active || v.synthNote >= 0) && ! (ch >= 0 && ch < kMaxTracks && phrase[ch].instr >= 0 && ! phraseTriggering))
+        startTable (v, ch, tbl);
+    else { v.tblInstr = -1; v.tblSemis = 0; v.tblVol = 64; v.tblPitch = 1.0; v.synthShift = 0; }
+}
+
+void Player::triggerNoteInner (Voice& v, const Cell& cell, int ch)
 {
     if (v.instr < 0) { v.active = false; return; }
     if (! phraseTriggering && ch >= 0 && ch < kMaxTracks)
@@ -937,6 +952,178 @@ void Player::startShaping (Voice& v)
     v.ampEnv.stage = 1; v.fltEnv.stage = 1;
     v.svf = {};
     if (const auto i = &v - voices; i >= 0 && i < kVoices) megaVoice[(size_t) i].reset();
+}
+
+// ---------------------------------------------------------------------------
+// (v0.99) TABLES
+int Player::tableSource (const Voice& v, const Cell& cell) const
+{
+    // $xx: instrument xx's table ($00: none); otherwise the instrument's own, when it's on
+    uint8_t p = 0;
+    if (cell.has (kCmdTable, p))
+    {
+        if (p == 0 || p > kMaxInstruments) return -1;
+        return song->instruments[(size_t) p - 1].table.used() ? (int) p - 1 : -1;
+    }
+    const auto& t = song->instruments[(size_t) v.instr].table;
+    return t.on && t.used() ? v.instr : -1;
+}
+
+void Player::startTable (Voice& v, int ch, int instr)
+{
+    v.tblSemis = 0; v.tblVol = 64; v.tblPitch = 1.0; v.synthShift = 0;
+    v.tblBaseVel = v.synthVel;
+    v.tblInstr = instr;
+    if (instr < 0 || instr >= kMaxInstruments) { v.tblInstr = -1; return; }
+    for (auto& h : v.tblHops) h = -1;
+    v.tblRow = 0;
+    applyTableRow (v, ch);   // (row 0 sounds with the note)
+    v.tblFresh = true;       // (this tick's step was row 0)
+}
+
+void Player::stepTable (Voice& v, int ch)
+{
+    if (v.tblInstr < 0 || song == nullptr) return;
+    if (v.tblFresh) { v.tblFresh = false; return; }
+    if (--v.tblWait > 0) return;
+    if (v.tblRow < 0 || v.tblRow >= kTableRows) { v.tblInstr = -1; return; }   // (past the last row: it holds what it set)
+    applyTableRow (v, ch);
+}
+
+void Player::setTableSemis (Voice& v, int semis)
+{
+    v.tblSemis = std::clamp (semis, -48, 48);
+    v.tblPitch = std::pow (2.0, v.tblSemis / 12.0);
+    if (v.synthNote < 0) return;
+    // a synth: bent within its BEND range; further, the note itself moves (and the bend covers the rest)
+    const int range = std::max (1, song->instruments[(size_t) v.synthInstr].bendRange);
+    if (std::abs (v.tblSemis - v.synthShift) > range)
+        if (auto* s = rack.at (v.synthInstr))
+        {
+            const int d = v.tblSemis - v.synthShift;
+            if (v.synthRootOn) s->noteOff (v.synthNote, chunkPos);
+            for (int c : v.synthChord) if (c >= 0) s->noteOff (c, chunkPos);
+            v.synthNote = std::clamp (v.synthNote + d, 0, 127);
+            for (int& c : v.synthChord) if (c >= 0) c = std::clamp (c + d, 0, 127);
+            v.synthShift = v.tblSemis;
+            s->lineVolume (v.synthLineVol);
+            if (v.synthRootOn) s->noteOn (v.synthNote, v.synthVel, chunkPos);
+            for (int c : v.synthChord) if (c >= 0) s->noteOn (c, v.synthVel, chunkPos);
+            ++synthOnSerial[v.synthInstr];
+        }
+    synthBend (v);
+}
+
+void Player::tableRetrigger (Voice& v, double pos)
+{
+    // the note again (RET), from pos (samples; -1: where it started)
+    if (v.synthNote >= 0) { synthRetrigger (v, 0); return; }
+    if (v.instr < 0 || ! song->instruments[(size_t) v.instr].hasData()) return;
+    const auto& in = song->instruments[(size_t) v.instr];
+    const double lo = v.regionStart >= 0 ? v.regionStart : (double) in.rangeStart();
+    const double hi = v.regionEnd > 0 ? v.regionEnd : (double) in.rangeEnd();
+    v.pos = pos >= 0 ? std::clamp (pos, lo, std::max (lo, hi - 1.0)) : lo;
+    if (v.reverse) v.pos = std::clamp (hi - 1.0 - (v.pos - lo), lo, std::max (lo, hi - 1.0));
+    v.active = true; v.fadeOut = 0;
+    startShaping (v);
+}
+
+void Player::applyTableRow (Voice& v, int ch)
+{
+    const auto& t = song->instruments[(size_t) v.tblInstr].table;
+    const int row = std::clamp (v.tblRow, 0, kTableRows - 1);
+    const TableRow& r = t.rows[row];
+    int next = row + 1;
+    if (r.vol != kTableNoVol)
+    {
+        v.tblVol = std::clamp (r.vol, 0, 64);
+        if (v.synthNote >= 0) v.synthVel = std::clamp ((int) std::lround (v.tblBaseVel * v.tblVol / 64.0), 1, 127);
+    }
+    if (r.note != kTableNoNote && r.note != v.tblSemis) setTableSemis (v, r.note);
+    const int track = ch >= 0 && ch < kMaxTracks ? ch : -1;
+    auto run = [&] (uint8_t cmd, uint8_t param)
+    {
+        if (cmd == 0 && param == 0) return;
+        const int x = param >> 4, y = param & 15;
+        const auto& in = song->instruments[(size_t) std::max (0, v.instr)];
+        const double lo = in.rangeStart(), hi = in.rangeEnd();
+        switch (cmd)
+        {
+            case kCmdHop:
+                // >xy: to row y - for ever (x 0), or x more times and then on
+                if (x == 0) next = y;
+                else
+                {
+                    if (v.tblHops[row] < 0) v.tblHops[row] = x;
+                    if (v.tblHops[row] > 0) { --v.tblHops[row]; next = y; }
+                    else v.tblHops[row] = -1;   // (done: the next time round counts again)
+                }
+                return;
+            case 0x9: tableRetrigger (v, lo + param * 256.0); return;                                  // the note again, xx x 256 in
+            case C_P: tableRetrigger (v, lo + std::floor (param / 256.0 * (hi - lo))); return;           // the note again, xx/256 of the way
+            case C_S:
+                if (v.synthNote < 0 && in.hasData())
+                {
+                    // a slice (or Sxx part) of its own, from here on
+                    int a = 0, b = 0;
+                    if (in.numSlices() > 0) { if (! in.sliceRange (param % in.numSlices(), a, b)) return; }
+                    else { const int parts = in.sxxPartCount(), sl = param % parts; a = (int) (lo + std::floor (sl * (hi - lo) / parts)); b = (int) (lo + std::floor ((sl + 1) * (hi - lo) / parts)); }
+                    v.regionStart = a; v.regionEnd = in.sliceThru ? -1 : b;
+                    tableRetrigger (v, a);
+                }
+                return;
+            case 0x1: v.period = std::max (kMinPeriod, v.period - param); v.outPeriod = v.period; synthBend (v); return;   // pitch up / down a step
+            case 0x2: v.period = std::min (kMaxPeriod, v.period + param); v.outPeriod = v.period; synthBend (v); return;
+            case 0xE:
+                if (x == 0x9) { tableRetrigger (v, -1.0); return; }                                   // E9x: the note again
+                if (x == 0xC) { v.volume = 0; v.outVolume = 0; synthRelease (v); return; }             // ECx: cut
+                if (x == 0x1 || x == 0x2 || x == 0x8 || x == 0xA || x == 0xB) break;
+                return;
+            case 0x8: case 0xC: case C_H: case C_L: case C_W: case C_Q: case C_N: case C_O: case C_Z: case C_T: case C_R: case C_U: case C_X:
+                break;
+            case C_V: case C_J:
+                if (track < 0) return;
+                break;
+            default: return;   // (the rest mean nothing in a table: jumps, tempo, conditions...)
+        }
+        const int saveGlide = rowGlide;
+        rowGlide = 0;
+        const Cell none;
+        // (only on the track's own voices: the lanes and knobs are a track's)
+        if (track >= 0 || ! (cmd == C_V || cmd == C_J)) applyRowCommand (v, cmd, param, none);
+        rowGlide = saveGlide;
+        if (cmd == 0xC) v.outVolume = v.volume;
+        if (cmd == C_T) synthBend (v);
+    };
+    run (r.cmd, r.param);
+    run (r.cmd2, r.param2);
+    v.tblRow = next;
+    const int speedTicks = t.speed <= 0 ? std::max (1, speed) : std::clamp (t.speed, 1, 64);
+    v.tblWait = speedTicks;
+    if (v.tblRow >= kTableRows) v.tblRow = kTableRows;   // (the end: it stops after this row's time)
+}
+
+void Player::previewTable (int instrIndex, int note)
+{
+    if (song == nullptr || instrIndex < 0 || instrIndex >= kMaxInstruments) return;
+    Voice& v = phraseVoice (kPreviewRun);
+    if (v.active || v.synthNote >= 0) releaseVoice (v);
+    Cell c; c.note = (uint8_t) std::clamp (note, 1, (int) kNoteMax); c.instr = (uint8_t) (instrIndex + 1);
+    setInstrument (v, c.instr);
+    v.volume = 64;
+    const auto& in = song->instruments[(size_t) instrIndex];
+    const bool was = in.table.on;
+    const_cast<Instrument&> (in).table.on = true;   // (the page plays its table, on or not)
+    triggerNote (v, c, kPreviewRun);
+    const_cast<Instrument&> (in).table.on = was;
+    tblFreeRemain = samplesPerTick();
+}
+
+void Player::stopTablePreview()
+{
+    Voice& v = phraseVoice (kPreviewRun);
+    v.tblInstr = -1;
+    if (v.active || v.synthNote >= 0) releaseVoice (v);
 }
 
 void Player::previewPhrase (int instrIndex, int phraseIndex, int note)
@@ -1576,7 +1763,7 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR, int ch
     {
         // Paula's staircase as band-limited steps: each change of level at its exact time
         // (on the 55.4 kHz grid below volume 64, as a real Paula does), nothing folding back
-        float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f;
+        float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f * (float) v.tblVol / 64.0f;
         if (v.fadeOut > 0)
         {
             g *= (float) v.fadeOut / (float) v.fadeLen;
@@ -1717,7 +1904,7 @@ void Player::renderVoice (Voice& v, double inc, float& outL, float& outR, int ch
         }
     }
     // note volume (Cxx, slides, tremolo) times the instrument's level
-    float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f;
+    float g = (float) v.outVolume / 64.0f * (float) std::clamp (in.volume, 0, 64) / 64.0f * (float) v.tblVol / 64.0f;
     if (v.fadeOut > 0)
     {
         g *= (float) v.fadeOut / (float) v.fadeLen;
@@ -1886,6 +2073,16 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     {
         chunkPos = i;
         if (phrase[kPreviewRun].instr >= 0 && song != nullptr) stepPhrase (kPreviewRun);   // (a phrase played from its editor)
+        if (mode == Mode::Stopped && song != nullptr)
+        {
+            // (v0.99) stopped: the tables of notes played from the keys and the TABLE page still step, at the song's tick
+            tblFreeRemain -= 1.0;
+            if (tblFreeRemain <= 0.0)
+            {
+                tblFreeRemain += samplesPerTick();
+                for (int k = kMaxTracks; k < kVoices; ++k) if (voices[k].tblInstr >= 0) stepTable (voices[k], k == kMaxTracks + kJamVoices - 1 ? kPreviewRun : -1);
+            }
+        }
         if (mode != Mode::Stopped && song != nullptr)
         {
             tickRemain -= 1.0;
@@ -1962,7 +2159,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                     continue;
                 }
                 const double rateMul = v.instr >= 0 ? rateFactor (song->instruments[(size_t) v.instr]) : 1.0;
-                const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate * rateMul * v.pitchMul;
+                const double inc = kPaulaClock / std::max (kMinPeriod, v.outPeriod) / sampleRate * rateMul * v.pitchMul * v.tblPitch;
                 float sl, sr;
                 renderVoice (v, inc, sl, sr, ch);
                 if (v.active || sl != 0.0f || sr != 0.0f)

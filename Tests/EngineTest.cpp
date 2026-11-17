@@ -151,6 +151,114 @@ static void testLayer()
     CHECK (on4[10] == 0);   // (OFF cuts: no envelope)
 }
 
+// ---------------------------------------------------------------- v0.99: TABLES (as on the M8)
+static int zeroCrossings (const std::vector<float>& v)
+{
+    int n = 0;
+    for (size_t i = 1; i < v.size(); ++i) if ((v[i - 1] < 0) != (v[i] < 0)) ++n;
+    return n;
+}
+
+static void testTables()
+{
+    std::printf ("\n== TABLES\n");
+    const int tickLen = (int) (48000 * 2.5 / 125);
+    auto mk = [] (Song& s)
+    {
+        s = makeSong();
+        s.blocks[0].clear(); s.blocks[0].lines = 16; s.sequence = { 0 };
+    };
+    // an arpeggio, every tick: +0 +3 +7, then back to the top for ever (a row with only a HOP holds the pitch)
+    {
+        Song s; mk (s);
+        auto& t = s.instruments[0].table;
+        t.on = true; t.speed = 1;
+        t.rows[0].note = 0; t.rows[1].note = 3; t.rows[2].note = 7;
+        t.rows[3].cmd = kCmdHop; t.rows[3].param = 0x00;
+        CHECK (t.used() && commandChar (kCmdHop) == '>' && commandChar (kCmdTable) == '$' && commandFromChar ('$') == kCmdTable);
+        s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+        p.playBlock (0);
+        // (the first render's ticks are 0 and 1: tickLen - 1 samples first, then a tick per render)
+        std::vector<float> L ((size_t) tickLen), R ((size_t) tickLen);
+        p.render (L.data(), R.data(), tickLen - 1);
+        int got[8] {};
+        for (int k = 0; k < 8; ++k) { got[k] = p.tableSemis (0); p.render (L.data(), R.data(), tickLen); }   // (got[k]: after tick k)
+        std::printf ("arp by tick: %d %d %d %d %d %d %d %d\n", got[0], got[1], got[2], got[3], got[4], got[5], got[6], got[7]);
+        CHECK (got[0] == 0 && got[1] == 3 && got[2] == 7 && got[3] == 7 && got[4] == 0 && got[5] == 3 && got[6] == 7);
+    }
+    // VOL, a HOP that loops once more (>1y), and SPEED 2
+    {
+        Song s; mk (s);
+        auto& t = s.instruments[0].table;
+        t.on = true; t.speed = 2;
+        t.rows[0].vol = 0x40; t.rows[1].vol = 0x20;
+        t.rows[2].cmd = kCmdHop; t.rows[2].param = 0x10;
+        t.rows[3].vol = 0x10;
+        s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 };
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+        p.playBlock (0);
+        std::vector<float> L ((size_t) tickLen), R ((size_t) tickLen);
+        p.render (L.data(), R.data(), tickLen - 1);
+        int vol[16] {};
+        for (int k = 0; k < 16; ++k) { vol[k] = p.tableVol (0); p.render (L.data(), R.data(), tickLen); }
+        std::printf ("level by tick: %d %d %d %d %d %d %d %d %d %d %d %d %d\n", vol[0], vol[1], vol[2], vol[3], vol[4], vol[5], vol[6], vol[7], vol[8], vol[9], vol[10], vol[11], vol[12]);
+        CHECK (vol[0] == 64 && vol[2] == 32 && vol[6] == 64 && vol[8] == 32 && vol[10] == 32 && vol[12] == 16);
+    }
+    // $xx: another instrument's table for one note; $00: none; an instrument with its table OFF: none
+    {
+        Song s; mk (s);
+        auto& t = s.instruments[0].table;
+        t.on = false; t.speed = 1;
+        t.rows[1].note = 12;
+        s.instruments[1] = s.instruments[0]; s.instruments[1].table = InstrumentTable {};
+        s.blocks[0].at (0, 0) = Cell { 37, 2, kCmdTable, 0x01 };   // instrument 2 with instrument 1's table
+        s.blocks[0].at (0, 1) = Cell { 37, 1, 0, 0 };              // instrument 1, its table off
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+        p.playBlock (0);
+        std::vector<float> L ((size_t) tickLen), R ((size_t) tickLen);
+        p.render (L.data(), R.data(), tickLen); p.render (L.data(), R.data(), tickLen);
+        std::printf ("$01 on instrument 2: %d semitones; instrument 1 with its table off: row %d\n", p.tableSemis (0), p.tableRow (1));
+        CHECK (p.tableSemis (0) == 12 && p.tableRow (1) == -1);
+    }
+    // the pitch is heard: +12 doubles the zero crossings; and SPEED 0 steps a row a line
+    {
+        auto crossings = [&] (int semis, int speedRows, int& rowAfter6)
+        {
+            Song s; mk (s);
+            auto& t = s.instruments[0].table;
+            t.on = true; t.speed = speedRows;
+            t.rows[0].note = semis; t.rows[15].vol = 0x40;
+            s.blocks[0].at (0, 0) = Cell { 37, 1, 0, 0 };
+            Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+            p.playBlock (0);
+            std::vector<float> L ((size_t) tickLen * 6 - 1), R ((size_t) tickLen * 6 - 1);
+            p.render (L.data(), R.data(), tickLen * 6 - 1);   // (ticks 0-5)
+            rowAfter6 = p.tableRow (0);
+            return zeroCrossings (L);
+        };
+        int r0 = 0, r1 = 0;
+        const int plain = crossings (0, 1, r0), up = crossings (12, 0, r1);
+        std::printf ("zero crossings: as played %d, table +12 %d; after 6 ticks the row is %d (speed 1), %d (speed 0 = a line)\n", plain, up, r0, r1);
+        CHECK (std::abs (up - 2 * plain) <= plain / 10 + 4 && r0 == 6 && r1 == 1);
+    }
+    // played from the keys / the TABLE page while stopped: it still steps
+    {
+        Song s; mk (s);
+        auto& t = s.instruments[0].table;
+        t.on = false; t.speed = 1;
+        t.rows[2].note = 5;
+        Player p; p.setSampleRate (48000); p.setSong (&s); p.options.model = PaulaOptions::Model::Clean;
+        p.previewTable (0, 37);
+        std::vector<float> L ((size_t) tickLen * 4), R ((size_t) tickLen * 4);
+        p.render (L.data(), R.data(), tickLen * 4);
+        std::printf ("the TABLE page's note, stopped: row %d\n", p.previewTableRow());
+        CHECK (p.previewTableRow() >= 3);
+        p.stopTablePreview();
+        CHECK (p.previewTableRow() == -1);
+    }
+}
+
 // (v0.96) the Mega Synth filters: every model and type stays bounded; the classic models' low passes cut the top
 // ---------------------------------------------------------------- v0.96: the SIDECHAIN DUCK and the PHAT CRUSHER
 static double rmsOf (const std::vector<float>& v, int a, int b);
@@ -7643,6 +7751,7 @@ int main()
     testSkipOnce();
     testMegaFilters();
     testSidechainDuck();
+    testTables();
     testPhatCrusher();
     testLayer();
     testModRoundTrip();

@@ -167,6 +167,15 @@ public:
     bool isHoldKeys() const { return holdKeys; }
     // a phrase heard from its editor (the song playing or not), from `note` (C-3 = as written)
     void previewPhrase (int instrIndex, int phraseIndex, int note = 37);
+    // (v0.99) TABLE: play an instrument's note with its table from its page (on the phrase preview voice), and stop it
+    void previewTable (int instrIndex, int note = 37);
+    void stopTablePreview();
+    // (tests) a track's table: the row it's on (-1 none), and the semitones / level its rows have set
+    int tableRow (int track) const   { return track >= 0 && track < kVoices && voices[track].tblInstr >= 0 ? voices[track].tblRow : -1; }
+    int tableInstrument (int track) const { return track >= 0 && track < kVoices ? voices[track].tblInstr : -1; }
+    int tableSemis (int track) const { return track >= 0 && track < kVoices ? voices[track].tblSemis : 0; }
+    int tableVol (int track) const   { return track >= 0 && track < kVoices ? voices[track].tblVol : 64; }
+    int previewTableRow() const      { return tableRow (kMaxTracks + kJamVoices - 1); }
     void stopPhrasePreview();
     int  previewPhraseLine() const { return phrase[kMaxTracks].instr >= 0 ? phrase[kMaxTracks].line - 1 : -1; }   // the line it last played (-1 = none)
     int  previewPhraseIndex() const { return phrase[kMaxTracks].instr >= 0 ? phrase[kMaxTracks].index : -1; }
@@ -289,6 +298,14 @@ private:
         bool   chordLine = false;                  // 0xy on this line made a chord (no arpeggio)
         // switched off while sounding: fades out
         int    fadeOut = 0, fadeLen = 1;
+        // (v0.99) TABLE: the instrument whose table runs with this note (-1 none), the row, ticks to the next,
+        // what its rows have set (semitones from the note, level 0-64) and each row's loops left (-1 not started)
+        int    tblInstr = -1, tblRow = 0, tblWait = 0;
+        bool   tblFresh = false;
+        int    tblSemis = 0, tblVol = 64, tblBaseVel = 100;
+        double tblPitch = 1.0;
+        int    tblHops[kTableRows] { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+        int    synthShift = 0;   // a synth's note played this many semitones from the note (a TABLE's NOTE past its BEND)
     };
 
     // PHRASE: a track playing an instrument's phrase (a block's track, from its note)
@@ -362,6 +379,15 @@ private:
     void processRow();
     void processCell (int ch, const Cell& cell);
     void triggerNote (Voice& v, const Cell& cell, int ch);
+    void triggerNoteInner (Voice& v, const Cell& cell, int ch);
+    // (v0.99) TABLE
+    int  tableSource (const Voice& v, const Cell& cell) const;   // whose table a note plays with (-1 none)
+    void startTable (Voice& v, int ch, int instr);
+    void stepTable (Voice& v, int ch);
+    void applyTableRow (Voice& v, int ch);
+    void setTableSemis (Voice& v, int semis);
+    void tableRetrigger (Voice& v, double pos);
+    double tblFreeRemain = 0;   // (stopped: the tables of notes played from the keys still step, at the song's tick)
     void applyRowCommand (Voice& v, uint8_t cmd, uint8_t param, const Cell& cell);
     void tickCommand (Voice& v, uint8_t cmd, uint8_t param, double& vib, int& trem, int& arp);
     void tickEffects (int ch);

@@ -29,6 +29,7 @@
 #include "ui/RadioPage.h"
 #include "ui/CommandPalette.h"
 #include "ui/BreakPage.h"
+#include "ui/TablePage.h"
 #include "ui/LivePage.h"
 #include "ui/VisualsPage.h"
 #include "StemsJob.h"
@@ -295,6 +296,8 @@ private:
     prv::ui::CvSourcesPage cvSources;
     prv::ui::RadioPage radioPage { proc };
     prv::ui::BreakPage breakPage { proc };
+    prv::ui::TablePage tablePage { proc };   // (v0.99) an instrument's TABLE
+    PaulaProcessor::EditorState::View tableReturn = PaulaProcessor::EditorState::View::Pattern;
     prv::ui::LivePage livePage { proc };
     prv::ui::VisualsPage visualsPage { proc };
     PaulaProcessor::EditorState::View liveReturn = PaulaProcessor::EditorState::View::Pattern, visualsReturn = PaulaProcessor::EditorState::View::Pattern;
@@ -306,6 +309,8 @@ public:
     void setHoldKeys (bool on);        // HOLD KEYS (F4): notes stay on after their keys come up
     bool fillLatched = false;
     prv::ui::BreakPage& getBreakPage() { return breakPage; }
+    prv::ui::TablePage& getTablePage() { return tablePage; }
+    void openTable();
     prv::ui::LivePage& getLivePage() { return livePage; }
     prv::ui::VisualsPage& getVisualsPage() { return visualsPage; }
     void openLive();

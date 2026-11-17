@@ -2100,6 +2100,7 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
         hv = (k.getModifiers().isShiftDown() && k.getKeyCode() == '3') || k.getTextCharacter() == '#' ? (int) kCmdChord
            : (k.getModifiers().isShiftDown() && k.getKeyCode() == '1') || k.getTextCharacter() == '!' ? (int) kCmdDub
            : commandFromChar ((char) ch);
+        if (hv == kCmdHop) hv = -1;   // (>xy belongs in a TABLE, not the pattern)
         if (hv == kCmdDub && st.editMode)
         {
             // !: a DUB THROW - F0 (all of it, to the track's next note) to start with, the cursor on the value
