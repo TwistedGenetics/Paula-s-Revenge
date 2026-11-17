@@ -934,7 +934,9 @@ void SampleEditor::paint (juce::Graphics& g)
 
     if (slicerOpen)
     {
-        const juce::String t1 = juce::String (in.numSlices()) + " SLICES" + (in.sliceKeys ? " - KEYS PLAY SLICES (C-3 = 1)" : " - S00 PLAYS SLICE 1") + (in.sliceThru ? " - THRU" : "");
+        const juce::String t1 = (in.numSlices() == 0 ? "NO SLICES - SXX PLAYS " + juce::String (in.sxxPartCount()) + " PARTS"
+                                                    : juce::String (in.numSlices()) + " SLICES" + (in.sliceKeys ? " - KEYS PLAY SLICES (C-3 = 1)" : " - S00 PLAYS SLICE 1"))
+                              + (in.sliceThru ? " - THRU" : "");
         const juce::String t2 = "DRAG A NUMBERED TAB TO MOVE IT";
         const juce::String t3 = "DOUBLE-CLICK ADDS, ALT+CLICK A TAB REMOVES";
         const juce::String t4;
