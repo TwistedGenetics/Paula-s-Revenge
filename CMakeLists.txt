@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(PaulasRevenge VERSION 0.95.0 LANGUAGES C CXX)
+project(PaulasRevenge VERSION 0.96.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -60,6 +60,8 @@ add_library(prv_engine STATIC
     Source/engine/MorphSynth.cpp
     Source/engine/AcidSynth.cpp
     Source/engine/DrumSynth.cpp
+    Source/engine/MegaFilter.cpp
+    Source/engine/mega/Filter.cpp
     Source/engine/PadSynth.cpp
     Source/engine/LiveFx.cpp
     Source/engine/Crunch.cpp

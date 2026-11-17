@@ -9,13 +9,14 @@
 #include "engine/GearMaps.h"
 #include "engine/BuiltinSynths.h"
 #include "engine/RomBank.h"
+#include "engine/MegaFilter.h"
 
 namespace prv
 {
 namespace
 {
     constexpr uint32_t kMagic = 0x50525631; // "PRV1"
-    constexpr int kVersion = 33;   // (v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
+    constexpr int kVersion = 34;   // (v34: the Mega Synth filters - MODEL, SLOPE, DRIVE, MIX, CHARACTER, NOTCH / PEAK / ALL PASS; v33: 16 tracks - tracks 9-16 in their own section at the end, and LAYERs; v28: STRETCH; v29: the ?xy CONDITION command; v30: many PHRASES, @xx; v31: MIDI GEAR; v32: ROM samples)
                                   // v2: stereo samples, v3: shaping + track pans, v4: 2nd effect column + sample rates,
                                   // v5: ping-pong loops + slices, v6: song sections, v7: mixer, v8: plug-in effects,
                                   // v9: automation + plug-in instruments, v10: instruments switched off,
@@ -553,6 +554,12 @@ juce::MemoryBlock writeSong (const Song& songIn)
         for (int t = kOldMixTracks; t < kMixTracks; ++t) for (const auto& k : song.mixer.trackAuto[t]) writeTarget (raw, k);
         // LAYER: each instrument's track it follows and the track it plays on (0 = off)
         for (const auto& in : song.instruments) { raw.writeByte ((char) (in.layerFrom + 1)); raw.writeByte ((char) (in.layerTrack + 1)); }
+    }
+    // v34: each instrument's filter: its type (NOTCH, PEAK, ALL PASS too), MODEL, SLOPE, DRIVE, MIX, CHARACTER
+    for (const auto& in : song.instruments)
+    {
+        raw.writeByte ((char) in.filter); raw.writeByte ((char) in.filterModel); raw.writeByte ((char) in.filterSlope);
+        raw.writeFloatBigEndian (in.filterDrive); raw.writeFloatBigEndian (in.filterMix); raw.writeFloatBigEndian (in.filterChar);
     }
 
     juce::MemoryOutputStream packed;
@@ -1212,7 +1219,8 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
         // v0.11 chords were two intervals in 0xy: keep playing them that way
         for (const auto& ins : s.instruments) if (ins.chord) s.chordsLegacy = true;
     }
-    if (version < 33) for (auto& md : s.mixer.mods.mod) migrateModTracks (md);   // (track choices made among 8)
+    if (version < 33) for (auto& md : s.mixer.mods.mod) migrateModTracks (md);
+    const bool hasV34 = version >= 34;   // (track choices made among 8)
     // v33: 16 tracks
     if (version >= 33 && ! in.isExhausted())
     {
@@ -1240,6 +1248,17 @@ bool readSong (const void* data, size_t size, Song& out, juce::String& error)
             ins.layerTrack = std::clamp ((int) (uint8_t) in.readByte() - 1, -1, kMaxTracks - 1);
         }
     }
+    if (hasV34 && ! in.isExhausted())
+        for (auto& ins : s.instruments)
+        {
+            if (in.isExhausted()) break;
+            ins.filter = (FilterType) juce::jlimit (0, 6, (int) (uint8_t) in.readByte());
+            ins.filterModel = juce::jlimit (0, kFilterModels - 1, (int) (uint8_t) in.readByte());
+            ins.filterSlope = juce::jlimit (0, 3, (int) (uint8_t) in.readByte());
+            ins.filterDrive = readFloat (in, 0.0f, 24.0f, 0.0f);
+            ins.filterMix = readFloat (in, 0.0f, 1.0f, 1.0f);
+            ins.filterChar = readFloat (in, 0.0f, 1.0f, 0.5f);
+        }
     if (version < 13)
     {
         // chords are #xy now (0xy is an arpeggio again): convert the old ones so they sound the same

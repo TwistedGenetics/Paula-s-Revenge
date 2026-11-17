@@ -151,7 +151,7 @@ struct Envelope
     bool operator== (const Envelope& o) const { return on == o.on && attack == o.attack && decay == o.decay && sustain == o.sustain && release == o.release; }
 };
 
-enum class FilterType : uint8_t { Off = 0, LowPass, HighPass, BandPass };
+enum class FilterType : uint8_t { Off = 0, LowPass, HighPass, BandPass, Notch, Peak, AllPass };   // (v0.96: + NOTCH, PEAK, ALL PASS)
 
 // Tracker note -> MIDI note (C-3 = 60)
 inline int midiNoteFor (int note) { return std::clamp (note + 23, 0, 127); }
@@ -218,6 +218,13 @@ struct Instrument
     Envelope   filterEnv { true, 0.005f, 0.3f, 0.0f, 0.2f };
     float      filterEnvAmount = 0.0f;      // octaves, -8..+8
     float      keyTrack    = 0.0f;          // 0..1 (1 = cutoff follows the note fully)
+    // (v0.96) the Mega Synth filters: MODEL 0 = Paula's own state-variable filter (as before); 1-17 the classic
+    // analogue models; 18-35 the character models (see MegaFilter.h). SLOPE 0-3 = 6 / 12 / 18 / 24 dB.
+    int        filterModel = 0;
+    int        filterSlope = 1;
+    float      filterDrive = 0.0f;          // dB, 0..24 (0 = clean)
+    float      filterMix   = 1.0f;          // 0..1 (parallel dry / filtered)
+    float      filterChar  = 0.5f;          // 0..1, the character models' CHARACTER knob
     // PHRASES: a note plays a little pattern instead of the sample (see Phrase). Which one: @xx on
     // the note picks it (@00 = the sample), otherwise the first whose keys hold the note; none = the sample
     std::vector<Phrase> phrases;

@@ -64,7 +64,7 @@ private:
     std::vector<juce::PluginDescription> choices;
     PixButton rescanBtn { "RESCAN" }, cancelBtn { "CANCEL" };
     PixButton windowBtn { "OPEN PLUG-IN WINDOW" }, changeBtn { "CHANGE PLUG-IN..." }, sampleBtn { "BACK TO A SAMPLE" }, closeBtn { "CLOSE" };
-    NumberBox outBox { "OUTPUT", 0, 8, 0 }, bendBox { "BEND", 1, 48, 2 }, trackBox { "TRACK", 1, 8, 1 };
+    NumberBox outBox { "OUTPUT", 0, 16, 0 }, bendBox { "BEND", 1, 48, 2 }, trackBox { "TRACK", 1, 16, 1 };
     PixButton learnK[kInstrumentKnobs] { PixButton ("LEARN"), PixButton ("LEARN"), PixButton ("LEARN"), PixButton ("LEARN") };
     PixButton clearK[kInstrumentKnobs] { PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR"), PixButton ("CLEAR") };
     PixButton learnA { "LEARN AUTO A (V)" }, learnB { "LEARN AUTO B (J)" };

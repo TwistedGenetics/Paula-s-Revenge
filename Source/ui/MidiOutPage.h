@@ -77,7 +77,7 @@ private:
     juce::StringArray devices;
     PixButton rescanBtn { "RESCAN" }, cancelBtn { "CANCEL" };
     PixButton changeBtn { "CHANGE DEVICE..." }, sampleBtn { "BACK TO A SAMPLE" }, panicBtn { "PANIC" }, closeBtn { "CLOSE" };
-    NumberBox chanBox { "CHANNEL", 1, 16, 1 }, bendBox { "BEND", 1, 48, 2 }, delayBox { "DELAY", -50, 200, 0 }, trackBox { "TRACK", 1, 8, 1 };
+    NumberBox chanBox { "CHANNEL", 1, 16, 1 }, bendBox { "BEND", 1, 48, 2 }, delayBox { "DELAY", -50, 200, 0 }, trackBox { "TRACK", 1, 16, 1 };
     PixButton chordsBtn { "CHORDS..." };
     PixButton onBtn { "ON", true }, clockBtn { "SEND MIDI CLOCK", true };
     std::unique_ptr<NumberBox> ccBox[kInstrumentKnobs];

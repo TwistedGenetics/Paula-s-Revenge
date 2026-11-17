@@ -49,7 +49,7 @@ private:
     std::unique_ptr<PixButton> modBtn[kMods];
     PixButton sourceBtn { "SOURCE: OFF" }, clearBtn { "CLEAR" }, addBtn { "ADD TARGET..." };
     PixButton macroA { "AUTO A (V)" }, macroB { "AUTO B (J)" };
-    NumberBox macroTrack { "TRACK", 1, 8, 1 };
+    NumberBox macroTrack { "TRACK", 1, 16, 1 };
     std::unique_ptr<PixSlider> param[kModParams];
     std::unique_ptr<PixButton> paramToggle[kModParams];
     struct Row;

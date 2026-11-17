@@ -8,6 +8,7 @@
 #include "CvOut.h"
 #include "DelayLine.h"
 #include "Blep.h"
+#include "MegaFilter.h"
 #include <atomic>
 #include <array>
 
@@ -385,6 +386,9 @@ private:
     // note (bit 1) as the song played it, then shaped after the plug-in renders
     struct SynthShape { Voice::EnvState amp, flt; Voice::Svf svf; int note = 37; uint32_t seen = 0; };
     SynthShape synthShape[kMaxInstruments];
+    // (v0.96) the Mega Synth filters (an instrument's MODEL other than PAULA SVF): one a voice, one a plug-in instrument
+    std::unique_ptr<MegaFilter[]> megaVoice, megaShape;
+    int megaCount = 0;   // (each filter's settings are looked at again every 16 samples)
     uint32_t synthOnSerial[kMaxInstruments] {};
     uint8_t shapeEvt[kMaxInstruments][MixerEngine::kMaxBlock] {};
     void shapeSynth (int ins, float* L, float* R, int n);

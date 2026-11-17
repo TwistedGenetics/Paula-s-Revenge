@@ -80,6 +80,14 @@ private:
 
     PixButton fOff { "OFF", true }, fLp { "LOW", true }, fHp { "HIGH", true }, fBp { "BAND", true };
     PixSlider cutoff { "CUT" }, reso { "RES" }, envAmt { "AMT" }, keyTrk { "KEY" };
+    // (v0.96) the Mega Synth filters: NOTCH / PEAK / ALL PASS, the MODEL, its SLOPE, DRIVE, MIX and CHARACTER
+public:
+    PixButton fMore { "MORE", true }, modelBtn { "MODEL: PAULA SVF" }, slopeBtn { "12 DB" };
+    PixSlider fDrive { "DRV" }, fMix { "MIX" }, fChar { "CHR" };
+    void setFilterModel (int model);   // (tests too)
+    void showModelMenu();
+private:
+    void showMoreTypes();
     PixSlider fAtk { "ATK" }, fDec { "DEC" }, fSus { "SUS" }, fRel { "REL" };
 
     NumberBox pitchBox { "PITCH", -48, 48, 0 }, fineBox { "FINE", -100, 100, 0 }, linesBox { "LINES", 1, 512, 16 };
@@ -113,7 +121,7 @@ private:
               pluginBtn { "PLUG-IN / MIDI OUT..." };
     // switching the instrument on / off (and learning that as a track's AUTO A / B)
     PixButton onBtn { "ON", true }, learnA { "LEARN A (V)", true }, learnB { "LEARN B (J)", true };
-    NumberBox trackBox { "TRACK", 1, 8, 1 };
+    NumberBox trackBox { "TRACK", 1, 16, 1 };
     int learning = -1;                   // 0 = AUTO A, 1 = AUTO B: waiting for a click on ON
     void toggleOn();
     void armLearn (int knob);

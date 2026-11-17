@@ -151,6 +151,43 @@ static void testLayer()
     CHECK (on4[10] == 0);   // (OFF cuts: no envelope)
 }
 
+// (v0.96) the Mega Synth filters: every model and type stays bounded; the classic models' low passes cut the top
+static void testMegaFilters()
+{
+    std::printf ("\n== MEGA SYNTH FILTERS\n");
+    int bad = 0, lpOk = 0, lpN = 0;
+    const FilterType types[] = { FilterType::LowPass, FilterType::HighPass, FilterType::BandPass, FilterType::Notch, FilterType::Peak, FilterType::AllPass };
+    uint32_t rng = 1;
+    for (int m = 0; m < kFilterModels; ++m)
+        for (auto ty : types)
+        {
+            if (m == 0 && ty <= FilterType::BandPass) continue;   // (Paula's own: the player's code, as before)
+            Instrument in; in.filter = ty; in.filterModel = m; in.cutoff = 800; in.resonance = 0.9f; in.filterDrive = 12; in.filterSlope = 3;
+            MegaFilter f; f.setup (in, ty, 48000); f.setCutoff (800, 0.9f);
+            float pk = 0; bool finite = true;
+            for (int i = 0; i < 48000; ++i)
+            {
+                if ((i & 15) == 0) f.setCutoff (200.0f + 6000.0f * (float) ((i / 4800) % 2), 0.9f);   // (jumping about)
+                rng = rng * 1664525u + 1013904223u;
+                float l = ((float) (rng >> 9) / 8388608.0f - 1.0f) * 0.8f, r = l;
+                f.process (l, r);
+                finite = finite && std::isfinite (l) && std::isfinite (r);
+                pk = std::max (pk, std::abs (l));
+            }
+            if (! finite || pk > 8.0f) { ++bad; std::printf ("  %s / %d: peak %.2f finite %d\n", filterModelName (m), (int) ty, pk, (int) finite); }
+        }
+    for (int m = 1; m <= kFilterClassicModels; ++m)
+    {
+        Instrument in; in.filter = FilterType::LowPass; in.filterModel = m; in.filterSlope = filterNativeSlope (m); in.cutoff = 500; in.resonance = 0.2f;
+        const auto g = megaFilterResponse (in, 48000, { 100.0, 8000.0 });
+        ++lpN; if (g[0] > g[1] * 8.0f) ++lpOk; else std::printf ("  %s LP: 100 Hz %.3f, 8 kHz %.3f\n", filterModelName (m), g[0], g[1]);
+    }
+    std::printf ("%d models x 6 types: %d unbounded; classic low passes cutting the top: %d of %d\n", kFilterModels, bad, lpOk, lpN);
+    CHECK (bad == 0 && lpOk == lpN && std::string (filterModelName (13)) == "TB-303" && std::string (filterModelName (18)) == "FORMANT");
+    int listed = 0; for (const auto& gr : filterGroups()) listed += (int) gr.models.size();
+    CHECK (listed == kFilterModels);
+}
+
 static void testSkipOnce()
 {
     Song s = makeSong();
@@ -4435,6 +4472,7 @@ static void testEnvelopes()
 // ---- following a MIDI clock
 #include "engine/ClockSync.h"
 #include "engine/DrumSynth.h"
+#include "engine/MegaFilter.h"
 static void testClockSync()
 {
     std::printf ("\n== midi clock\n");
@@ -7480,6 +7518,7 @@ int main()
     testPitch();
     testMod16();
     testSkipOnce();
+    testMegaFilters();
     testLayer();
     testModRoundTrip();
     test8SVX();

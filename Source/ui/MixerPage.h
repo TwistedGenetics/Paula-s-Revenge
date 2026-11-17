@@ -192,7 +192,7 @@ private:
 
     // automation: LEARN on the effect page, the track's knobs on the channel page
     PixButton learnABtn { "LEARN AUTO A (V)", true }, learnBBtn { "LEARN AUTO B (J)", true };
-    NumberBox learnTrackBox { "TRACK", 1, 8, 1 };
+    NumberBox learnTrackBox { "TRACK", 1, 16, 1 };
     PixButton chClearA { "CLEAR" }, chClearB { "CLEAR" };
     juce::Rectangle<float> learnInfoArea, chAutoBox, chAutoA, chAutoB;
     ParamLearner learner;

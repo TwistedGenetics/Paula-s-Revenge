@@ -2,6 +2,7 @@
 #include "ParamsPage.h"
 #include "ChoiceBox.h"
 #include "../engine/SampleTools.h"
+#include "../engine/MegaFilter.h"
 
 namespace prv::ui
 {
@@ -62,11 +63,25 @@ void FilterScope::drawCurve (juce::Graphics& g, juce::Rectangle<float> r, const 
     auto yOf = [&] (float gain) { const float db = juce::jlimit (-36.0f, 12.0f, juce::Decibels::gainToDecibels (gain, -60.0f)); return r.getBottom() - (db + 36.0f) / 48.0f * r.getHeight(); };
     juce::Path p;
     const int steps = std::max (32, (int) r.getWidth() / 3);
+    // (v0.96) a Mega Synth filter: its real response, from the same code the voices run
+    std::vector<float> megaGains;
+    if (usesMegaFilter (in, in.filter))
+    {
+        std::vector<double> fs;
+        for (int i = 0; i <= steps; ++i) fs.push_back (lo * std::pow (hi / lo, i / (double) steps));
+        // (worked out again only when something about it changes: the picture redraws all the time)
+        static std::vector<float> cached;
+        static juce::String cachedKey;
+        const juce::String key = juce::String (in.filterModel) + "/" + juce::String ((int) in.filter) + "/" + juce::String (in.filterSlope) + "/" + juce::String (in.cutoff)
+                               + "/" + juce::String (in.resonance) + "/" + juce::String (in.filterChar) + "/" + juce::String (in.filterMix) + "/" + juce::String (rate) + "/" + juce::String (steps);
+        if (key != cachedKey) { cached = megaFilterResponse (in, rate, fs); cachedKey = key; }
+        megaGains = cached;
+    }
     for (int i = 0; i <= steps; ++i)
     {
         const double hz = lo * std::pow (hi / lo, i / (double) steps);
         const float x = r.getX() + r.getWidth() * (float) i / (float) steps;
-        const float y = yOf (response (in.filter, in.cutoff, in.resonance, (float) hz));
+        const float y = yOf (megaGains.empty() ? response (in.filter, in.cutoff, in.resonance, (float) hz) : megaGains[(size_t) i]);
         if (i == 0) p.startNewSubPath (x, y); else p.lineTo (x, y);
     }
     const bool on = in.filter != FilterType::Off;
@@ -83,7 +98,9 @@ void FilterScope::drawCurve (juce::Graphics& g, juce::Rectangle<float> r, const 
     }
     // what it is, at the top right
     const juce::String t = ! on ? juce::String ("FILTER OFF")
-                         : juce::String (in.filter == FilterType::LowPass ? "LOW " : in.filter == FilterType::HighPass ? "HIGH " : "BAND ")
+                         : (in.filterModel > 0 ? juce::String (filterModelName (in.filterModel)) + " " : juce::String())
+                           + juce::String (filterIsCharModel (in.filterModel) ? "" : in.filter == FilterType::LowPass ? "LOW " : in.filter == FilterType::HighPass ? "HIGH " : in.filter == FilterType::BandPass ? "BAND "
+                                           : in.filter == FilterType::Notch ? "NOTCH " : in.filter == FilterType::Peak ? "PEAK " : "ALL PASS ")
                            + (in.cutoff < 1000.0f ? juce::String (juce::roundToInt (in.cutoff)) + "HZ" : juce::String (in.cutoff / 1000.0f, 1) + "K");
     if (r.getHeight() >= PixelFont::textHeight (px) * 2)
     {
@@ -129,6 +146,27 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
     fLp.onClick  = [setType] { setType (FilterType::LowPass); };
     fHp.onClick  = [setType] { setType (FilterType::HighPass); };
     fBp.onClick  = [setType] { setType (FilterType::BandPass); };
+    fMore.onClick = [this] { refresh(); showMoreTypes(); };
+    modelBtn.onClick = [this] { showModelMenu(); };
+    slopeBtn.onClick = [this]
+    {
+        // the next slope this type allows (6 / 12 / 18 / 24 dB)
+        const auto& in = inst();
+        const auto ty = in.filter == FilterType::Off ? FilterType::LowPass : in.filter;
+        int s = in.filterSlope;
+        for (int k = 0; k < 4; ++k) { s = (s + 1) % 4; if (filterTypeAllowsSlope (ty, s)) break; }
+        edit ([s] (Instrument& i) { i.filterSlope = s; });
+        refresh();
+        if (onStatus) onStatus ("FILTER SLOPE: " + juce::String (6 * (s + 1)) + " DB AN OCTAVE");
+    };
+    fDrive.format = [] (float v) { return v <= 0.001f ? juce::String ("CLEAN") : "+" + juce::String (v * 24.0f, 1) + "DB"; };
+    fMix.format = fmtPct; fChar.format = fmtPct;
+    for (auto* s : { &fDrive, &fMix, &fChar }) { s->labelChars = 4; s->valueChars = 6.5f; }
+    fChar.labelChars = 6;   // (its label says what it does on the model: VOWEL, DECAY, STAGES...)
+    fDrive.defaultValue = 0.0f; fMix.defaultValue = 1.0f; fChar.defaultValue = 0.5f;
+    fDrive.onChange = [this] (float v) { edit ([v] (Instrument& in) { in.filterDrive = v * 24.0f; }); };
+    fMix.onChange   = [this] (float v) { edit ([v] (Instrument& in) { in.filterMix = v; }); };
+    fChar.onChange  = [this] (float v) { edit ([v] (Instrument& in) { in.filterChar = v; }); };
     cutoff.onChange = [this] (float v) { edit ([v] (Instrument& in) { in.cutoff = sliderToCutoff (v); }); };
     reso.onChange   = [this] (float v) { edit ([v] (Instrument& in) { in.resonance = v; }); };
     envAmt.onChange = [this] (float v) { edit ([v] (Instrument& in) { in.filterEnvAmount = v * 16.0f - 8.0f; }); };
@@ -157,6 +195,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
             const Instrument d;
             in.volEnv = d.volEnv; in.filter = d.filter; in.cutoff = d.cutoff; in.resonance = d.resonance;
             in.filterEnv = d.filterEnv; in.filterEnvAmount = d.filterEnvAmount; in.keyTrack = d.keyTrack;
+            in.filterModel = d.filterModel; in.filterSlope = d.filterSlope; in.filterDrive = d.filterDrive; in.filterMix = d.filterMix; in.filterChar = d.filterChar;
             in.amigaPan = d.amigaPan; in.pan = d.pan;
         });
         refresh();
@@ -209,7 +248,7 @@ ParamsPage::ParamsPage (PaulaProcessor& p) : proc (p)
     trackBox.labelChars = 5; trackBox.valueChars = 1;
     trackBox.onChange = [this] (int) { learning = -1; refresh(); };
 
-    for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk,
+    for (auto* c : std::initializer_list<juce::Component*> { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &fMore, &modelBtn, &slopeBtn, &fDrive, &fMix, &fChar, &cutoff, &reso, &envAmt, &keyTrk,
                                                              &fAtk, &fDec, &fSus, &fRel, &amigaBtn, &pan, &playBtn, &resetBtn, &closeBtn, &pluginBtn,
                                                              &onBtn, &learnA, &learnB, &trackBox, &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox })
         addAndMakeVisible (c);
@@ -351,9 +390,64 @@ bool ParamsPage::pluginMode() const
     return in.isPlugin() && ! in.isMidiOut() && ! in.isCvOut();
 }
 
+// (v0.96) MODEL: Paula's own filter, or one of Mega Synth's, by family
+void ParamsPage::showModelMenu()
+{
+    juce::Component::SafePointer<ParamsPage> safe (this);
+    std::vector<MenuItem> groups;
+    const int cur = inst().filterModel;
+    for (size_t gi = 0; gi < filterGroups().size(); ++gi)
+    {
+        const auto& gr = filterGroups()[gi];
+        bool here = false; for (int m : gr.models) here = here || m == cur;
+        groups.push_back ({ (here ? "> " : "") + juce::String (gr.name) + (gr.models.size() > 1 ? " (" + juce::String ((int) gr.models.size()) + ")..." : juce::String()), [safe, gi]
+            {
+                if (safe == nullptr) return;
+                const auto& g = filterGroups()[gi];
+                if (g.models.size() == 1) { safe->setFilterModel (g.models[0]); return; }
+                juce::MessageManager::callAsync ([safe, gi]
+                {
+                    if (safe == nullptr) return;
+                    std::vector<MenuItem> items;
+                    const int now = safe->inst().filterModel;
+                    for (int m : filterGroups()[gi].models)
+                        items.push_back ({ (m == now ? "> " : "") + juce::String (filterModelName (m)), [safe, m] { if (safe != nullptr) safe->setFilterModel (m); } });
+                    showMenu (juce::String (filterGroups()[gi].name) + " FILTERS", std::move (items));
+                });
+            } });
+    }
+    showMenu ("FILTER MODEL (FROM MEGA SYNTH)", std::move (groups));
+}
+
+void ParamsPage::setFilterModel (int m)
+{
+    m = juce::jlimit (0, kFilterModels - 1, m);
+    edit ([m] (Instrument& in)
+    {
+        in.filterModel = m;
+        if (m >= 1 && m <= kFilterClassicModels) in.filterSlope = filterNativeSlope (m);   // (a classic model: its own circuit, at its own slope)
+        if (in.filter == FilterType::Off) in.filter = FilterType::LowPass;
+        if (m > kFilterClassicModels || (m >= 1 && in.filter == FilterType::Off)) in.filter = FilterType::LowPass;
+    });
+    refresh();
+    if (onStatus) onStatus ("FILTER: " + juce::String (filterModelName (m)) + " - " + juce::String (filterModelAbout (m)).toUpperCase());
+}
+
+void ParamsPage::showMoreTypes()
+{
+    juce::Component::SafePointer<ParamsPage> safe (this);
+    std::vector<MenuItem> items;
+    const auto cur = inst().filter;
+    auto add = [&] (const char* n, FilterType t) { items.push_back ({ (cur == t ? "> " : "") + juce::String (n), [safe, t] { if (safe != nullptr) { safe->edit ([t] (Instrument& in) { in.filter = t; }); safe->refresh(); } } }); };
+    add ("NOTCH (A GAP AT THE CUTOFF)", FilterType::Notch);
+    add ("PEAK (A BOOST AT THE CUTOFF; RES = HOW MUCH)", FilterType::Peak);
+    add ("ALL PASS (PHASE: MIX IT WITH THE DRY SOUND)", FilterType::AllPass);
+    showMenu ("MORE FILTER TYPES", std::move (items));
+}
+
 std::vector<juce::Component*> ParamsPage::soundControls()
 {
-    return { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel,
+    return { &envOnBtn, &atk, &dec, &sus, &rel, &fOff, &fLp, &fHp, &fBp, &fMore, &modelBtn, &slopeBtn, &fDrive, &fMix, &fChar, &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel,
              &pitchBox, &fineBox, &linesBox, &tuneBtn, &syncBtn, &fitBtn, &keepBtn, &semiBox, &amigaBtn, &pan, &utility, &phraseBtn };
 }
 
@@ -413,6 +507,23 @@ void ParamsPage::refresh()
     fSus.setValue (in.filterEnv.sustain);               fRel.setValue (timeToSlider (in.filterEnv.release));
     const bool fOn = in.filter != FilterType::Off;
     for (auto* s : { &cutoff, &reso, &envAmt, &keyTrk, &fAtk, &fDec, &fSus, &fRel }) s->setAlpha (fOn ? 1.0f : 0.45f);
+    // (v0.96) the Mega Synth filters
+    const bool more = in.filter == FilterType::Notch || in.filter == FilterType::Peak || in.filter == FilterType::AllPass;
+    fMore.setToggleState (more, juce::dontSendNotification);
+    fMore.setButtonText (in.filter == FilterType::Notch ? "NOTCH" : in.filter == FilterType::Peak ? "PEAK" : in.filter == FilterType::AllPass ? "ALL P" : "MORE");
+    modelBtn.setButtonText ("MODEL: " + juce::String (filterModelName (in.filterModel)));
+    const bool mega = usesMegaFilter (in, in.filter), charM = filterIsCharModel (in.filterModel);
+    const auto ty = in.filter == FilterType::Off ? FilterType::LowPass : in.filter;
+    int sl = juce::jlimit (0, 3, in.filterSlope);
+    if (! filterTypeAllowsSlope (ty, sl)) sl = sl <= 1 ? 1 : 3;
+    slopeBtn.setButtonText (ty == FilterType::Peak ? juce::String ("-- DB") : juce::String (6 * (sl + 1)) + " DB");
+    slopeBtn.setEnabled (mega && ! charM && ty != FilterType::Peak);
+    slopeBtn.setAlpha (slopeBtn.isEnabled() ? 1.0f : 0.45f);
+    fDrive.setValue (in.filterDrive / 24.0f); fMix.setValue (in.filterMix); fChar.setValue (in.filterChar);
+    fDrive.setAlpha (mega ? 1.0f : 0.45f); fMix.setAlpha (mega ? 1.0f : 0.45f);
+    fChar.setLabel (charM ? juce::String (filterCharName (in.filterModel)) : juce::String ("CHAR"));
+    fChar.setAlpha (mega && charM ? 1.0f : 0.45f);
+    for (auto* b : { &fLp, &fHp, &fBp, &fMore }) b->setAlpha (charM ? 0.45f : 1.0f);   // (a character model is its own type)
 
     pitchBox.setValue (in.transpose);
     fineBox.setValue (in.cents);
@@ -524,18 +635,32 @@ void ParamsPage::resized()
 
     // filter + filter envelope (right), sized to their contents
     const int boxPad = gap * 4 + title;
-    auto fTop = right.removeFromTop (boxPad + rowH * 5 + gap * 7);
+    auto fTop = right.removeFromTop (boxPad + rowH * 7 + gap * 9);
     right.removeFromTop (gap * 2);
     filterBox = fTop.toFloat();
     {
         auto in = fTop.reduced (gap * 2).withTrimmedTop (title);
-        auto types = in.removeFromTop (rowH); in.removeFromTop (gap * 2);
-        const int w = (types.getWidth() - gap * 3) / 4;
-        for (auto* b : { &fOff, &fLp, &fHp, &fBp }) { b->setBounds (types.removeFromLeft (w)); types.removeFromLeft (gap); }
-        stack (in, { &cutoff, &reso, &envAmt, &keyTrk });
+        auto types = in.removeFromTop (rowH); in.removeFromTop (gap);
+        const int w = (types.getWidth() - gap * 4) / 5;
+        for (auto* b : { &fOff, &fLp, &fHp, &fBp, &fMore }) { b->setBounds (types.removeFromLeft (w)); types.removeFromLeft (gap); }
+        // MODEL (from Mega Synth) and its SLOPE
+        auto mrow = in.removeFromTop (rowH); in.removeFromTop (gap * 2);
+        slopeBtn.setBounds (mrow.removeFromRight (std::max (w, (int) (PixelFont::textWidth ("24 DB", px) + px * 6)))); mrow.removeFromRight (gap);
+        modelBtn.setBounds (mrow);
+        in = stack (in, { &cutoff, &reso });
+        auto half = [&] (PixSlider& a, PixSlider& b)
+        {
+            auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
+            const int hw = (row.getWidth() - gap * 2) / 2;
+            a.setBounds (row.removeFromLeft (hw)); row.removeFromLeft (gap * 2);
+            b.setBounds (row);
+        };
+        half (envAmt, keyTrk);
+        half (fDrive, fMix);
+        fChar.setBounds (in.removeFromTop (rowH));
     }
     // the filter's picture (the instrument's spectrum, the curve over it) with the room the right side has spare
-    const int fenvH = std::min (right.getHeight(), boxPad + rowH * 4 + gap * 4);
+    const int fenvH = std::min (right.getHeight(), boxPad + rowH * 2 + gap * 3);   // (v0.96: two to a row - the filter box has grown)
     {
         // (only when there's room for a proper picture: otherwise the spectrum strip under the page shows the curve)
         const int spare = right.getHeight() - fenvH - gap * 2;
@@ -552,7 +677,13 @@ void ParamsPage::resized()
     fenvBox = fBottom.toFloat();
     {
         auto in = fBottom.reduced (gap * 2).withTrimmedTop (title);
-        stack (in, { &fAtk, &fDec, &fSus, &fRel });
+        for (auto pr : { std::make_pair (&fAtk, &fDec), std::make_pair (&fSus, &fRel) })
+        {
+            auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
+            const int hw = (row.getWidth() - gap * 2) / 2;
+            pr.first->setBounds (row.removeFromLeft (hw)); row.removeFromLeft (gap * 2);
+            pr.second->setBounds (row);
+        }
         fenvGraph = {};
     }
 }

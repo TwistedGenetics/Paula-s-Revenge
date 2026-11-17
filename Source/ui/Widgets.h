@@ -161,6 +161,7 @@ public:
 
     void setValue (float v, bool notify = false);
     void setLabel (const juce::String& l) { if (l != label) { label = l; repaint(); } }
+    const juce::String& getLabel() const { return label; }
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;

@@ -171,7 +171,7 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 </style>
 
 <div class="cover">
-  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.95</span></header>
+  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.96</span></header>
   <div class="tracks"><div class="t1"></div><div class="t2"></div><div class="t3"></div><div class="t4"></div></div>
   <div class="raised big">USER MANUAL<br>AN 8-TRACK AMIGA-STYLE SAMPLE TRACKER<br>FOR JUNGLE, DRUM &amp; BASS AND BREAKS</div>
   <figure><div class="frame sunken"><img src="img/main.png" alt="The main screen" width="1440" height="900"></div><figcaption>The main screen, light skin</figcaption></figure>
@@ -856,7 +856,8 @@ track 2:  009 A-4 05 C08 8E0</pre>
   </figure>
   <ul>
     <li><b>Volume envelope:</b> <span class="b">VOL ENVELOPE</span> on, then ATK, DEC, SUS, REL (1 ms – 10 s). With it on, a note-off starts the release instead of cutting the note.</li>
-    <li><b>Filter:</b> OFF / LOW / HIGH / BAND, CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL. The spectrum strip under the page shows the instrument's sound with the <b>filter's curve</b> over it and a line at the cutoff.</li>
+    <li><b>Filter:</b> OFF / LOW / HIGH / BAND, and <span class="b">MORE</span> for NOTCH, PEAK and ALL PASS. <span class="b">MODEL</span> picks the filter from all of Mega Synth's (the same code): <b>PAULA SVF</b> (the original), the clean ones (Standard LP, Sallen-Key, State Variable, Switched Capacitor), the analogue models (Ladder, Steiner-Parker, OTA, Polivoks, MS-20, Oberheim, SEM, Minimoog, Arp Odyssey, CS-15, SH-2), the acid ones (Acid Approx, TB-303) and the character models (formants, vowel morph, combs, phaser, resonator, ring, shifter, power and wave-shaper filters, resamplers, DJ filter). A classic model starts at Low Pass and its own <span class="b">SLOPE</span> (6&ndash;24 dB): the original circuit. A character model's <b>CHAR</b> slider is labelled with what it does (VOWEL, DECAY, STAGES&hellip;). <b>DRV</b> and <b>MIX</b> work on every model but PAULA SVF, and the curve under the page is the real response.</li>
+    <li><b>Filter controls:</b> CUT, RES, AMT (how far the filter envelope moves it) and KEY (how far the cutoff follows the note). The filter envelope has its own ATK, DEC, SUS, REL. The spectrum strip under the page shows the instrument's sound with the <b>filter's curve</b> over it and a line at the cutoff.</li>
     <li><b>Pan:</b> <span class="b">AMIGA L/R</span> follows the Amiga track layout; switch it off to give the instrument its own PAN.</li>
     <li><b>UTILITY</b> (the row under PAN, and on a plug-in instrument's page): <span class="b">WIDTH</span> 0% (mono) to 200%; <span class="b">MONO</span> makes everything below a frequency mono (OFF, or <code>&lt;20HZ</code> to <code>&lt;500HZ</code>, a smooth 24&nbsp;dB/octave crossover, or 48 with <span class="b">STEEP</span>) &mdash; mono the bass; <span class="b">VOL</span> is the instrument's VOL itself, so moving either one moves the other. Before the instrument's own effects; not on MIDI out or CV out. At 100% and OFF it does nothing.</li>
     <li><b>Spectrum:</b> every spectrum (the strip, the filter, the EQ pages) is drawn as an analyser &mdash; a smooth line at 1/12 octave, the fill fading under it, a faint peak hold above and a light grid. While PARAMS (or a plug-in instrument's page) is up, the spectrum strip under it shows just that instrument's sound, marked <code>INSTRUMENT 01 ONLY</code>.</li>
@@ -1695,7 +1696,7 @@ track 2:  009 A-4 05 C08 8E0</pre>
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.95</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.96</footer>
 </main>
 </div>
 </body></html>

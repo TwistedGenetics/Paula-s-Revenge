@@ -61,6 +61,8 @@ namespace
 
 Player::Player()
 {
+    megaVoice = std::make_unique<MegaFilter[]> ((size_t) kVoices);
+    megaShape = std::make_unique<MegaFilter[]> ((size_t) kMaxInstruments);
     resetVoices();
     for (auto& j : uiJamPos) j = -1;
     for (auto& t : uiTrackInstr) t = -1;
@@ -930,6 +932,7 @@ void Player::startShaping (Voice& v)
     v.ampEnv = {}; v.fltEnv = {};
     v.ampEnv.stage = 1; v.fltEnv.stage = 1;
     v.svf = {};
+    if (const auto i = &v - voices; i >= 0 && i < kVoices) megaVoice[(size_t) i].reset();
 }
 
 void Player::previewPhrase (int instrIndex, int phraseIndex, int note)
@@ -1039,7 +1042,22 @@ void Player::shapeSynth (int ins, float* L, float* R, int n)
             stepEnv (sh.amp.stage, sh.amp.level, sh.amp.relStep, in.volEnv, sr);
             l *= sh.amp.level; r *= sh.amp.level;
         }
-        if (in.filter != FilterType::Off)
+        if (usesMegaFilter (in, in.filter))
+        {
+            // (v0.96) a Mega Synth filter
+            stepEnv (sh.flt.stage, sh.flt.level, sh.flt.relStep, in.filterEnv, sr);
+            auto& mf = megaShape[(size_t) ins];
+            auto& f = sh.svf;
+            if (f.count-- <= 0)
+            {
+                f.count = 15;
+                const double oct = in.filterEnvAmount * sh.flt.level + in.keyTrack * (sh.note - 37) / 12.0;
+                mf.setup (in, in.filter, sr);
+                mf.setCutoff ((float) std::clamp ((double) in.cutoff * std::pow (2.0, oct), 20.0, sr * 0.45), in.resonance);
+            }
+            mf.process (l, r);
+        }
+        else if (in.filter != FilterType::Off)
         {
             stepEnv (sh.flt.stage, sh.flt.level, sh.flt.relStep, in.filterEnv, sr);
             auto& f = sh.svf;
@@ -1087,7 +1105,24 @@ void Player::shapeVoice (Voice& v, float& l, float& r)
     }
 
     const FilterType type = v.fltType >= 0 ? (FilterType) v.fltType : in.filter;
-    if (type != FilterType::Off)
+    if (usesMegaFilter (in, type))
+    {
+        // (v0.96) a Mega Synth filter
+        stepEnv (v.fltEnv.stage, v.fltEnv.level, v.fltEnv.relStep, in.filterEnv, sampleRate);
+        auto& mf = megaVoice[(size_t) std::clamp ((int) (&v - voices), 0, kVoices - 1)];
+        auto& f = v.svf;
+        if (f.count-- <= 0)
+        {
+            f.count = 15;
+            const float baseCut = v.fltType >= 0 ? v.fltCutoff : in.cutoff;
+            const float res = v.fltRes >= 0.0f ? v.fltRes : in.resonance;
+            const double oct = in.filterEnvAmount * v.fltEnv.level + in.keyTrack * (v.note - 37) / 12.0;
+            mf.setup (in, type, sampleRate);
+            mf.setCutoff ((float) std::clamp ((double) baseCut * std::pow (2.0, oct), 20.0, sampleRate * 0.45), res);
+        }
+        mf.process (l, r);
+    }
+    else if (type != FilterType::Off)
     {
         stepEnv (v.fltEnv.stage, v.fltEnv.level, v.fltEnv.relStep, in.filterEnv, sampleRate);
         auto& f = v.svf;
