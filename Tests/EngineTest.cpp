@@ -10,6 +10,7 @@
 #include "engine/MorphFilter.h"
 #include "engine/MorphSynth.h"
 #include "engine/AcidSynth.h"
+#include "engine/Tg101Synth.h"
 #include "engine/PadSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
@@ -5346,6 +5347,159 @@ static void testAcidSynth()
         }
 }
 
+// (v1.00) TG 101: the SH-101-style monosynth - RANGE and the sub's octaves, the filter's KYBD and ENV, the TRIGGER modes,
+// VCA GATE, PORTAMENTO (ON / AUTO), the ARPEGGIO at the song's tempo, the presets
+static void testTg101()
+{
+    std::printf ("\n== TG 101\n");
+    using namespace tg101;
+    const double sr = 48000.0;
+    std::vector<float> L (480), R (480);
+    auto fresh = [&] (std::vector<float> v) { auto a = std::make_unique<Tg101Synth>(); a->prepare (sr, 512); a->setValues (v); a->setBpm (120); return a; };
+    auto run = [&] (Tg101Synth& a, int blocks, float* peak = nullptr, bool* ok = nullptr)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            a.render (L.data(), R.data(), 480);
+            for (float x : L) { if (peak) *peak = std::max (*peak, std::abs (x)); if (ok) *ok = *ok && std::isfinite (x); }
+        }
+    };
+    // the frequency of what plays (rising zero crossings over a second, after 100 ms)
+    auto freqOf = [&] (std::vector<float> v, int note)
+    {
+        auto a = fresh (v); a->noteOn (note, 100, 0); run (*a, 10);
+        int ups = 0; float prev = 0;
+        for (int b = 0; b < 100; ++b) { a->render (L.data(), R.data(), 480); for (float x : L) { if (prev <= 0 && x > 0) ++ups; prev = x; } }
+        return ups;
+    };
+    auto clean = tg101Preset (0);
+    clean[SawLvl] = 0; clean[PulseLvl] = 0; clean[SubLvl] = 0; clean[NoiseLvl] = 0;
+    clean[Freq] = 18000; clean[Res] = 0; clean[EnvAmt] = 0; clean[Kybd] = 0; clean[Sustain] = 100; clean[Range] = 1; clean[Drive] = 0;
+    {
+        auto sq = clean; sq[PulseLvl] = 100; sq[PwmSource] = PwmManual; sq[Pw] = 0;
+        const int f8 = freqOf (sq, 57);
+        auto r16 = sq; r16[Range] = 0; const int f16 = freqOf (r16, 57);
+        auto r2 = sq; r2[Range] = 3; const int f2 = freqOf (r2, 57);
+        auto s1 = clean; s1[SubLvl] = 100; s1[SubType] = SubOct1; const int fs1 = freqOf (s1, 57);
+        auto s2 = clean; s2[SubLvl] = 100; s2[SubType] = SubOct2; const int fs2 = freqOf (s2, 57);
+        auto s3 = clean; s3[SubLvl] = 100; s3[SubType] = SubPulse2; const int fs3 = freqOf (s3, 57);
+        std::printf ("A3 (220 Hz): 8' %d Hz, 16' %d, 2' %d; SUB -1 OCT %d, -2 OCT %d, -2 PULSE %d\n", f8, f16, f2, fs1, fs2, fs3);
+        CHECK (std::abs (f8 - 220) <= 2 && std::abs (f16 - 110) <= 2 && std::abs (f2 - 880) <= 4);
+        CHECK (std::abs (fs1 - 110) <= 2 && std::abs (fs2 - 55) <= 2 && std::abs (fs3 - 55) <= 2);
+    }
+    // the filter: KYBD 100 follows the keys (two octaves up: four times the cutoff); ENV opens it at the attack
+    {
+        auto v = tg101Preset (0); v[Kybd] = 100; v[EnvAmt] = 0; v[VcfMod] = 0;
+        auto a = fresh (v); a->noteOn (48, 100, 0); run (*a, 4); const float lo = a->cutoffNow();
+        auto b = fresh (v); b->noteOn (72, 100, 0); run (*b, 4); const float hi = b->cutoffNow();
+        auto e = tg101Preset (0); e[EnvAmt] = 80; e[Decay] = 300; e[Sustain] = 0;
+        auto c = fresh (e); c->noteOn (48, 100, 0); a->render (L.data(), R.data(), 48); c->render (L.data(), R.data(), 96);
+        const float open = c->cutoffNow(); run (*c, 100); const float shut = c->cutoffNow();
+        std::printf ("KYBD 100: cutoff %.0f Hz at C3, %.0f at C5; ENV 80: %.0f at the attack, %.0f a second on\n", lo, hi, open, shut);
+        CHECK (hi / lo > 3.6f && hi / lo < 4.4f && open > shut * 20.0f);
+    }
+    // TRIGGER: GATE+TRIG starts the envelope on every note, GATE only when no key was down; LFO re-fires it each cycle
+    {
+        auto v = tg101Preset (0);
+        auto a = fresh (v); a->noteOn (48, 100, 0); run (*a, 5); a->noteOn (50, 100, 0); run (*a, 5);
+        v[EnvTrig] = TrigGate;
+        auto b = fresh (v); b->noteOn (48, 100, 0); run (*b, 5); b->noteOn (50, 100, 0); run (*b, 5);
+        b->noteOff (48, 0); b->noteOff (50, 0); run (*b, 5); b->noteOn (52, 100, 0); run (*b, 2);
+        v[EnvTrig] = TrigLfo; v[LfoRate] = 10;
+        auto c = fresh (v); c->noteOn (48, 100, 0); run (*c, 100);
+        std::printf ("envelope starts - GATE+TRIG legato: %d, GATE legato then a fresh note: %d, LFO 10 HZ for a second: %d\n",
+                     a->envStarts(), b->envStarts(), c->envStarts());
+        CHECK (a->envStarts() == 2 && b->envStarts() == 2 && c->envStarts() >= 9 && c->envStarts() <= 12);
+    }
+    // VCA GATE: full level at once, quiet a few ms after the key is up (whatever the envelope does)
+    {
+        auto v = tg101Preset (0); v[VcaMode] = VcaGate; v[Release] = 5000;
+        auto a = fresh (v); a->noteOn (48, 100, 0); float pk = 0; run (*a, 1, &pk); run (*a, 20);
+        a->noteOff (48, 0); run (*a, 2); float tail = 0; run (*a, 2, &tail);
+        std::printf ("VCA GATE: first 10 ms peak %.3f; after the key's up (RELEASE 5 S) %.5f\n", pk, tail);
+        CHECK (pk > 0.05f && tail < 0.002f);
+    }
+    // PORTAMENTO: AUTO glides only legato; ON glides between separate notes too; OFF jumps
+    {
+        auto v = tg101Preset (0); v[PortaMode] = PortaAuto; v[PortaTime] = 200;
+        auto a = fresh (v); a->noteOn (36, 100, 0); run (*a, 5); a->noteOn (48, 100, 0); run (*a, 2); const float legatoMid = a->pitchNow();
+        a->noteOff (36, 0); a->noteOff (48, 0); run (*a, 5); a->noteOn (60, 100, 0); a->render (L.data(), R.data(), 10); const float sepAuto = a->pitchNow();
+        v[PortaMode] = PortaOn;
+        auto b = fresh (v); b->noteOn (36, 100, 0); run (*b, 5); b->noteOff (36, 0); run (*b, 2); b->noteOn (48, 100, 0); run (*b, 2); const float sepOn = b->pitchNow();
+        run (*b, 60); const float landed = b->pitchNow();
+        v[PortaMode] = PortaOff;
+        auto c = fresh (v); c->noteOn (36, 100, 0); run (*c, 5); c->noteOn (48, 100, 0); c->render (L.data(), R.data(), 10);
+        std::printf ("AUTO: legato 36 > 48 at 20 ms %.2f, a separate note %.2f; ON: separate at 20 ms %.2f, then %.2f; OFF %.2f\n",
+                     legatoMid, sepAuto, sepOn, landed, c->pitchNow());
+        CHECK (legatoMid > 37 && legatoMid < 47 && std::abs (sepAuto - 60) < 0.01f && sepOn > 37 && sepOn < 47
+               && std::abs (landed - 48) < 0.05f && std::abs (c->pitchNow() - 48) < 0.01f);
+    }
+    // the ARPEGGIO: UP over two octaves at 120 BPM in 1/16s - 8 steps a second, low to high, then round again
+    {
+        auto v = tg101Preset (0); v[ArpMode] = ArpUp; v[ArpRate] = 2; v[ArpOct] = 2; v[ArpGate] = 50;
+        auto a = fresh (v); a->noteOn (48, 100, 0); a->noteOn (55, 100, 0);
+        std::vector<int> seq; int last = -2;
+        for (int b = 0; b < 100; ++b) { a->render (L.data(), R.data(), 480); if (a->arpSteps() != last) { last = a->arpSteps(); seq.push_back (a->keyNow()); } }
+        std::printf ("ARP UP, 2 OCTAVES, 1/16 AT 120: %d steps in a second:", a->arpSteps());
+        for (int n : seq) std::printf (" %d", n);
+        std::printf ("\n");
+        CHECK (a->arpSteps() >= 8 && a->arpSteps() <= 9 && seq.size() >= 6 && seq[0] == 48 && seq[1] == 55 && seq[2] == 60 && seq[3] == 67 && seq[4] == 48);
+        // DOWN, and the keys up: it stops
+        v[ArpMode] = ArpDown; v[ArpOct] = 1;
+        auto b = fresh (v); b->noteOn (48, 100, 0); b->noteOn (52, 100, 0); b->noteOn (55, 100, 0);
+        std::vector<int> dn; last = -2;
+        for (int k = 0; k < 40; ++k) { b->render (L.data(), R.data(), 480); if (b->arpSteps() != last) { last = b->arpSteps(); dn.push_back (b->keyNow()); } }
+        b->noteOff (48, 0); b->noteOff (52, 0); b->noteOff (55, 0); run (*b, 100);
+        float tail = 0; run (*b, 5, &tail);
+        CHECK (dn.size() >= 3 && dn[0] == 55 && dn[1] == 52 && dn[2] == 48 && tail < 1.0e-3f);
+        // HOLD: it keeps going with the keys up; all notes off stops it
+        v[ArpHold] = 1; v[ArpMode] = ArpUpDown;
+        auto c = fresh (v); c->noteOn (48, 100, 0); c->noteOn (55, 100, 0); run (*c, 5); c->noteOff (48, 0); c->noteOff (55, 0);
+        const int before = c->arpSteps(); run (*c, 50); const int after = c->arpSteps();
+        c->allNotesOff (0); run (*c, 100); float t2 = 0; run (*c, 5, &t2);
+        std::printf ("HOLD: %d steps with the keys up; after all notes off %.5f\n", after - before, t2);
+        CHECK (after - before >= 3 && t2 < 1.0e-3f);
+    }
+    // every preset plays (and its arpeggio, if it has one), finite and in range; flat out too
+    {
+        int bad = 0;
+        for (int i = 0; i < kTg101Presets; ++i)
+        {
+            auto a = fresh (tg101Preset (i)); float pk = 0; bool ok = true;
+            for (int n : { 36, 43, 48, 60 }) { a->noteOn (n, 100, 0); run (*a, 15, &pk, &ok); a->noteOff (n, 0); run (*a, 5, &pk, &ok); }
+            if (! ok || pk < 0.02f || pk > 2.0f) { ++bad; std::printf ("  %s: peak %.3f %s\n", tg101PresetName (i), pk, ok ? "" : "NOT FINITE"); }
+        }
+        auto v = tg101Preset (0);
+        v[Res] = 100; v[Drive] = 100; v[Freq] = 18000; v[EnvAmt] = 100; v[SawLvl] = v[PulseLvl] = v[SubLvl] = v[NoiseLvl] = 100; v[Level] = 100;
+        auto a = fresh (v); float pk = 0; bool ok = true;
+        a->noteOn (24, 127, 0); run (*a, 100, &pk, &ok); a->noteOn (96, 127, 0); run (*a, 100, &pk, &ok);
+        std::printf ("presets out of range: %d; flat out: peak %.3f\n", bad, pk);
+        CHECK (bad == 0 && ok && pk < 2.0f);
+    }
+    // in a song: the instrument is "TG 101"; a line of notes plays it, the arpeggio follows the song's tempo
+    {
+        Instrument in; makeBuiltin (in, kTg101Key);
+        CHECK (in.pluginName == "TG 101" && builtinDefaults (kTg101Key).size() == (size_t) Count);
+        Song s = makeSong();
+        makeBuiltin (s.instruments[4], kTg101Key);
+        auto v = readBuiltinState (s.instruments[4]); v[ArpMode] = ArpUp; v[ArpRate] = 2; writeBuiltinState (s.instruments[4], v);
+        s.tempo = 125; s.speed = 6;
+        s.blocks[0] = Block {}; s.blocks[0].lines = 64;
+        s.blocks[0].at (0, 0) = Cell { 13, 5, 0, 0 };
+        s.sequence = { 0 };
+        Player pl; pl.setSampleRate (48000); pl.setSong (&s);
+        pl.synths().factory = [] (int, const Instrument& in, double sr) { return createBuiltinSynth (in, sr); };
+        pl.synths().syncNow (s, 48000);
+        pl.playSong (0);
+        std::vector<float> L2 (48000 * 2), R2 (L2.size());
+        for (size_t a0 = 0; a0 < L2.size(); a0 += 480) pl.render (L2.data() + a0, R2.data() + a0, 480);
+        float pk = 0; for (float x : L2) pk = std::max (pk, std::abs (x));
+        auto* tg = dynamic_cast<Tg101Synth*> (pl.synths().at (4));
+        std::printf ("in the song at 125 BPM: peak %.3f, %d arpeggio steps in 2 s (16 expected)\n", pk, tg ? tg->arpSteps() : -1);
+        CHECK (tg != nullptr && pk > 0.02f && tg->arpSteps() >= 15 && tg->arpSteps() <= 18);
+    }
+}
+
 // (v0.81) PAD: four layers - each with its own keys, velocity zone, start delay - unison, the main filter, SPACE
 // (v0.85) PAD's SAMPLE wave: a layer plays a sample - at ROOT its own pitch, an octave up twice as fast; LOOP AUTO / WHOLE
 // keep it going with a crossfade over the join; ONE SHOT plays it once; START; old PAD settings untouched
@@ -5881,7 +6035,7 @@ static void testDrumSynth()
 static void testNoStuckNotes()
 {
     std::printf ("\n== NO STUCK NOTES\n");
-    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey, kDrum808Key, kDrum909Key };
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey, kDrum808Key, kDrum909Key, kTg101Key };
     std::mt19937 rng (79);
     std::uniform_real_distribution<float> u (0, 1);
     int stuck = 0;
@@ -5894,7 +6048,7 @@ static void testNoStuckNotes()
             for (size_t i = 0; i < ps.size(); ++i)
             {
                 const std::string n = ps[i].name;
-                const bool tail = n == "RELEASE" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK";
+                const bool tail = n == "RELEASE" || n == "HOLD" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK";
                 if (! tail && u (rng) < 0.5f) vals[i] = ps[i].toValue (u (rng));
             }
             writeBuiltinState (in, vals);
@@ -5918,7 +6072,7 @@ static void testNoStuckNotes()
             for (int blk = 0; blk < 10; ++blk) { std::fill (L.begin(), L.end(), 0.0f); s->render (L.data(), R.data(), 512); for (float x : L) tail = std::max (tail, std::abs (x)); }
             if (! (tail < 0.001f)) { ++stuck; std::printf ("%s (try %d): still sounding %.4f\n", key, trial, tail); }
         }
-    std::printf ("stuck: %d of 32\n", stuck);
+    std::printf ("stuck: %d of %d\n", stuck, (int) std::size (keys) * 4);
     CHECK (stuck == 0);
 }
 
@@ -6000,7 +6154,7 @@ static float ringTail (const char* key, const std::vector<float>& vals, uint32_t
 static void testNoRinging()
 {
     std::printf ("\n== NO RINGING (the song, any settings)\n");
-    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey };
+    const char* keys[] = { kSubKey, kReeseKey, kRaveKey, kRomKey, kMorphKey, kGrainKey, kAcidKey, kPadKey, kTg101Key };
     std::mt19937 rng (88);
     std::uniform_real_distribution<float> u (0, 1);
     int ringing = 0, runs = 0;
@@ -6014,7 +6168,7 @@ static void testNoRinging()
             {
                 // (an echo at 95% feedback or an 8-second release is meant to go on: those stay as they are)
                 const std::string n = ps[i].name;
-                if (n == "RELEASE" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK") continue;
+                if (n == "RELEASE" || n == "HOLD" || n.find ("ECHO") != std::string::npos || n == "REVERB" || n == "SIZE" || n == "FEEDBACK") continue;
                 if (u (rng) < 0.5f) vals[i] = ps[i].toValue (u (rng));
                 if (trial % 3 == 0 && u (rng) < 0.3f) vals[i] = ps[i].toValue (u (rng) < 0.5f ? 0.0f : 1.0f);   // (extremes)
             }
@@ -7532,6 +7686,7 @@ static void testConditions()
 
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "tg101") { testTg101(); std::printf (failures == 0 ? "\nALL PASSED\n" : "\nFAILED\n"); return failures == 0 ? 0 : 1; }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "renderwav")
     {
         // (analysis) RENDER WAV, as the app does it, with the default options (A500, 8-BIT, 8CH GRIT): SUB, ACID, REESE
@@ -7713,6 +7868,7 @@ int main()
     testNoRinging();
     testOversampling();
     testAcidSynth();
+    testTg101();
     testDrumSynth();
     testPadSynth();
     testPadSample();

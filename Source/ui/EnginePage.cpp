@@ -1071,6 +1071,7 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kRomKey ? " - ROMPLER"
                             : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS"
                             : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH"
+                            : inst().pluginKey == kTg101Key ? " - CLASSIC MONOSYNTH"
                             : inst().pluginKey == kPadKey ? " - LAYERED PADS"
                             : inst().pluginKey == kDrum808Key ? " - TR-808 DRUM MACHINE"
                             : inst().pluginKey == kDrum909Key ? " - TR-909 DRUM MACHINE" : "";

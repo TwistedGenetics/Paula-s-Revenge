@@ -10,6 +10,7 @@
 #include "../engine/RomSynth.h"
 #include "../engine/MorphSynth.h"
 #include "../engine/AcidSynth.h"
+#include "../engine/Tg101Synth.h"
 #include "../engine/PadSynth.h"
 #include "../engine/DrumSynth.h"
 #include <map>
