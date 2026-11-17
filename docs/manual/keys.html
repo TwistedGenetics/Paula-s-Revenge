@@ -119,6 +119,13 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
   section.ch { padding: 18px 16px 20px; }
 }
 
+
+/* (v0.95) FX TRICKS: a trick's name, its pattern lines, a tip */
+h4 { font-weight: 700; font-size: 18px; color: var(--ink); margin: 22px 0 6px; }
+pre.pat { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 16px; line-height: 1.5; color: var(--ink);
+          background: var(--soft); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 16px; margin: 8px 0 12px;
+          overflow-x: auto; white-space: pre; max-width: 34em; }
+p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
 /* ---- print (A4 PDF) ---- */
 @page { size: A4; margin: 13mm 12mm 16mm; }
 html, body { background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -156,6 +163,9 @@ footer { display: none; }
 .cover .tracks div { height: 2.5mm; border-radius: 2mm; }
 .cover .sub { font-size: 13pt; padding: 0 2mm; max-width: none; margin: 0; }
 .cover figure { margin: 0; }
+
+h4 { font-size: 12pt; margin-top: 4.5mm; break-after: avoid; }
+pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 </style>
 <style>
 /* the KEYS sheet: two columns of groups, compact (PAPER style, from the manual's print.html) */
@@ -178,7 +188,7 @@ kbd { font-size: 0.8em; padding: 0 5px; margin: 1px 1px; }
 .status { max-width: none; margin: 0 0 4mm; font-size: 10pt; padding: 2.5mm 4mm; }
 .status.note { margin: 0 0 3mm; }
 </style></head><body>
-<header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">KEYS &middot; V0.94</span></header>
+<header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">KEYS &middot; V0.95</span></header>
 <div class="status sunken"><span class="tag">PC</span><span>Every <kbd>Cmd</kbd> here is <kbd>Ctrl</kbd> on a PC (the app shows CTRL). Full screen is <kbd>F11</kbd>.</span></div>
 <div class="keys first">
 <div class="col"><section class="grp raised"><h2>PLAYING NOTES</h2><div class="accent t1"></div><div class="tbl sunken"><table><tbody><tr><td><kbd>Z</kbd> <kbd>S</kbd> <kbd>X</kbd> <kbd>D</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>G</kbd> <kbd>B</kbd> <kbd>H</kbd> <kbd>N</kbd> <kbd>J</kbd> <kbd>M</kbd></td><td>Notes, lower octave (<kbd>,</kbd> <kbd>L</kbd> <kbd>.</kbd> <kbd>;</kbd> <kbd>/</kbd> continue upwards)</td></tr><tr><td><kbd>Q</kbd> <kbd>2</kbd> <kbd>W</kbd> <kbd>3</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>5</kbd> <kbd>T</kbd> <kbd>6</kbd> <kbd>Y</kbd> <kbd>7</kbd> <kbd>U</kbd> <kbd>I</kbd> <kbd>9</kbd> <kbd>O</kbd> <kbd>0</kbd> <kbd>P</kbd></td><td>Notes, upper octave</td></tr><tr><td><kbd>1</kbd></td><td>Note off</td></tr><tr><td><kbd>0–9</kbd> <kbd>A–F</kbd></td><td>Hex entry in the instrument / command columns</td></tr><tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Octave down / up — on every page (PARAMS, plug-in, MIDI out, sample editor, CHORDS, SAMPLE, mixer), also with a plug-in&#x27;s own window in front</td></tr><tr><td><kbd>-</kbd> <kbd>=</kbd></td><td>Previous / next instrument</td></tr><tr><td><kbd>F4</kbd></td><td><b>HOLD KEYS</b> on / off: notes stay on after their keys come up (play one again to stop it)</td></tr></tbody></table></div></section><div class="status sunken note"><span class="tag">NOTE</span><span>A MIDI keyboard plays the current instrument, and records notes at the cursor when edit mode is on. MIDI 60 = <code>C-3</code>.</span></div><div class="status sunken note"><span class="tag">NOTE</span><span><b>STOP</b> pressed while already stopped is a <b>panic</b>: every MIDI-out instrument sends note-offs and All Notes Off.</span></div></div>

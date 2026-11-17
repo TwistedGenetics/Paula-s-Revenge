@@ -660,6 +660,23 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 
 Every track has a **second effect column** so a note can carry two effects; **FX2** on the bottom row shows or hides it (it starts hidden so the pattern text stays big). SAVE MOD keeps only one 0–F command per note and tells you when something was dropped.
 
+### FX tricks (the short list — the manual's FX TRICKS chapter has the pattern lines)
+
+* **Chop a break:** one note, `9xx` to jump in (256 samples a step; `900` repeats the last). `9FF` only reaches about 1.5 s in: use `Pxx` (xx/256 of the whole sample) or slices (`Sxx`) beyond that.
+* **Rolling break:** retrigger the whole break on lines 0, 6, 16, 26, 32, 42, 48, 54; a second copy panned opposite on 0, 10, 16, 22, 32, 38, 48, 58.
+* **Phased break:** the same break on two tracks, one `T86` (+6 cents), panned apart.
+* **Rolls:** `Rxy` (`R39` builds up, `R23` fades), `E9x` (even), RATCHET on a highlight. **Stutter:** `EC2` on every line. **Tape stop:** `2FF` down the last beat.
+* **Swing:** alternate `F07` / `F05` (light) or `F08` / `F04` (hard) every line; or `EDx` / `Mxx` on the off-beats. **Flam:** a second snare with `M10`.
+* **Hold, then drop:** `EEx` holds a line; `E60` … `E6x` loops lines.
+* **Bass:** `Gxx` glides between notes; `Lxx` + `Qxx` on each line for a wobble; `4xy` (and `E42`) for a growl.
+* **Chip chords:** `0xy` (`037` minor, `047` major, `0C0` octave flutter — on a break, the hardcore chipmunk stab).
+* **Width:** two copies, `T7A` and `T86`, panned left and right.
+* **Hand-made echo:** copies on a spare track 3 lines apart at `C20`, `C10`, `C08`, panned alternately. **Dub throw:** `!F1` on the last snare.
+* **Gate:** `E72` then `7xy` (square tremolo). **Auto-pan:** `840` / `8C0` on alternate hats.
+* **Mangle one hit:** `Z04` (bits), `Oxx` (drive), `Hxx` (thin). **Suck-in:** `U01` on a cymbal before the drop.
+* **Humanise:** `X12` (volume) on every hat; `X34` for random start points; `K80` for ghost notes that come and go.
+* **Variations without copying:** `?14` crash every 4 bars, `?44` fills every 4th time, `?01` / `?02` with FILL (F2), `Bxx` on a `?44` line to jump to a fill.
+
 ## The Paula sound (and the Akais)
 
 | Control | What it does |

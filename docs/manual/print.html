@@ -121,6 +121,13 @@ footer { font-size: 14px; color: var(--faint); margin-top: 10px; text-align: cen
   section.ch { padding: 18px 16px 20px; }
 }
 
+
+/* (v0.95) FX TRICKS: a trick's name, its pattern lines, a tip */
+h4 { font-weight: 700; font-size: 18px; color: var(--ink); margin: 22px 0 6px; }
+pre.pat { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 16px; line-height: 1.5; color: var(--ink);
+          background: var(--soft); border: 1px solid var(--edge); border-radius: 8px; padding: 10px 16px; margin: 8px 0 12px;
+          overflow-x: auto; white-space: pre; max-width: 34em; }
+p.tip { border-left: 4px solid var(--on); padding-left: 12px; }
 /* ---- print (A4 PDF) ---- */
 @page { size: A4; margin: 13mm 12mm 16mm; }
 html, body { background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -158,10 +165,13 @@ footer { display: none; }
 .cover .tracks div { height: 2.5mm; border-radius: 2mm; }
 .cover .sub { font-size: 13pt; padding: 0 2mm; max-width: none; margin: 0; }
 .cover figure { margin: 0; }
+
+h4 { font-size: 12pt; margin-top: 4.5mm; break-after: avoid; }
+pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
 </style>
 
 <div class="cover">
-  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.94</span></header>
+  <header class="titlebar raised"><span class="name">PAULA'S REVENGE</span><span class="rules" aria-hidden="true"></span><span class="ver">V0.95</span></header>
   <div class="tracks"><div class="t1"></div><div class="t2"></div><div class="t3"></div><div class="t4"></div></div>
   <div class="raised big">USER MANUAL<br>AN 8-TRACK AMIGA-STYLE SAMPLE TRACKER<br>FOR JUNGLE, DRUM &amp; BASS AND BREAKS</div>
   <figure><div class="frame sunken"><img src="img/main.png" alt="The main screen" width="1440" height="900"></div><figcaption>The main screen, light skin</figcaption></figure>
@@ -176,21 +186,22 @@ footer { display: none; }
     <li><a href="#screen"><span class="n">001</span><span>The screen</span></a></li>
     <li><a href="#pattern"><span class="n">002</span><span>Writing patterns</span></a></li>
     <li><a href="#commands"><span class="n">003</span><span>Effect commands</span></a></li>
-    <li><a href="#song"><span class="n">004</span><span>Blocks &amp; the song</span></a></li>
-    <li><a href="#samples"><span class="n">005</span><span>Instruments &amp; samples</span></a></li>
-    <li><a href="#params"><span class="n">006</span><span>Sound shaping</span></a></li>
-    <li><a href="#sound"><span class="n">007</span><span>Paula &amp; the Akais</span></a></li>
-    <li><a href="#mixer"><span class="n">008</span><span>The mixer</span></a></li>
-    <li><a href="#plugins"><span class="n">009</span><span>Plug-ins</span></a></li>
-    <li><a href="#auto"><span class="n">010</span><span>Automation</span></a></li>
-    <li><a href="#midi"><span class="n">011</span><span>MIDI out</span></a></li>
-    <li><a href="#cv"><span class="n">012</span><span>CV out (modular)</span></a></li>
-    <li><a href="#chords"><span class="n">013</span><span>Chords</span></a></li>
-    <li><a href="#bounce"><span class="n">014</span><span>Bouncing</span></a></li>
-    <li><a href="#render"><span class="n">015</span><span>Rendering</span></a></li>
-    <li><a href="#files"><span class="n">016</span><span>Saving &amp; files</span></a></li>
-    <li><a href="#live"><span class="n">017</span><span>Live mode &amp; visuals</span></a></li>
-    <li><a href="#keys"><span class="n">018</span><span>Keys</span></a></li>
+    <li><a href="#tricks"><span class="n">004</span><span>FX tricks</span></a></li>
+    <li><a href="#song"><span class="n">005</span><span>Blocks &amp; the song</span></a></li>
+    <li><a href="#samples"><span class="n">006</span><span>Instruments &amp; samples</span></a></li>
+    <li><a href="#params"><span class="n">007</span><span>Sound shaping</span></a></li>
+    <li><a href="#sound"><span class="n">008</span><span>Paula &amp; the Akais</span></a></li>
+    <li><a href="#mixer"><span class="n">009</span><span>The mixer</span></a></li>
+    <li><a href="#plugins"><span class="n">010</span><span>Plug-ins</span></a></li>
+    <li><a href="#auto"><span class="n">011</span><span>Automation</span></a></li>
+    <li><a href="#midi"><span class="n">012</span><span>MIDI out</span></a></li>
+    <li><a href="#cv"><span class="n">013</span><span>CV out (modular)</span></a></li>
+    <li><a href="#chords"><span class="n">014</span><span>Chords</span></a></li>
+    <li><a href="#bounce"><span class="n">015</span><span>Bouncing</span></a></li>
+    <li><a href="#render"><span class="n">016</span><span>Rendering</span></a></li>
+    <li><a href="#files"><span class="n">017</span><span>Saving &amp; files</span></a></li>
+    <li><a href="#live"><span class="n">018</span><span>Live mode &amp; visuals</span></a></li>
+    <li><a href="#keys"><span class="n">019</span><span>Keys</span></a></li>
   </ol>
 </nav>
 
@@ -561,6 +572,123 @@ footer { display: none; }
     <div class="frame sunken"><img src="img/conditions.png" alt="The pattern with a FILL held: the corner is red and reads FI LL; track 2's notes carry ?24 and track 3's snare roll ?01." width="1440" height="900" loading="lazy"></div>
     <figcaption>?24 on track 2, a ?01 roll on track 3, FILL held</figcaption>
   </figure>
+</section>
+
+<!-- ============================================================ FX TRICKS -->
+<section class="ch raised" id="tricks">
+  <h2>FX tricks</h2>
+  <div class="accent t1"></div>
+  <p>Tricks with the effect commands, from 30 years of trackers: the ProTracker and OctaMED days, the PC trackers that followed, and Polyend-style step effects. Each one works in Paula's Revenge as written. Copy the lines into a pattern, play them, then change the numbers.</p>
+  <p class="status"><span class="tag">READ THE SNIPPETS</span><span>Each line is <b>LINE &nbsp;NOTE INS &nbsp;FX1 &nbsp;FX2</b>, as in the pattern. <code>---</code> is an empty effect. Line numbers are decimal, as in the pattern; the numbers in commands are hex, so <code>C20</code> is half volume. A snippet that needs two effects needs <b>FX2</b> on (bottom row).</span></p>
+
+  <h3>Breaks</h3>
+
+  <h4>Chop a break with 9xx</h4>
+  <p>Put the whole break on one note and jump around inside it with <code>9xx</code>. Each step of <code>xx</code> is 256 samples into the sample. Find a hit by trying offsets: <code>900</code> is the downbeat, and a snare is often near <code>920</code> to <code>940</code> on a one-bar break at 44.1&nbsp;kHz. A bare <code>900</code> repeats the last offset used on that track.</p>
+  <pre class="pat">000 C-3 01 900 ---
+004 C-3 01 940 ---
+006 C-3 01 918 ---
+008 C-3 01 900 ---
+012 C-3 01 940 C30</pre>
+  <p class="tip"><b>The limit:</b> <code>9FF</code> reaches only 65,280 samples past START, about 1.5&nbsp;s at 44.1&nbsp;kHz. For anything later in a long break use <code>Pxx</code> (start at <code>xx</code>/256 of the <i>whole</i> sample, so <code>P80</code> is halfway) or slices with <code>Sxx</code>.</p>
+
+  <h4>Slices instead of offsets</h4>
+  <p>Slice the break in the sample editor (or let it cut by its hits), then <code>Sxx</code> plays slice <code>xx</code>+1 and stops at the slice's end, so no hit bleeds into the next. With no slice points, <code>Sxx</code> treats the sample as 16 equal parts, so <code>S00</code>&ndash;<code>S0F</code> are the 16ths of a one-bar break, ready to rearrange.</p>
+  <pre class="pat">000 C-3 01 S00 ---
+002 C-3 01 S02 ---
+004 C-3 01 S04 ---
+006 C-3 01 S04 I8C
+008 C-3 01 S08 U01</pre>
+  <p>Line 006 replays the snare an octave up (<code>I8C</code>, +12 semitones on this note only). Line 008 plays a slice backwards (<code>U01</code>).</p>
+
+  <h4>The rolling break</h4>
+  <p>An old jungle trick from the PC tracker scene: retrigger the whole break off the grid so it rolls around the beat. Trigger it on lines 0, 6, 16, 26, 32, 42, 48 and 54 of a 64-line block, adjusting the tempo or the offsets until it locks back in. For a harsher roll, put a second copy on another track panned opposite (<code>8xx</code>) and trigger it on 0, 10, 16, 22, 32, 38, 48 and 58.</p>
+
+  <h4>Phased break</h4>
+  <p>The same break on two tracks at once, the second detuned by a few cents with <code>Txx</code> (<code>T86</code> is +6 cents), panned apart. The two copies drift against each other and the break swirls across the stereo field: the Amiga "phasing" sound, no effect needed.</p>
+  <pre class="pat">track 1:  000 C-3 01 820 ---
+track 2:  000 C-3 01 8E0 T86</pre>
+
+  <h4>Snare rolls and ratchets</h4>
+  <p><code>Rxy</code> retriggers the note every <code>x</code> ticks; <code>y</code> 1&ndash;7 makes each hit quieter, 9&ndash;F louder. <code>R39</code> builds a roll up into the drop; <code>R23</code> fades a stutter away. The classic way is <code>E9x</code> (retrigger every <code>x</code> ticks, same level). Raise the speed for finer rolls, or highlight a run of snares and use <b>RATCHET</b> from the right-click menu for rolls that speed up across it.</p>
+  <pre class="pat">056 D-3 02 R31 C20
+060 D-3 02 R21 C30
+062 D-3 02 R1A C40</pre>
+
+  <h4>Stutter and tape-stop edits</h4>
+  <p><code>ECx</code> cuts the note at tick <code>x</code>, so <code>EC2</code> on every line of a break turns it into a choppy stutter. <code>Nxx</code> (note length in ticks) does the same on synths. For a tape stop, slide the pitch down hard over the last beat with <code>2xx</code> (<code>2FF</code> each line), or glide it down with <code>Gxx</code> to a low note.</p>
+
+  <h4>Random break variations</h4>
+  <p><code>X3y</code> starts the note at a random point up to <code>y</code>/16 in. Put <code>X34</code> on a few hits and the break never plays the same twice. <code>Kxx</code> gives a hit a chance to play (<code>K80</code> half the time) for ghost notes that come and go.</p>
+
+  <h3>Groove and timing</h3>
+
+  <h4>Swing with the speed</h4>
+  <p>Each line lasts <i>speed</i> ticks. Alternate the speed every line and the off-beats arrive late: the classic tracker shuffle. Keep the pair adding up to twice your speed so the tempo stays the same: <code>F07</code> / <code>F05</code> for a light swing at speed 6, <code>F08</code> / <code>F04</code> for a hard one.</p>
+  <pre class="pat">000 C-3 01 F07 ---
+001 --- -- F05 ---
+002 D-3 02 F07 ---
+003 --- -- F05 ---</pre>
+  <p>Or leave the speed alone and use <b>GROOVE</b> on the bottom row, which does it for you.</p>
+
+  <h4>Flams, drags and late hats</h4>
+  <p><code>EDx</code> delays a note by <code>x</code> ticks; <code>Mxx</code> moves it by finer steps, later (<code>01</code>&ndash;<code>7F</code>) or earlier (<code>81</code>&ndash;<code>FF</code>). A snare on two tracks, one with <code>M10</code>, is a flam. Late hats (<code>M08</code> on the off-beats) push the groove forward. <code>EDx</code> on alternate notes of one track swings just that track.</p>
+
+  <h4>Hold a line, then drop</h4>
+  <p><code>EEx</code> holds the current line for <code>x</code> more lines while everything keeps ringing: a built-in pause before the drop. <code>E6x</code> loops a few lines <code>x</code> times (<code>E60</code> marks the start): repeat the last beat four times without copying it.</p>
+
+  <h3>Bass and pitch</h3>
+
+  <h4>Reese and sub slides</h4>
+  <p><code>Gxx</code> glides into the note over <code>xx</code> ticks. On a REESE or SUB that's the slide between bass notes, without touching the next note's attack. <code>3xx</code> is the classic tone-portamento: <code>3F0</code> is fast, <code>308</code> slow, and a bare <code>300</code> carries on at the last speed.</p>
+  <pre class="pat">000 C-2 03 --- ---
+008 D#2 03 G08 ---
+010 C-2 03 G04 ---</pre>
+
+  <h4>Wobble and growl</h4>
+  <p>Per-step filter moves: <code>Lxx</code> (low-pass) and <code>Qxx</code> (resonance) on each line sweep a bass open and shut in time. For a smooth sweep, use <code>Yxx</code> before a knob change (<code>Vxx</code> / <code>Jxx</code>) to glide over <code>xx</code> ticks. <code>4xy</code> (vibrato) with a fast speed and big depth gives a gritty warble on a sub; <code>E42</code> makes it a square-wave trill.</p>
+
+  <h4>Arpeggios: one note, a whole chord</h4>
+  <p><code>0xy</code> cycles the note, +<code>x</code> and +<code>y</code> semitones, every tick: the chip-music chord. <code>037</code> is minor, <code>047</code> major, <code>0C0</code> an octave flutter. On a break, <code>0C0</code> gives the old hardcore chipmunk-stab sound. Lower the speed for slower, clearer arps.</p>
+
+  <h4>Detune for width</h4>
+  <p><code>Txx</code> retunes one note by cents (<code>80</code> = none). Two copies of a lead or pad on two tracks, <code>T7A</code> and <code>T86</code>, panned left and right, are an instant chorus. <code>E5x</code> does the same with the instrument's finetune.</p>
+
+  <h3>Space and stereo</h3>
+
+  <h4>Tracked echo</h4>
+  <p>Before plug-in delays, trackers made echo by hand: copy the line to a spare track a few lines later at lower volume, panned the other way. Three copies at <code>C20</code>, <code>C10</code> and <code>C08</code>, alternating left and right, make a ping-pong delay that follows tempo changes exactly.</p>
+  <pre class="pat">track 1:  000 A-4 05 --- 820
+track 2:  003 A-4 05 C20 8E0
+track 2:  006 A-4 05 C10 820
+track 2:  009 A-4 05 C08 8E0</pre>
+
+  <h4>Dub throws</h4>
+  <p><code>!xy</code> throws the track into the dub echo on SEND B: <code>x</code> sets how much, <code>y</code> for how many lines. <code>!F1</code> on the last snare of a phrase sends just that hit off into the echo. <code>!0F</code> rides the echo's feedback right up for a runaway tail; <code>!00</code> brings it back.</p>
+
+  <h4>Auto-pan and gates</h4>
+  <p><code>8xx</code> pans each hit: alternate <code>840</code> / <code>8C0</code> on hats for movement. <code>7xy</code> is tremolo; after <code>E72</code> (square wave) it becomes a rhythmic gate chopping a pad into pulses. <code>Axy</code> slides the volume up or down across a line for swells and fades.</p>
+
+  <h3>Mangle it</h3>
+
+  <h4>One-hit lo-fi</h4>
+  <p><code>Zxx</code> crushes a single note to <code>xx</code> bits (<code>Z04</code> is filthy), and <code>Oxx</code> overdrives it. Put them on the last snare of a bar or one stab in a phrase. Combine with <code>Hxx</code> (high-pass) for a thin telephone hit.</p>
+
+  <h4>Reverse swells</h4>
+  <p><code>U01</code> plays the note backwards from its end. A reversed cymbal or snare a beat before the downbeat, with <code>Axy</code> fading it up, is the classic suck-in.</p>
+
+  <h4>Randomise everything a little</h4>
+  <p><code>Xxy</code> randomises one thing per hit: <code>X0y</code> the note &plusmn;<code>y</code> semitones, <code>X1y</code> the volume, <code>X2y</code> the pan, <code>X3y</code> the start. <code>X12</code> on every hat is instant humanising.</p>
+
+  <h3>Arrangement</h3>
+
+  <h4>Variations without copying blocks</h4>
+  <p><code>?xy</code> plays a step only on pass <code>x</code> of every <code>y</code> times the block plays. A crash on <code>?14</code> hits every four bars. Snare fills on <code>?44</code> come in every fourth time round. Put a jump (<code>Bxx</code>, in FX2) on a <code>?44</code> line and every fourth time round it jumps to a fill position. <code>?01</code> plays only while you hold <b>F2</b> (FILL), <code>?02</code> only when you don't: live fills on one key.</p>
+
+  <h4>Endings and breakdowns</h4>
+  <p><code>Dxx</code> leaves the block early, starting the next one at line <code>xx</code> (for a half-bar block without changing its length). <code>F00</code> stops the song. A tempo change (<code>F20</code>&ndash;<code>FF</code> set the BPM in hex: <code>FAC</code> is 172) on the first line of the breakdown block halves the energy in one step.</p>
+
+  <p class="status"><span class="tag">SOURCES</span><span>Tricks gathered from the ProTracker command reference, the OpenMPT Tracker Handbook (techniques: the rolling and phased breaks, swing by speed and by note delay), MusicRadar's tracker tips, the trackerninja Renoise tips, and the Renoise forum's "90s composer tricks" thread (hand-made echoes and detuned layers), all written up for Paula's Revenge's commands.</span></p>
 </section>
 
 <!-- ============================================================ 004 -->
@@ -1567,7 +1695,7 @@ footer { display: none; }
   </table></div>
 </section>
 
-<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.94</footer>
+<footer>PAULA'S REVENGE &middot; AN ORIGINAL AMIGA-STYLE TRACKER &middot; MANUAL FOR V0.95</footer>
 </main>
 </div>
 </body></html>
