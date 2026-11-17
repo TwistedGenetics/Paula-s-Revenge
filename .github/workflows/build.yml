@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: juce-8.0.4-${{ runner.os }}
+          key: juce-8.0.4-ort-${{ runner.os }}
 
       - name: Configure
         run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
@@ -126,7 +126,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build/_deps
-          key: juce-8.0.4-${{ runner.os }}
+          key: juce-8.0.4-ort-${{ runner.os }}
 
       # the Visual Studio compiler, driven by Ninja (MSBuild trips over the ' in "Paula's Revenge")
       - uses: ilammy/msvc-dev-cmd@v1
