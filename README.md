@@ -544,7 +544,7 @@ Tracks are shown a page at a time: **BIG VIEW** (on by default, large text) show
 
 ## VISUALS
 
-**VISUALS** (`Cmd+8`, or the button on the LIVE page) fills the whole window with a demoscene show in time with the song - for live sets, or a screen recording to go with a release. Copper bars roll through the top, a starfield rushes forward on the beat, each track has its own oscilloscope (it flashes on every note), and a sine scroller runs along the bottom with the song's name, tempo and block. **Tab** (or the buttons at the top) changes the scene: **ALL**, **COPPER**, **STARS**, **SCOPES**. The buttons hide when the mouse is still. Space / Return play and stop as usual; `Esc` or `Cmd+8` goes back.
+**VISUALS** (`Cmd+8`, or the button on the LIVE page) fills the whole window with a light show that moves with the song's sound - for live sets, or a screen recording to go with a release. The mix's lows, mids and highs move the bars and waves; the notes as they play make the flashes. Five scenes: **PRISM** (glowing bars in four lobes of colour, wave strands woven through), **RAINBOW** (a rainbow of thin bars with a stave of notes flowing along it, a note for each note played), **RIBBONS** (glowing crossing waves, cyan to gold to red, with their reflection), **PASTEL** (rounded pastel bars on navy, mirrored below) and **MESH** (twisting ribbons of dashed lines with soft lights behind). **AUTO** moves to the next one every 20 seconds or so. **Tab** (or the buttons at the top) changes the scene. The buttons hide when the mouse is still. Space / Return play and stop as usual; `Esc` or `Cmd+8` goes back.
 
 ## Keys
 

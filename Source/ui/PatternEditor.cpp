@@ -1673,8 +1673,9 @@ void PatternEditor::recordNote (int note, double timeMs, const Player::PlayPos* 
     note = juce::jlimit (1, (int) kNoteMax, note);
     const int blk = proc.song.safeBlock (st.block);
     // (v0.93) QUANTISE, recording while playing: onto the nearest line (or every 2nd / 4th / 8th) of the block playing -
-    // a note hit a little early lands on the beat it was meant for, not the line before (OFF: the line playing, as before)
-    if (at != nullptr && at->playing && proc.song.safeBlock (at->block) == blk && captureQuantise() > 0)
+    // a note hit a little early lands on the beat it was meant for, not the line before (OFF: the line playing, as before).
+    // Only with FOLLOW on: with it off the cursor stays put while the block plays, and the note goes where the cursor is
+    if (at != nullptr && at->playing && st.follow && proc.song.safeBlock (at->block) == blk && captureQuantise() > 0)
     {
         const int q = captureQuantise();
         const int snapped = (int) std::lround (at->line / q) * q;
@@ -2278,7 +2279,8 @@ void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
     // a newer note on the track already ends this one (legato): an OFF now would cut the new note
     if (h.track < 0 || h.track >= kMaxTracks || trackSerial[h.track] != h.serial) return;
     int blk = h.block, line = -1;
-    if (pos.playing)
+    const bool live = pos.playing && st.follow;   // (FOLLOW off: the cursor's line, as when stopped)
+    if (live)
     {
         // the line playing when it was let go (the next one if that's the note's own line)
         blk = proc.song.safeBlock (pos.block);
@@ -2301,7 +2303,7 @@ void PatternEditor::recordRelease (int note, const Player::PlayPos& pos)
         c.note = kNoteOff; c.instr = 0;
     });
     lastOff[h.track] = { blk, line, juce::Time::getMillisecondCounterHiRes() };
-    if (! pos.playing && blk == proc.song.safeBlock (st.block) && line == st.line) advance();
+    if (! live && blk == proc.song.safeBlock (st.block) && line == st.line) advance();
     changed();
 }
 
