@@ -29,7 +29,7 @@ GROUPS = [
     ("PLAY & STOP", [r"^`Space`", r"^`Return`", r"F2", r"Cmd\+F`", r"Cmd\+\[` / `Cmd\+\]"]),
     ("MOVING", [r"^Arrows", r"^`Tab`", r"PgUp", r"^`Esc`"]),
     ("EDITING", [r"Delete", r"Cmd\+C / X / V", r"Cmd\+A", r"Cmd\+B", r"Cmd\+↑", r"Cmd\+Z", r"Cmd\+R"]),
-    ("PAGES", [r"Cmd\+[1-8]", r"F1"]),
+    ("PAGES", [r"Cmd\+[1-9]", r"F1"]),
     ("FILES", [r"Cmd\+S", r"Cmd\+O"]),
 ]
 ORDER = ["PLAYING NOTES", "PLAY & STOP", "MOVING", "EDITING", "SONG", "PAGES", "FILES", "ANYWHERE", "MORE"]

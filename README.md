@@ -6,11 +6,11 @@ It's an original program inspired by the classic Amiga trackers of the early 90s
 
 ![Paula's Revenge](docs/screenshot.png)
 
-**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser), or as an A4 PDF: **[download the PDF manual](https://github.com/TwistedGenetics/Paula-s-Revenge/releases/latest/download/Paulas-Revenge-Manual.pdf)** (always the latest; it's also attached to every release). GitHub's own file page can't show a PDF this size on a phone, so use that link.
+**Manual:** [`docs/manual/index.html`](docs/manual/index.html) — the full user manual, in the same look as the app (open it in a browser), or as an A4 PDF: `Paulas-Revenge-Manual.pdf`, which comes with every release and is built into the app (HELP → **OPEN PDF MANUAL**).
 
 ## Install (no building needed)
 
-Every green build publishes one release with both versions, always the same version number. Open **Releases** on the right of the repo page and download from the newest one:
+Each release comes as two downloads, always the same version number:
 
 * **Mac:** **PaulasRevenge-macOS.zip**, then follow the `INSTALL.txt` inside: copy the app into Applications and clear macOS quarantine. Universal (Apple Silicon + Intel).
 * **Windows 10 / 11 (64-bit):** **PaulasRevenge-Windows.zip**. Unzip it anywhere and run `Paula's Revenge.exe` (nothing else to install). The app isn't code-signed yet, so the first time Windows says *"Windows protected your PC"*: click **More info**, then **Run anyway**.
@@ -37,7 +37,7 @@ Since v0.8 it's a standalone app only (no VST3/AU plug-in versions of Paula's Re
 | Block | **GRID** at the right of its title: the pattern's highlighted lines, every 2, 4, 8 or 16 (click for the next, right-click to pick; also View → Pattern Grid...; the automation graph's beats follow it). Pick, add, clone or delete blocks; set the number of lines (1–256). **X2** doubles the block's length and repeats everything in it (notes and both effect columns) in the new half; **1/2** halves it (asks first if the second half was different). NUM − / NUM + swap the block's number with its neighbour (the song still sounds the same) |
 | Instruments | 63 slots with a scrollbar. **LOAD** first asks what kind of instrument: **SAMPLE** (the sample browser, with tabs along the top for the other kinds too), **BUILT-IN SYNTH** (SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, PAD, GRANULAR, 808, 909), **VST3 / AU SYNTH**, **SAVED INSTRUMENT** (one of yours), **MIDI OUT** (hardware), **CV OUT** (a modular) or **RECORD AUDIO**; EDIT the sample editor, **EQ/FX** the instrument's own EQ and effects, PARAMS the envelope/filter/pan page. **Delete** (or Backspace) clears the instrument picked — click it first; undo brings it back — and up / down pick the next one; CLEAR and RENAME are on its right-click too. VOL (the instrument's level, see below), finetune, transpose, loop on/off. Drag the loop markers in the little waveform (exact loop points are in the sample editor; double-click the waveform to open it). **Double-click** an instrument to open it - its EDIT page (the sample editor, or the synth's page; an empty one asks what to LOAD). **Rename**: right-click > RENAME..., or `Cmd+R`. Alt-click to preview |
 | Pattern editor | 8 tracks to start with, up to 16: **+** at the top right adds one (right-click it to take one away). The box left of track 1 shows the block you're editing (**BLK**); click it to type a block number. Click a track name to mute it, Alt/right-click to solo. Drag in the pan bar under the name to pan that track; double-click it to go back to AUTO. Under that, each track's **scope** shows its sound as it plays (click it to mute, Alt/right-click to solo; View > Track Scopes hides them), and the header lights up in the track's colour on every new note. The level meters are one colour: right-click one to choose it |
-| Output strip | The machine you hear (Amiga A500 / A1200 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
+| Output strip | The machine you hear (Amiga A500 / A1200 / A4000 / CLEAN or Akai S950 / S1000, see below), its options, the master **VOL** (0–200%, 100 = as it is) and an L/R output meter. Stereo separation (SEP) is a right-click on any of the machine buttons, or View → Stereo Separation... |
 | Bottom row | BIG VIEW (4 tracks at a time with large text), hide/show panels, the skin, the spectrum, FX2, REC AUTO, GROOVE, **RADIO** (internet radio to sample from; lit while it plays), AUTOMATION, **LIVE** (LIVE MODE) and the status line. The song's name (top) is its file's name, set when you save or load |
 
 The app opens with the **dark** skin (cream on blue-black, coloured tracks, level bars in each track and a spectrum strip). In the dark skin the instrument pages (PARAMS, plug-in, MIDI out) and the mixer and its effect pages are dark too, with light text. The **DARK** button on the bottom row switches to black-on-white (WORKBENCH); **SPECTRUM** hides the strip. Every spectrum — the strip, PARAMS' filter, the EQ pages — is drawn as an analyser: a smooth line at 1/12 of an octave with the fill fading away under it, a faint peak-hold line above and a light grid at 100 Hz, 1 kHz and 10 kHz.
@@ -96,7 +96,7 @@ The **L / R meter** on the right of the Paula strip shows the balance. The app o
 
 ## Mixer
 
-**MIXER** on the transport row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. While it's open the computer keyboard still plays the current instrument (same note keys as the pattern; `[` `]` change octave, `-` `=` change instrument; the title shows which one), so you can play while you set levels. A MIDI keyboard plays it too. These notes go through the master bus. One strip per track (8), then the two send returns and the master, each with a level meter:
+**MIXER** on the transport row (or `Cmd+2`) opens the mixer across the whole window; `Esc`, CLOSE or `Cmd+1` goes back to the pattern. While it's open the computer keyboard still plays the current instrument (same note keys as the pattern; `[` `]` change octave, `-` `=` change instrument; the title shows which one), so you can play while you set levels. A MIDI keyboard plays it too. These notes go through the master bus. One strip per track (8 at a time: **TRACKS 9-16 ▶** shows the rest when the song has them), then the two send returns and the master, each with a level meter:
 
 | Strip part | What it does |
 |---|---|
@@ -160,7 +160,7 @@ The effects:
 
 Every control glides to its new value (no zipper noise, so they can be automated with V and J), the saturation runs at twice the sample rate, and they're all true stereo. Songs with VAST, SPACE, TAPE ECHO or ENSEMBLE need v0.34 or later; with the others above, v0.35 or later.
 
-**Returns** — SEND A starts with a reverb and SEND B with a delay, both fully wet; they're silent until a track sends to them. Each has three inserts, a fader, a balance and a mute. **Master** has three inserts and a fader, and then comes the machine's output stage (A500/A1200/CLEAN/S950/S1000 and their options).
+**Returns** — SEND A starts with a reverb and SEND B with a delay, both fully wet; they're silent until a track sends to them. Each has three inserts, a fader, a balance and a mute. **Master** has three inserts and a fader, and then comes the machine's output stage (A500/A1200/A4000/CLEAN/S950/S1000 and their options).
 
 **Dub throws** — a dub engineer's trick in the pattern: a single snare, vocal or stab thrown into the echo and left to ring while the rest plays on dry. Put **`!xy`** on a note's line (type `!` with Shift+1, or right-click the effect cell → **DUB THROW**):
 * `x` is how much of the track goes into the echo (`1`–`F`, `F` = all of it), `y` how many lines it stays open (`0` = until the track's next note, so just that hit). `!F0` on a snare throws just that snare; `!84` throws four lines' worth at half level.
@@ -454,7 +454,7 @@ EDIT in the instrument panel (or double-click the little waveform) opens a full-
 **TOOLS → SPLIT INTO STEMS...** in the sample editor splits the instrument's sample into **DRUMS**, **BASS**, **OTHER** and **VOCALS** — four new instruments in the first empty slots (`AMEN BREAK DRUMS`, `AMEN BREAK BASS`…), stereo at 44.1 kHz, ready to slice, loop and play. It uses **Demucs v4** (Meta AI Research's hybrid transformer, the best open separator), running on your computer — nothing is uploaded.
 
 * **BEST** runs the four fine-tuned models (each one the specialist for its stem): the cleanest split, about four times slower. **FAST** runs one model, for a quick listen or a rough idea.
-* The models download **once**, the first time you use each (FAST about 175 MB, BEST about 700 MB), from this project's GitHub releases, checked against their SHA-256; they're kept in the app's folder (`Stem Models`).
+* The models download **once**, the first time you use each (FAST about 175 MB, BEST about 700 MB), checked against their SHA-256; they're kept in the app's folder (`Stem Models`).
 * It works in the background: a box shows how far it's got and about how long is left; the music and the other pages carry on, and **CANCEL** stops it. How long it takes depends on the computer's processor: as a guide, FAST takes about as long as the sample lasts (a bit less on a fast computer, a few times longer on an older or smaller one), and BEST about four times as long — a 30-second break: about half a minute FAST, two minutes or so BEST. The box tells you as it goes.
 * The four stems add back up to the original. Each is one undo step. Long samples (whole songs) work too; they just take longer.
 * The log (Help → Save Diagnostics Report) notes each split and how long it took.
@@ -568,6 +568,7 @@ Tracks are shown a page at a time: **BIG VIEW** (on by default, large text) show
 | `Cmd+C / X / V` | Copy / cut / paste the mouse selection, or the track · add `Shift` for the whole block |
 | `Cmd+A` | Select the whole block |
 | `Cmd+B` | Bounce the highlighted notes to a new instrument (asks NO FX, INSTRUMENT FX ONLY, MIXER FX ONLY or ALL FX) |
+| `Shift+Cmd+B` | RESAMPLE: the highlight (or the block) into a new instrument, sliced and BEAT SYNC'd |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
@@ -579,6 +580,7 @@ Tracks are shown a page at a time: **BIG VIEW** (on by default, large text) show
 | `Cmd+6` | The BREAK page (again to go back) |
 | `Cmd+7` | LIVE MODE (again to go back) |
 | `Cmd+8` | VISUALS, the whole window (again, or `Esc`, to go back) |
+| `Cmd+9` | The instrument's TABLE (again to go back) |
 | `F2` (hold) / `Shift+F2` | FILL while held / latched on or off |
 | `F4` | **HOLD KEYS** on / off: notes stay on after their keys come up (play one again to stop it) |
 | `Cmd+F` | FOLLOW on / off (the view moves with playback) |
@@ -749,7 +751,7 @@ Neither mode alters the samples; switch back to A500/A1200/A4000/CLEAN any time.
 
 Every insert slot in the mixer (tracks, SEND A / B and the master) can hold one of your own effect plug-ins:
 
-* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your Mac in the background (only effects are listed here; instruments are chosen from PARAMS); **RESCAN** looks again after you install more.
+* On a slot's effect page press **PLUG-IN...**. The first time, it looks for the plug-ins on your computer in the background (only effects are listed here; instruments are chosen with LOAD → VST / AU); **RESCAN** looks again after you install more.
 * **Finding one**: just type — the list narrows to plug-ins with every word in their name, maker or format (`VALHALLA`, `U-HE ZEB`, `AU`); Backspace takes a letter off, Esc clears it. **Favourites**: right-click a plug-in (or highlight it and press **FAVOURITE**) to star it — starred ones are marked `*` and listed first, and **FAVOURITES ONLY** shows just those. The same goes for the instrument list (PLUG-IN / MIDI OUT... → VST3 / AU), and the stars are remembered on this computer. Each plug-in is looked at in a separate, hidden copy of the app, so one that crashes or hangs while being looked at can't take Paula's Revenge down — it's just listed as skipped (RESCAN gives it another try).
 * Double-click a plug-in to load it. **OPEN PLUG-IN WINDOW** shows its own controls. BYPASS works as for the built-in effects; DEFAULTS starts the plug-in from its own default settings.
 * The plug-in's settings are saved in the song (and in undo steps when you change the slot), and RENDER WAV includes it. Plug-ins get the song's tempo and whether it's playing, so synced delays follow the song.
@@ -1214,9 +1216,9 @@ Paula's measured behaviour and filters come from Henryk Richter's *Amiga Paula v
 
 ## Files
 
-* `.prv` — Paula's Revenge song with samples (compressed). Format version 13 has chords as `#xy` (v12: the song's own chord table; v11: CHORD, MIDI-out instruments and switching sample instruments off; v10: a plug-in instrument switched off; v9: plug-in instruments and automation knobs; v8: plug-in effects; v7: the mixer; v6: song sections; v5: ping-pong loops and slices; v4: second effect column, G–Z commands and sample rates; v3: envelopes/filters/pans); older `.prv` files still load.
+* `.prv` — Paula's Revenge song with samples (compressed); every older `.prv` still loads. A song saved by a newer version may not open in an older one.
 * `Resources/icon.svg` — the app icon (a 90s monitor showing tracker rows); `icon_small.svg` is the simplified version used at 16–32 px.
-* `.mod` — load 4/6/8-channel MODs (M.K., xCHN, 15-sample SoundTracker). SAVE MOD writes `M.K.` when only tracks 1–4 have anything in them, `8CHN` otherwise (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
+* `.mod` — load 4/6/8/16-channel MODs (M.K., xCHN, xxCH, 15-sample SoundTracker). SAVE MOD writes `M.K.` when only tracks 1–4 have anything in them, `8CHN` up to track 8, `16CH` when tracks 9–16 are used (64 lines per block, 31 instruments, 128 KB per sample — anything beyond that is reported in the status line).
 * MED / OctaMED — `MMD0` and `MMD1` modules import with their blocks, sequence, samples, names and finetune. Synth/hybrid instruments and MED-only commands aren't supported; tempos of old 8-channel-mode songs are converted as closely as possible.
 
 ## Building
