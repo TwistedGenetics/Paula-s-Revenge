@@ -366,15 +366,64 @@ const Theme::PanelSkin* Theme::panelSkin (PanelLook l)
         looks[(int) PanelLook::Rack].pal.light = C (0xffe4e6e9);
         for (auto* k : { &looks[(int) PanelLook::Cream], &looks[(int) PanelLook::Walnut], &looks[(int) PanelLook::Membrane], &looks[(int) PanelLook::Sampler], &looks[(int) PanelLook::Rack] })
             k->pal.hover = k->pal.light.overlaidWith (k->pal.ink.withAlpha (0.10f));
-        {   // DRUM WOOD: a wood-trimmed rhythm box, warm colours across the voices
+        // (v1.01 II) the hardware look: sections, scales, displays
+        {
+            auto& k = looks[(int) PanelLook::Cream];
+            k.face = C (0xfff3eee3); k.face2 = C (0xffe2dbca);
+            k.titleStyle = 0; k.scale = C (0xff2a2620); k.barInk = C (0xffffffff); k.display = 1;
+            k.knob = C (0xff1c1c1f); k.knobHi = C (0xff5e5e62); k.knobPtr = C (0xffff7a2a); k.knobArc = C (0xffc8401c);
+            stripes (k, { 0xff1f5f9e, 0xffc8401c, 0xff2b7a45, 0xff5a5246, 0xff1f5f9e });
+        }
+        {
+            auto& k = looks[(int) PanelLook::Walnut];
+            k.face = C (0xff2a2b2f); k.face2 = C (0xff1b1c1f);
+            k.titleStyle = 0; k.scale = C (0xffd8d2c4); k.barInk = C (0xffffffff); k.display = 0;
+            k.knob = C (0xff1c1c1f); k.knobHi = C (0xff5e5e62); k.knobPtr = C (0xfff6f1e4); k.knobArc = C (0xffe6a33a);
+            stripes (k, { 0xff9a4a3a, 0xff3d7a8c, 0xffc07a3a, 0xff8a5a9c, 0xff6a8c3a });
+        }
+        {
+            auto& k = looks[(int) PanelLook::Membrane];
+            k.face = C (0xffd9d0be); k.face2 = C (0xffc7bda8);
+            k.titleStyle = 0; k.scale = C (0xff2a241b); k.barInk = C (0xffffffff); k.display = 2;
+            k.knob = C (0xff1c1915); k.knobHi = C (0xff5a5145); k.knobPtr = C (0xfff2ead8); k.knobArc = C (0xffc4432f);
+            stripes (k, { 0xff2f7d6d, 0xffc4432f, 0xff3d5a9e, 0xffb87a12, 0xff7a3f7a });
+        }
+        {
+            auto& k = looks[(int) PanelLook::Sampler];
+            k.titleStyle = 1; k.scale = C (0xff2e3238); k.barInk = C (0xff2b5fbf); k.display = 2;
+            k.knob = C (0xffb9bdc3); k.knobHi = C (0xffffffff); k.knobPtr = C (0xff1c3f8c); k.knobArc = C (0xff2b5fbf);
+            stripes (k, { 0xff2b5fbf, 0xff2b5fbf, 0xff2b5fbf, 0xff2b5fbf, 0xff2b5fbf });
+        }
+        {
+            auto& k = looks[(int) PanelLook::Rack];
+            k.titleStyle = 1; k.scale = C (0xff1e2024); k.barInk = C (0xff121314); k.display = 1;
+            k.knob = C (0xff1c1c1f); k.knobHi = C (0xff5e5e62); k.knobPtr = C (0xffffb238); k.knobArc = C (0xffc86a00);
+            stripes (k, { 0xff121314, 0xff121314, 0xff121314, 0xff121314, 0xff121314 });
+        }
+        {   // DRUM WOOD (808 A): charcoal-brown between wood cheeks, cream caps; teal, sage, mustard and ivory voices
             auto& k = looks[(int) PanelLook::DrumWood];
             k = looks[(int) PanelLook::Walnut];
-            stripes (k, { 0xffe8b23a, 0xffe2622c, 0xff9ccc52, 0xff3fa7d6, 0xffd94c74 });
+            k.face = C (0xff3a332d); k.face2 = C (0xff26211d);
+            k.pal.panel = C (0xff2f2924); k.pal.paper = C (0xff15120f);
+            k.knob = C (0xffd9cfb8); k.knobHi = C (0xfffffaf0); k.knobPtr = C (0xff1a1712); k.knobArc = C (0xffd8a52a); k.scale = C (0xffcfc8b6);
+            k.display = 1; k.titleStyle = 0; k.barInk = C (0xff1a1712);
+            stripes (k, { 0xff1f9c8c, 0xff7aa860, 0xffd8a52a, 0xfff1ead6, 0xff1f9c8c });
         }
-        {   // DRUM CREAM: a cream rhythm unit - blue, red, yellow and green across the voices
+        {   // DRUM CREAM (909 B): a cream rhythm unit, silver caps, blue name plates, ivory pads
             auto& k = looks[(int) PanelLook::DrumCream];
             k = looks[(int) PanelLook::Cream];
-            stripes (k, { 0xff1f6fb2, 0xffd23b2f, 0xffd8a514, 0xff2b8a4b, 0xff1f6fb2 });
+            k.knob = C (0xffb9bdc3); k.knobHi = C (0xffffffff); k.knobPtr = C (0xff111111); k.knobArc = C (0xff2a74c4);
+            k.display = 2; k.titleStyle = 0; k.barInk = C (0xffffffff); k.sides = 0;
+            stripes (k, { 0xff2a74c4, 0xff2a74c4, 0xff2a74c4, 0xff2a74c4, 0xff2a74c4 });
+        }
+        {   // DRUM BLACK (808 B): a cream rhythm unit between black cheeks, black caps with orange pointers, dark name
+            // plates; blue, red, mustard and green voices; an amber display
+            auto& k = looks[(int) PanelLook::DrumBlack];
+            k = looks[(int) PanelLook::Cream];
+            k.face = C (0xffefe9dc); k.face2 = C (0xffdfd8c6); k.sides = 1; k.side = C (0xff1c1c1f); k.side2 = C (0xff3a3a3e);
+            k.knob = C (0xff1c1c1f); k.knobHi = C (0xff5e5e62); k.knobPtr = C (0xffff7a2a); k.knobArc = C (0xffc8401c); k.scale = C (0xff2a2620);
+            k.display = 1; k.titleStyle = 0; k.barInk = C (0xffffffff);
+            stripes (k, { 0xff2a74c4, 0xffc8281c, 0xffd8a52a, 0xff2b8a4b, 0xffc8401c });
         }
     }
     return l == PanelLook::None || l >= PanelLook::Count ? nullptr : &looks[(int) l];
@@ -880,12 +929,12 @@ juce::StringArray PixSlider::knobLines (const juce::String& label, float width, 
 {
     // the name in one line if it fits, else two (split at the space that leaves the longer line shortest)
     juce::StringArray out;
-    if (PixelFont::textWidth (label, px) <= width || ! label.containsChar (' ')) { out.add (label); return out; }
+    if (PixelFont::labelWidth (label, px) <= width || ! label.containsChar (' ')) { out.add (label); return out; }
     int best = -1; float bestW = 1.0e9f;
     for (int i = 0; i < label.length(); ++i)
         if (label[i] == ' ')
         {
-            const float w = std::max (PixelFont::textWidth (label.substring (0, i), px), PixelFont::textWidth (label.substring (i + 1), px));
+            const float w = std::max (PixelFont::labelWidth (label.substring (0, i), px), PixelFont::labelWidth (label.substring (i + 1), px));
             if (w < bestW) { bestW = w; best = i; }
         }
     out.add (label.substring (0, best)); out.add (label.substring (best + 1));
@@ -895,49 +944,122 @@ juce::StringArray PixSlider::knobLines (const juce::String& label, float width, 
 void PixSlider::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
-    if (knob)
+    if (fader)
     {
-        // a knob: the dial (its travel as an arc, a pointer), the value, then the name
+        // a fader (v1.01 II): its slot, a printed scale either side (0, 5, 10 numbered), the cap; the name under it
         auto r = getLocalBounds().toFloat();
         const auto& P = Theme::palFor (*this);
         const auto* ps = Theme::panelSkinFor (*this);
-        const float d = std::min (r.getWidth() - px * 2, px * dialPx);
-        const juce::Rectangle<float> dial (r.getCentreX() - d * 0.5f, r.getY() + px, d, d);
-        const float a0 = juce::MathConstants<float>::pi * 0.75f, a1 = juce::MathConstants<float>::pi * 2.25f;
-        const float av = a0 + (a1 - a0) * value;
-        // the travel, and how far it's turned
-        juce::Path track, done;
-        const float rr = d * 0.5f + px * 1.2f;
-        track.addCentredArc (dial.getCentreX(), dial.getCentreY(), rr, rr, 0, a0 + juce::MathConstants<float>::halfPi, a1 + juce::MathConstants<float>::halfPi, true);
-        done.addCentredArc (dial.getCentreX(), dial.getCentreY(), rr, rr, 0, a0 + juce::MathConstants<float>::halfPi, av + juce::MathConstants<float>::halfPi, true);
-        g.setColour (P.ink.withAlpha (0.22f));
-        g.strokePath (track, juce::PathStrokeType (px * 0.9f));
-        g.setColour (ps != nullptr ? ps->knobArc : P.pressed);
-        g.strokePath (done, juce::PathStrokeType (px * 0.9f));
-        // the cap: lit from the top left
-        const auto face = ps != nullptr ? ps->knob : P.ink, hi = ps != nullptr ? ps->knobHi : P.faint;
-        juce::ColourGradient cg (hi, dial.getX() + d * 0.3f, dial.getY() + d * 0.25f, face, dial.getRight(), dial.getBottom(), true);
-        g.setGradientFill (cg);
-        g.fillEllipse (dial.reduced (px * 0.6f));
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawEllipse (dial.reduced (px * 0.6f), std::max (1.0f, px * 0.35f));
-        // the pointer
-        const auto c = dial.getCentre();
-        const float rad = d * 0.5f - px * 1.6f;
-        const juce::Point<float> tip (c.x + std::cos (av) * rad, c.y + std::sin (av) * rad);
-        const juce::Point<float> mid (c.x + std::cos (av) * rad * 0.35f, c.y + std::sin (av) * rad * 0.35f);
-        g.setColour (ps != nullptr ? ps->knobPtr : P.paper);
-        g.drawLine ({ mid, tip }, std::max (2.0f, px * 1.1f));
+        PixelFont::PanelType type;
+        const auto lines = knobLines (label, r.getWidth(), px);
+        auto names = r.removeFromBottom (px * 9.5f * (float) lines.size());
+        const float capH = px * 6.0f, capW = std::min (r.getWidth() * 0.5f, px * 10.0f);
+        const float top = r.getY() + capH * 0.5f + px, bot = r.getBottom() - capH * 0.5f - px * 2;
+        const float cx = r.getCentreX();
+        const auto sc = ps != nullptr && ! ps->scale.isTransparent() ? ps->scale : P.ink.withAlpha (0.7f);
+        g.setColour (sc);
+        for (int k = 0; k <= 10; ++k)
+        {
+            const float y = bot - (bot - top) * (float) k / 10.0f;
+            const float len = k % 5 == 0 ? px * 3.0f : px * 2.0f;
+            g.fillRect (cx - capW * 0.5f - px - len, y - px * 0.25f, len, std::max (1.0f, px * (k % 5 == 0 ? 0.6f : 0.4f)));
+            g.fillRect (cx + capW * 0.5f + px, y - px * 0.25f, len, std::max (1.0f, px * (k % 5 == 0 ? 0.6f : 0.4f)));
+            if (k % 5 == 0 && r.getWidth() > capW + px * 16)
+            {
+                g.setFont (PixelFont::face (PixelFont::BarlowCondensed, px * 4.2f));
+                g.drawText (juce::String (k), juce::Rectangle<float> (cx - capW * 0.5f - px * 11, y - px * 2.5f, px * 6, px * 5), juce::Justification::centredRight);
+            }
+        }
+        g.setColour (juce::Colours::black);
+        g.fillRoundedRectangle (cx - px * 1.2f, top - px, px * 2.4f, bot - top + px * 2, px * 1.2f);
+        const float y = bot - (bot - top) * value;
+        const juce::Rectangle<float> cap (cx - capW * 0.5f, y - capH * 0.5f, capW, capH);
+        g.setColour (juce::Colours::black.withAlpha (0.45f));
+        g.fillRoundedRectangle (cap.translated (0, px * 0.8f), px);
+        const auto face = ! capFace.isTransparent() ? capFace : ps != nullptr ? ps->knob : P.ink;
+        const auto hi = ! capHi.isTransparent() ? capHi : ps != nullptr ? ps->knobHi : P.faint;
+        g.setGradientFill (juce::ColourGradient (hi, cap.getX(), cap.getY(), face, cap.getX(), cap.getBottom(), false));
+        g.fillRoundedRectangle (cap, px);
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.drawRoundedRectangle (cap, px, std::max (1.0f, px * 0.3f));
+        g.setColour (! pointer.isTransparent() ? pointer : ps != nullptr ? ps->knobPtr : P.paper);
+        g.fillRect (cap.getX() + px, cap.getCentreY() - px * 0.4f, cap.getWidth() - px * 2, px * 0.8f);
         if (modLo >= 0.0f)
         {
-            // modulated: where it is now, a dot in the modulation colour on the travel
+            g.setColour (Theme::skin.accentMod);
+            g.fillEllipse (cx + capW * 0.5f + px * 4.5f, bot - (bot - top) * modNow - px, px * 2, px * 2);
+        }
+        for (const auto& line : lines)
+            PixelFont::drawCentred (g, line, names.removeFromTop (px * 9.5f), px, P.ink);
+        return;
+    }
+    if (knob)
+    {
+        // a knob (v1.01 II): a printed scale round it (ticks, the numbers 0 - 10 when there's room), a ridged skirt, the
+        // cap lit from the top left with its pointer; the value under it, the name under that
+        auto r = getLocalBounds().toFloat();
+        const auto& P = Theme::palFor (*this);
+        const auto* ps = Theme::panelSkinFor (*this);
+        PixelFont::PanelType type;
+        const float d = std::min (r.getWidth() - px, px * dialPx);
+        const juce::Rectangle<float> dial (r.getCentreX() - d * 0.5f, r.getY() + px * 0.5f, d, d);
+        const auto c = dial.getCentre();
+        const float a0 = juce::MathConstants<float>::pi * 0.75f, a1 = juce::MathConstants<float>::pi * 2.25f;
+        const float av = a0 + (a1 - a0) * value;
+        const float fh = std::max (d * 0.1f, 8.0f);
+        const bool numbers = d >= 64.0f;
+        const float rn = d * 0.5f - fh * 0.5f;
+        const float ro = numbers ? d * 0.385f : d * 0.47f;
+        const auto sc = ps != nullptr && ! ps->scale.isTransparent() ? ps->scale : P.ink.withAlpha (0.7f);
+        const int marks = steps > 1 && steps <= 12 ? steps - 1 : 10;
+        for (int k = 0; k <= marks; ++k)
+        {
+            const float a = a0 + (a1 - a0) * (float) k / (float) marks;
+            const bool major = steps > 1 || k % 5 == 0;
+            const float ri = ro - (major ? d * 0.065f : d * 0.04f);
+            g.setColour (sc);
+            g.drawLine (c.x + std::cos (a) * ri, c.y + std::sin (a) * ri, c.x + std::cos (a) * ro, c.y + std::sin (a) * ro, std::max (1.0f, d * (major ? 0.028f : 0.02f)));
+            if (numbers && steps <= 1 && k % 2 == 0)
+            {
+                g.setFont (PixelFont::face (PixelFont::BarlowCondensed, fh));
+                g.drawText (juce::String (k), juce::Rectangle<float> (c.x + std::cos (a) * rn - fh, c.y + std::sin (a) * rn - fh * 0.55f, fh * 2, fh * 1.1f), juce::Justification::centred);
+            }
+        }
+        const float rs = ro - d * 0.09f, rc = rs * 0.76f;
+        // the skirt: dark, ridged, a shadow under it
+        g.setColour (juce::Colours::black.withAlpha (0.4f));
+        g.fillEllipse (c.x - rs, c.y - rs + d * 0.03f, rs * 2, rs * 2);
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff3a3a3e), c.x, c.y - rs, juce::Colour (0xff0a0a0b), c.x, c.y + rs, false));
+        g.fillEllipse (c.x - rs, c.y - rs, rs * 2, rs * 2);
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        for (int k = 0; k < 36; ++k)
+        {
+            const float a = juce::MathConstants<float>::twoPi * (float) k / 36.0f + av;
+            g.drawLine (c.x + std::cos (a) * rc * 1.03f, c.y + std::sin (a) * rc * 1.03f, c.x + std::cos (a) * rs * 0.98f, c.y + std::sin (a) * rs * 0.98f, std::max (1.0f, d * 0.012f));
+        }
+        // the cap
+        const auto face = ! capFace.isTransparent() ? capFace : ps != nullptr ? ps->knob : P.ink;
+        const auto hi = ! capHi.isTransparent() ? capHi : ps != nullptr ? ps->knobHi : P.faint;
+        juce::ColourGradient cg (hi, c.x - rc * 0.35f, c.y - rc * 0.45f, face, c.x + rc, c.y + rc, true);
+        cg.addColour (0.55, face);
+        cg.addColour (1.0, face.darker (0.7f));
+        g.setGradientFill (cg);
+        g.fillEllipse (c.x - rc, c.y - rc, rc * 2, rc * 2);
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.drawEllipse (c.x - rc, c.y - rc, rc * 2, rc * 2, std::max (1.0f, d * 0.015f));
+        // the pointer: across the cap to the skirt's edge
+        g.setColour (! pointer.isTransparent() ? pointer : ps != nullptr ? ps->knobPtr : P.paper);
+        g.drawLine (c.x + std::cos (av) * rc * 0.15f, c.y + std::sin (av) * rc * 0.15f, c.x + std::cos (av) * rs * 0.96f, c.y + std::sin (av) * rs * 0.96f, std::max (2.0f, d * 0.06f));
+        if (modLo >= 0.0f)
+        {
+            // modulated: where it is now, a dot in the modulation colour on the scale
             const float an = a0 + (a1 - a0) * modNow;
             g.setColour (Theme::skin.accentMod);
-            g.fillEllipse (c.x + std::cos (an) * rr - px * 1.4f, c.y + std::sin (an) * rr - px * 1.4f, px * 2.8f, px * 2.8f);
+            g.fillEllipse (c.x + std::cos (an) * ro - px * 1.4f, c.y + std::sin (an) * ro - px * 1.4f, px * 2.8f, px * 2.8f);
         }
         // the value under it, the name under that (never cut: up to two lines)
-        auto below = r.withTrimmedTop (d + px * 3);
-        PixelFont::drawCentred (g, format (value), below.removeFromTop (px * 9), px, P.faint);
+        auto below = r.withTrimmedTop (d + px * 1.5f);
+        if (showValue) PixelFont::drawCentred (g, format (value), below.removeFromTop (px * 9), px, ps != nullptr && ! ps->scale.isTransparent() ? ps->scale : P.faint);
         for (const auto& line : knobLines (label, r.getWidth(), px))
             PixelFont::drawCentred (g, line, below.removeFromTop (px * 9.5f), px, P.ink);
         return;
@@ -991,8 +1113,10 @@ void PixSlider::mouseDrag (const juce::MouseEvent& e)
     if (rightDown) return;
     auto t = trough().reduced (Theme::px);
     const float fine = e.mods.isShiftDown() ? 0.1f : 1.0f;   // Shift: fine
-    if (knob)   // (a knob: up turns it up, as far again sideways; 200 points a full turn)
-        setValue (dragStartValue + (float) (e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY()) / (Theme::px * 75.0f) * fine, true);
+    if (fader)   // (a fader: up and down, its travel the length of the slot)
+        setValue (dragStartValue - (float) e.getDistanceFromDragStartY() / std::max (1.0f, (float) getHeight() - Theme::px * 20.0f) * fine, true);
+    else if (knob)   // (a knob: up turns it up, as far again sideways; 200 points a full turn)
+        setValue (dragStartValue + (float) (e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY()) / (Theme::px * (steps > 1 ? 18.0f * (float) std::min (steps, 12) : 75.0f)) * fine, true);
     else
         setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);
     DragReadout::show (*this, label + " " + format (value));
@@ -1067,4 +1191,67 @@ void DragReadout::paint (juce::Graphics& g)
     g.fillRect (r);
     PixelFont::drawCentred (g, text, r, Theme::px, P.ink);
 }
+
+// ---------------------------------------------------------------------------
+LeverSwitch::LeverSwitch (const juce::String& n, juce::StringArray o) : options (std::move (o)), name (n) {}
+
+float LeverSwitch::lineH() const { return Theme::px * 8.5f; }
+
+int LeverSwitch::preferredWidth (float px) const
+{
+    PixelFont::PanelType type;
+    float w = 0;
+    for (const auto& o : options) w = std::max (w, PixelFont::labelWidth (o, px));
+    return (int) std::ceil (std::max (px * 7 + px * 2 + w, PixelFont::labelWidth (name, px)) + px * 2);
+}
+
+int LeverSwitch::preferredHeight (float px) const { return (int) std::ceil (px * 8.5f * (float) options.size() + px * 2 + px * 9.5f); }
+
+int LeverSwitch::pickAt (float y) const
+{
+    return juce::jlimit (0, std::max (0, options.size() - 1), (int) ((y - Theme::px) / lineH()));
+}
+
+void LeverSwitch::paint (juce::Graphics& g)
+{
+    const float px = Theme::px;
+    const auto& P = Theme::palFor (*this);
+    const auto* ps = Theme::panelSkinFor (*this);
+    PixelFont::PanelType type;
+    const float lh = lineH();
+    const int n = std::max (1, options.size());
+    const float x0 = (getWidth() - (float) preferredWidth (px)) * 0.5f + px;
+    // the slot, then the bat at the setting chosen
+    const juce::Rectangle<float> slot (x0, px, px * 6, lh * (float) n);
+    g.setColour (juce::Colours::black);
+    g.fillRoundedRectangle (slot, px * 3);
+    g.setColour (juce::Colours::white.withAlpha (0.15f));
+    g.drawRoundedRectangle (slot, px * 3, std::max (1.0f, px * 0.4f));
+    const juce::Rectangle<float> bat (slot.getX() + px, slot.getY() + lh * (float) selected + px * 0.6f, px * 4, lh - px * 1.2f);
+    juce::ColourGradient cg (juce::Colour (0xff8d9096), bat.getX(), 0, juce::Colour (0xff6b6e74), bat.getRight(), 0, false);
+    cg.addColour (0.4, juce::Colours::white);
+    g.setGradientFill (cg);
+    g.fillRoundedRectangle (bat, px * 1.5f);
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.drawRoundedRectangle (bat, px * 1.5f, std::max (1.0f, px * 0.3f));
+    const auto on = ps != nullptr ? ps->knobArc : P.pressed;
+    for (int k = 0; k < options.size(); ++k)
+        PixelFont::drawLeft (g, options[k], { slot.getRight() + px * 2, slot.getY() + lh * (float) k, (float) getWidth(), lh }, px, k == selected ? on : P.ink);
+    PixelFont::drawCentred (g, name, { 0.0f, slot.getBottom() + px, (float) getWidth(), px * 9.5f }, px, P.ink);
+}
+
+void LeverSwitch::mouseDown (const juce::MouseEvent& e)
+{
+    if (onRightClick && e.mods.isPopupMenu()) { onRightClick(); return; }
+    const int k = pickAt (e.position.y);
+    if (k != selected && onPick) onPick (k);
+}
+
+void LeverSwitch::mouseDrag (const juce::MouseEvent& e)
+{
+    if (e.mods.isPopupMenu()) return;
+    const int k = pickAt (e.position.y);
+    if (k != selected && onPick) onPick (k);
+}
+
 } // namespace prv::ui

@@ -29,6 +29,10 @@ public:
     void refresh();
     void tick();
     void openWindow();              // the plug-in's own window
+    // (v1.01 II) CHOPPAGE: its own panel docked here, filling the page (no window); PLUG-IN PAGE... shows this page
+    void updateDock();
+    bool dockShown() const;
+    bool showPluginPage = false;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -49,6 +53,7 @@ public:
 
 private:
     PaulaProcessor& proc;
+    std::unique_ptr<juce::Component> dockView;
     InstrumentFxRow fxRow { proc };   // the instrument's own effects (after proc: it uses it)
     UtilityStrip utility { proc };   // WIDTH, MONO BELOW, VOL (= the instrument's VOL)
     juce::Rectangle<float> utilLabel;

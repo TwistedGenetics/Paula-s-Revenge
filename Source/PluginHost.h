@@ -127,6 +127,12 @@ public:
     void closeEditor (juce::AudioPluginInstance&);
     bool isEditorOpen (juce::AudioPluginInstance&) const;
     void closeAllEditors();
+    // (v1.01 II) a plug-in whose editor lives in the instrument's page, not a window (CHOPPAGE): its editor, made
+    // once and kept here; onDockGone tells the page to let go of it just before it's deleted (the plug-in is going)
+    static bool docks (juce::AudioPluginInstance&);
+    juce::AudioProcessorEditor* dockedEditor (juce::AudioPluginInstance&);
+    std::function<void (juce::AudioPluginInstance&)> onDockGone;
+    std::function<void()> onShowDocked;   // its window asked for (EDIT, OPEN PLUG-IN WINDOW): show the page instead
 
     // parameters, for LEARN and for showing what a knob controls
     static juce::String parameterName (juce::AudioPluginInstance&, int index);
@@ -135,6 +141,7 @@ public:
     int maxBlock = 512;
     bool showWindows = true;   // (tests without a screen turn this off)
 
+    std::map<juce::AudioPluginInstance*, std::unique_ptr<juce::AudioProcessorEditor>> docked;
     // keys typed while a plug-in's window is in front go on to the app (so the computer keyboard
     // keeps playing notes while you tweak a sound); text boxes inside the plug-in still get theirs
     std::function<bool (const juce::KeyPress&)> onWindowKey;

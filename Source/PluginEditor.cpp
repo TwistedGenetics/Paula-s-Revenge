@@ -100,6 +100,7 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     enginePage.onOptions = [this] { setView (View::Synth); };
     addChildComponent (enginePage);
     synthPage.onOpenBuiltin = [this] { setView (View::Engine); };
+    proc.pluginHost.onShowDocked = [this] { setView (View::Synth); synthPage.openWindow(); };
     cvPage.onChanged = [this] { refreshAll(); };
     cvPage.onStatus = [this] (const juce::String& m) { setStatus (m); };
     cvPage.onSources = [this] { setView (View::CvSources); };
@@ -540,6 +541,7 @@ bool PaulaEditor::keyStateChanged (bool down)
 
 PaulaEditor::~PaulaEditor()
 {
+    proc.pluginHost.onShowDocked = nullptr;
     prv::ui::menuHook() = nullptr;
     if (prv::ui::DragReadout::instance == &dragReadout) prv::ui::DragReadout::instance = nullptr;
     sequence.removeMouseListener (&titleClicks);
@@ -1316,7 +1318,7 @@ void PaulaEditor::openLoad (int kind)
                        "TG 101 - A CLASSIC MONOSYNTH: SAW + PULSE + SUB, SQUELCHY FILTER, PORTAMENTO, ARPEGGIO",
                        "HELIX - TWISTED GENETICS' WAVETABLE SYNTH: TWO TABLES, TWO FILTERS, MACROS, 54 PRESETS",
                        "CRAFTY - TWISTED GENETICS' CRAFTY SYNTH: A WAVETABLE MONOSYNTH WITH ARP, 64 PRESETS",
-                       "CHOPPAGE - TWISTED GENETICS' BREAK CHOPPER: EIGHT BREAKS, SLICES, PATTERNS (ITS OWN WINDOW)" }, [safe, hex] (int a)
+                       "CHOPPAGE - TWISTED GENETICS' BREAK CHOPPER: EIGHT BREAKS, SLICES, PATTERNS (ITS OWN PANEL)" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1402,8 +1404,8 @@ void PaulaEditor::makeChoppage()
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Synth);
-    if (auto* s = proc.synthAt (i)) proc.pluginHost.openEditor (s->instance(), "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": CHOPPAGE");
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS CHOPPAGE - C1 TO G1 PLAY ITS EIGHT BREAKS; DROP BREAKS ON ITS WINDOW");
+    synthPage.openWindow();   // (its panel, in the page)
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS CHOPPAGE - C1 TO G1 PLAY ITS EIGHT BREAKS; DROP BREAKS ON ITS PANEL");
 }
 
 void PaulaEditor::makeCvOut()

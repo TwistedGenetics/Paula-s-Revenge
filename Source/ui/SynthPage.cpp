@@ -6,8 +6,62 @@ namespace prv::ui
 {
 namespace { const char* kKnobLetters[kInstrumentKnobs] = { "L", "Q", "H", "W" }; }
 
+// ---------------------------------------------------------------------------
+// (v1.01 II) a plug-in docked in the page (CHOPPAGE): its name and two keys along the top, its own panel under them -
+// as big as fits, never stretched
+namespace
+{
+    class DockView : public juce::Component
+    {
+    public:
+        PixButton pageBtn { "PLUG-IN PAGE..." }, closeBtn { "CLOSE" };
+        juce::AudioProcessorEditor* editor = nullptr;
+        juce::String title;
+        DockView() { setOpaque (true); addAndMakeVisible (pageBtn); addAndMakeVisible (closeBtn); }
+        void setEditor (juce::AudioProcessorEditor* e)
+        {
+            if (e == editor) return;
+            if (editor != nullptr) removeChildComponent (editor);
+            editor = e;
+            if (editor != nullptr) { addAndMakeVisible (editor); resized(); }
+        }
+        void paint (juce::Graphics& g) override
+        {
+            const auto& P = Theme::palFor (*this);
+            g.fillAll (juce::Colour (0xff0b0f17));
+            const float px = Theme::px;
+            g.setColour (P.panel);
+            g.fillRect (getLocalBounds().toFloat().withHeight (px * 13));
+            PixelFont::drawLeft (g, title, getLocalBounds().toFloat().withHeight (px * 13).reduced (px * 2, 0), px, P.ink);
+        }
+        void resized() override
+        {
+            const float px = Theme::px;
+            auto r = getLocalBounds();
+            auto top = r.removeFromTop ((int) (px * 13)).reduced ((int) px);
+            const auto cw = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
+            closeBtn.setBounds (top.removeFromRight (cw (5))); top.removeFromRight ((int) px);
+            pageBtn.setBounds (top.removeFromRight (cw (15)));
+            if (editor == nullptr) return;
+            const int bw = std::max (1, editor->getWidth()), bh = std::max (1, editor->getHeight());
+            r.reduce ((int) px, (int) px);
+            const float sc = std::min ((float) r.getWidth() / (float) bw, (float) r.getHeight() / (float) bh);
+            const float x = (float) r.getX() + ((float) r.getWidth() - (float) bw * sc) * 0.5f;
+            const float y = (float) r.getY() + ((float) r.getHeight() - (float) bh * sc) * 0.5f;
+            editor->setTopLeftPosition (0, 0);
+            editor->setTransform (juce::AffineTransform::scale (sc).translated (x, y));
+        }
+    };
+}
+
+
 SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
 {
+    proc.pluginHost.onDockGone = [this] (juce::AudioPluginInstance& fx)
+    {
+        if (auto* dv = static_cast<DockView*> (dockView.get()); dv != nullptr && dv->editor != nullptr && dv->editor->getAudioProcessor() == &fx)
+            dv->setEditor (nullptr);
+    };
     fxRow.onOpen = [this] (int slot) { if (onOpenFx) onOpenFx (slot); };
     fxRow.onOpenPage = [this] { if (onOpenEqFx) onOpenEqFx(); };
     shapeBtn.setClickingTogglesState (false);
@@ -98,6 +152,8 @@ SynthPage::SynthPage (PaulaProcessor& p) : proc (p)
 
 SynthPage::~SynthPage()
 {
+    if (auto* dv = static_cast<DockView*> (dockView.get())) dv->setEditor (nullptr);
+    proc.pluginHost.onDockGone = nullptr;
     for (const auto& kv : heldKeys) { const int n = kv.second; proc.withLock ([&] { proc.player.jamNoteOff (n); }); }
 }
 
@@ -109,6 +165,7 @@ Instrument& SynthPage::inst()
 void SynthPage::opened (bool browse)
 {
     shown = proc.editorState.instrument;
+    showPluginPage = false;
     trackBox.setValue (proc.editorState.track + 1);
     learner.cancel();
     setBrowsing (browse || ! inst().isPlugin());
@@ -193,10 +250,40 @@ void SynthPage::learnTrackKnob (int k)
     repaint();
 }
 
+bool SynthPage::dockShown() const { return dockView != nullptr && dockView->isVisible(); }
+
+void SynthPage::updateDock()
+{
+    const int i = proc.editorState.instrument;
+    auto* s = inst().isPlugin() && ! browsing && ! showPluginPage ? proc.synthAt (i) : nullptr;
+    const bool dock = s != nullptr && PluginHost::docks (s->instance());
+    if (! dock)
+    {
+        if (dockView != nullptr) { static_cast<DockView*> (dockView.get())->setEditor (nullptr); dockView->setVisible (false); }
+        return;
+    }
+    if (dockView == nullptr)
+    {
+        auto d = std::make_unique<DockView>();
+        d->closeBtn.onClick = [this] { if (onClose) onClose(); };
+        d->pageBtn.onClick = [this] { showPluginPage = true; updateDock(); };
+        addChildComponent (*d);
+        dockView = std::move (d);
+    }
+    auto* dv = static_cast<DockView*> (dockView.get());
+    dv->title = "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": " + juce::String (inst().pluginName);
+    dv->setBounds (getLocalBounds());
+    dv->setEditor (proc.pluginHost.dockedEditor (s->instance()));
+    dv->setVisible (true);
+    dv->toFront (false);
+    dv->resized();
+}
+
 void SynthPage::openWindow()
 {
     const int i = proc.editorState.instrument;
     if (inst().isBuiltin()) { if (onOpenBuiltin) onOpenBuiltin(); return; }
+    if (auto* s = proc.synthAt (i); s != nullptr && PluginHost::docks (s->instance())) { showPluginPage = false; updateDock(); return; }
     if (auto* s = proc.synthAt (i))
         proc.pluginHost.openEditor (s->instance(), "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": " + juce::String (inst().pluginName));
     else if (onStatus) onStatus ("THE PLUG-IN ISN'T LOADED: " + proc.pluginHost.lastError (inst().pluginKey));
@@ -204,6 +291,7 @@ void SynthPage::openWindow()
 
 void SynthPage::refresh()
 {
+    updateDock();
     fxRow.refresh();
     const bool plug = inst().isPlugin() && ! browsing;
     fxRow.setVisible (! browsing && ! inst().isMidiOut());
@@ -241,9 +329,11 @@ void SynthPage::refresh()
 
 void SynthPage::tick()
 {
+    if (! dockShown() && ! showPluginPage && ! browsing && inst().isPlugin() && inst().pluginKey == kChoppageKey) updateDock();
     if (proc.editorState.instrument != shown)
     {
         shown = proc.editorState.instrument;
+        showPluginPage = false;
         learner.cancel();
         if (! inst().isPlugin() && ! browsing) { if (onClose) onClose(); return; }
         refresh();
@@ -422,6 +512,7 @@ void SynthPage::paint (juce::Graphics& g)
 
 void SynthPage::resized()
 {
+    if (dockView != nullptr && dockView->isVisible()) { dockView->setBounds (getLocalBounds()); dockView->resized(); }
     const float px = Theme::px;
     const int rowH = (int) (px * 11);
     const int gap = (int) std::max (2.0f, px * 1.5f);

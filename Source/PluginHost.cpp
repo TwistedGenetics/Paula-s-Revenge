@@ -506,8 +506,18 @@ struct PluginHost::Window : public juce::DocumentWindow
     Keys keys { host };
 };
 
+bool PluginHost::docks (juce::AudioPluginInstance& fx) { return dynamic_cast<ChoppageProcessor*> (&fx) != nullptr; }
+
+juce::AudioProcessorEditor* PluginHost::dockedEditor (juce::AudioPluginInstance& fx)
+{
+    auto& slot = docked[&fx];
+    if (slot == nullptr) slot.reset (fx.createEditorIfNeeded());
+    return slot.get();
+}
+
 void PluginHost::openEditor (juce::AudioPluginInstance& fx, const juce::String& title)
 {
+    if (docks (fx)) { if (onShowDocked) onShowDocked(); return; }   // (CHOPPAGE: in its page)
     if (! showWindows) return;
     auto it = windows.find (&fx);
     if (it != windows.end()) { it->second->toFront (true); return; }
@@ -519,6 +529,11 @@ void PluginHost::openEditor (juce::AudioPluginInstance& fx, const juce::String& 
 
 void PluginHost::closeEditor (juce::AudioPluginInstance& fx)
 {
+    if (auto d = docked.find (&fx); d != docked.end())
+    {
+        if (onDockGone) onDockGone (fx);   // (the page lets go of it first)
+        docked.erase (d);
+    }
     auto it = windows.find (&fx);
     if (it == windows.end()) return;
     auto w = std::move (it->second);
@@ -531,6 +546,8 @@ bool PluginHost::isEditorOpen (juce::AudioPluginInstance& fx) const { return win
 
 void PluginHost::closeAllEditors()
 {
+    for (auto& kv : docked) if (onDockGone) onDockGone (*kv.first);
+    docked.clear();
     for (auto& kv : windows)
     {
         if (auto* c = kv.second->getContentComponent()) c->removeKeyListener (&kv.second->keys);

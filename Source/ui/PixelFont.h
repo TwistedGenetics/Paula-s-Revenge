@@ -53,6 +53,19 @@ public:
     static void drawCentred (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float px, juce::Colour c);
     static void drawLeft (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float px, juce::Colour c);
 
+    // (v1.01) the vintage panels: their words in smooth type (BARLOW CONDENSED), whatever the skin - for as long as this lives
+    struct PanelType
+    {
+        bool s; int k;
+        PanelType() : s (smooth), k (sans) { smooth = true; sans = BarlowCondensed; }
+        ~PanelType() { smooth = s; sans = k; }
+    };
+    // how wide words really are as they're drawn now: their pixel cells, or (smooth type) the typeface's own width,
+    // never more than the cells (the panels measure their names with it, in BARLOW CONDENSED)
+    static float labelWidth (const juce::String& text, float px);
+    // a real font for panel artwork (names on the panel, the numbers round a knob): one of Sans, any height
+    static juce::Font face (int which, float height);
+
     // Largest whole-ish pixel size that fits `chars` characters into `width`
     static float fitPx (int chars, float width, float maxPx);
 };

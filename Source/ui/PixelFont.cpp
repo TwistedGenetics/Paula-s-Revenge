@@ -357,6 +357,32 @@ void PixelFont::drawLeft (juce::Graphics& g, const juce::String& text, juce::Rec
     draw (g, text, std::round (area.getX()), std::round (area.getCentreY() - h * 0.5f), px, c);
 }
 
+float PixelFont::labelWidth (const juce::String& text0, float px)
+{
+    if (! smooth) return textWidth (text0, px);
+    const auto text = forScreen (text0);
+    auto& F = sansFace();
+    const float s = capFor (px) / F.cap;
+    const float cell = kCellW * px;
+    float w = 0;
+    for (auto ch : text)
+    {
+        if (pixelOnly (ch)) { w += cell; continue; }
+        if (auto* G = F.glyph (ch)) w += G->adv * s;
+        else w += ch == ' ' ? cell * 0.55f : cell;
+    }
+    return std::min (w + px, textWidth (text0, px));
+}
+
+juce::Font PixelFont::face (int which, float height)
+{
+    const int was = sans;
+    sans = which;
+    auto& f = sansFace();
+    sans = was;
+    return f.font (height, 1.0f);
+}
+
 float PixelFont::fitPx (int chars, float width, float maxPx)
 {
     float px = width / (float) (std::max (1, chars) * kCellW);

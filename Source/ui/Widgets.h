@@ -88,7 +88,7 @@ struct Theme
 
     // (v1.01) VINTAGE PANELS: a built-in synth's page drawn as a piece of 80s / 90s gear - its own colours (whatever the
     // skin), wood cheeks or rack ears, an LCD for the title, knobs for its controls. Our own designs, no maker's.
-    enum class PanelLook { None = 0, Cream, Walnut, Membrane, Sampler, Rack, DrumWood, DrumCream, Count };
+    enum class PanelLook { None = 0, Cream, Walnut, Membrane, Sampler, Rack, DrumWood, DrumCream, DrumBlack, Count };
     struct PanelSkin
     {
         Palette pal;                       // what the controls on it draw with
@@ -99,6 +99,11 @@ struct Theme
         juce::Colour lcdBg, lcdInk;        // the title's display
         juce::Colour knob, knobHi, knobPtr, knobArc;
         juce::Colour stripe[5];            // each section's colour band
+        // (v1.01 II) the hardware look: how sections are drawn, the knobs' printed scale, the display's colours
+        int titleStyle = 0;                // 0 a coloured bar across the top (and a strip at the foot), 1 a printed outline with the name set into it
+        juce::Colour scale;                // the numbers and ticks round a knob, the scale beside a fader
+        juce::Colour barInk;               // the words on a section's bar
+        int display = 0;                   // the display: 0 green scope, 1 amber scope, 2 green LCD, 3 blue-green VFD
     };
     static const PanelSkin* panelSkin (PanelLook);
     static const PanelSkin* panelSkinFor (const juce::Component&);
@@ -179,6 +184,13 @@ class PixSlider : public juce::Component
 {
 public:
     explicit PixSlider (const juce::String& label);
+    // (v1.01 II) on a hardware panel: the cap's own colour (else the panel's), and a fader in place of the knob
+    juce::Colour capFace, capHi, pointer;
+    bool fader = false;
+    static int faderHeight (float px, int labelLines, float dial = 28.0f) { return (int) (px * (dial * 1.6f + 9.5f * (float) labelLines)); }
+    int steps = 0;                         // a whole-number control: this many places (its dial snaps)
+    bool showValue = true;                 // (the drum machines' columns: just the name; the value as it's turned)
+    static int knobHeightNoValue (float px, float dial) { return (int) (px * (dial + 2 + 9.5f)); }
     float value = 0.5f;
     std::function<void (float)> onChange;
     std::function<juce::String (float)> format = [] (float v) { return juce::String (juce::roundToInt (v * 100)) + "%"; };
@@ -217,6 +229,29 @@ private:
     bool rightDown = false;
     juce::Rectangle<float> trough() const;
     void setFromX (float x);
+};
+
+// (v1.01 II) a lever switch, as on a hardware panel: a bat in a slot, its settings beside it (the one chosen lit);
+// click one, or drag the lever
+class LeverSwitch : public juce::Component
+{
+public:
+    LeverSwitch (const juce::String& name, juce::StringArray options);
+    int selected = 0;
+    std::function<void (int)> onPick;
+    std::function<void()> onRightClick;
+    void setSelected (int k) { if (k != selected) { selected = k; repaint(); } }
+    const juce::String& getName2() const { return name; }
+    int preferredWidth (float px) const;
+    int preferredHeight (float px) const;
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    juce::StringArray options;
+private:
+    juce::String name;
+    int pickAt (float y) const;
+    float lineH() const;
 };
 
 // SMARTER LAYOUT: a folded sidebar panel - just its title bar (click it to open the panel)

@@ -57,9 +57,10 @@ private:
         std::unique_ptr<NumberBox> number;
         std::vector<std::unique_ptr<PixButton>> choices;   // (a few choices: a button each)
         std::unique_ptr<PixButton> cycle;                  // (many choices: one button, a menu)
+        std::unique_ptr<LeverSwitch> lever;                // (v1.01 II, a hardware panel: two to five choices, a lever)
     };
     std::vector<Row> rows;
-    struct Box { juce::String title; std::vector<int> rowIndex; juce::Rectangle<float> area; int page = 0; juce::String key; };
+    struct Box { juce::String title; std::vector<int> rowIndex; juce::Rectangle<float> area; int page = 0; juce::String key; bool display = false; };
     // (v0.81) tabs of the synth's own: a section "TAB>BOX" puts the box on tab TAB ("LAYER A|A": its name, and a short
     // one for a narrow window) - pages 10, 11, ... in the order the tabs first come
     std::vector<std::unique_ptr<PixButton>> genTabs;
@@ -141,8 +142,27 @@ private:
     // (v1.01) VINTAGE PANELS: each built-in synth drawn as a piece of 80s / 90s gear (its own colours, knobs)
     Theme::PanelLook look = Theme::PanelLook::None;
     juce::Rectangle<int> faceArea;     // the panel between its cheeks / rack ears
-    float knobDial = 19.0f;            // the knobs' size (in font pixels): smaller when they don't all fit
+    float knobDial = 28.0f;            // the knobs' size (in font pixels): smaller when they don't all fit
     bool shrinking = false;
+    int extraCols = 0;
+    bool dropDisplay = false;          // (the last resort when even the smallest knobs don't fit: no display on this page)
+    bool searching = false, lastFit = true;   // (v1.01 II: the layout tried with bigger and smaller knobs, more columns)
+    void layoutOnce();                 // (a column more than the heights alone ask for: boxes never pack perfectly)
+    // (v1.01 II) the panel's own name and line under it; its display (what it plays, drawn from its settings)
+    juce::String model, tagline;
+    void paintDisplay (juce::Graphics&, juce::Rectangle<float> area);
+    float vnorm (const char* name, int nth = 0) const;   // a control's setting, 0..1 (by name; nth: the nth of that name)
+    float vraw (const char* name, int nth = 0) const;
+    std::vector<float> shownValues;
+    static juce::Image woodGrain (int w, int h);
+    // the drum machines: every voice in a column, a pad each to play it
+    bool drumLayout() const { return shownKey == kDrum808Key || shownKey == kDrum909Key; }
+    std::vector<std::unique_ptr<PixButton>> drumPads;
+    std::array<bool, 16> padDown {};
+    PixButton drumHalf[3] { PixButton ("VOICES 1-4", true), PixButton ("VOICES 5-8", true), PixButton ("VOICES 9-12", true) };   // (a narrow page: four at a time)
+    int drumHalfShown = 0;
+    juce::Rectangle<float> padsArea, drumDispArea;
+    void layoutDrums (juce::Rectangle<int> r);
   public:
     static Theme::PanelLook lookFor (const std::string& key);
     Theme::PanelLook panelLook() const { return look; }   // (tests)
