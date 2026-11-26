@@ -20,6 +20,41 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
+# HELIX (Jamie's Twisted-Helix synth engine, vendored in third_party/helix-core)
+file(GLOB PRV_HELIX_SRC CONFIGURE_DEPENDS third_party/helix-core/src/*.cpp)
+add_library(helix_core STATIC ${PRV_HELIX_SRC})
+target_include_directories(helix_core PUBLIC third_party/helix-core/include)
+set_target_properties(helix_core PROPERTIES CXX_STANDARD 17 POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_definitions(helix_core PRIVATE _USE_MATH_DEFINES NOMINMAX)
+    target_compile_options(helix_core PRIVATE /W0 /bigobj)
+else()
+    target_compile_options(helix_core PRIVATE -w)
+endif()
+
+# CRAFTY (Jamie's Crafty Synth engine, vendored in third_party/crafty)
+add_library(crafty_core STATIC
+    third_party/crafty/core/cr_patch.c
+    third_party/crafty/core/cr_arp.c
+    third_party/crafty/core/cr_text.c
+    third_party/crafty/dsp/cr_filter.c
+    third_party/crafty/dsp/cr_fx.c
+    third_party/crafty/dsp/cr_synth.c
+    third_party/crafty/dsp/cr_wt.c
+    third_party/crafty/host/cr_inst.c
+    third_party/crafty/host/cr_proto.c
+    third_party/crafty/host/cr_wav.c
+    third_party/crafty/host/cr_tables.c)
+target_include_directories(crafty_core PUBLIC
+    third_party/crafty/core third_party/crafty/dsp third_party/crafty/host third_party/crafty/gen)
+set_target_properties(crafty_core PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+    target_compile_definitions(crafty_core PRIVATE _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(crafty_core PRIVATE /W0)
+else()
+    target_compile_options(crafty_core PRIVATE -w)
+endif()
+
 # Plain C++ tracker engine (no JUCE) - shared by the plugin and the tests
 add_library(prv_engine STATIC
     Source/engine/Player.cpp
@@ -60,6 +95,8 @@ add_library(prv_engine STATIC
     Source/engine/MorphSynth.cpp
     Source/engine/AcidSynth.cpp
     Source/engine/Tg101Synth.cpp
+    Source/engine/HelixSynth.cpp
+    Source/engine/CraftySynth.cpp
     Source/engine/DrumSynth.cpp
     Source/engine/MegaFilter.cpp
     Source/engine/mega/Filter.cpp
@@ -70,6 +107,7 @@ add_library(prv_engine STATIC
     Source/engine/GearMaps.cpp
     Source/engine/AkaiSysex.cpp)
 target_include_directories(prv_engine PUBLIC Source)
+target_link_libraries(prv_engine PRIVATE helix_core crafty_core)
 # STEMS: Demucs v4 in ONNX Runtime (Microsoft's prebuilt library, downloaded here; shipped with the app)
 if(APPLE OR WIN32)
     option(PRV_STEMS "Build STEMS (ONNX Runtime)" ON)

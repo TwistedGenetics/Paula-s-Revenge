@@ -26,6 +26,7 @@ struct SynthParam
     int   kind;            // 0 linear, 1 exponential (times, frequencies), 2 whole numbers, 3 a choice (choices)
     const char* unit;      // "MS", "HZ", "%", "ST", ""
     const char* choices;   // kind 3: "LEGATO|ALWAYS|OFF|POLY"
+    std::string (*textFn) (const SynthParam&, float value) = nullptr;   // (v1.01) a synth's own way of writing a value
     float toValue (float v01) const;     // 0..1 -> the value
     float to01 (float value) const;
     std::string text (float value) const;   // "120MS", "LEGATO"

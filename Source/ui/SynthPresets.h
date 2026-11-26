@@ -9,6 +9,8 @@
 #include "../engine/MorphSynth.h"
 #include "../engine/AcidSynth.h"
 #include "../engine/Tg101Synth.h"
+#include "../engine/HelixSynth.h"
+#include "../engine/CraftySynth.h"
 #include "../engine/PadSynth.h"
 #include "../engine/DrumSynth.h"
 #include "../engine/ReeseSynth.h"
@@ -86,6 +88,10 @@ inline std::vector<Preset> factory (const std::string& key)
         for (int t = 0; t < kAcidPresets; ++t) out.push_back ({ acidPresetName (t), key, acidPreset (t) });
     else if (key == kTg101Key)
         for (int t = 0; t < kTg101Presets; ++t) out.push_back ({ tg101PresetName (t), key, tg101Preset (t) });
+    else if (key == kHelixKey)
+        for (int t = 0; t < helixPresetCount(); ++t) out.push_back ({ helixPresetName (t), key, helixPreset (t) });
+    else if (key == kCraftyKey)
+        for (int t = 0; t < craftyPresetCount(); ++t) out.push_back ({ craftyPresetName (t), key, craftyPreset (t) });
     else if (key == kGrainKey)
         for (int t = 0; t < kGrainPresets; ++t) out.push_back ({ grainPresetName (t), key, grainPreset (t) });
     else if (key == kSubKey)

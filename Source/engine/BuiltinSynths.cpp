@@ -6,6 +6,8 @@
 #include "MorphSynth.h"
 #include "AcidSynth.h"
 #include "Tg101Synth.h"
+#include "HelixSynth.h"
+#include "CraftySynth.h"
 #include "PadSynth.h"
 #include "DrumSynth.h"
 #include <algorithm>
@@ -38,6 +40,7 @@ float SynthParam::to01 (float value) const
 
 std::string SynthParam::text (float v) const
 {
+    if (textFn != nullptr) return textFn (*this, v);
     if (kind == 3)
     {
         std::string all = choices;
@@ -177,6 +180,8 @@ const std::vector<SynthParam>& builtinParams (const std::string& key)
     if (key == kMorphKey) return morphSynthParams();
     if (key == kAcidKey) return acidSynthParams();
     if (key == kTg101Key) return tg101Params();
+    if (key == kHelixKey) return helixParams();
+    if (key == kCraftyKey) return craftyParams();
     if (key == kPadKey) return padSynthParams();
     if (key == kDrum808Key) return drumParams (false);
     if (key == kDrum909Key) return drumParams (true);
@@ -225,7 +230,7 @@ void makeBuiltin (Instrument& in, const std::string& key)
     in.volume = vol;
     in.plugin = true;
     in.pluginKey = key;
-    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : key == kTg101Key ? "TG 101" : key == kPadKey ? "PAD" : key == kDrum808Key ? "808" : key == kDrum909Key ? "909" : "GRANULAR";
+    in.pluginName = key == kSubKey ? "SUB" : key == kReeseKey ? "REESE" : key == kRaveKey ? "RAVE" : key == kRomKey ? "ROM" : key == kMorphKey ? "MORPH" : key == kAcidKey ? "ACID" : key == kTg101Key ? "TG 101" : key == kHelixKey ? "HELIX" : key == kCraftyKey ? "CRAFTY" : key == kPadKey ? "PAD" : key == kDrum808Key ? "808" : key == kDrum909Key ? "909" : "GRANULAR";
     in.name = in.pluginName;
     in.bendRange = 12;
     if (key == kAcidKey) in.volume = 0x30;   // (ACID: a C40 note is accented - ACCENT FROM C38; the rest play at C30)
@@ -249,6 +254,8 @@ std::unique_ptr<PluginSynth> createBuiltinSynth (const Instrument& in, double sa
     if (in.pluginKey == kMorphKey) s = std::make_unique<MorphSynth>();
     if (in.pluginKey == kAcidKey) s = std::make_unique<AcidSynth>();
     if (in.pluginKey == kTg101Key) s = std::make_unique<Tg101Synth>();
+    if (in.pluginKey == kHelixKey) s = std::make_unique<HelixSynth>();
+    if (in.pluginKey == kCraftyKey) s = std::make_unique<CraftySynth>();
     if (in.pluginKey == kPadKey) s = std::make_unique<PadSynth>();
     if (in.pluginKey == kDrum808Key) s = std::make_unique<DrumSynth> (false);
     if (in.pluginKey == kDrum909Key) s = std::make_unique<DrumSynth> (true);

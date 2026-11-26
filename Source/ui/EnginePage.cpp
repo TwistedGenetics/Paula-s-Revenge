@@ -703,6 +703,8 @@ Theme::PanelLook EnginePage::lookFor (const std::string& key)
     if (key == kMorphKey)   return L::Sampler;
     if (key == kAcidKey)    return L::Cream;
     if (key == kTg101Key)   return L::Walnut;
+    if (key == kHelixKey)   return L::Rack;
+    if (key == kCraftyKey)  return L::Sampler;
     if (key == kGrainKey)   return L::Sampler;
     if (key == kDrum808Key) return L::DrumWood;
     if (key == kDrum909Key) return L::DrumCream;
@@ -1225,6 +1227,8 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kMorphKey ? " - MORPHING FILTERS"
                             : inst().pluginKey == kAcidKey ? " - 303 + DEVIL FISH"
                             : inst().pluginKey == kTg101Key ? " - CLASSIC MONOSYNTH"
+                            : inst().pluginKey == kHelixKey ? " - WAVETABLE SYNTH"
+                            : inst().pluginKey == kCraftyKey ? " - WAVETABLE MONOSYNTH"
                             : inst().pluginKey == kPadKey ? " - LAYERED PADS"
                             : inst().pluginKey == kDrum808Key ? " - TR-808 DRUM MACHINE"
                             : inst().pluginKey == kDrum909Key ? " - TR-909 DRUM MACHINE" : "";

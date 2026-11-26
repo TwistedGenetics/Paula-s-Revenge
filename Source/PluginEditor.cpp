@@ -1,6 +1,8 @@
 // Paula's Revenge - main window
 #include "PluginEditor.h"
 #include "engine/Crunch.h"
+#include "engine/HelixSynth.h"
+#include "engine/CraftySynth.h"
 #include "Diagnostics.h"
 #include "ui/ChoiceBox.h"
 #include "ui/MeterColours.h"
@@ -1260,7 +1262,7 @@ void PaulaEditor::showLoadMenu()
     juce::Component::SafePointer<PaulaEditor> safe (this);
     choice.show (*this, "LOAD INTO INSTRUMENT " + hex + ": WHAT KIND?",
                  { "SAMPLE - A WAV / AIFF / MP3 FROM YOUR FILES (THE SAMPLE BROWSER)",
-                   "BUILT-IN SYNTH - SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, PAD, GRANULAR",
+                   "BUILT-IN SYNTH - SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, HELIX, CRAFTY, PAD, GRANULAR",
                    "VST3 / AU SYNTH - A PLUG-IN INSTRUMENT",
                    "SAVED INSTRUMENT - ONE OF YOURS (.PRVI)",
                    "MIDI OUT - PLAY YOUR HARDWARE",
@@ -1303,7 +1305,9 @@ void PaulaEditor::openLoad (int kind)
                        "PAD - FOUR LAYERS OF SOUND: UNISON, SPLITS, VELOCITY LAYERS, LFOS, REVERB",
                        "808 - THE TR-808 DRUM MACHINE: BOOM KICK, SNARE, CLAP, HATS, COWBELL (C = KICK, D = SNARE...)",
                        "909 - THE TR-909 DRUM MACHINE: PUNCHY KICK, SNARE, CLAP, HATS, CRASH, RIDE (C = KICK...)",
-                       "TG 101 - A CLASSIC MONOSYNTH: SAW + PULSE + SUB, SQUELCHY FILTER, PORTAMENTO, ARPEGGIO" }, [safe, hex] (int a)
+                       "TG 101 - A CLASSIC MONOSYNTH: SAW + PULSE + SUB, SQUELCHY FILTER, PORTAMENTO, ARPEGGIO",
+                       "HELIX - TWISTED GENETICS' WAVETABLE SYNTH: TWO TABLES, TWO FILTERS, MACROS, 24 PRESETS",
+                       "CRAFTY - TWISTED GENETICS' CRAFTY SYNTH: A WAVETABLE MONOSYNTH WITH ARP, 64 PRESETS" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1315,6 +1319,8 @@ void PaulaEditor::openLoad (int kind)
             if (safe != nullptr && a == 8) safe->makeBuiltinSynth (prv::kDrum808Key);
             if (safe != nullptr && a == 9) safe->makeBuiltinSynth (prv::kDrum909Key);
             if (safe != nullptr && a == 10) safe->makeBuiltinSynth (prv::kTg101Key);
+            if (safe != nullptr && a == 11) safe->makeBuiltinSynth (prv::kHelixKey);
+            if (safe != nullptr && a == 12) safe->makeBuiltinSynth (prv::kCraftyKey);
             if (safe != nullptr && a == 3)
                 safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
                                    { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
@@ -1351,7 +1357,7 @@ void PaulaEditor::openLoad (int kind)
 void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
 {
     const int i = proc.editorState.instrument;
-    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : key == prv::kTg101Key ? "TG 101" : key == prv::kPadKey ? "PAD SYNTH" : key == prv::kDrum808Key ? "808 DRUMS" : key == prv::kDrum909Key ? "909 DRUMS" : "GRANULAR SYNTH");
+    proc.history.instrument (i, key == prv::kSubKey ? "SUB SYNTH" : key == prv::kReeseKey ? "REESE SYNTH" : key == prv::kRaveKey ? "RAVE SYNTH" : key == prv::kRomKey ? "ROM SYNTH" : key == prv::kMorphKey ? "MORPH SYNTH" : key == prv::kAcidKey ? "ACID SYNTH" : key == prv::kTg101Key ? "TG 101" : key == prv::kHelixKey ? "HELIX" : key == prv::kCraftyKey ? "CRAFTY" : key == prv::kPadKey ? "PAD SYNTH" : key == prv::kDrum808Key ? "808 DRUMS" : key == prv::kDrum909Key ? "909 DRUMS" : "GRANULAR SYNTH");
     proc.withLock ([&] {
         proc.player.jamAllOff();
         if (key == prv::kRaveKey) prv::makeRave (proc.song.instruments[(size_t) i], raveType);
@@ -1361,7 +1367,7 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
     proc.updateMixerEffects();
     refreshAll();
     setView (View::Engine);
-    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kTg101Key ? juce::String ("TG 101 - A MONOSYNTH; PRESETS... HAS SOUNDS, ARP ON ITS LAST TAB") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : prv::isDrumKey (key) ? juce::String (key == prv::kDrum808Key ? "808" : "909") + " DRUM KIT - C KICK, C# RIM, D SNARE, D# CLAP, F CLOSED HAT, G OPEN HAT (ANY OCTAVE)" : "GRANULAR")
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kTg101Key ? juce::String ("TG 101 - A MONOSYNTH; PRESETS... HAS SOUNDS, ARP ON ITS LAST TAB") : key == prv::kHelixKey ? juce::String ("HELIX - PICK A SOUND WITH PRESET, THEN SHAPE IT") : key == prv::kCraftyKey ? juce::String ("CRAFTY - PICK A SOUND WITH PRESET, THEN SHAPE IT") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : prv::isDrumKey (key) ? juce::String (key == prv::kDrum808Key ? "808" : "909") + " DRUM KIT - C KICK, C# RIM, D SNARE, D# CLAP, F CLOSED HAT, G OPEN HAT (ANY OCTAVE)" : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
 }
 

@@ -11,6 +11,8 @@
 #include "engine/MorphSynth.h"
 #include "engine/AcidSynth.h"
 #include "engine/Tg101Synth.h"
+#include "engine/HelixSynth.h"
+#include "engine/CraftySynth.h"
 #include "engine/PadSynth.h"
 #include "engine/Crunch.h"
 #include "engine/LowEnd.h"
@@ -5349,6 +5351,75 @@ static void testAcidSynth()
 
 // (v1.00) TG 101: the SH-101-style monosynth - RANGE and the sub's octaves, the filter's KYBD and ENV, the TRIGGER modes,
 // VCA GATE, PORTAMENTO (ON / AUTO), the ARPEGGIO at the song's tempo, the presets
+// (v1.01) HELIX and CRAFTY: Jamie's own synths, built in
+template <class S>
+static void runNewSynth (const char* title, const char* key, int presets, const char* (*nameOf) (int), std::vector<float> (*preset) (int))
+{
+    std::printf ("\n== %s\n", title);
+    const double sr = 48000;
+    {
+        Instrument in; makeBuiltin (in, key);
+        CHECK (! builtinParams (key).empty() && builtinDefaults (key).size() == builtinParams (key).size());
+        CHECK (std::string (builtinParams (key)[0].name) == "PRESET");
+        auto s = createBuiltinSynth (in, sr);
+        CHECK (dynamic_cast<S*> (s.get()) != nullptr);
+    }
+    auto play = [&] (const std::vector<float>& v, float& onPk, float& tailPk, bool& ok)
+    {
+        auto a = std::make_unique<S>(); a->prepare (sr, 512); a->setValues (v);
+        if constexpr (std::is_same_v<S, HelixSynth>) a->waitTables();
+        std::vector<float> L (480), R (480);
+        onPk = 0; tailPk = 0; ok = true;
+        a->noteOn (48, 100, 0); a->noteOn (55, 100, 0);
+        for (int b = 0; b < 100; ++b)   // 1 s held
+        {
+            a->render (L.data(), R.data(), 480);
+            for (int i = 0; i < 480; ++i) { if (! std::isfinite (L[i]) || ! std::isfinite (R[i])) ok = false; onPk = std::max ({ onPk, std::abs (L[i]), std::abs (R[i]) }); }
+        }
+        a->noteOff (48, 0); a->noteOff (55, 0);
+        for (int b = 0; b < 1500; ++b)   // 15 s to let go (echoes, reverbs)
+        {
+            a->render (L.data(), R.data(), 480);
+            if (b >= 1400) for (int i = 0; i < 480; ++i) tailPk = std::max ({ tailPk, std::abs (L[i]), std::abs (R[i]) });
+        }
+    };
+    int bad = 0;
+    for (int i = 0; i < presets; ++i)
+    {
+        float pk, tail; bool ok;
+        play (preset (i), pk, tail, ok);
+        const bool drone = std::string (nameOf (i)).find ("DRONE") != std::string::npos;   // (CRAFTY: AMP EG at 0 drones, as the CRAFTsynth)
+        if (! ok || pk < 0.01f || pk > 2.0f || (tail > 0.001f && ! drone)) { ++bad; std::printf ("  %s: peak %.3f tail %.4f %s\n", nameOf (i), pk, tail, ok ? "" : "NOT FINITE"); }
+    }
+    std::printf ("presets: %d, bad %d\n", presets, bad);
+    CHECK (bad == 0);
+    // any settings: never anything but numbers, never far past full scale
+    std::mt19937 rng (101);
+    std::uniform_real_distribution<float> u (0, 1);
+    const auto& ps = builtinParams (key);
+    int wild = 0;
+    for (int trial = 0; trial < 24; ++trial)
+    {
+        auto v = preset (trial % presets);
+        for (size_t i = 1; i < ps.size(); ++i) if (u (rng) < 0.4f) v[i] = ps[i].toValue (u (rng));
+        float pk, tail; bool ok;
+        play (v, pk, tail, ok);
+        if (! ok || pk > 4.0f) { ++wild; std::printf ("  try %d: peak %.3f %s\n", trial, pk, ok ? "" : "NOT FINITE"); }
+    }
+    CHECK (wild == 0);
+    // PRESET brings its sound: the page shows that preset's values
+    {
+        Instrument in; makeBuiltin (in, key);
+        auto v = preset (presets - 1);
+        writeBuiltinState (in, v);
+        CHECK (readBuiltinState (in) == v);
+        CHECK ((int) std::lround (v[0]) == presets - 1);
+    }
+}
+
+static void testHelix()  { runNewSynth<HelixSynth>  ("HELIX (built in)",  kHelixKey,  helixPresetCount(),  helixPresetName,  helixPreset); }
+static void testCrafty() { runNewSynth<CraftySynth> ("CRAFTY (built in)", kCraftyKey, craftyPresetCount(), craftyPresetName, craftyPreset); }
+
 static void testTg101()
 {
     std::printf ("\n== TG 101\n");
@@ -7686,6 +7757,7 @@ static void testConditions()
 
 int main()
 {
+    if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "helix") { testHelix(); testCrafty(); std::printf (failures == 0 ? "\nALL PASSED\n" : "\nFAILED\n"); return failures == 0 ? 0 : 1; }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "tg101") { testTg101(); std::printf (failures == 0 ? "\nALL PASSED\n" : "\nFAILED\n"); return failures == 0 ? 0 : 1; }
     if (const char* only = std::getenv ("PRV_ONLY"); only && std::string (only) == "renderwav")
     {
@@ -7869,6 +7941,8 @@ int main()
     testOversampling();
     testAcidSynth();
     testTg101();
+    testHelix();
+    testCrafty();
     testDrumSynth();
     testPadSynth();
     testPadSample();
