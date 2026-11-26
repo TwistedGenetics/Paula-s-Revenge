@@ -17,7 +17,7 @@ struct HalfbandCoefs
         for (int k = 0; k < (kHalf + 1) / 2; ++k)
         {
             const int n = 2 * k + 1;
-            const double sinc = std::sin(M_PI * n / 2.0) / (M_PI * n / 2.0);
+            const double sinc = std::sin(3.14159265358979323846 * n / 2.0) / (3.14159265358979323846 * n / 2.0);
             const double r = (double)n / kHalf;
             const double w = bessel0(beta * std::sqrt(std::max(0.0, 1.0 - r * r))) / i0b;
             c[k] = (float)(0.5 * sinc * w);

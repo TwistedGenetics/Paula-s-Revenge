@@ -5,6 +5,8 @@
 #include "engine/Effects.h"
 #include "engine/PluginSynth.h"
 
+namespace prv { constexpr const char* kChoppageKey = "BUILTIN:CHOPPAGE"; }   // (v1.01) CHOPPAGE: hosted like a plug-in, built in
+
 namespace prv
 {
 // The song's tempo and transport, for plug-ins (synced delays etc.)

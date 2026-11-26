@@ -70,6 +70,7 @@ public:
     prv::ui::SamplePage& getSamplePage() { return samplePage; }
     prv::ui::CvOutPage& getCvPage() { return cvPage; }
     prv::ui::CvSourcesPage& getCvSources() { return cvSources; }
+    void makeChoppage();                              // (v1.01) the current instrument becomes CHOPPAGE (its own window)
     void makeCvOut();                                 // the current instrument plays a modular (CV OUT)
     // LOAD's tabs (and the instrument list's right-click): 0 SAMPLES (the browser), 1 VST / AU (the instrument
     // plug-ins), 2 MIDI OUT (the outputs), 3 CV OUT (asks first: it turns the instrument into one), 4 SYNTHS

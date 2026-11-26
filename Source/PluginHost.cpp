@@ -2,6 +2,7 @@
 #include "PluginHost.h"
 #include "Diagnostics.h"
 #include "Prefs.h"
+#include "ChoppageProcessor.h"
 
 namespace prv
 {
@@ -324,7 +325,9 @@ std::unique_ptr<PluginSynth> PluginHost::createSynth (int, const Instrument& in,
     bool same = true;
     if (! findDescription (key, desc, &same)) { fail (key, "NOT INSTALLED ON THIS COMPUTER"); return nullptr; }
     juce::String err;
-    auto inst = formats.createPluginInstance (desc, sampleRate, maxBlock, err);
+    std::unique_ptr<juce::AudioPluginInstance> inst;
+    if (key == kChoppageKey) inst = std::make_unique<ChoppageProcessor>();   // (built in)
+    else inst = formats.createPluginInstance (desc, sampleRate, maxBlock, err);
     if (inst == nullptr) { fail (key, err.isNotEmpty() ? err.toUpperCase() : juce::String ("COULDN'T LOAD")); return nullptr; }
     errors.erase (key);
     auto synth = std::make_unique<PluginSynthImpl> (*this, std::move (inst), &playHead);
@@ -367,6 +370,17 @@ bool PluginHost::splitKey (const juce::String& key, juce::String& format, juce::
 bool PluginHost::findDescription (const std::string& key, juce::PluginDescription& out, bool* sameFormat) const
 {
     if (sameFormat != nullptr) *sameFormat = true;
+    if (key == kChoppageKey)
+    {
+        out = {};
+        out.name = out.descriptiveName = "CHOPPAGE";
+        out.pluginFormatName = "Built-in";
+        out.manufacturerName = "Twisted Genetics";
+        out.fileOrIdentifier = "CHOPPAGE";
+        out.isInstrument = true;
+        out.numOutputChannels = 2;
+        return true;
+    }
     if (auto d = known.getTypeForIdentifierString (juce::String (key)))
     {
         out = *d;

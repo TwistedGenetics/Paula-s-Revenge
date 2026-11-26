@@ -55,6 +55,32 @@ else()
     target_compile_options(crafty_core PRIVATE -w)
 endif()
 
+# CHOPPAGE (Jamie's break chopper, vendored in third_party/choppage): its engine, plain C++
+add_library(choppage_core STATIC
+    third_party/choppage/src/Akaizer.cpp
+    third_party/choppage/src/Analysis.cpp
+    third_party/choppage/src/RexFile.cpp
+    third_party/choppage/src/Preset.cpp
+    third_party/choppage/src/AudioFile.cpp
+    third_party/choppage/src/Engine.cpp
+    third_party/choppage/src/Generator.cpp
+    third_party/choppage/src/Params.cpp
+    third_party/choppage/src/PerfFx.cpp
+    third_party/choppage/src/Session.cpp
+    third_party/choppage/src/SliceVoice.cpp
+    third_party/choppage/src/SoundChain.cpp
+    third_party/choppage/src/TransientDetector.cpp)
+target_include_directories(choppage_core PUBLIC third_party/choppage/include)
+set_target_properties(choppage_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+find_package(Threads REQUIRED)
+target_link_libraries(choppage_core PUBLIC Threads::Threads)
+if(MSVC)
+    target_compile_definitions(choppage_core PRIVATE _USE_MATH_DEFINES NOMINMAX _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(choppage_core PRIVATE /W0)
+else()
+    target_compile_options(choppage_core PRIVATE -w)
+endif()
+
 # Plain C++ tracker engine (no JUCE) - shared by the plugin and the tests
 add_library(prv_engine STATIC
     Source/engine/Player.cpp
@@ -280,7 +306,14 @@ target_sources(PaulasRevenge PRIVATE
     Source/OutputFollower.cpp
     Source/PluginHost.cpp
     Source/MidiOutHost.cpp
-    Source/StandaloneApp.cpp)
+    Source/StandaloneApp.cpp
+    # CHOPPAGE's own window and the processor Paula hosts (third_party/choppage/desktop)
+    third_party/choppage/desktop/ChoppageProcessor.cpp
+    third_party/choppage/desktop/ChoppageEditor.cpp
+    third_party/choppage/desktop/ChopUI/Widgets.cpp
+    third_party/choppage/desktop/ChopUI/Tabs.cpp)
+target_include_directories(PaulasRevenge PRIVATE third_party/choppage/desktop)
+target_compile_definitions(PaulasRevenge PRIVATE PRV_EMBED_CHOPPAGE=1)
 
 if(APPLE)
     target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm Source/mac/DefaultOutput.cpp)
@@ -343,6 +376,7 @@ juce_add_binary_data(PaulasRevengeFonts
 target_link_libraries(PaulasRevenge
     PRIVATE
         prv_engine
+        choppage_core
         PaulasRevengeDocs
         PaulasRevengeFonts
         juce::juce_audio_utils

@@ -1307,7 +1307,8 @@ void PaulaEditor::openLoad (int kind)
                        "909 - THE TR-909 DRUM MACHINE: PUNCHY KICK, SNARE, CLAP, HATS, CRASH, RIDE (C = KICK...)",
                        "TG 101 - A CLASSIC MONOSYNTH: SAW + PULSE + SUB, SQUELCHY FILTER, PORTAMENTO, ARPEGGIO",
                        "HELIX - TWISTED GENETICS' WAVETABLE SYNTH: TWO TABLES, TWO FILTERS, MACROS, 24 PRESETS",
-                       "CRAFTY - TWISTED GENETICS' CRAFTY SYNTH: A WAVETABLE MONOSYNTH WITH ARP, 64 PRESETS" }, [safe, hex] (int a)
+                       "CRAFTY - TWISTED GENETICS' CRAFTY SYNTH: A WAVETABLE MONOSYNTH WITH ARP, 64 PRESETS",
+                       "CHOPPAGE - TWISTED GENETICS' BREAK CHOPPER: EIGHT BREAKS, SLICES, PATTERNS (ITS OWN WINDOW)" }, [safe, hex] (int a)
         {
             if (safe != nullptr && a == 0) safe->makeBuiltinSynth (prv::kSubKey);
             if (safe != nullptr && a == 1) safe->makeBuiltinSynth (prv::kReeseKey);
@@ -1321,6 +1322,7 @@ void PaulaEditor::openLoad (int kind)
             if (safe != nullptr && a == 10) safe->makeBuiltinSynth (prv::kTg101Key);
             if (safe != nullptr && a == 11) safe->makeBuiltinSynth (prv::kHelixKey);
             if (safe != nullptr && a == 12) safe->makeBuiltinSynth (prv::kCraftyKey);
+            if (safe != nullptr && a == 13) safe->makeChoppage();
             if (safe != nullptr && a == 3)
                 safe->choice.show (*safe, "INSTRUMENT " + hex + ": WHICH RAVE SOUND? (EVERY CONTROL CAN BE CHANGED AFTER)",
                                    { "STAB - THE RAVE CHORD STAB (ONE KEY PLAYS A MINOR CHORD)",
@@ -1369,6 +1371,31 @@ void PaulaEditor::makeBuiltinSynth (const std::string& key, int raveType)
     setView (View::Engine);
     setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS A " + juce::String (key == prv::kSubKey ? "SUB" : key == prv::kReeseKey ? "REESE" : key == prv::kRaveKey ? "RAVE " + juce::String (prv::raveTypeName (raveType)) : key == prv::kRomKey ? juce::String ("ROM - LOAD ITS TONES' SAMPLES ON ITS PAGE") : key == prv::kMorphKey ? juce::String ("MORPH - PRESETS... HAS SOUNDS TO START FROM") : key == prv::kAcidKey ? juce::String ("ACID - C40 NOTES ARE ACCENTED, PRESETS... HAS SOUNDS") : key == prv::kTg101Key ? juce::String ("TG 101 - A MONOSYNTH; PRESETS... HAS SOUNDS, ARP ON ITS LAST TAB") : key == prv::kHelixKey ? juce::String ("HELIX - PICK A SOUND WITH PRESET, THEN SHAPE IT") : key == prv::kCraftyKey ? juce::String ("CRAFTY - PICK A SOUND WITH PRESET, THEN SHAPE IT") : key == prv::kPadKey ? juce::String ("PAD - FOUR LAYERS, ONE TAB EACH; PRESETS... HAS SOUNDS") : prv::isDrumKey (key) ? juce::String (key == prv::kDrum808Key ? "808" : "909") + " DRUM KIT - C KICK, C# RIM, D SNARE, D# CLAP, F CLOSED HAT, G OPEN HAT (ANY OCTAVE)" : "GRANULAR")
                + " - PLAY IT WITH THE NOTE KEYS; RIGHT-CLICK A CONTROL TO MAKE IT A KNOB (LXX...)");
+}
+
+void PaulaEditor::makeChoppage()
+{
+    // CHOPPAGE is hosted like a plug-in (its own S950 window), but comes with the app
+    const int i = proc.editorState.instrument;
+    proc.capturePluginStates();
+    proc.history.instrument (i, "CHOPPAGE");
+    proc.withLock ([&] {
+        proc.player.jamAllOff();
+        auto& in = proc.song.instruments[(size_t) i];
+        const auto vol = in.volume;
+        in = prv::Instrument {};
+        in.volume = vol;
+        in.plugin = true;
+        in.pluginKey = prv::kChoppageKey;
+        in.pluginName = "CHOPPAGE";
+        in.name = "CHOPPAGE";
+        for (auto& sl : proc.song.mixer.inst[i]) sl = prv::FxSlot {};
+    });
+    proc.updateMixerEffects();
+    refreshAll();
+    setView (View::Synth);
+    if (auto* s = proc.synthAt (i)) proc.pluginHost.openEditor (s->instance(), "INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + ": CHOPPAGE");
+    setStatus ("INSTRUMENT " + juce::String::toHexString (i + 1).toUpperCase().paddedLeft ('0', 2) + " IS CHOPPAGE - C1 TO G1 PLAY ITS EIGHT BREAKS; DROP BREAKS ON ITS WINDOW");
 }
 
 void PaulaEditor::makeCvOut()
