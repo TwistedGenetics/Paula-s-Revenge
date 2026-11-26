@@ -26,6 +26,31 @@ namespace bc
     constexpr int kFirstSliceNote  = 52;   // E2  .. G3   : slices 1-16 of the playing break
     constexpr int kFirstMemoryNote = 68;   // G#3 .. B4   : pattern memories 1-16
 
+    // What a note does. Map 0 (CHROMATIC, above). Map 1 (C MAJOR, white keys only):
+    //   breaks 1-8 C0 D0 E0 F0 G0 A0 B0 C1 (24-36), FX pads 1-8 D1 .. D2 (38-50),
+    //   pattern memories 1-12 E2 .. B3 (52-71), slices from C4 (72) upwards (C4 = slice 1, D4 = 2 ...).
+    enum class NoteRole { none, breakSlot, fxPad, slice, memory };
+    struct NoteUse { NoteRole role = NoteRole::none; int index = 0; };
+    inline NoteUse noteUse (int note, int map) noexcept
+    {
+        if (map == 0)
+        {
+            if (note >= kFirstBreakNote && note < kFirstBreakNote + kSlots)    return { NoteRole::breakSlot, note - kFirstBreakNote };
+            if (note >= kFirstFxNote && note < kFirstFxNote + kFxPads)         return { NoteRole::fxPad, note - kFirstFxNote };
+            if (note >= kFirstSliceNote && note < kFirstSliceNote + 16)        return { NoteRole::slice, note - kFirstSliceNote };
+            if (note >= kFirstMemoryNote && note < kFirstMemoryNote + kMemories) return { NoteRole::memory, note - kFirstMemoryNote };
+            return {};
+        }
+        static constexpr int white[12] = { 0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6 };
+        if (note < 0 || note > 127 || white[note % 12] < 0) return {};
+        const int w = (note / 12) * 7 + white[note % 12];        // white keys counted from C-1 (note 0)
+        if (w >= 14 && w <= 21) return { NoteRole::breakSlot, w - 14 };     // C0 .. C1
+        if (w >= 22 && w <= 29) return { NoteRole::fxPad, w - 22 };         // D1 .. D2
+        if (w >= 30 && w <= 41) return { NoteRole::memory, w - 30 };        // E2 .. B3
+        if (w >= 42 && w - 42 < kMaxSlices) return { NoteRole::slice, w - 42 };   // C4 ..
+        return {};
+    }
+
     /** What a slice sounds like, as the classifier hears it. */
     enum class Badge : uint8_t { kick, snare, ghost, hat, open, other };   // other = PERC (P); saved files may say X
     constexpr int kNumBadges = 6;

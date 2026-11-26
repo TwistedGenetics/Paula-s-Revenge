@@ -30,7 +30,7 @@ public:
         d.pluginFormatName = "Built-in";
         d.category = "Instrument";
         d.manufacturerName = "Twisted Genetics";
-        d.version = "0.10.0";
+        d.version = PRV_CHOPPAGE_VERSION;
         d.fileOrIdentifier = "CHOPPAGE";
         d.uniqueId = d.deprecatedUid = 0x43687067;
         d.isInstrument = true;

@@ -230,6 +230,33 @@ namespace bc
                 AudioFile::Status st = AudioFile::Status::unreadable;
                 auto buf = dec (job->path, st);
                 ContentPtr c;
+                int fullBars = 0, window = 0;
+                if (buf != nullptr && buf->numSamples > 0)
+                {
+                    // longer than 2 bars: keep a 2-bar window of it (from bar window + 1)
+                    const auto t = Analysis::estimateTempo (buf->lengthSeconds(), buf->name);
+                    double bpm = t.bpm;
+                    fullBars = t.bars;
+                    if (buf->fileBars > 0 && buf->fileBpm > 1.0) { bpm = buf->fileBpm; fullBars = buf->fileBars; }
+                    if (fullBars > kWindowBars)
+                    {
+                        window = clampv (job->window, 0, fullBars - kWindowBars);
+                        const double barLen = (double) buf->numSamples / fullBars;
+                        const int from = (int) std::lround (window * barLen);
+                        const int len = std::min (buf->numSamples - from, (int) std::lround (kWindowBars * barLen));
+                        auto cut = std::make_shared<SampleData>();
+                        cut->allocate (buf->channels, len);
+                        for (int ch = 0; ch < buf->channels; ++ch)
+                            std::copy (buf->ch[ch].begin() + from, buf->ch[ch].begin() + from + len, cut->ch[ch].begin());
+                        cut->sampleRate = buf->sampleRate;
+                        cut->name = buf->name;
+                        cut->path = buf->path;
+                        for (int m : buf->fileMarkers) if (m >= from && m < from + len) cut->fileMarkers.push_back (m - from);
+                        cut->fileBars = kWindowBars;
+                        cut->fileBpm = bpm;
+                        buf = cut;
+                    }
+                }
                 if (buf != nullptr)
                 {
                     if (buf->overviewMin.empty()) buf->buildOverview();
@@ -238,7 +265,7 @@ namespace bc
                     c = analyseBreak (buf, job->grid, job->sens, job->gpb, job->restore ? &*job->restore : nullptr);
                 }
                 std::lock_guard<std::mutex> l (qMutex);
-                done.push_back ({ job->slot, job->path, c, st, job->restore });
+                done.push_back ({ job->slot, job->path, c, st, job->restore, fullBars, window });
             }
             else if (scan)
             {
@@ -386,7 +413,13 @@ namespace bc
             --pending;
             auto& s = slots[(size_t) d.slot];
             if (s.file != d.path) continue;   // superseded by a newer load
-            if (d.content != nullptr) installContent (d.slot, d.content, d.path, false, d.restore ? &*d.restore : nullptr);
+            if (d.content != nullptr)
+            {
+                installContent (d.slot, d.content, d.path, false, d.restore ? &*d.restore : nullptr);
+                s.fullBars = d.fullBars;
+                s.window = d.window;
+                changed (d.slot);
+            }
             else
             {
                 s.status = d.status == AudioFile::Status::missing ? Status::missing : Status::unreadable;
@@ -452,6 +485,8 @@ namespace bc
     {
         std::lock_guard<std::recursive_mutex> l (mutex);
         installContent (slot, analyseBreak (DemoBreak::make (44100.0, 170.0), false, 0.62f, 16, nullptr), "", true, nullptr);
+        slots[(size_t) slot].fullBars = 0;
+        slots[(size_t) slot].window = 0;
     }
 
     void Session::loadFile (int slot, const std::string& path)
@@ -462,9 +497,10 @@ namespace bc
         s.status = Status::loading;
         s.file = path;
         s.demo = false;
+        s.window = 0;
         changed (slot);
         ++pending;
-        { std::lock_guard<std::mutex> q (qMutex); jobs.push_back ({ slot, path, std::nullopt, s.gridSlicing, s.sensitivity, s.gridPerBar }); }
+        { std::lock_guard<std::mutex> q (qMutex); jobs.push_back ({ slot, path, std::nullopt, s.gridSlicing, s.sensitivity, s.gridPerBar, 0 }); }
         qCv.notify_one();
     }
 
@@ -668,9 +704,10 @@ namespace bc
         publish (slot);
     }
 
-    int Session::snapToHit (int position, int radius) const
+    int Session::snapToHit (int position, int radius, bool* found) const
     {
         std::lock_guard<std::recursive_mutex> l (mutex);
+        if (found != nullptr) *found = false;
         const auto& s = slots[(size_t) selectedSlot()];
         if (s.content == nullptr) return position;
         const auto& b = *s.content->buffer;
@@ -700,6 +737,7 @@ namespace bc
             if (score > bestScore) { bestScore = score; best = i; }
         }
         if (best < 0) return position;
+        if (found != nullptr) *found = true;
         // the ratio peaks a little after the true start: walk back while the level still rises
         while (best - hop > a0 && level (best - hop, best - hop + win) > 0.9 * level (best, best + win)
                && level (best - hop - win, best - hop) < level (best - win, best)) best -= hop;
@@ -1016,6 +1054,42 @@ namespace bc
         changed (slot);
     }
 
+    void Session::setWindow (int slot, int firstBar)
+    {
+        if (slot < 0 || slot >= kSlots) return;
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        auto& s = slots[(size_t) slot];
+        if (s.file.empty() || s.fullBars <= kWindowBars) return;
+        firstBar = clampv (firstBar, 0, s.fullBars - kWindowBars);
+        if (firstBar == s.window) return;
+        s.window = firstBar;
+        s.status = Status::loading;
+        changed (slot);
+        ++pending;
+        { std::lock_guard<std::mutex> q (qMutex); jobs.push_back ({ slot, s.file, std::nullopt, s.gridSlicing, s.sensitivity, s.gridPerBar, firstBar }); }
+        qCv.notify_one();
+    }
+
+    void Session::setBreakBpm (int slot, double bpm)
+    {
+        if (slot < 0 || slot >= kSlots || bpm < 20.0) return;
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        auto& s = slots[(size_t) slot];
+        if (s.content == nullptr || std::fabs (s.content->bpm - bpm) < 1e-6) return;
+        auto c = std::make_shared<SlotContent> (*s.content);    // the audio thread keeps the one it has until it swaps
+        c->bpm = clampv (bpm, 20.0, 400.0);
+        s.content = c;
+        eng.publishContent (slot, c);
+        changed (slot);
+    }
+
+    double Session::breakBpm (int slot) const
+    {
+        if (slot < 0 || slot >= kSlots) return 0.0;
+        const auto& s = slots[(size_t) slot];
+        return s.content != nullptr ? s.content->bpm : 0.0;
+    }
+
     double Session::loopBpm (int slot) const
     {
         if (slot < 0 || slot >= kSlots) return 0.0;
@@ -1102,6 +1176,8 @@ namespace bc
         t.current = current;
         t.memories = memories;
         t.loopBpm = 0.0;     // the render's tempo is now the break's own
+        t.fullBars = 0;      // the render is the window: nothing more to pick from
+        t.window = 0;
         pushHistory (t, t.current);
         publish (slot);
         return true;
@@ -1152,6 +1228,7 @@ namespace bc
             o << "[slot " << i << "]\n";
             o << "demo " << (s.demo ? 1 : 0) << "\n";
             o << "path " << s.file << "\n";
+            if (s.fullBars > kWindowBars) o << "window " << s.window << "\n";
             o << "grid " << (s.gridSlicing ? 1 : 0) << "\nsens " << s.sensitivity << "\ngridPerBar " << s.gridPerBar << "\n";
             o << "group " << s.muteGroup << "\n";
             if (s.loopBpm > 1.0) o << "loopBpm " << s.loopBpm << "\n";
@@ -1221,7 +1298,8 @@ namespace bc
                 }
             }
             ++pending;
-            { std::lock_guard<std::mutex> q (qMutex); jobs.push_back ({ i, s.file, block, s.gridSlicing, s.sensitivity, s.gridPerBar }); }
+            s.window = kv.count ("window") ? std::max (0, std::atoi (kv["window"].c_str())) : 0;
+            { std::lock_guard<std::mutex> q (qMutex); jobs.push_back ({ i, s.file, block, s.gridSlicing, s.sensitivity, s.gridPerBar, s.window }); }
             qCv.notify_one();
         }
         selectSlot (selected);

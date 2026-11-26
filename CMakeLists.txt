@@ -313,7 +313,9 @@ target_sources(PaulasRevenge PRIVATE
     third_party/choppage/desktop/ChopUI/Widgets.cpp
     third_party/choppage/desktop/ChopUI/Tabs.cpp)
 target_include_directories(PaulasRevenge PRIVATE third_party/choppage/desktop)
-target_compile_definitions(PaulasRevenge PRIVATE PRV_EMBED_CHOPPAGE=1)
+file(READ third_party/instruments.json PRV_INSTRUMENTS_JSON)
+string(JSON PRV_CHOPPAGE_VERSION GET "${PRV_INSTRUMENTS_JSON}" choppage version)
+target_compile_definitions(PaulasRevenge PRIVATE PRV_EMBED_CHOPPAGE=1 PRV_CHOPPAGE_VERSION="${PRV_CHOPPAGE_VERSION}")
 
 if(APPLE)
     target_sources(PaulasRevenge PRIVATE Source/mac/FullScreen.mm Source/mac/DefaultOutput.cpp)

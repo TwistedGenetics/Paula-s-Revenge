@@ -1,0 +1,142 @@
+{
+  "_about": "Instruments copied in from Jamie's other repos. tools/check_instruments.py compares each 'commit' with the repo's newest; tools/check_instruments.py --update NAME copies the new code in. Always copy from the AU/VST plug-in build when the repo has one ('plugin'), so Paula plays what the plug-in plays.",
+  "choppage": {
+    "name": "CHOPPAGE",
+    "repo": "TwistedGenetics/Choppage",
+    "commit": "b5f7dfb5e8a8fa43e8c268d4147190fcb12360c1",
+    "version": "0.11.0",
+    "version_from": [
+      "CMakeLists.txt",
+      "project\\(Choppage VERSION ([0-9.]+)"
+    ],
+    "plugin": "choppage-desktop",
+    "copy": [
+      [
+        "choppage-core/src",
+        "third_party/choppage/src"
+      ],
+      [
+        "choppage-core/include",
+        "third_party/choppage/include"
+      ],
+      [
+        "choppage-core/third_party/velociloops",
+        "third_party/choppage/third_party/velociloops"
+      ],
+      [
+        "choppage-desktop/Source",
+        "third_party/choppage/desktop"
+      ]
+    ],
+    "rename": [
+      [
+        "PluginProcessor.",
+        "ChoppageProcessor."
+      ],
+      [
+        "PluginEditor.",
+        "ChoppageEditor."
+      ],
+      [
+        "UI/",
+        "ChopUI/"
+      ]
+    ],
+    "rewrite": [
+      [
+        "#include \"PluginProcessor.h\"",
+        "#include \"ChoppageProcessor.h\""
+      ],
+      [
+        "#include \"PluginEditor.h\"",
+        "#include \"ChoppageEditor.h\""
+      ],
+      [
+        "#include \"UI/",
+        "#include \"ChopUI/"
+      ]
+    ],
+    "patched": [
+      "choppage-desktop/Source/PluginProcessor.h",
+      "choppage-desktop/Source/PluginProcessor.cpp"
+    ]
+  },
+  "helix": {
+    "name": "HELIX",
+    "repo": "TwistedGenetics/Twisted-Helix",
+    "commit": "00fa808085d64e71332a85b55fb3a4aa71935963",
+    "version": "0.5.5",
+    "version_from": [
+      "CMakeLists.txt",
+      "project\\(HELIX VERSION ([0-9.]+)"
+    ],
+    "plugin": "helix-desktop",
+    "copy": [
+      [
+        "helix-core/src",
+        "third_party/helix-core/src"
+      ],
+      [
+        "helix-core/include",
+        "third_party/helix-core/include"
+      ],
+      [
+        "helix-core/third_party",
+        "third_party/helix-core/third_party"
+      ]
+    ],
+    "patched": [
+      "helix-core/include/helix/Halfband.h",
+      "helix-core/third_party/charosc/dreadbass.h",
+      "helix-core/third_party/dnfx/dn_fx.c",
+      "helix-core/third_party/dnfx/dn_fxc.c"
+    ]
+  },
+  "crafty": {
+    "name": "CRAFTY",
+    "repo": "TwistedGenetics/Crafty-Synth",
+    "commit": "0a2898f8564b9c25600abdf4db7f49597b5186da",
+    "version": "0.21",
+    "version_from": [
+      "VERSION",
+      "([0-9.]+)"
+    ],
+    "plugin": "ports/plugin",
+    "copy": [
+      [
+        "src/core",
+        "third_party/crafty/core"
+      ],
+      [
+        "src/dsp",
+        "third_party/crafty/dsp"
+      ],
+      [
+        "src/host",
+        "third_party/crafty/host"
+      ]
+    ],
+    "generate": [
+      [
+        "tools/gen_wavetables.py",
+        "cr_wavetables.h"
+      ],
+      [
+        "tools/gen_presets.py",
+        "cr_presets.h"
+      ],
+      [
+        "tools/gen_presets.py",
+        "--keys",
+        "cr_keys.h"
+      ]
+    ],
+    "generated_into": "third_party/crafty/gen",
+    "watch": [
+      "tools/gen_wavetables.py",
+      "tools/gen_presets.py",
+      "tools/cr_patches.py"
+    ],
+    "patched": []
+  }
+}

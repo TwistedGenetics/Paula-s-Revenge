@@ -207,7 +207,7 @@ void ChoppageProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     juce::ValueTree root ("CHOPPAGE");
     #ifdef PRV_EMBED_CHOPPAGE
-    root.setProperty ("version", "0.10.0", nullptr);
+    root.setProperty ("version", PRV_CHOPPAGE_VERSION, nullptr);
 #else
     root.setProperty ("version", JucePlugin_VersionString, nullptr);
 #endif

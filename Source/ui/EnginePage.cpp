@@ -708,7 +708,8 @@ Theme::PanelLook EnginePage::lookFor (const std::string& key)
     if (key == kGrainKey)   return L::Sampler;
     if (key == kDrum808Key) return L::DrumWood;
     if (key == kDrum909Key) return L::DrumCream;
-    return L::None;   // (PAD: as the skin draws it, until its look is picked)
+    if (key == kPadKey)     return L::Walnut;   // (PAD: look A)
+    return L::None;
 }
 
 void EnginePage::resized()

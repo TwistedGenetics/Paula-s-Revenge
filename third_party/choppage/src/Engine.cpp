@@ -176,9 +176,10 @@ namespace bc
         if (m.isNoteOn())
         {
             lastNote = note;
-            if (note >= kFirstBreakNote && note < kFirstBreakNote + kSlots)
+            const auto use = noteUse (note, s.noteMap);
+            if (use.role == NoteRole::breakSlot)
             {
-                const int slot = note - kFirstBreakNote;
+                const int slot = use.index;
                 const int g = groupOf (slot);
                 auto& p = players[(size_t) g];
                 const bool sameAgain = slot == p.activeSlot && p.latched && p.heldBreakNote < 0;
@@ -200,17 +201,18 @@ namespace bc
                 if (s.breakMode == 0 || s.velToSlice) { p.restartNow = true; p.restartFromNote = true; }
                 else if (! p.wasRunning) p.restartNow = true;
             }
-            else if (note >= kFirstFxNote && note < kFirstFxNote + kFxPads)
-                midiPad[(size_t) (note - kFirstFxNote)] = true;
-            else if (note >= kFirstSliceNote && note < kFirstSliceNote + 16)
-                pendingSliceNote = note - kFirstSliceNote;
-            else if (note >= kFirstMemoryNote && note < kFirstMemoryNote + kMemories)
-                memoryRequest = players[(size_t) lastPlayer].activeSlot * kMemories + (note - kFirstMemoryNote);
+            else if (use.role == NoteRole::fxPad)
+                midiPad[(size_t) use.index] = true;
+            else if (use.role == NoteRole::slice)
+                pendingSliceNote = use.index;
+            else if (use.role == NoteRole::memory)
+                memoryRequest = players[(size_t) lastPlayer].activeSlot * kMemories + use.index;
         }
         else if (m.isNoteOff())
         {
-            if (note >= kFirstFxNote && note < kFirstFxNote + kFxPads)
-                midiPad[(size_t) (note - kFirstFxNote)] = false;
+            const auto use = noteUse (note, s.noteMap);
+            if (use.role == NoteRole::fxPad)
+                midiPad[(size_t) use.index] = false;
             else
                 for (auto& p : players)
                     if (note == p.heldBreakNote)

@@ -71,6 +71,7 @@ namespace bc
             bool   midiTrigger = false;     // TRIGGER: SYNC (false) / MIDI
             int    breakMode = 1;           // 0 RESTART, 1 BAR SYNC, 2 QUANT
             int    gateMode = 0;            // GATE: 0 LATCH, 1 HOLD, 2 ONE SHOT
+            int    noteMap = 0;             // 0 CHROMATIC (C1 = break 1 ...), 1 C MAJOR (see noteUse)
             bool   velToSlice = false;
             double speed = 1.0;
             bool   fit = true;

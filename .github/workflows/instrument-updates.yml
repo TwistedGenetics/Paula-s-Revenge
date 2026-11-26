@@ -1,0 +1,41 @@
+# Every day: have CHOPPAGE, HELIX or CRAFTY changed in their own repos (the parts Paula copies, or their AU/VST
+# plug-in build)? If so, open (or update) one issue, "Built-in instruments have updates", listing the new commits
+# and the command that copies them in. Closed again by itself once Paula has caught up.
+name: Instrument updates
+
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the instruments' repos
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          python3 tools/check_instruments.py --exit-code > report.md
+          echo "updates=$?" >> "$GITHUB_OUTPUT"
+          cat report.md
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATES: ${{ steps.check.outputs.updates }}
+        run: |
+          TITLE="Built-in instruments have updates"
+          N=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          if [ "$UPDATES" = "1" ]; then
+            if [ -n "$N" ]; then gh issue edit "$N" --body-file report.md
+            else gh issue create --title "$TITLE" --body-file report.md; fi
+          elif [ -n "$N" ]; then
+            gh issue close "$N" --comment "Paula has caught up with every instrument's repo."
+          fi

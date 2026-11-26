@@ -856,7 +856,7 @@ An instrument's **EQ AND EFFECTS** page has **MACROS**: four knobs, **MACRO 1–
 
 **Presets:** every built-in synth's page has **PRESETS...** (next to CLOSE): the synth's own (RAVE's nine sounds and five layered ones; SUB's, REESE's, MORPH's, ACID's, PAD's and GRANULAR's ten; HELIX's 54; CRAFTY's 64; TG 101's fourteen; for ROM, **DEFAULTS**) and yours. **SAVE THESE SETTINGS AS MY PRESET...** keeps the synth's settings under a name on this computer, so they're there for that synth in any song (**MY ...** in the list); **DELETE ONE OF MY PRESETS...** removes one. Picking a preset is one undo step. (To keep a whole instrument - the synth with its EQ, effects and knobs - use SAVE INSTRUMENT... - see Saving instruments.)
 
-**The panels:** each built-in synth's page is drawn as vintage-style gear of its own (our own designs, not copies): SUB and ACID on cream, REESE and TG 101 between walnut cheeks, RAVE on a membrane panel, ROM, MORPH, GRANULAR and CRAFTY on a grey sampler panel, HELIX in a rack, the 808 between wooden cheeks and the 909 on cream. The controls are knobs: drag up (or right) to turn one up. Right-click still makes a control a knob or automates it. PAD keeps the skin's colours; CHOPPAGE has its own window.
+**The panels:** each built-in synth's page is drawn as vintage-style gear of its own (our own designs, not copies): SUB and ACID on cream, REESE, TG 101 and PAD between walnut cheeks, RAVE on a membrane panel, ROM, MORPH, GRANULAR and CRAFTY on a grey sampler panel, HELIX in a rack, the 808 between wooden cheeks and the 909 on cream. The controls are knobs: drag up (or right) to turn one up. Right-click still makes a control a knob or automates it. CHOPPAGE has its own window.
 
 ### LAYER: one instrument playing another track's notes
 

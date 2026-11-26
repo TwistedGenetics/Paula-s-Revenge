@@ -46,6 +46,8 @@ namespace bc
             int gridPerBar = 16;
             int muteGroup = 0;                 // 0-3 (kept when another file loads)
             double loopBpm = 0.0;              // AKAIZE SYNC: hand-set loop tempo (0 = the break's own)
+            int fullBars = 0;                  // the file's length in bars; longer than 2: only a 2-bar window is used
+            int window = 0;                    // the window's first bar (0-based)
             uint32_t version = 0;
         };
 
@@ -102,7 +104,7 @@ namespace bc
         void  deleteMarker (int marker);
         /** The start of the drum hit nearest `position` within ±radius samples (where the level jumps most, moved
             back to the zero crossing just before it), in the selected break. position itself if there is none. */
-        int   snapToHit (int position, int radius) const;
+        int   snapToHit (int position, int radius, bool* found = nullptr) const;
 
         void rollPattern (Style, float amount, bool layers);
         void rollFx (float amount);
@@ -162,7 +164,15 @@ namespace bc
         bool akaizeSlot (int slot, double targetBpm, double stretchPercent, int cycleLength);   // (older form)
         /** LOOP BPM of a break for SYNC: set by hand, or 0 for the tempo found when it loaded. */
         void   setLoopBpm (int slot, double bpm);
-        double loopBpm (int slot) const;      // what SYNC uses (the hand-set one, else the break's own)
+        // The break's own tempo (what it plays at against the MPC's tempo): found when it loads, set here when wrong.
+        void   setBreakBpm (int slot, double bpm);
+        double breakBpm (int slot) const;
+        double loopBpm (int slot) const;
+        // Breaks longer than 2 bars: only 2 bars are used, from bar window + 1 (it loads again, sliced afresh).
+        static constexpr int kWindowBars = 2;
+        void setWindow (int slot, int firstBar);
+        int  window (int slot) const   { return slot >= 0 && slot < kSlots ? slots[(size_t) slot].window : 0; }
+        int  fullBars (int slot) const { return slot >= 0 && slot < kSlots ? slots[(size_t) slot].fullBars : 0; }      // what SYNC uses (the hand-set one, else the break's own)
         bool   loopBpmSet (int slot) const;
         /** One pass of the selected break's pattern, rendered with these settings. */
         std::shared_ptr<SampleData> bounce (const Engine::Settings&, double bpm, double sampleRate);
@@ -179,8 +189,8 @@ namespace bc
     private:
         std::vector<SamplePtr> auditionKeep;   // buffers the audio thread may still hold
         std::string auditionPath;
-        struct Job { int slot; std::string path; std::optional<std::string> restore; bool grid; float sens; int gpb; };
-        struct Done { int slot; std::string path; ContentPtr content; AudioFile::Status status; std::optional<std::string> restore; };
+        struct Job { int slot; std::string path; std::optional<std::string> restore; bool grid; float sens; int gpb; int window = 0; };
+        struct Done { int slot; std::string path; ContentPtr content; AudioFile::Status status; std::optional<std::string> restore; int fullBars = 0; int window = 0; };
 
         void workerLoop();
         void installContent (int slot, ContentPtr, const std::string& path, bool demo, const std::string* restore);
