@@ -1853,6 +1853,10 @@ void MixerPage::paint (juce::Graphics& g)
 
     if (currentPage == Page::Strips)
     {
+        if (Theme::outlined())   // (v1.01) each strip on a pane of its own
+            for (auto& st : strips)
+                if (st != nullptr && st->isVisible())
+                    Theme::outlineBox (g, st->getBounds().toFloat().expanded (px * 0.6f), {}, Theme::palFor (*this));
         if (lowEndOn) paintLowEnd (g);
         if (duckOn) paintDuck (g);
         return;

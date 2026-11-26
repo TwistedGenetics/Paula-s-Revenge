@@ -949,6 +949,14 @@ void PaulaEditor::paint (juce::Graphics& g)
         g.fillRect (sn);
         PixelFont::drawCentred (g, songName, sn, px, Theme::ink);
     }
+    if (Theme::outlined())
+    {
+        // (v1.01) the bars at the top and bottom set apart from the page between them
+        const float y1 = (float) playSongBtn.getBottom() + px * 0.8f, y2 = (float) a500Btn.getY() - px * 0.8f;
+        const float line = std::max (1.0f, Theme::snap (px * 0.5f));
+        g.setColour (Theme::ink.withAlpha (0.55f));
+        for (float y : { y1, y2 }) g.fillRect (0.0f, y - line, (float) getWidth(), line * 2);
+    }
 }
 
 void PaulaEditor::resized()

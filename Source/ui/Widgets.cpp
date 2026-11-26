@@ -500,6 +500,7 @@ void Theme::paintBackground (juce::Graphics& g, juce::Rectangle<int> area)
 
 void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
 {
+    if (outlined() && (P.panel == chromePal.panel || P.panel == pagePal.panel)) { outlineBox (g, r, title, P); return; }   // (not on a synth's own panel)
     if (skin.smoothType && skin.round > 1.0f)
     {
         // rounded panes (NEON lit from above, with a fine rim)
@@ -551,6 +552,24 @@ void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::S
         }
         PixelFont::drawCentred (g, title, bar, px, P.ink);
     }
+}
+
+bool Theme::outlined()
+{
+    return skin.smoothType && lightPalette().panel.getPerceivedBrightness() < 0.45f;
+}
+
+void Theme::outlineBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette& P)
+{
+    const float line = std::max (1.0f / deviceScale, snap (px * 0.5f));
+    const float rad = skin.smoothType ? std::min ({ skin.round * px * 1.5f, px * 4.5f, r.getHeight() * 0.5f }) : 0.0f;
+    const float t = std::max (line * 2, 2.0f / deviceScale);
+    g.setColour (P.panel.brighter (0.06f));
+    if (rad > 0) g.fillRoundedRectangle (r, rad); else g.fillRect (r);
+    g.setColour (P.ink.withAlpha (0.55f));
+    if (rad > 0) g.drawRoundedRectangle (r.reduced (t * 0.5f), rad, t); else g.drawRect (r, t);
+    if (title.isNotEmpty())
+        PixelFont::drawLeft (g, title, r.withHeight (PixelFont::textHeight (px) + px * 2).reduced (px * 2, px * 0.5f), px, P.ink);
 }
 
 // ---------------------------------------------------------------------------

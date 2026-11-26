@@ -81,6 +81,10 @@ struct Theme
     static void markDarkPage (juce::Component& c) { c.getProperties().set ("prvDarkPage", true); }
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette&);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette&);
+    // (v1.01) OUTLINED sections: on the skins with a dark window (DARK II, HARDWARE, NEON, VIOLET, EMBER...) every
+    // section gets a clear rim, a touch lighter inside, so they stand apart; the bars at the top and bottom get a rule
+    static bool outlined();
+    static void outlineBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette&);
 
     // (v1.01) VINTAGE PANELS: a built-in synth's page drawn as a piece of 80s / 90s gear - its own colours (whatever the
     // skin), wood cheeks or rack ears, an LCD for the title, knobs for its controls. Our own designs, no maker's.
