@@ -1,7 +1,7 @@
 // Paula's Revenge - HELIX (v1.01): Twisted Genetics' wavetable synth (TwistedGenetics/Twisted-Helix), built in.
 // Its own engine (helix-core, in third_party) plays it; the page shows the controls that matter most - the two
 // wavetable oscillators, sub and noise, both filters, the amp and filter envelopes, two LFOs and the eight macros -
-// over one of its 24 factory presets (PRESET), which brings everything else: the mod matrix, the effects, the tables.
+// over one of its 54 factory presets (PRESET), which brings everything else: the mod matrix, the effects, the tables.
 #pragma once
 
 #include "PluginSynth.h"

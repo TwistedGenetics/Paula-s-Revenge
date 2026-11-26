@@ -976,7 +976,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <h2>Instruments &amp; samples</h2>
   <div class="accent t2"></div>
   <h3>Loading, opening and naming an instrument</h3>
-  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, PAD, GRANULAR, 808, 909), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
+  <p><span class="b">LOAD</span> first asks what kind of instrument: <b>SAMPLE</b> (the sample browser), <b>BUILT-IN SYNTH</b> (SUB, REESE, RAVE, ROM, MORPH, ACID, TG 101, HELIX, CRAFTY, PAD, GRANULAR, 808, 909, CHOPPAGE), <b>VST3 / AU SYNTH</b>, <b>SAVED INSTRUMENT</b> (one of yours), <b>MIDI OUT</b>, <b>CV OUT</b> or <b>RECORD AUDIO</b>.</p>
   <figure>
     <div class="frame sunken"><img src="img/load_kinds.png" alt="LOAD's question over the main screen: LOAD INTO INSTRUMENT 04: WHAT KIND? with SAMPLE, BUILT-IN SYNTH, VST3 / AU SYNTH, SAVED INSTRUMENT, MIDI OUT, CV OUT, RECORD AUDIO and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>LOAD asks what kind of instrument first</figcaption>
@@ -1403,15 +1403,21 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <li><span class="b">LEARN</span> next to <code>L</code> <code>Q</code> <code>H</code> <code>W</code>, then move a knob in the plug-in's window: those commands then move that knob on this instrument's notes.</li>
   </ul>
   <h3>Presets for the built-in synths</h3>
-  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine and five layered ones; ten each for SUB, REESE, MORPH, ACID, PAD and GRANULAR; fourteen for TG 101; four each for 808 and 909; for ROM, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
+  <p>Every built-in synth's page has <span class="b">PRESETS...</span> next to CLOSE: the synth's own (RAVE's nine and five layered ones; ten each for SUB, REESE, MORPH, ACID, PAD and GRANULAR; fourteen for TG 101; 54 for HELIX; 64 for CRAFTY; four each for 808 and 909; for ROM, DEFAULTS) and yours. <b>SAVE THESE SETTINGS AS MY PRESET...</b> keeps the settings under a name on this computer, for that synth in any song; they're listed as <b>MY ...</b>, and <b>DELETE ONE OF MY PRESETS...</b> removes one. Picking one is one undo step. To keep a whole instrument &mdash; the synth with its EQ, effects and knobs &mdash; use SAVE INSTRUMENT... (see Saving &amp; files).</p>
   <figure>
     <div class="frame sunken"><img src="img/synth_presets.png" alt="RAVE's PRESETS menu: SAVE THESE SETTINGS AS MY PRESET..., the nine sounds STAB to BELGIAN, MY DARK SCREAM, DELETE ONE OF MY PRESETS... and CANCEL." width="1440" height="900" loading="lazy"></div>
     <figcaption>RAVE's presets, with one of yours</figcaption>
   </figure>
+  <h3>The synths' panels</h3>
+  <p>Each built-in synth's page is drawn as a piece of vintage-style gear of its own &mdash; our own designs, not copies of any real ones: <b>SUB</b> and <b>ACID</b> on a cream panel, <b>REESE</b> and <b>TG 101</b> between walnut cheeks, <b>RAVE</b> on a membrane panel, <b>ROM</b>, <b>MORPH</b>, <b>GRANULAR</b> and <b>CRAFTY</b> on a grey sampler panel, <b>HELIX</b> in a rack with ears, the <b>808</b> between wooden cheeks and the <b>909</b> on cream. The name sits in a display along the top and each box has a coloured stripe. The controls are knobs: drag up (or right) to turn one up, down (or left) to turn it down; the value is under the knob and its name under that. Right-click still makes a control a knob (<code>Lxx</code>...) or automates it. <b>PAD</b> keeps the colours of the skin you picked, and <b>CHOPPAGE</b> has its own window (below).</p>
+  <figure>
+    <div class="frame sunken"><img src="img/panel_808.png" alt="The 808 page between wooden cheeks: the name in a display, the tabs DRUMS, TOMS, METAL and OUTPUT, and knobs for KICK (LEVEL, TUNE, DECAY, TONE, PAN), SNARE (LEVEL, TUNE, SNAPPY, DECAY, PAN), RIM SHOT and CLAP." width="1440" height="900" loading="lazy"></div>
+    <figcaption>The 808's panel: knobs, a display and wooden cheeks</figcaption>
+  </figure>
   <h3>The built-in SUB synth</h3>
   <p><b>SUB</b> is a sub bass synth built into Paula's Revenge. Pick an instrument, press <span class="b">LOAD</span> &rarr; <span class="b">BUILT-IN SYNTH</span> and pick SUB. Its page opens; <span class="b">EDIT</span> opens it again later. Three tabs: <span class="b">SOUND</span>, <span class="b">SHAPE</span> and <span class="b">LFO + AMP</span>; <b>PRESETS...</b> has ten, from CLEAN SUB and 808 KNOCK to SMALL SPEAKERS. An older song's SUB sounds as it did.</p>
   <figure>
-    <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page: boxes for MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR, OSC 2, 808 DROP, DRIVE, ENVELOPE and OUTPUT (BEAT is in OSCILLATOR), with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/sub_page.png" alt="The SUB page on its SOUND tab (tabs SOUND, SHAPE and LFO + AMP), on its cream panel: MODE (LEGATO, ALWAYS, OFF, POLY and GLIDE), OSCILLATOR (OCTAVE, OFF / BEAT HZ / BEAT ST, SHAPE, FINE) and OSC 2 + HARMONICS (+OCT, +5TH, +OCT+5TH, -OCT, OSC 2, HARM 2, HARM 3), with HOLD TO PLAY and OUTPUT &amp; KNOBS at the top." width="1440" height="900" loading="lazy"></div>
     <figcaption>The SUB page</figcaption>
   </figure>
   <p><b>It never clicks</b> when notes overlap or follow each other. Most mono synths click there because they restart the oscillator or drop the envelope to zero. SUB never restarts its oscillator (a new note only moves its pitch), its envelope carries on from where it is, and anything that has to start afresh starts where the wave crosses zero or fades in.</p>
@@ -1428,7 +1434,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <h3>The built-in REESE synth</h3>
   <p><b>REESE</b> is the reese and hoover bass: detuned saws drifting against each other so the phasing never sits still, or the hoover's hollow pulse-saws swooping up into each note. It's click-free like SUB, so it pairs with SUB for a mid bass over a clean sub. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; REESE. Five tabs: <span class="b">OSC</span>, <span class="b">MOVEMENT</span>, <span class="b">FILTER</span>, <span class="b">FX</span> and <span class="b">AMP</span>; <b>PRESETS...</b> has ten, from CLASSIC REESE to NEURO GROWL and SUB REESE. An older song's REESE sounds as it did.</p>
   <figure>
-    <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, OSC tab: MODE (LEGATO, ALWAYS, OFF, POLY, GLIDE), OSCILLATORS (TYPE REESE or HOOVER, VOICES, DETUNE, SPREAD, OCTAVE, WAVE, SPREAD BY, STACK, NOISE) and SUB (level, -1 OCT / -2 OCT, AUTO / SINE / TRI / SQUARE)." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/reese_page.png" alt="The REESE page, OSC tab, between walnut cheeks: MODE (LEGATO, ALWAYS, OFF, POLY, GLIDE), SUB (-1 OCT / -2 OCT, AUTO / SINE / TRI / SQUARE, SUB) and OSCILLATORS (REESE or HOOVER, VOICES, OCTAVE, SAW / SQUARE / SAW+SQ / TRI, EVEN / OUTSIDE / RANDOM, OFF / +OCT / -OCT / +5TH, DETUNE, SPREAD, NOISE), with the tabs OSC, MOVEMENT, FILTER, FX and AMP." width="1440" height="900" loading="lazy"></div>
     <figcaption>REESE's OSC tab</figcaption>
   </figure>
   <ul>
@@ -1439,13 +1445,13 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <li><b>AMP:</b> ENVELOPE and OUTPUT. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
   </ul>
   <figure>
-    <div class="frame sunken"><img src="img/reese_fx.png" alt="REESE's FX tab: DRIVE (DRIVE, TYPE: WARM, SQUASH), STEREO (CHORUS, WIDTH, MONO BASS), PHASER and FLANGER (MIX, RATE, DEPTH, FEEDBACK each)." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/reese_fx.png" alt="REESE's FX tab: DRIVE (TYPE: WARM, DRIVE, SQUASH), STEREO (CHORUS, WIDTH, MONO BASS), PHASER (MIX, RATE, DEPTH, FEEDBACK) and FLANGER (MIX, RATE, DEPTH, FEEDBACK)." width="1440" height="900" loading="lazy"></div>
     <figcaption>REESE's FX tab: drive types, phaser, flanger, mono bass</figcaption>
   </figure>
   <h3>The built-in RAVE synth</h3>
   <p><b>RAVE</b> is the jungle and hardcore keys: the sounds over the breaks rather than under them. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; RAVE, then pick a sound &mdash; every control is set for it, and you can change any of them after (including TYPE). Three tabs: <span class="b">SOUND</span>, <span class="b">SHAPE</span>, <span class="b">FX</span>; <b>PRESETS...</b> adds five layered sounds: STAB + ORGAN, PIANO + PAD, HOOVER STACK, CRUSHED STAB, STRUM CHORDS.</p>
   <figure>
-    <div class="frame sunken"><img src="img/rave_page.png" alt="The RAVE page: boxes for SOUND (TYPE STAB, CHORD MINOR, DETUNE, OCTAVE), FILTER, ENVELOPE, SPACE (CHORUS, ECHO, ECHO TIME) and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/rave_page.png" alt="The RAVE page on its SOUND tab (tabs SOUND, SHAPE and FX), on its membrane panel: SOUND (TYPE: STAB, OCTAVE, DETUNE), LAYER (LAYER: OFF, OCTAVE, LEVEL) and CHORD (CHORD: MINOR, INVERSION, SPREAD, STRUM)." width="1440" height="900" loading="lazy"></div>
     <figcaption>The RAVE page, set up as a STAB</figcaption>
   </figure>
   <ul>
@@ -1484,14 +1490,14 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <figcaption>The ROM browser: click a sound, play the keys, arrow to the next</figcaption>
   </figure>
   <figure>
-    <div class="frame sunken"><img src="img/rom_morph.png" alt="ROM's MORPH tab: the MORPH FILTER box with FILTER LOW-PASS / MORPH, MODEL TALK, MORPH, ENV>MORPH, LFO>MORPH, LFO RATE, VEL>MORPH, FREQ, KEY TRACK and EMPHASIS." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/rom_morph.png" alt="ROM's MORPH tab: the MORPH FILTER box with LOW-PASS / MORPH, MODEL: AH &gt; EE, FREQ, MORPH, ENV&gt;MORPH, LFO&gt;MORPH, LFO RATE, VEL&gt;MORPH, KEY TRACK and EMPHASIS." width="1440" height="900" loading="lazy"></div>
     <figcaption>ROM's MORPH tab: the morph filter on every note</figcaption>
   </figure>
   <p>Loading an ordinary WAV also uses its own loop points, and for a looped sample its root note, so C-3 plays a C.</p>
   <h3>The built-in MORPH synth</h3>
   <p><b>MORPH</b> is a synth built round the MORPH FILTER, in the spirit of E-mu's Morpheus: every note has its own morphing filter, moved by its own envelope, an LFO and how hard it's played &mdash; a pad opening from &ldquo;OO&rdquo; to &ldquo;AH&rdquo;, a bass that talks. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; MORPH; <b>PRESETS...</b> has ten sounds to start from, from VOWEL PAD and TALKING BASS to DOUBLE VOWEL, SYNCED SWEEP, RANDOM CHOIR and ZAP BASS. Three tabs: <span class="b">OSC</span>, <span class="b">MORPH</span> and <span class="b">AMP + FX</span>. (A MORPH from an older song sounds as it did.)</p>
   <figure>
-    <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab: MORPH FILTER (MODEL, MORPH, FREQ, EMPHASIS, KEY TRACK, VEL&gt;MORPH, RANDOM), FILTER 2 (ROUTE, MODEL, MORPH +/-, FREQ), MORPH ENV and MORPH LFO with SHAPE and SYNC." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/morph_synth.png" alt="The MORPH synth's MORPH tab (tabs OSC, MORPH and AMP + FX), on its sampler panel: MORPH FILTER (MODEL: AH &gt; EE, FREQ, MORPH, EMPHASIS, KEY TRACK, VEL&gt;MORPH, RANDOM), MORPH ENV (AMOUNT, ATTACK, DECAY, SUSTAIN, RELEASE), FILTER 2 (OFF / SERIES / PARALLEL, MODEL, FREQ, MORPH +/-) and MORPH LFO (SHAPE, SYNC)." width="1440" height="900" loading="lazy"></div>
     <figcaption>MORPH: two oscillators into a morphing filter per note</figcaption>
   </figure>
   <ul>
@@ -1502,7 +1508,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <h3>The built-in ACID synth (303 + Devil Fish)</h3>
   <p><b>ACID</b> is a 303-style bass line synth with the <b>Devil Fish</b> mods &mdash; our own model of the sound. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; ACID. One note at a time: a saw or square into a resonant low-pass, with the envelope and <b>ACCENT</b> that make it squelch and <b>SLIDE</b> between notes. Two tabs: <span class="b">303</span> and <span class="b">DEVIL FISH</span>; <b>PRESETS...</b> has ten sounds. The voice runs at four times the song's rate, so a screaming filter or the drive can't fold harmonics back down as a whistle (SUB's and REESE's drives do the same).</p>
   <figure>
-    <div class="frame sunken"><img src="img/acid_303.png" alt="ACID's 303 tab: OSCILLATOR (SAW / SQUARE, TUNE, FINE, SHAPE, SUB), FILTER (CUTOFF 380HZ, RESONANCE 72%, ENV MOD 55%), ENVELOPE + ACCENT (DECAY 350MS, ACCENT 65%, ACCENT FROM C38) and OUTPUT." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/acid_303.png" alt="ACID's 303 tab on its cream panel: OSCILLATOR (SAW / SQUARE, TUNE, FINE, SHAPE, SUB), FILTER (CUTOFF 380HZ, RESONANCE 72%, ENV MOD 55%), ENVELOPE + ACCENT (ACCENT FROM C38, DECAY 350MS, ACCENT 65%) and OUTPUT (VELOCITY, LEVEL)." width="1440" height="900" loading="lazy"></div>
     <figcaption>ACID's 303 tab: the original's knobs</figcaption>
   </figure>
   <ul>
@@ -1516,7 +1522,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <figcaption>The Devil Fish mods: their own tab</figcaption>
   </figure>
   <h3>The built-in TG 101 synth (a classic monosynth)</h3>
-  <p><b>TG 101</b> is a one-voice monosynth in the style of the SH-101 &mdash; our own model of the sound, built and tuned by ear, not a copy of any circuit or code. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; TG 101. One note at a time: a saw, a pulse and a sub-oscillator, mixed into a resonant 4-pole low-pass, one envelope, an LFO, portamento and an arpeggio. Like ACID it runs at four times the song's rate, so the filter can scream without whistling. Four tabs; <b>PRESETS...</b> has fourteen sounds.</p>
+  <p><b>TG 101</b> is a one-voice monosynth in the style of the early-80s ones &mdash; our own model of the sound, built and tuned by ear, not a copy of any circuit or code. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; TG 101. One note at a time: a saw, a pulse and a sub-oscillator, mixed into a resonant 4-pole low-pass, one envelope, an LFO, portamento and an arpeggio. Like ACID it runs at four times the song's rate, so the filter can scream without whistling. Four tabs; <b>PRESETS...</b> has fourteen sounds.</p>
   <figure>
     <div class="frame sunken"><img src="img/tg101_vco.png" alt="TG 101's VCO + MIXER tab: VCO (RANGE 16' 8' 4' 2', TUNE, FINE, VIBRATO, PW, PWM: LFO / MAN / ENV) and SOURCE MIXER (PULSE, SAW, SUB, SUB TYPE -1 OCT / -2 OCT / -2 PULSE, NOISE)." width="1440" height="900" loading="lazy"></div>
     <figcaption>VCO + MIXER: the oscillator and the source mixer, as on the front panel</figcaption>
@@ -1555,7 +1561,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <h3>The built-in PAD synth: four layers</h3>
   <p><b>PAD</b> plays <b>four layers</b> on every note, each a whole sound of its own. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; PAD. Up to 12 notes at once; eight tabs: <span class="b">LAYER A</span>&ndash;<span class="b">D</span>, <span class="b">MIX</span>, <span class="b">MOD</span>, <span class="b">SPACE</span> and <span class="b">SAMPLES</span>. <b>PRESETS...</b> has ten pads.</p>
   <figure>
-    <div class="frame sunken"><img src="img/pad_layer.png" alt="PAD's LAYER A tab: SOURCE (OFF / ON, WAVE: SAW, OCTAVE, TUNE, FINE), UNISON (VOICES 05, DETUNE, SPREAD, DRIFT), FILTER (OFF / LOW / BAND / HIGH, CUTOFF, RES, ENV&gt;CUT) and ENVELOPE (ATTACK, DECAY, SUSTAIN, RELEASE, DELAY), with the tabs LAYER A, LAYER B, LAYER C, LAYER D, MIX, MOD and SPACE above." width="1440" height="900" loading="lazy"></div>
+    <div class="frame sunken"><img src="img/pad_layer.png" alt="PAD's A tab (layer A): SOURCE (LOAD SAMPLE..., OFF / ON, WAVE: SAW, OCTAVE, TUNE, FINE), UNISON (VOICES 05, DETUNE, SPREAD, DRIFT), FILTER (OFF / LOW / BAND / HIGH, CUTOFF, RES, ENV&gt;CUT) and ENVELOPE (ATTACK, DECAY, SUSTAIN, RELEASE, DELAY), with the tabs A, B, C and D (the four layers), MIX, MOD, SPACE and SAMPLES above." width="1440" height="900" loading="lazy"></div>
     <figcaption>A layer: its wave, unison, filter and envelope</figcaption>
   </figure>
   <ul>
@@ -1589,6 +1595,56 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <li><b>FILTER:</b> CUTOFF and RES (a resonant low-pass), DIFFUSE (smears the grains into a wash).</li>
     <li><span class="b">AMP + FX</span> &mdash; <b>ENVELOPE</b> (ADSR); <b>SPACE:</b> ECHO (ping-pong), ECHO TIME, FEEDBACK, WIDTH; <b>OUTPUT:</b> LEVEL.</li>
     <li>On a TABLE, a note's grains line up with each other, so with SPRAY and SPREAD at 0 it is a clean tone; turn them up to break it apart. Right-click, HOLD TO PLAY, OUTPUT &amp; KNOBS..., saving and undo work as on SUB.</li>
+  </ul>
+  <h3>The built-in HELIX synth (Twisted Genetics' wavetable synth)</h3>
+  <p><b>HELIX</b> is Twisted Genetics' own wavetable synth, built in with its own engine. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; HELIX. <b>PRESET</b> (on the MAC tab) picks one of its 54 factory sounds, and the whole sound comes with it: its modulation, its effects and its wavetables. The page's controls shape it from there. <b>PRESETS...</b> has the same 54, and yours. Seven tabs:</p>
+  <figure>
+    <div class="frame sunken"><img src="img/helix_osc.png" alt="HELIX's A tab in its rack: OSC A (OFF / ON, TABLE: BASIC SHAPES, OCTAVE, SEMI, WT POS, FINE, LEVEL) and WARP + UNISON (WARP: OFF, UNISON +3, WARP AMT, DETUNE, SPREAD), with the tabs A, B, SUB, FLT, ENV, LFO and MAC." width="1440" height="900" loading="lazy"></div>
+    <figcaption>HELIX's oscillator A, in its rack</figcaption>
+  </figure>
+  <ul>
+    <li><span class="b">A</span> and <span class="b">B</span> &mdash; the two wavetable oscillators. <b>OSC A</b> / <b>OSC B</b> on or off, <b>TABLE</b> (which wavetable), <b>WT POS</b> (where in the table it plays), <b>OCTAVE</b>, <b>SEMI</b>, <b>FINE</b>, <b>LEVEL</b>. <b>WARP + UNISON</b>: <b>WARP</b> (how the wave is bent) and <b>WARP AMT</b>, <b>UNISON</b> (how many voices), <b>DETUNE</b>, <b>SPREAD</b> (across the stereo).</li>
+    <li><span class="b">SUB</span> &mdash; <b>SUB</b>: on or off, <b>SHAPE</b>, <b>OCTAVE</b>, <b>LEVEL</b>. <b>NOISE</b>: on or off, <b>TYPE</b>, <b>LEVEL</b>.</li>
+    <li><span class="b">FLT</span> &mdash; <b>FILTER 1</b>: on or off, <b>TYPE</b>, <b>CUTOFF</b>, <b>RES</b>, <b>DRIVE</b>, <b>KEY TRACK</b>. <b>FILTER 2</b>: on or off, <b>TYPE</b>, <b>CUTOFF</b>, <b>RES</b>, <b>SER &gt; PAR</b> (the two filters one after the other, or side by side).</li>
+    <li><span class="b">ENV</span> &mdash; <b>AMP ENV</b> and <b>FILTER ENV</b>: ATTACK, DECAY, SUSTAIN, RELEASE.</li>
+    <li><span class="b">LFO</span> &mdash; <b>LFO 1</b> and <b>LFO 2</b>: <b>SHAPE</b>, <b>SYNC</b> (free, or locked to the song), <b>RATE</b> (free) and <b>DIV</b> (locked).</li>
+    <li><span class="b">MAC</span> &mdash; <b>MACROS</b> 1 to 8: each preset sets what they move (a filter sweep, the wavetable, the growl...). <b>VOICE</b>: <b>PRESET</b>, <b>POLY</b> / <b>MONO</b> / <b>LEGATO</b>, <b>GLIDE</b>, <b>VELOCITY</b>, <b>LEVEL</b>.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/helix_macros.png" alt="HELIX's MAC tab: VOICE (PRESET: CLASSIC REESE, POLY / MONO / LEGATO, GLIDE, VELOCITY, LEVEL) and MACROS (MACRO 1 to MACRO 8)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>MAC: the preset, the voice and the eight macros</figcaption>
+  </figure>
+  <p><b>Presets:</b> CLASSIC REESE, MOVING REESE, NEURO REESE, DONK, GROWL, WOBBLE 1/8, SUB SINE, DIRTY 808, ROLLING REESE, TALKING BASS, HOOVER 91, MENTASM, RAVE LEAD, SCREAMER, SYNC LEAD, 90S PAD, DARK ATMOS, VINYL DUST PAD, CHOIR PAD, GLASS PAD, RAVE STAB, DUB CHORD, FX RISER, LASER ZAP, DRIFT REESE, GROWL REESE, NEURO JUMP, HOOVER REESE STACK, STEPPA REESE, HALF-TIME REESE, LADDER REESE, 303 REESE, ROLLERS REESE, DREAD REESE, GUARDIAN SUB, ROLLERS SUB, 808 DROP, DONK SUB, PLUCK SUB, TRI SUB DRIVE, UNIT HOOVER, MENTASM UNIT, RAVE SCREAM, RAVE STAB CHORD, DUB STAB CHORD, HOOVER OCT STAB, REINFORCED PAD, DREAD PAD, AMEN AIR, SCENE PAD, DIVE BOMB, JUMP SIREN, REWIND and FILTH SWEEP.</p>
+  <p><b>Try:</b> <b>ROLLING REESE</b> on a two-bar bass line with a <code>Lxx</code> knob on MACRO 1; <b>HOOVER 91</b> or <b>MENTASM</b> held over a break; <b>REWIND</b> at the end of a section.</p>
+  <h3>The built-in CRAFTY synth (Twisted Genetics' Crafty Synth)</h3>
+  <p><b>CRAFTY</b> is Twisted Genetics' Crafty Synth built in: a wavetable monosynth (one note at a time) with its own filter, envelopes, LFOs, effects and an arpeggio. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; CRAFTY. Every control runs 0 to 127, like the hardware's knobs, and shows its value the synth's way (<b>B1</b> is bank 1, <b>W1</b> the mix all wave 1...). <b>PRESET</b> (on the ARP + OUT tab) picks one of its 64 factory sounds, which brings its modulation too; <b>PRESETS...</b> has the same 64, and yours. Five tabs:</p>
+  <figure>
+    <div class="frame sunken"><img src="img/crafty_osc.png" alt="CRAFTY's OSC tab on the sampler panel: WAVES (BANK 1, WAVE 1, BANK 2, WAVE 2, MIX), MODIFIER (MOD MODE, OSC MOD, B MODE, B MOD, SPREAD) and PITCH + SUB (TUNE, FINE, OCTAVE, GLIDE, SUB LVL, SUB OCT, SUB WAVE), with the tabs OSC, FILTER + AMP, MOD, FX and ARP + OUT." width="1440" height="900" loading="lazy"></div>
+    <figcaption>CRAFTY's OSC tab</figcaption>
+  </figure>
+  <ul>
+    <li><span class="b">OSC</span> &mdash; <b>WAVES</b>: <b>BANK 1</b> and <b>WAVE 1</b>, <b>BANK 2</b> and <b>WAVE 2</b>, <b>MIX</b> between them. <b>MODIFIER</b>: <b>MOD MODE</b> and <b>OSC MOD</b> (phase modulation, sync and the rest), <b>B MODE</b> and <b>B MOD</b>, <b>SPREAD</b>. <b>PITCH + SUB</b>: <b>TUNE</b>, <b>FINE</b>, <b>OCTAVE</b>, <b>GLIDE</b>, <b>SUB LVL</b>, <b>SUB OCT</b>, <b>SUB WAVE</b>.</li>
+    <li><span class="b">FILTER + AMP</span> &mdash; <b>FILTER</b>: <b>TYPE</b>, <b>CUTOFF</b>, <b>RESO</b>, <b>MORPH</b>, <b>FILT EG</b> (how far its envelope moves it). <b>FILTER EG</b> and <b>AMP EG</b>: ATTACK, DECAY, SUSTAIN, RELEASE. <b>AMP EG</b> (the amount) at 64, the middle, leaves the level alone, so the note drones on (as the DRONE presets do); above the middle the envelope shapes it, below it works upside down.</li>
+    <li><span class="b">MOD</span> &mdash; <b>MOD EG</b> (ATTACK, DECAY, SUSTAIN, RELEASE) and <b>LFO 1</b> and <b>LFO 2</b> (<b>RATE</b>, <b>SHAPE</b>, <b>MODE</b>, <b>SYNC</b>). Where they go is set by the preset.</li>
+    <li><span class="b">FX</span> &mdash; <b>DRIVE + DELAY</b>: <b>DISTORT</b>, <b>DELAY</b>, <b>TIME</b>, <b>FEEDBACK</b>, <b>SYNC</b>. <b>SPACE</b>: <b>MODE</b>, <b>SIZE</b>, <b>DECAY</b>, <b>REVERB</b>, <b>WARP</b>, <b>DENSITY</b>, <b>MOD</b>. <b>COLOUR</b>: <b>CHORUS</b> and <b>CH RATE</b>, <b>PHASER</b> and <b>PH RATE</b>, <b>ERA</b> (a sampler era's sound), <b>CRUSH</b>, <b>OTT</b>.</li>
+    <li><span class="b">ARP + OUT</span> &mdash; <b>ARP</b> and its <b>RATE</b>; <b>PRESET</b>; <b>VOLUME</b>.</li>
+  </ul>
+  <figure>
+    <div class="frame sunken"><img src="img/crafty_fx.png" alt="CRAFTY's FX tab: DRIVE + DELAY (DISTORT, DELAY, TIME, FEEDBACK, SYNC), SPACE (MODE, SIZE, DECAY, REVERB, WARP, DENSITY, MOD) and COLOUR (CHORUS, CH RATE, PHASER, PH RATE, ERA, CRUSH, OTT)." width="1440" height="900" loading="lazy"></div>
+    <figcaption>CRAFTY's effects</figcaption>
+  </figure>
+  <p><b>Presets:</b> INIT SAW, PWM LEAD, SYNC SWEEP, FM BELL, ROUND PAD, WARM BASS, RING BELLS, WEST COAST, SUB BASS, DREAD, DONK, REESE, ROLLER, ACID, FM GROWL, 808 BOOM, HOOVER, RAVE STAB, PHRYG STAB, DUB SIREN, NEURO, TECH STAB, WOBBLE, MIN REESE, VOCAL LEAD, FORMANTS, CRUSH LEAD, GLIDE LEAD, PPG SWEEP, SCREAMER, WHISTLE, POLY LEAD, MAJOR STAB, MINOR STAB, MAJ6 KEYS, SUS STAB, FIFTHS, ORGAN, DETROIT, DUB CHORD, DRONE, VOWEL PAD, GLASS DRONE, NOISE WIND, SLOW VOWELS, DARK SWELL, POLYGONS, SHIMMER, DE-REZ, GLITCH SINE, WINDOW AMP, MIN MOD, SINE FOLD, SCRUNCH, LO-FI PHASE, WINDOW SYNC, ARP PLUCK, PHRYG SEQ, ACID SEQ, OCTAVES, DUB SEQ, TRIPLETS, BLIPS and RAVE SEQ.</p>
+  <h3>CHOPPAGE: the built-in break chopper</h3>
+  <p><b>CHOPPAGE</b> is Twisted Genetics' break chopper, built in. LOAD &rarr; <span class="b">BUILT-IN SYNTH</span> &rarr; CHOPPAGE. It works like a plug-in instrument that comes with the app: its own window opens, with its own front panel (<span class="b">OPEN PLUG-IN WINDOW</span> on the instrument's page opens it again), and everything in it is saved with the song. Its knobs can be <code>Lxx</code> knobs and automated like any plug-in's.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/choppage.png" alt="CHOPPAGE's window: the SAMPLE tab with the demo break sliced and badged (K1, K2, S1, GS...), the slice table (PITCH, GATE, STRETCH, REVERSE, STUTTER, TRANS, XFADE), PATTERN and FX dice with AMOUNT, the eight FX pads (STUTTER, ROLL, REVERSE, TAPE STOP, HALF-TIME, AKAIZE, FILT DIVE, S950 DROP), the SAMPLE RATE fader, FILTER, DISTORTION, CRUSH and REVERB knobs and VOL." width="1200" height="825" loading="lazy"></div>
+    <figcaption>CHOPPAGE in its own window</figcaption>
+  </figure>
+  <ul>
+    <li><b>Eight breaks</b> are loaded at once and one plays at a time. Drop WAV, AIFF, FLAC, MP3 or REX files on its window (several fill the slots in turn), or use LOAD or its DISK tab.</li>
+    <li><b>The notes:</b> <code>C-1</code> to <code>G-1</code> start breaks 1 to 8, in time with the song's tempo. <code>G#1</code> to <code>D#2</code> are its FX pads while held (STUTTER, ROLL, REVERSE, TAPE STOP, HALF-TIME, AKAIZE, FILT DIVE, S950 DROP). <code>E-2</code> to <code>G-3</code> play slices 1 to 16 of the playing break, and <code>G#3</code> to <code>B-4</code> recall its 16 pattern memories.</li>
+    <li>It slices each break and marks every hit (kick, snare, ghost, hat, open hat); <b>PATTERN</b> and <b>FX</b> roll new patterns and effects from the break's own hits. The <b>SEQ</b>, <b>FX</b>, <b>SET</b>, <b>AKAI</b> and <b>DISK</b> tabs hold the rest.</li>
+    <li>Its sound goes into the instrument's track like any instrument's: EQ, effects, the mixer and SXX parts all work.</li>
   </ul>
 </section>
 
