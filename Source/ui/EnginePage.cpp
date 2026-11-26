@@ -431,6 +431,8 @@ void EnginePage::build()
     genTabs.clear(); genTabNames.clear();
     const auto oldKey = shownKey;
     shownKey = inst().pluginKey;
+    look = lookFor (shownKey);
+    Theme::markPanelLook (*this, look);
     const auto& ps = builtinParams (shownKey);
     for (int i = 0; i < (int) ps.size(); ++i)
     {
@@ -481,6 +483,7 @@ void EnginePage::build()
             r.slider->defaultValue = q.to01 (q.def);
             r.slider->onChange = [this, i, q] (float v01) { edit (i, q.toValue (v01), true); };
             r.slider->onRightClick = [this, i] { knobMenu (i); };
+            r.slider->knob = look != Theme::PanelLook::None;
             addAndMakeVisible (*r.slider);
         }
         const juce::String sec (q.section);
@@ -690,6 +693,22 @@ static int padSampleBox (const juce::String& key)
     return -1;
 }
 
+Theme::PanelLook EnginePage::lookFor (const std::string& key)
+{
+    using L = Theme::PanelLook;
+    if (key == kSubKey)     return L::Cream;      // (Jamie's picks, v1.01)
+    if (key == kReeseKey)   return L::Walnut;
+    if (key == kRaveKey)    return L::Membrane;
+    if (key == kRomKey)     return L::Sampler;
+    if (key == kMorphKey)   return L::Sampler;
+    if (key == kAcidKey)    return L::Cream;
+    if (key == kTg101Key)   return L::Walnut;
+    if (key == kGrainKey)   return L::Sampler;
+    if (key == kDrum808Key) return L::DrumWood;
+    if (key == kDrum909Key) return L::DrumCream;
+    return L::None;   // (PAD: as the skin draws it, until its look is picked)
+}
+
 void EnginePage::resized()
 {
     const float px = Theme::px;
@@ -697,12 +716,18 @@ void EnginePage::resized()
     const int gap = (int) std::max (2.0f, px);
     const int title = (int) (px * 11);
     if (! relayout) subPages = false;
+    if (! shrinking) { knobDial = 19.0f; for (auto& rw : rows) if (rw.slider) rw.slider->dialPx = knobDial; }
     for (auto& pb : padLoadBtn) pb.setVisible (false);
     for (auto& tb : toneBtn) tb.setVisible (false);
     for (auto& sb : sampleBtn) sb.setVisible (false);
     romFolderBtn.setVisible (false);
     updateToneButtons();
-    auto r = getLocalBounds().reduced (gap);
+    // (a vintage panel: its cheeks or rack ears take the edges)
+    const auto* ps = Theme::panelSkin (look);
+    faceArea = getLocalBounds();
+    if (ps != nullptr && ps->sides != 0) faceArea.reduce ((int) (px * (ps->sides == 1 ? 9 : 11)), 0);
+    auto r = faceArea.reduced (gap);
+    const bool knobs = ps != nullptr;
     auto top = r.removeFromTop (rowH);
     auto charsW = [px] (int chars) { return (int) (px * 6 * chars + px * 4); };
     // the title row: as much as fits on one line - the title goes first, then PRESETS... gets shorter; only when even
@@ -782,10 +807,58 @@ void EnginePage::resized()
             default: return false;
         }
     };
+    // (a vintage panel: the box's sliders are knobs, flowing in rows under its buttons - each as wide as its own longest
+    // word or value, the room left in a row shared out; the row's height its tallest name)
+    struct KnobGrid { int count = 0, rowsN = 0, cellH = 0; std::vector<int> rowOf, xOf, wOf; };
+    auto knobGrid = [&] (const Box& b, int width)
+    {
+        KnobGrid k;
+        if (! knobs) return k;
+        const int inner = width - gap * 4;
+        std::vector<int> want;
+        int lines = 1;
+        for (int ri : b.rowIndex)
+        {
+            const auto& rw = rows[(size_t) ri];
+            if (! rw.slider || hidden (rw)) continue;
+            float w = px * 24;
+            for (const auto& wd : juce::StringArray::fromTokens (rw.slider->getLabel(), " ", "")) w = std::max (w, PixelFont::textWidth (wd, px));
+            w = std::max (w, PixelFont::textWidth (rw.slider->format (rw.slider->value), px));
+            const int cw = std::min (inner, (int) std::ceil (w + px * 3));
+            lines = std::max (lines, PixSlider::knobLines (rw.slider->getLabel(), (float) cw, px).size());
+            want.push_back (cw);
+        }
+        k.count = (int) want.size();
+        if (k.count == 0) return k;
+        k.cellH = PixSlider::knobHeight (px, lines, knobDial);
+        // flow into rows, then share each row's spare room among its knobs
+        size_t i = 0;
+        while (i < want.size())
+        {
+            size_t j = i; int used = 0;
+            while (j < want.size() && (j == i || used + gap + want[j] <= inner)) { used += (j == i ? 0 : gap) + want[j]; ++j; }
+            const int spare = (inner - used) / (int) (j - i);
+            int x = 0;
+            for (size_t q = i; q < j; ++q)
+            {
+                k.rowOf.push_back (k.rowsN); k.xOf.push_back (x); k.wOf.push_back (want[q] + spare);
+                x += want[q] + spare + gap;
+            }
+            ++k.rowsN; i = j;
+        }
+        return k;
+    };
     auto boxHeight = [&] (const Box& b, int width)
     {
         int lines = 0;
-        for (int ri : b.rowIndex) if (! hidden (rows[(size_t) ri])) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
+        const auto kg = knobGrid (b, width);
+        for (int ri : b.rowIndex) if (! hidden (rows[(size_t) ri]) && ! (knobs && rows[(size_t) ri].slider)) lines += choiceLines (rows[(size_t) ri], width - gap * 4);
+        if (kg.count > 0)
+        {
+            if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;
+            if (shownKey == kPadKey && padSampleBox (b.key) >= 0) ++lines;
+            return gap * 4 + title + lines * (rowH + gap) + kg.rowsN * (kg.cellH + gap);
+        }
         if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;   // (its samples' button)
         if (shownKey == kPadKey && padSampleBox (b.key) >= 0) ++lines;      // (LOAD SAMPLE...)
         return gap * 4 + title + lines * (rowH + gap);
@@ -821,6 +894,7 @@ void EnginePage::resized()
                 for (auto& c : rw.choices) c->setVisible (false);
                 continue;
             }
+            if (knobs && rw.slider) continue;   // (the knobs go in their grid, below)
             const int lines = choiceLines (rw, in.getWidth());
             auto row = in.removeFromTop (rowH); in.removeFromTop (gap);
             if (rw.slider) rw.slider->setBounds (row);
@@ -851,6 +925,19 @@ void EnginePage::resized()
                     const int w = (row.getWidth() - gap * (perLine - 1)) / perLine;
                     for (int j = 0; j < m; ++j, ++k) { rw.choices[(size_t) k]->setBounds (row.removeFromLeft (j < perLine - 1 ? w : row.getWidth())); row.removeFromLeft (gap); }
                 }
+            }
+        }
+        // the knobs: a grid, spread across the box
+        const auto kg = knobGrid (b, area.getWidth());
+        if (kg.count > 0)
+        {
+            int k = 0;
+            for (int ri : b.rowIndex)
+            {
+                auto& rw = rows[(size_t) ri];
+                if (! rw.slider || hidden (rw)) continue;
+                rw.slider->setBounds (in.getX() + kg.xOf[(size_t) k], in.getY() + kg.rowOf[(size_t) k] * (kg.cellH + gap), kg.wOf[(size_t) k], kg.cellH);
+                ++k;
             }
         }
     };
@@ -991,8 +1078,9 @@ void EnginePage::resized()
         }
     }
     // the boxes in columns: as few as fit (but never so narrow that a slider has no room), each filled top to bottom
-    const int minColW = charsW (16) + (int) (px * 24);
-    const int maxCols = juce::jlimit (1, 3, (r.getWidth() + gap * 3) / (minColW + gap * 3));
+    // (knobs: a column needs room for two of them at least - so up to four columns)
+    const int minColW = knobs ? charsW (6) * 2 + gap * 5 : charsW (16) + (int) (px * 24);
+    const int maxCols = juce::jlimit (1, knobs ? 4 : 3, (r.getWidth() + gap * 3) / (minColW + gap * 3));
     int cols = 1, colW = r.getWidth();
     for (int pass = 0; pass < 2; ++pass)
     {
@@ -1010,9 +1098,9 @@ void EnginePage::resized()
     int best = std::numeric_limits<int>::max();
     auto score = [&]
     {
-        int h[3] {};
+        int h[4] {};
         for (int k = 0; k < n; ++k) h[colOf[(size_t) k]] += hs[(size_t) k];
-        return std::max ({ h[0], h[1], h[2] });
+        return std::max ({ h[0], h[1], h[2], h[3] });
     };
     {
         // in order first: a run per column, cut where the columns come out most even
@@ -1026,7 +1114,7 @@ void EnginePage::resized()
         }
         best = score(); bestOf = colOf;
     }
-    if (cols > 1 && n <= 12)
+    if (cols > 1 && n <= (cols > 3 ? 9 : 12))
     {
         long combos = 1;
         for (int k = 0; k < n; ++k) combos *= cols;
@@ -1055,6 +1143,18 @@ void EnginePage::resized()
         subPages = relayout = true;
         resized();
         relayout = false;
+        return;
+    }
+    // (knobs that don't all fit: smaller dials, then smaller again - the words stay their size)
+    if (knobs && best - gap * 2 > r.getHeight() && knobDial > 11.0f)
+    {
+        knobDial = knobDial > 16.0f ? 15.0f : 11.0f;
+        for (auto& rw : rows) if (rw.slider) rw.slider->dialPx = knobDial;
+        const bool was = shrinking;
+        shrinking = true;
+        resized();
+        shrinking = was;
+        return;
     }
 }
 
@@ -1063,6 +1163,59 @@ void EnginePage::paint (juce::Graphics& g)
     const auto& pal = Theme::palFor (*this);
     const float px = Theme::px;
     g.fillAll (pal.panel);
+    const auto* ps = Theme::panelSkin (look);
+    if (ps != nullptr)
+    {
+        // a vintage panel: its face (brushed metal: fine lines across it), then the cheeks or the rack ears
+        g.setGradientFill (juce::ColourGradient (ps->face, 0, (float) faceArea.getY(), ps->face2, 0, (float) faceArea.getBottom(), false));
+        g.fillRect (faceArea);
+        if (ps->brushed)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.10f));
+            for (float y = (float) faceArea.getY(); y < (float) faceArea.getBottom(); y += 3.0f) g.fillRect ((float) faceArea.getX(), y, (float) faceArea.getWidth(), 1.0f);
+        }
+        for (const auto side : { juce::Rectangle<int> (0, 0, faceArea.getX(), getHeight()), juce::Rectangle<int> (faceArea.getRight(), 0, getWidth() - faceArea.getRight(), getHeight()) })
+        {
+            if (side.getWidth() <= 0) continue;
+            const auto sf = side.toFloat();
+            if (ps->sides == 1)
+            {
+                // cheeks: wood (or black), with the grain running down them
+                g.setGradientFill (juce::ColourGradient (ps->side, sf.getX(), 0, ps->side2, sf.getCentreX(), 0, true));
+                g.fillRect (sf);
+                g.setColour (juce::Colours::black.withAlpha (0.18f));
+                for (int k = 1; k < 5; ++k) g.fillRect (sf.getX() + sf.getWidth() * (float) k / 5.0f, sf.getY(), 1.0f, sf.getHeight());
+                g.setColour (juce::Colours::black.withAlpha (0.45f));
+                g.fillRect (side.getX() == 0 ? sf.withLeft (sf.getRight() - 2.0f) : sf.withWidth (2.0f));
+            }
+            else
+            {
+                // rack ears: a slightly darker metal, two screws in each
+                g.setGradientFill (juce::ColourGradient (ps->side, sf.getX(), 0, ps->side2, sf.getRight(), 0, false));
+                g.fillRect (sf);
+                g.setColour (juce::Colours::black.withAlpha (0.35f));
+                g.fillRect (side.getX() == 0 ? sf.withLeft (sf.getRight() - 1.5f) : sf.withWidth (1.5f));
+                for (const float yy : { px * 14.0f, (float) getHeight() - px * 14.0f })
+                {
+                    const float d = px * 5.0f;
+                    const juce::Rectangle<float> sc (sf.getCentreX() - d * 0.5f, yy - d * 0.5f, d, d);
+                    g.setGradientFill (juce::ColourGradient (juce::Colours::white, sc.getX(), sc.getY(), juce::Colour (0xff6b6e73), sc.getRight(), sc.getBottom(), false));
+                    g.fillEllipse (sc);
+                    g.setColour (juce::Colour (0xff3a3c40));
+                    g.drawLine (sc.getX() + d * 0.2f, sc.getCentreY(), sc.getRight() - d * 0.2f, sc.getCentreY(), std::max (1.0f, px * 0.5f));
+                }
+            }
+        }
+        // the title in the panel's display
+        if (! titleArea.isEmpty())
+        {
+            auto lcd = titleArea.reduced (0, px * 0.5f);
+            g.setColour (ps->lcdBg);
+            g.fillRoundedRectangle (lcd, px * 1.2f);
+            g.setColour (juce::Colours::black.withAlpha (0.6f));
+            g.drawRoundedRectangle (lcd, px * 1.2f, std::max (1.0f, px * 0.6f));
+        }
+    }
     // the title: as much of it as fits (never cut)
     const juce::String name = juce::String (inst().pluginName);
     const juce::String what = inst().pluginKey == kSubKey ? " - CLICK-FREE SUB BASS" : inst().pluginKey == kGrainKey ? " - GRAIN SYNTH"
@@ -1076,8 +1229,9 @@ void EnginePage::paint (juce::Graphics& g)
                             : inst().pluginKey == kDrum808Key ? " - TR-808 DRUM MACHINE"
                             : inst().pluginKey == kDrum909Key ? " - TR-909 DRUM MACHINE" : "";
     const juce::String num = hex2 (proc.editorState.instrument + 1);
+    const auto titleIn = ps != nullptr ? titleArea.reduced (px * 3, 0) : titleArea;
     for (const auto& t : { "INSTRUMENT " + num + ": " + name + what, "INSTRUMENT " + num + ": " + name, num + " " + name, name })
-        if (PixelFont::textWidth (t, px) <= titleArea.getWidth()) { PixelFont::drawLeft (g, t, titleArea, px, pal.ink); break; }
+        if (PixelFont::textWidth (t, px) <= titleIn.getWidth()) { PixelFont::drawLeft (g, t, titleIn, px, ps != nullptr ? ps->lcdInk : pal.ink); break; }
     for (const auto& b : boxes)
     {
         if (b.area.isEmpty()) continue;
@@ -1117,6 +1271,13 @@ void EnginePage::paint (juce::Graphics& g)
                 if (PixelFont::textWidth (c, px) <= b.area.getWidth() - px * 30) { head = c; break; }
         }
         Theme::panelBox (g, b.area, head, pal);
+        if (ps != nullptr)
+        {
+            // each section's colour band along its top (in the synth's order, round the panel's colours)
+            const int k = (int) (&b - boxes.data());
+            g.setColour (ps->stripe[k % 5]);
+            g.fillRect (b.area.withHeight (std::max (2.0f, px * 1.2f)).reduced (px * 0.6f, 0));
+        }
     }
     if (browsingTone >= 0 && ! romHeadArea.isEmpty())
     {

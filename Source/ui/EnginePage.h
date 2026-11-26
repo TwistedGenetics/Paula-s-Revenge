@@ -138,6 +138,15 @@ private:
     void positionFrom (juce::Point<float>);
     bool playingHeld = false;
 
+    // (v1.01) VINTAGE PANELS: each built-in synth drawn as a piece of 80s / 90s gear (its own colours, knobs)
+    Theme::PanelLook look = Theme::PanelLook::None;
+    juce::Rectangle<int> faceArea;     // the panel between its cheeks / rack ears
+    float knobDial = 19.0f;            // the knobs' size (in font pixels): smaller when they don't all fit
+    bool shrinking = false;
+  public:
+    static Theme::PanelLook lookFor (const std::string& key);
+    Theme::PanelLook panelLook() const { return look; }   // (tests)
+  private:
     Instrument& inst();
     void build();
     void sync();

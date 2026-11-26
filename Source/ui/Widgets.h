@@ -81,6 +81,28 @@ struct Theme
     static void markDarkPage (juce::Component& c) { c.getProperties().set ("prvDarkPage", true); }
     static void bevel (juce::Graphics& g, juce::Rectangle<float> r, bool raised, float t, const Palette&);
     static void panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title, const Palette&);
+
+    // (v1.01) VINTAGE PANELS: a built-in synth's page drawn as a piece of 80s / 90s gear - its own colours (whatever the
+    // skin), wood cheeks or rack ears, an LCD for the title, knobs for its controls. Our own designs, no maker's.
+    enum class PanelLook { None = 0, Cream, Walnut, Membrane, Sampler, Rack, DrumWood, DrumCream, Count };
+    struct PanelSkin
+    {
+        Palette pal;                       // what the controls on it draw with
+        juce::Colour face, face2;          // the panel itself, top to bottom
+        int sides = 0;                     // 0 none, 1 wood (or black) cheeks, 2 rack ears with screws
+        juce::Colour side, side2;          // the cheeks' / ears' colours
+        bool brushed = false;              // fine lines across the face (brushed metal)
+        juce::Colour lcdBg, lcdInk;        // the title's display
+        juce::Colour knob, knobHi, knobPtr, knobArc;
+        juce::Colour stripe[5];            // each section's colour band
+    };
+    static const PanelSkin* panelSkin (PanelLook);
+    static const PanelSkin* panelSkinFor (const juce::Component&);
+    static void markPanelLook (juce::Component& c, PanelLook l)
+    {
+        if (l == PanelLook::None) c.getProperties().remove ("prvPanel");
+        else c.getProperties().set ("prvPanel", (int) l);
+    }
 };
 
 class PixButton : public juce::Button
@@ -169,6 +191,11 @@ public:
     void mouseDoubleClick (const juce::MouseEvent&) override;
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     float defaultValue = 0.5f;
+    // (v1.01) a knob: the dial, its value under it and the name under that (up to two lines); drag up / down
+    bool knob = false;
+    float dialPx = 19.0f;   // the dial's size, in font pixels
+    static int knobHeight (float px, int labelLines, float dial = 19.0f) { return (int) (px * (dial + 2 + 9 + 9.5f * (float) labelLines)); }
+    static juce::StringArray knobLines (const juce::String& label, float width, float px);
     std::function<void()> onDoubleClick;   // replaces the reset-to-default when set
     std::function<void()> onDragStart;     // e.g. to mark an undo step
     std::function<void()> onRightClick;    // set: a right-click opens this instead of moving it

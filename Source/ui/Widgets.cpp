@@ -302,8 +302,94 @@ void Theme::panelBox (juce::Graphics& g, juce::Rectangle<float> r, const juce::S
 const Theme::Palette& Theme::lightPalette() { if (chromePal.ink.isTransparent()) setSkinId (SkinId::Workbench); return chromePal; }
 const Theme::Palette& Theme::darkPalette()  { if (pagePal.ink.isTransparent()) setSkinId (SkinId::Workbench); return pagePal; }
 
+const Theme::PanelSkin* Theme::panelSkin (PanelLook l)
+{
+    static PanelSkin looks[(int) PanelLook::Count];
+    static bool made = false;
+    if (! made)
+    {
+        made = true;
+        auto C = [] (juce::uint32 v) { return juce::Colour (v); };
+        auto pal = [&] (juce::uint32 paper, juce::uint32 panel, juce::uint32 ink, juce::uint32 faint, juce::uint32 pressed, juce::uint32 pressedInk, juce::uint32 edge)
+        {
+            Palette p;
+            p.paper = C (paper); p.panel = C (panel); p.ink = C (ink); p.faint = C (faint); p.pressed = C (pressed); p.pressedInk = C (pressedInk);
+            p.edge = C (edge); p.light = C (panel).brighter (0.25f); p.shadow = C (panel).darker (0.6f); p.hover = C (ink).withAlpha (0.10f);
+            return p;
+        };
+        auto stripes = [&] (PanelSkin& k, std::initializer_list<juce::uint32> v) { int i = 0; for (auto x : v) k.stripe[i++] = C (x); };
+        {   // CREAM: an off-white early-80s mono - black legends, black knobs with orange pointers, black cheeks
+            auto& k = looks[(int) PanelLook::Cream];
+            k.pal = pal (0xfffbf7ee, 0xffe2dbca, 0xff141414, 0xff4a4740, 0xff1f6fb2, 0xffffffff, 0xff141414);
+            k.face = C (0xffefe9dc); k.face2 = C (0xffe1d9c7); k.sides = 1; k.side = C (0xff2b2b2b); k.side2 = C (0xff3d3d3d);
+            k.lcdBg = C (0xff121212); k.lcdInk = C (0xffff7a2a);
+            k.knob = C (0xff161616); k.knobHi = C (0xff4a4a4a); k.knobPtr = C (0xffff6a1a); k.knobArc = C (0xff1f6fb2);
+            stripes (k, { 0xff1f6fb2, 0xffd23b2f, 0xff2b8a4b, 0xffd18d1f, 0xff1f6fb2 });
+        }
+        {   // WALNUT: charcoal with wood end cheeks, cream legends, colour-coded sections
+            auto& k = looks[(int) PanelLook::Walnut];
+            k.pal = pal (0xff111214, 0xff2b2c30, 0xfff6f1e4, 0xffcfc8b6, 0xffe8b23a, 0xff111111, 0xff8f8a7e);
+            k.face = C (0xff26272b); k.face2 = C (0xff1b1c1f); k.sides = 1; k.side = C (0xff5a3419); k.side2 = C (0xff8a5530);
+            k.lcdBg = C (0xff0e1a10); k.lcdInk = C (0xff86f586);
+            k.knob = C (0xff121214); k.knobHi = C (0xff5d5d62); k.knobPtr = C (0xfff6f1e4); k.knobArc = C (0xffe8b23a);
+            stripes (k, { 0xffe2622c, 0xffe8b23a, 0xff3fa7d6, 0xff9ccc52, 0xffd94c74 });
+        }
+        {   // MEMBRANE: the mid-80s digital look - warm beige, flat printed switches, a green LCD
+            auto& k = looks[(int) PanelLook::Membrane];
+            k.pal = pal (0xfff3ecdc, 0xffcbc1ad, 0xff241f17, 0xff4f4535, 0xffc4432f, 0xffffffff, 0xff241f17);
+            k.face = C (0xffd8cfbd); k.face2 = C (0xffc8bea9);
+            k.lcdBg = C (0xffa9c48a); k.lcdInk = C (0xff1a2610);
+            k.knob = C (0xff2a251e); k.knobHi = C (0xff5a5145); k.knobPtr = C (0xfff2ead8); k.knobArc = C (0xffc4432f);
+            stripes (k, { 0xffc4432f, 0xff2f7d6d, 0xffb87a12, 0xff3d5a9e, 0xff7a3f7a });
+        }
+        {   // SAMPLER: an 80s rack sampler's light grey, blue lines, a green LCD, rack ears
+            auto& k = looks[(int) PanelLook::Sampler];
+            k.pal = pal (0xfff6f6f0, 0xffcdcdc4, 0xff14171b, 0xff3a4047, 0xff204896, 0xffffffff, 0xff204896);
+            k.face = C (0xffdcdcd4); k.face2 = C (0xffcfcfc6); k.sides = 2; k.side = C (0xffbdbdb4); k.side2 = C (0xffa9a9a0);
+            k.lcdBg = C (0xff93b98a); k.lcdInk = C (0xff122011);
+            k.knob = C (0xff1c1f23); k.knobHi = C (0xff5c6168); k.knobPtr = C (0xfff2f2ec); k.knobArc = C (0xff204896);
+            stripes (k, { 0xff204896, 0xff204896, 0xffc23a2b, 0xff204896, 0xff204896 });
+        }
+        {   // RACK: brushed aluminium, black legends, silver knobs, an amber display, rack ears
+            auto& k = looks[(int) PanelLook::Rack];
+            k.pal = pal (0xfff2f3f4, 0xffc3c6ca, 0xff111213, 0xff33363b, 0xff1d1f23, 0xffffb238, 0xff111213);
+            k.face = C (0xffcfd2d6); k.face2 = C (0xffbfc2c6); k.sides = 2; k.side = C (0xffaaaeb3); k.side2 = C (0xff92969b); k.brushed = true;
+            k.lcdBg = C (0xff1b1206); k.lcdInk = C (0xffffb238);
+            k.knob = C (0xff9a9ea4); k.knobHi = C (0xfff4f5f6); k.knobPtr = C (0xff111213); k.knobArc = C (0xff1d1f23);
+            stripes (k, { 0xff111213, 0xff111213, 0xff111213, 0xff111213, 0xff111213 });
+        }
+        // (the keys: their faces)
+        looks[(int) PanelLook::Cream].pal.light = C (0xfff8f3e6);
+        looks[(int) PanelLook::Walnut].pal.light = C (0xff3b3c41);
+        looks[(int) PanelLook::Membrane].pal.light = C (0xffece5d4);
+        looks[(int) PanelLook::Sampler].pal.light = C (0xffedede5);
+        looks[(int) PanelLook::Rack].pal.light = C (0xffe4e6e9);
+        for (auto* k : { &looks[(int) PanelLook::Cream], &looks[(int) PanelLook::Walnut], &looks[(int) PanelLook::Membrane], &looks[(int) PanelLook::Sampler], &looks[(int) PanelLook::Rack] })
+            k->pal.hover = k->pal.light.overlaidWith (k->pal.ink.withAlpha (0.10f));
+        {   // DRUM WOOD: a wood-trimmed rhythm box, warm colours across the voices
+            auto& k = looks[(int) PanelLook::DrumWood];
+            k = looks[(int) PanelLook::Walnut];
+            stripes (k, { 0xffe8b23a, 0xffe2622c, 0xff9ccc52, 0xff3fa7d6, 0xffd94c74 });
+        }
+        {   // DRUM CREAM: a cream rhythm unit - blue, red, yellow and green across the voices
+            auto& k = looks[(int) PanelLook::DrumCream];
+            k = looks[(int) PanelLook::Cream];
+            stripes (k, { 0xff1f6fb2, 0xffd23b2f, 0xffd8a514, 0xff2b8a4b, 0xff1f6fb2 });
+        }
+    }
+    return l == PanelLook::None || l >= PanelLook::Count ? nullptr : &looks[(int) l];
+}
+
+const Theme::PanelSkin* Theme::panelSkinFor (const juce::Component& c)
+{
+    for (auto* p = &c; p != nullptr; p = p->getParentComponent())
+        if (const auto* v = p->getProperties().getVarPointer ("prvPanel")) return panelSkin ((PanelLook) (int) *v);
+    return nullptr;
+}
+
 const Theme::Palette& Theme::palFor (const juce::Component& c)
 {
+    if (const auto* ps = panelSkinFor (c)) return ps->pal;
     if (! skin.dark) return lightPalette();
     for (auto* p = &c; p != nullptr; p = p->getParentComponent())
         if (p->getProperties().contains ("prvDarkPage")) return darkPalette();
@@ -528,6 +614,7 @@ void PixButton::paintButton (juce::Graphics& g, bool over, bool down)
         accent = (u.contains ("REC") || u.contains ("EDIT") || u.contains ("ARM")) ? Theme::skin.accentRec
                : (u.contains ("LEARN") || u.contains ("MODUL") || u.startsWith ("MOD")) ? Theme::skin.accentMod
                : Theme::skin.accentSel;
+        if (Theme::panelSkinFor (*this) != nullptr && accent == Theme::skin.accentSel) accent = P.pressed;   // (a vintage panel: its own colour)
     }
     const bool studio = Theme::skin.smoothType;
     const auto& K = Theme::skin;
@@ -770,9 +857,72 @@ void PixSlider::setValue (float v, bool notify)
     if (notify && onChange) onChange (value);
 }
 
+juce::StringArray PixSlider::knobLines (const juce::String& label, float width, float px)
+{
+    // the name in one line if it fits, else two (split at the space that leaves the longer line shortest)
+    juce::StringArray out;
+    if (PixelFont::textWidth (label, px) <= width || ! label.containsChar (' ')) { out.add (label); return out; }
+    int best = -1; float bestW = 1.0e9f;
+    for (int i = 0; i < label.length(); ++i)
+        if (label[i] == ' ')
+        {
+            const float w = std::max (PixelFont::textWidth (label.substring (0, i), px), PixelFont::textWidth (label.substring (i + 1), px));
+            if (w < bestW) { bestW = w; best = i; }
+        }
+    out.add (label.substring (0, best)); out.add (label.substring (best + 1));
+    return out;
+}
+
 void PixSlider::paint (juce::Graphics& g)
 {
     const float px = Theme::px;
+    if (knob)
+    {
+        // a knob: the dial (its travel as an arc, a pointer), the value, then the name
+        auto r = getLocalBounds().toFloat();
+        const auto& P = Theme::palFor (*this);
+        const auto* ps = Theme::panelSkinFor (*this);
+        const float d = std::min (r.getWidth() - px * 2, px * dialPx);
+        const juce::Rectangle<float> dial (r.getCentreX() - d * 0.5f, r.getY() + px, d, d);
+        const float a0 = juce::MathConstants<float>::pi * 0.75f, a1 = juce::MathConstants<float>::pi * 2.25f;
+        const float av = a0 + (a1 - a0) * value;
+        // the travel, and how far it's turned
+        juce::Path track, done;
+        const float rr = d * 0.5f + px * 1.2f;
+        track.addCentredArc (dial.getCentreX(), dial.getCentreY(), rr, rr, 0, a0 + juce::MathConstants<float>::halfPi, a1 + juce::MathConstants<float>::halfPi, true);
+        done.addCentredArc (dial.getCentreX(), dial.getCentreY(), rr, rr, 0, a0 + juce::MathConstants<float>::halfPi, av + juce::MathConstants<float>::halfPi, true);
+        g.setColour (P.ink.withAlpha (0.22f));
+        g.strokePath (track, juce::PathStrokeType (px * 0.9f));
+        g.setColour (ps != nullptr ? ps->knobArc : P.pressed);
+        g.strokePath (done, juce::PathStrokeType (px * 0.9f));
+        // the cap: lit from the top left
+        const auto face = ps != nullptr ? ps->knob : P.ink, hi = ps != nullptr ? ps->knobHi : P.faint;
+        juce::ColourGradient cg (hi, dial.getX() + d * 0.3f, dial.getY() + d * 0.25f, face, dial.getRight(), dial.getBottom(), true);
+        g.setGradientFill (cg);
+        g.fillEllipse (dial.reduced (px * 0.6f));
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.drawEllipse (dial.reduced (px * 0.6f), std::max (1.0f, px * 0.35f));
+        // the pointer
+        const auto c = dial.getCentre();
+        const float rad = d * 0.5f - px * 1.6f;
+        const juce::Point<float> tip (c.x + std::cos (av) * rad, c.y + std::sin (av) * rad);
+        const juce::Point<float> mid (c.x + std::cos (av) * rad * 0.35f, c.y + std::sin (av) * rad * 0.35f);
+        g.setColour (ps != nullptr ? ps->knobPtr : P.paper);
+        g.drawLine ({ mid, tip }, std::max (2.0f, px * 1.1f));
+        if (modLo >= 0.0f)
+        {
+            // modulated: where it is now, a dot in the modulation colour on the travel
+            const float an = a0 + (a1 - a0) * modNow;
+            g.setColour (Theme::skin.accentMod);
+            g.fillEllipse (c.x + std::cos (an) * rr - px * 1.4f, c.y + std::sin (an) * rr - px * 1.4f, px * 2.8f, px * 2.8f);
+        }
+        // the value under it, the name under that (never cut: up to two lines)
+        auto below = r.withTrimmedTop (d + px * 3);
+        PixelFont::drawCentred (g, format (value), below.removeFromTop (px * 9), px, P.faint);
+        for (const auto& line : knobLines (label, r.getWidth(), px))
+            PixelFont::drawCentred (g, line, below.removeFromTop (px * 9.5f), px, P.ink);
+        return;
+    }
     auto r = getLocalBounds().toFloat();
     const auto& P = Theme::palFor (*this);
     PixelFont::drawLeft (g, label, r, px, P.ink);
@@ -811,8 +961,8 @@ void PixSlider::mouseDown (const juce::MouseEvent& e)
     if (onRightClick && e.mods.isPopupMenu()) { rightDown = true; onRightClick(); return; }
     rightDown = false;
     if (onDragStart) onDragStart();
-    // a click in the trough jumps there; dragging then moves relative to that, calmly
-    if (trough().contains (e.position) && ! e.mods.isShiftDown()) setFromX (e.position.x);
+    // a click in the trough jumps there; dragging then moves relative to that, calmly (a knob: it only turns)
+    if (! knob && trough().contains (e.position) && ! e.mods.isShiftDown()) setFromX (e.position.x);
     dragStartValue = value;
     DragReadout::show (*this, label + " " + format (value));
 }
@@ -822,7 +972,10 @@ void PixSlider::mouseDrag (const juce::MouseEvent& e)
     if (rightDown) return;
     auto t = trough().reduced (Theme::px);
     const float fine = e.mods.isShiftDown() ? 0.1f : 1.0f;   // Shift: fine
-    setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);
+    if (knob)   // (a knob: up turns it up, as far again sideways; 200 points a full turn)
+        setValue (dragStartValue + (float) (e.getDistanceFromDragStartX() - e.getDistanceFromDragStartY()) / (Theme::px * 75.0f) * fine, true);
+    else
+        setValue (dragStartValue + e.getDistanceFromDragStartX() / std::max (1.0f, t.getWidth()) * fine, true);
     DragReadout::show (*this, label + " " + format (value));
 }
 
