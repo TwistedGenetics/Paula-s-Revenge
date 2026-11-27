@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paula's Revenge Manual - Front Page (A: WORKBENCH)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@700&display=swap">
+<style>
+/* The manual's front page, design A: WORKBENCH. One A4 page: paper white, the four track colours along the top, the
+   main screen big. Dark text on light. (Sizes in cqw: it draws the same at any width.) */
+@font-face { font-family: "JetBrains Mono Local"; src: url("../../Resources/fonts/JetBrainsMono-Bold.ttf"); font-weight: 700; }
+@page { size: A4; margin: 0; }
+html, body { margin: 0; background: #e6e8ec; }
+.cover { container-type: inline-size; width: 210mm; height: 297mm; margin: 0 auto; position: relative; overflow: hidden; background: #fbfaf7; }
+.cv { position: absolute; inset: 0; color: #16191f; padding: 0 9cqw; font-family: "Inter", system-ui, sans-serif; }
+.band { display: flex; height: 2.6cqw; margin: 0 -9cqw 10cqw; }
+.band i { flex: 1; }
+.band i:nth-child(1) { background: #00849c; } .band i:nth-child(2) { background: #9b2a9b; }
+.band i:nth-child(3) { background: #b86400; } .band i:nth-child(4) { background: #3a8f2a; }
+.mono { font-family: "JetBrains Mono", "JetBrains Mono Local", ui-monospace, monospace; font-weight: 700; }
+.kicker { font-size: 3.3cqw; letter-spacing: 0.1em; color: #4b5361; }
+h1 { font-weight: 900; font-size: 14.5cqw; line-height: 0.9; letter-spacing: -0.045em; margin: 2.5cqw 0 4cqw; }
+.tag { font-weight: 600; font-size: 4.4cqw; line-height: 1.32; color: #2b313b; margin: 0 0 7cqw; max-width: 72cqw; }
+.shot { border-radius: 2cqw; overflow: hidden; border: 0.55cqw solid #16191f; box-shadow: 0 2.4cqw 6cqw rgba(0, 0, 0, 0.18); }
+.shot img { display: block; width: 100%; }
+.foot { position: absolute; left: 9cqw; right: 9cqw; bottom: 8cqw; display: flex; justify-content: space-between;
+        font-size: 3.2cqw; letter-spacing: 0.06em; border-top: 0.45cqw solid #16191f; padding-top: 3cqw; }
+@media print { html, body { background: #fbfaf7; } .cover { margin: 0; } }
+</style>
+</head>
+<body>
+<div class="cover"><div class="cv">
+  <div class="band"><i></i><i></i><i></i><i></i></div>
+  <div class="kicker mono">USER MANUAL &middot; V1.01</div>
+  <h1>PAULA'S<br>REVENGE</h1>
+  <p class="tag">The tracker, sampler and synth studio, in the spirit of the Amiga.</p>
+  <div class="shot"><img src="img/dark3.png" alt="The main screen in DARK III: the sequence, block and instrument panes at the left, the arrange lanes and the four-track pattern at the right."></div>
+  <div class="foot mono"><span>TWISTED GENETICS</span><span>MAC &middot; WINDOWS</span></div>
+</div></div>
+</body>
+</html>

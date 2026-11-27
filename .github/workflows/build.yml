@@ -243,7 +243,8 @@ jobs:
           # the manual and the KEYS sheet too, as their own downloads (PDFs; the manual is also in the app as HELP)
           cp docs/manual/Paulas-Revenge-Manual.pdf dist/Paulas-Revenge-Manual.pdf
           cp docs/manual/Paulas-Revenge-Keys.pdf dist/Paulas-Revenge-Keys.pdf
-          gh release create "$TAG" dist/PaulasRevenge-macOS.zip dist/PaulasRevenge-Windows.zip dist/Paulas-Revenge-Manual.pdf dist/Paulas-Revenge-Keys.pdf \
+          cp docs/manual/Paulas-Revenge-Addendum.pdf dist/Paulas-Revenge-Addendum.pdf
+          gh release create "$TAG" dist/PaulasRevenge-macOS.zip dist/PaulasRevenge-Windows.zip dist/Paulas-Revenge-Manual.pdf dist/Paulas-Revenge-Addendum.pdf dist/Paulas-Revenge-Keys.pdf \
             --target "${{ github.sha }}" \
             --title "Paula's Revenge ${VERSION} (build ${{ github.run_number }})" \
             --latest \
@@ -251,4 +252,4 @@ jobs:
 
           Mac: unzip, then follow INSTALL.txt (app into Applications, clear quarantine).
           Windows: unzip, run Paula's Revenge.exe (first time: More info -> Run anyway). See INSTALL.txt inside.
-          Manual: Paulas-Revenge-Manual.pdf, every keyboard shortcut: Paulas-Revenge-Keys.pdf (below)."
+          Manual: Paulas-Revenge-Manual.pdf, what's new since it: Paulas-Revenge-Addendum.pdf, every keyboard shortcut: Paulas-Revenge-Keys.pdf (below)."
