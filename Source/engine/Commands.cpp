@@ -160,12 +160,9 @@ std::string choppageCommandName (int c)
 
 std::string choppageOverview (int c)
 {
-    if (c == cmdLetter ('U')) return "HOLDS FX PAD X FOR Y LINES: X 1 STUTTER, 2 ROLL, 3 REVERSE, 4 TAPE STOP, 5 HALF-TIME, 6 AKAIZE, 7 FILT DIVE, "
-                                     "8 S950 DROP; Y 1-F LINES, 0 UNTIL THE NEXT U. U00 LETS GO. E.G. U23 = ROLL FOR 3 LINES";
-    if (c == cmdLetter ('S')) return "PLAYS SLICE XX+1 OF THE BREAK PLAYING (00-3F = SLICES 1-64), OVER THE TOP. E.G. S13 = SLICE 20";
-    if (c == 0x9) return "THE PAD'S SETTING FOR THIS HIT, BESIDE ITS U (THE OTHER EFFECT COLUMN): STUTTER / ROLL 00-03 = 1/8 1/16 1/32 1/64, "
-                         "TAPE STOP 00-FF = 0.1-3 S, HALF-TIME 00-04 = 1/2 3/4 2/3 1/4 1/2 TAPE, AKAIZE 00-03 = STRETCH 1.5 2 3 4, "
-                         "FILT DIVE 00-FF = RESONANCE, S950 DROP 00-FF = 4-15.6 KHZ. E.G. U23 + 903 = ROLL AT 1/64 FOR 3 LINES";
+    if (c == cmdLetter ('U')) return "HOLDS ONE OF CHOPPAGE'S 8 FX PADS FOR Y LINES, AS IF YOU HELD ITS KEY. U00 LETS GO";
+    if (c == cmdLetter ('S')) return "PLAYS ANY SLICE OF THE BREAK PLAYING, OVER THE TOP (00 = SLICE 1, 3F = SLICE 64)";
+    if (c == 0x9) return "THE FX PAD'S SETTING FOR THIS HIT: PUT IT IN THE OTHER EFFECT COLUMN, BESIDE THE U (U23 + 903 = ROLL AT 1/64)";
     return {};
 }
 
@@ -287,6 +284,63 @@ std::vector<CommandPart> commandParts (const CommandInfo& c, bool chop, int pad)
     if (is ('Z')) return { whole ("XX - BITS", { { 0x00, "00 OFF" }, { 0x04, "04 BITS" }, { 0x06, "06" }, { 0x08, "08" }, { 0x0C, "0C" } }) };
     if (is ('N') || is ('G') || is ('Y')) return { whole ("XX - TICKS", { { 0x01, "01" }, { 0x02, "02" }, { 0x03, "03" }, { 0x06, "06" }, { 0x0C, "0C" } }) };
     return { whole ("XX - VALUE", levels()) };
+}
+
+std::vector<uint8_t> commandExamples (const CommandInfo& c, bool chop, int pad)
+{
+    const int L = c.cmd;
+    auto is = [L] (char ch) { return L == cmdLetter (ch); };
+    if (chop && is ('U')) return { 0x23, 0x61, 0x40, 0x00 };
+    if (chop && is ('S')) return { 0x00, 0x07, 0x13 };
+    if (chop && L == 0x9)
+    {
+        switch (pad)
+        {
+            case 0: case 1: return { 0x02, 0x03, 0x00 };
+            case 4: return { 0x00, 0x04, 0x03 };
+            case 5: return { 0x01, 0x03, 0x00 };
+            case 3: return { 0x40, 0xFF, 0x00 };
+            default: return { 0x80, 0xFF, 0x00 };
+        }
+    }
+    if (c.extended)
+    {
+        const int hi = c.param & 0xF0;
+        switch (c.param >> 4)
+        {
+            case 0x0: return { 0x00, 0x01 };
+            case 0x4: case 0x7: return { (uint8_t) (hi | 0), (uint8_t) (hi | 1), (uint8_t) (hi | 2) };
+            case 0x6: return { 0x60, 0x63 };
+            default:  return { c.param, (uint8_t) (hi | 1), (uint8_t) (hi | 6) };
+        }
+    }
+    switch (L)
+    {
+        case 0x0: return { 0x37, 0x47, 0x0C };
+        case 0x1: case 0x2: return { 0x08, 0x02, 0x20 };
+        case 0x3: return { 0x10, 0x04, 0x40 };
+        case 0x4: case 0x7: return { 0x44, 0x82, 0x2F };
+        case 0x5: case 0x6: case 0xA: return { 0x04, 0x01, 0x40 };
+        case 0x8: return { 0x80, 0x00, 0xFF };
+        case 0x9: return { 0x10, 0x40, 0x80 };
+        case 0xB: return { 0x00, 0x04 };
+        case 0xC: return { 0x40, 0x20, 0x00 };
+        case 0xD: return { 0x00, 0x10 };
+        case 0xF: return { 0x06, 0x03, 0xAA };
+        default: break;
+    }
+    if (L == kCmdDub)   return { 0xC0, 0x84, 0x02 };
+    if (L == kCmdCond)  return { 0x12, 0x44, 0x01 };
+    if (L == kCmdChord) return { 0x01, 0x02 };
+    if (is ('R')) return { 0x30, 0x24, 0x6A };
+    if (is ('K')) return { 0x80, 0x40, 0xC0 };
+    if (is ('U')) return { 0x01, 0x00 };
+    if (is ('I')) return { 0x8C, 0x74, 0x87 };
+    if (is ('T')) return { 0x80, 0x90, 0x70 };
+    if (is ('M')) return { 0x20, 0xC0, 0x00 };
+    if (is ('Z')) return { 0x06, 0x08, 0x00 };
+    if (is ('X')) return { 0x0C, 0x14, 0x28 };
+    return { c.param, 0x40, 0xC0 };
 }
 
 const std::vector<CommandInfo>& commandList()

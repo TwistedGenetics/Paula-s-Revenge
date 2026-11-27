@@ -903,6 +903,16 @@ void PatternEditor::openCommandMenu (int line, int track, int group)
         if (oc == cmdLetter ('U') && (op >> 4) >= 1 && (op >> 4) <= 8) pad = (op >> 4) - 1;
         return commandParts (ci, chop, pad);
     };
+    picker->examplesFor = [this, L, T, group] (const CommandInfo& ci)
+    {
+        const int ins = instrumentAt (L, T);
+        const bool chop = ins >= 0 && proc.song.instruments[(size_t) ins].isChoppage();
+        int pad = -1;
+        const auto& cell = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (L, T);
+        const uint8_t oc = group == 2 ? cell.cmd : cell.cmd2, op = group == 2 ? cell.param : cell.param2;
+        if (oc == cmdLetter ('U') && (op >> 4) >= 1 && (op >> 4) <= 8) pad = (op >> 4) - 1;
+        return commandExamples (ci, chop, pad);
+    };
     picker->open (group == 2 ? c.cmd2 : c.cmd, group == 2 ? c.param2 : c.param);
     if (onStatus) onStatus ("PICK A COMMAND (CLICK, OR ARROWS + ENTER; TYPE ITS LETTER TO JUMP) - ESC CANCELS");
 }

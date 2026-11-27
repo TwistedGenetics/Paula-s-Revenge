@@ -612,11 +612,12 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 
 ## Effect commands
 
-**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for **EFFECT COMMANDS** (a cell holding a chord, `#xy`, gives the chord list instead). The commands are down the left (the arrows move through them; typing a command's letter jumps to it, and `E` again steps through the E commands). On the right you build the one you've picked:
-* at the top, the command as you'd type it, big, and what it does in words: **`U 2 3 = ROLL FOR 3 LINES`**;
-* under it, what the command does and how to use it, in full;
-* then a row of named buttons for each digit: for `U` on a CHOPPAGE track, **X - WHICH PAD** (`0 LET GO`, `1 STUTTER`, `2 ROLL`...) and **Y - HOW MANY LINES** (`0 UNTIL NEXT U`, `1 LINE`, `2`...). Commands with one value (`C`, `8`, `F`...) have useful values to click (`40 FULL`, `80 CENTRE`, `AA = 170 BPM`) and `- 1`, `+ 1`, `- 10`, `+ 10` (hex) to nudge it; `←` / `→` nudge it from the keyboard too.
-It opens on the command and value already in the cell. **INSERT** (or `Enter`, or a double-click on a command) puts it in the cell, as one undo step; `Esc` closes it.
+**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for **EFFECT COMMANDS** (a cell holding a chord, `#xy`, gives the chord list instead). The commands are down the left, code and name (the arrows move through them; typing a command's letter jumps to it, and `E` again steps through the E commands). On the right is a how-to card for the one you've picked:
+* its name, and what it does;
+* its digits, big, each with what it means under it (`U` FX PAD, `2` WHICH PAD, `3` HOW MANY LINES) and, beside them, what it'll do in words (`= ROLL FOR 3 LINES`). **Click a digit** and type `0`–`F` into it (Tab goes from digit to digit), or turn the mouse wheel over it; `←` / `→` nudge it;
+* what each digit can be (`WHICH PAD: 0 LET GO - 1 STUTTER - 2 ROLL...`);
+* **EXAMPLES**: click one to put it straight in the cell.
+It opens on the command and value already in the cell (a new command starts from its first example). **INSERT** (or `Enter`, or a double-click on a command) puts it in, as one undo step; `Esc` closes it.
 
 Same numbering as ProTracker, so MOD files load straight in.
 

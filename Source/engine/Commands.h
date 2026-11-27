@@ -36,6 +36,8 @@ struct CommandPart
 };
 // choppage: the cell's instrument is CHOPPAGE; pad: the U beside a 9xx (0-7, else -1)
 std::vector<CommandPart> commandParts (const CommandInfo&, bool choppage, int pad = -1);
+// a few values worth trying (the how-to card's examples, the first is the one to start from)
+std::vector<uint8_t> commandExamples (const CommandInfo&, bool choppage, int pad = -1);
 
 // (v1.01) On a CHOPPAGE track the sample-only commands mean something else: Uxy holds FX pad x for y lines, 9xx is
 // that hit's pad setting, Sxx plays slice xx+1 of the break playing. Empty for any other command.
