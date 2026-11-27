@@ -35,6 +35,8 @@ namespace bc
             int    akCycleLength = 800;      // Akaizer CYCLE LENGTH (samples)
             double akCycleFreq = 51.0;       // Akaizer CYCLE FREQ (grains per second)
             double akRatio = 2.0;
+            bool   akInTime = false;         // AKAIZE MODE IN TIME: the read point keeps time, the grains ring
+            double akPitch = 1.0;            // ... and their pitch (a ratio)
             float  diveRes = 0.7f;
             double quantSteps = 1.0;            // the pad quantise grid in 16ths: 0 off, 0.5 = 1/32, 1 = 1/16 ... 16 = a bar
             double samplesSinceGrid = 0.0;      // since the last 16th line (for quantised starts)

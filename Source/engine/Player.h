@@ -362,6 +362,11 @@ private:
     // latency: samples on a track wait for its plug-in instrument
     DelayLine sampleAlign[kMaxTracks];
     int  sampleDelay[kMaxTracks] {};
+    // (v1.01) each plug-in instrument / instrument with its own inserts: how late its sound comes (the plug-in's latency
+    // plus its inserts'), and how much more it waits so it lines up with the slowest thing on its track
+    DelayLine instAlign[kMaxInstruments];
+    int  instLate[kMaxInstruments] {}, instPad[kMaxInstruments] {};
+    void alignInstruments (int numTracks);
     // MIDI clock
     double ppq = 0;                              // song position in beats
     long long nextClock = 0;

@@ -69,6 +69,7 @@ Player::Player()
     for (auto& t : synthTrack) t = 99;
     for (auto& o : instOnOv) o = -1;
     for (auto& d : sampleAlign) d.setMax (MixerEngine::kMaxSlotDelay);
+    for (auto& d : instAlign) d.setMax (MixerEngine::kMaxSlotDelay);
 }
 
 // ---------------------------------------------------------------------------
@@ -1962,12 +1963,37 @@ void Player::outputStage (float& L, float& R, bool led)
     R = softClip (R * limGain);
 }
 
+void Player::alignInstruments (int nt)
+{
+    // plug-in delay compensation for what the instruments play: each plug-in instrument's own latency, plus its own
+    // inserts' (any instrument with a chain). Everything the instruments play waits for the latest of them - the plain
+    // samples by sampleDelay, each instrument by its pad - so they all line up whichever track they play on (an
+    // instrument moves to the track of its latest note, and its first note would be late otherwise). The mixer then
+    // lines the tracks' own inserts up from there.
+    int late = 0;
+    for (int ins = 0; ins < kMaxInstruments; ++ins)
+    {
+        instLate[ins] = 0;
+        if (song == nullptr) continue;
+        const auto& in = song->instruments[(size_t) ins];
+        auto* s = rack.at (ins);
+        const bool synth = s != nullptr && ! in.isMidiOut() && instrumentIsOn (ins);
+        if (! synth && ! instChain[ins]) continue;
+        int l = synth ? std::clamp (s->latency(), 0, MixerEngine::kMaxSlotDelay) : 0;
+        if (instChain[ins] && ! skipInstrumentFx) l += mixerEngine.instrumentLatency (song->mixer, ins);
+        instLate[ins] = std::min (l, MixerEngine::kMaxSlotDelay);
+        late = std::max (late, instLate[ins]);
+    }
+    (void) nt;
+    for (int t = 0; t < kMaxTracks; ++t) { sampleDelay[t] = late; mixerEngine.setInputLatency (t, late); }
+    for (int ins = 0; ins < kMaxInstruments; ++ins) instPad[ins] = late - instLate[ins];
+}
+
 void Player::updateSynths (int numSamples)
 {
     (void) numSamples;
     if (song == nullptr) return;
     // settings, which instrument sends each device's clock, latencies
-    int synthLat[kMaxTracks] {};
     int lead = 0;
     for (int i = 0; i < kMaxInstruments; ++i)
     {
@@ -1991,13 +2017,8 @@ void Player::updateSynths (int numSamples)
                 clockOwner[i] = first;
             }
         }
-        else if (instrumentIsOn (i))
-        {
-            const int t = synthOutputTrack (i);
-            if (t >= 0 && t < kMaxTracks) synthLat[t] = std::max (synthLat[t], std::clamp (s->latency(), 0, MixerEngine::kMaxSlotDelay));
-        }
     }
-    for (int t = 0; t < kMaxTracks; ++t) { sampleDelay[t] = synthLat[t]; mixerEngine.setInputLatency (t, synthLat[t]); }
+    // (the instruments' latencies: alignInstruments, once their inserts are known)
     mixerEngine.setExtraDelay ((int) std::lround (lead * sampleRate / 1000.0));
 }
 
@@ -2012,7 +2033,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
     if (blepClock > 1.0e12) { blepClock = 0; for (auto& b : blepCh) b.reset(); }   // (after years of playing)
     const uint32_t scopeBase = uiScopeWrite.load (std::memory_order_relaxed);
     if (rack.any()) updateSynths (numSamples);
-    else { for (auto& d : sampleDelay) d = 0; for (int t = 0; t < kMaxTracks; ++t) mixerEngine.setInputLatency (t, 0); mixerEngine.setExtraDelay (0); }
+    else mixerEngine.setExtraDelay (0);
     bool anyClock = false;
     for (bool o : clockOwner) anyClock = anyClock || o;
     if (clockStartPending && mode != Mode::Stopped)
@@ -2060,6 +2081,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
         std::fill (instR[ins], instR[ins] + numSamples, 0.0f);
     }
     auto chainOf = [&] (int ch) { const int vi = voices[ch].instr; return anyChain && vi >= 0 && vi < kMaxInstruments && instChain[vi] ? vi : -1; };
+    alignInstruments (song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0);
 
     float peaks[kMaxTracks] = {};
     const int nt = song ? std::clamp (song->numTracks, 1, kMaxTracks) : 0;
@@ -2304,6 +2326,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
                 for (int i = 0; i < numSamples; ++i) { instL[ins][i] += synthL[i] * g; instR[ins][i] += synthR[i] * g; }
                 continue;
             }
+            instAlign[ins].process (synthL, synthR, numSamples, instPad[ins]);   // (lined up with the slowest thing on its track)
             if (ins == tapIns) for (int i = 0; i < numSamples; ++i) { tapL[i] += synthL[i] * g; tapR[i] += synthR[i] * g; }
             float pk = 0;
             for (int i = 0; i < numSamples; ++i)
@@ -2327,6 +2350,7 @@ void Player::renderChunk (float* left, float* right, int numSamples)
             if (in.hasUtility()) util[ins].process (instL[ins], instR[ins], numSamples, in.utilWidth, in.utilMonoHz, in.utilSteep);
             if (in.hasEq()) instEq[ins].process (instL[ins], instR[ins], numSamples, in.eq);
             if (! skipInstrumentFx) mixerEngine.processInstrument (song->mixer, ins, instL[ins], instR[ins], numSamples, bpm);
+            instAlign[ins].process (instL[ins], instR[ins], numSamples, instPad[ins]);   // (lined up with the slowest thing on its track)
             if (ins == tapIns) { std::copy (instL[ins], instL[ins] + numSamples, tapL); std::copy (instR[ins], instR[ins] + numSamples, tapR); }
             const int t = synthOutputTrack (ins);
             if (t >= nt || mute[t].load (std::memory_order_relaxed)) continue;

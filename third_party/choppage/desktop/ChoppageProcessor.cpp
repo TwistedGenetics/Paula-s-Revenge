@@ -177,6 +177,7 @@ bool ChoppageProcessor::akaizeSelected()
     r.cycleLength = juce::jlimit (20, 2000, (int) std::lround (plain (P_AKR_CYC_LEN)));
     r.cycleFreq = bc::akaizeFreq (plain (P_AKR_CYC_LEN), plain (P_AKR_CYC_FREQ), plain (P_AKR_FREQ_MAN) > 0.5f);
     r.pitch = std::round (plain (P_AKR_PITCH));
+    r.inTime = plain (P_AK_MODE) > 0.5f;            // AKAIZE MODE IN TIME: the length (the beat) kept
     return sess.akaizeSlot (slot, r);
 }
 

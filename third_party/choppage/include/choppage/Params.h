@@ -29,6 +29,10 @@ namespace bc
         P_SL_CYC_LEN, P_SL_CYC_FREQ, P_SL_FREQ_MAN,          // per-slice STRETCH
         P_AKR_STRETCH, P_AKR_SYNC, P_AKR_TARGET,              // AKAIZE render: stretch % or SYNC (loop BPM -> host / TARGET)
         P_AKR_CYC_LEN, P_AKR_CYC_FREQ, P_AKR_FREQ_MAN, P_AKR_PITCH,
+        // 0.16: AKAIZE MODE: STRETCH (the read point slows: the beat drags) / IN TIME (the read point keeps the beat's
+        // time, the grains give the metallic Akai sound; IN TIME PITCH moves the grains' pitch, not the timing).
+        // For the AKAIZE pad, slice STRETCH and the render.
+        P_AK_MODE, P_AK_PITCH,
         kNumCoreParams
     };
 

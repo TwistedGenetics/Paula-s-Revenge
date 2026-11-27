@@ -87,6 +87,8 @@ namespace bc
             F ("akrCycFreq", "Akaize Render Cycle Freq", 20, 2050, 51, PDisp::cps, 200);
             B ("akrFreqManual", "Akaize Render Manual Freq", false);
             F ("akrPitch", "Akaize Render Pitch", -24, 24, 0, PDisp::semis);
+            C ("akMode", "Akaize Mode", { "STRETCH", "IN TIME" }, 0);
+            F ("akPitch", "Akaize In Time Pitch", -24, 24, 0, PDisp::semis);
             return v;
         }();
         return d;
@@ -194,6 +196,8 @@ namespace bc
         s.pads.akCycleLength = clampv (i (P_AK_CYC_LEN), 20, 2000);
         s.pads.akCycleFreq   = akaizeFreq (v[P_AK_CYC_LEN], v[P_AK_CYC_FREQ], v[P_AK_FREQ_MAN] > 0.5f);
         s.pads.akRatio    = akRatioValue (i (P_AK_RATIO));
+        s.pads.akInTime   = i (P_AK_MODE) == 1;
+        s.pads.akPitch    = std::pow (2.0, std::round (v[P_AK_PITCH]) / 12.0);
         s.pads.diveRes    = v[P_DIVE_RES];
         {
             static const double grid16[] = { 0.0, 1.0, 2.0, 4.0, 0.5, 16.0 };

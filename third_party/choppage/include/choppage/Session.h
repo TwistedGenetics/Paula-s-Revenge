@@ -51,7 +51,7 @@ namespace bc
             uint32_t version = 0;
         };
 
-        struct BrowserEntry { std::string path, name; double bpm = 0, seconds = 0; int bars = 0; bool isDir = false; bool isUp = false; };
+        struct BrowserEntry { std::string path, name; double bpm = 0, seconds = 0; int bars = 0; bool isDir = false; bool isUp = false; bool isPreset = false; };
 
         enum class SliceField { pitch, gate, stretch, reverse, stutter, trans, xfade, level };
 
@@ -140,6 +140,8 @@ namespace bc
         void scanFolder (const std::string& folder);
         // One folder only, for browsing: ".." first (unless folder == top), then its sub-folders (A-Z), then its breaks.
         void listFolder (const std::string& folder, const std::string& top);
+        // In "/" (the device's root) list only these folders (the drives), not the system's.
+        void setRootFolders (std::vector<std::string> names) { std::lock_guard<std::recursive_mutex> l (mutex); rootFolders = std::move (names); }
         std::vector<BrowserEntry> browserEntries() const;
         std::string browserFolder() const;
         bool browserScanning() const { return scanning.load(); }
@@ -157,6 +159,7 @@ namespace bc
             int    cycleLength = 800;      // 20 .. 2000 samples
             int    cycleFreq = 51;         // 20 .. 2050 cps (the caller links it to the length unless MANUAL)
             double pitch = 0.0;            // semitones of repitch before the stretch, -24 .. 24
+            bool   inTime = false;         // AKAIZE MODE IN TIME: 100% (the length kept), the grains and pitch only
         };
         /** Renders the break the Akaizer way (16-bit, exactly as the original computes it), writes
             Renders/<name>_akaized.wav and loads it back into the slot (slices moved, settings and pattern kept). */
@@ -218,7 +221,8 @@ namespace bc
         std::condition_variable qCv;
         std::deque<Job> jobs;
         std::deque<Done> done;
-        struct ScanJob { std::string folder, top; bool flat = false; };
+        std::vector<std::string> rootFolders;
+        struct ScanJob { std::string folder, top; bool flat = false; std::vector<std::string> only; };
         std::deque<ScanJob> scanJobs;
         bool quit = false;
         std::atomic<int> pending { 0 };

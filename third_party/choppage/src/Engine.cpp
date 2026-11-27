@@ -113,6 +113,8 @@ namespace bc
         st.stretch = clampv ((double) sp.stretch * (double) all.stretch, 0.25, 8.0);
         st.cycleLength = s.slCycleLength;
         st.cycleFreq = s.slCycleFreq;
+        st.inTime = s.pads.akInTime;
+        st.grainPitch = s.pads.akPitch;
         st.trans = clampv (sp.trans + (all.trans - 0.5f), 0.0f, 1.0f);
         const float gate = clampv (sp.gate * all.gate, 0.02f, 1.0f);
         st.gateSamples = gateSamples > 0 ? std::max (8, (int) (gateSamples * gate)) : (1 << 30);

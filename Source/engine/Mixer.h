@@ -66,6 +66,15 @@ public:
     {
         if (ins >= 0 && ins < kMixInstruments) runInserts (m.inst[ins], instrumentSlot (ins, 0), L, R, n, bpm);
     }
+    // (v1.01) how late an instrument's own inserts give its sound back (a bypassed plug-in keeps its delay, as on a track)
+    int instrumentLatency (const MixerSettings& m, int ins) const
+    {
+        if (ins < 0 || ins >= kMixInstruments) return 0;
+        int lat = 0;
+        for (int k = 0; k < kInserts; ++k)
+            if (m.inst[ins][k].type != FxType::None && slotReady (m.inst[ins][k], instrumentSlot (ins, k))) lat += slotLatency (instrumentSlot (ins, k));
+        return lat;
+    }
 
     // the EQ's spectrum display: the channel it shows (source = track), after its EQ;
     // the Player sets tapsLive while the song (or a note) plays, so the display freezes when it stops

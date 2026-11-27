@@ -139,8 +139,10 @@ namespace bc
                     r.grains.setup (s.akCycleLength, s.akCycleFreq, sr);   // turning CYCLE while it plays
                     akSetLength = s.akCycleLength; akSetFreq = s.akCycleFreq;
                 }
-                r.pos += 1.0 / std::max (1.0, s.akRatio);
-                r.grains.advance (1.0);
+                // STRETCH: the read point moves at 1 / stretch (the beat drags); IN TIME: at the beat's own speed, the
+                // grains repeating at CYCLE FREQ give the metallic sound, read at IN TIME PITCH
+                r.pos += s.akInTime ? 1.0 : 1.0 / std::max (1.0, s.akRatio);
+                r.grains.advance (s.akInTime ? s.akPitch : 1.0);
                 r.grains.tick (r.pos);
                 break;
             }

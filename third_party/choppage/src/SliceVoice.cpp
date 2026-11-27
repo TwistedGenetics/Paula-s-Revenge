@@ -62,7 +62,7 @@ namespace bc
         if (! active) return;
         const double stretch = clampv (s.stretch, 0.25, 8.0);
         const bool cyclic = std::abs (stretch - 1.0) > 0.01;
-        const double headInc = s.rate / stretch;
+        const double headInc = s.inTime ? s.rate : s.rate / stretch;
 
         for (int i = 0; i < numSamples; ++i)
         {
@@ -98,7 +98,7 @@ namespace bc
             }
 
             head += headInc;
-            if (cyclic) grains.advance (s.rate);
+            if (cyclic) grains.advance (s.inTime ? s.rate * s.grainPitch : s.rate);
             ++age;
         }
     }

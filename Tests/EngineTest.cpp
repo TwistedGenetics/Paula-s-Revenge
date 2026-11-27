@@ -1671,6 +1671,29 @@ static void testLatency()
         std::printf ("latency: samples start at %d, with a 64-sample synth on the track at %d\n", a, b);
         CHECK (a >= 0 && b - a == 64);
     }
+    // ---- (v1.01) an instrument's own inserts' delay: what else is on the tracks waits for it
+    {
+        auto firstOut = [] (int which, bool insert)
+        {
+            Song song; song.numTracks = 4;
+            sineInstrument (song.instruments[0]);
+            sineInstrument (song.instruments[1]);
+            for (auto& t : song.mixer.ret) for (auto& x : t.inserts) x.type = FxType::None;
+            if (insert) { auto& sl = song.mixer.inst[1][0]; sl.type = FxType::Plugin; sl.pluginKey = "late"; sl.pluginName = "LATE"; }
+            song.blocks[0].at (0, which) = { 37, (uint8_t) (which + 1), 0, 0 };   // (instrument 1 on track 1, 2 on track 2)
+            Player p; p.setSampleRate (48000); p.setSong (&song);
+            p.options.model = PaulaOptions::Model::Clean;
+            p.mixer().pluginFactory = [] (int, const FxSlot&, double) { return std::make_unique<LateFx> (100); };
+            p.mixer().syncEffectsNow (song.mixer);
+            p.playBlock (0);
+            std::vector<float> L (4096), R (4096);
+            p.render (L.data(), R.data(), 4096);
+            return firstAbove (L, 1e-4f);
+        };
+        const int plain = firstOut (0, false), a = firstOut (0, true), b = firstOut (1, true);
+        std::printf ("latency: an instrument's 100-sample insert: the other track's samples at %d (none: %d), its own at %d\n", a, plain, b);
+        CHECK (plain >= 0 && a - plain == 100 && b == a);
+    }
     // ---- a MIDI-out instrument with a negative delay makes the audio later
     {
         Song song; song.numTracks = 4;

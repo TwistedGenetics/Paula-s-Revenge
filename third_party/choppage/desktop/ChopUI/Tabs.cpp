@@ -1025,6 +1025,10 @@ namespace ui
         namespace P = bc::params;
         rowHeight = 36;
         titleW = 170;
+        addRow ("MODE", "");
+        addValue (P::akMode, "", 160); addValue (P::akPitch, "IN TIME PITCH", 120, 0.02f);
+        addText ("IN TIME: THE METALLIC SOUND, THE BEAT KEPT (PAD, SLICES, RENDER)");
+        addRule();
         addRow ("RENDER", "");
         addAction ("AKAIZE THE BREAK", [this] { proc.akaizeSelected(); }, nullptr, 260);
         addCustom ([this] {

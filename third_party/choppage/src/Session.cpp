@@ -6,6 +6,7 @@
 #include "choppage/TransientDetector.h"
 #include <chrono>
 #include <filesystem>
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -276,6 +277,15 @@ namespace bc
                     const auto p = path.string();
                     std::string ext = path.extension().string();
                     for (auto& ch : ext) ch = (char) std::tolower ((unsigned char) ch);
+                    if (ext == ".chp" && scan->flat)          // a CHOPPAGE preset: listed (first), loaded by the app
+                    {
+                        BrowserEntry e;
+                        e.path = p;
+                        e.name = path.stem().string();
+                        e.isPreset = true;
+                        found.push_back (e);
+                        return true;
+                    }
                     if (ext != ".wav" && ext != ".aif" && ext != ".aiff" && ext != ".flac" && ext != ".mp3"
                         && ext != ".rx2" && ext != ".rex") return false;
                     BrowserEntry e;
@@ -297,6 +307,7 @@ namespace bc
                     {
                         const auto name = it->path().filename().string();
                         if (name.empty() || name[0] == '.') continue;          // hidden / system
+                        if (! scan->only.empty() && std::find (scan->only.begin(), scan->only.end(), name) == scan->only.end()) continue;
                         std::error_code e2;
                         if (it->is_directory (e2))
                         {
@@ -1027,7 +1038,14 @@ namespace bc
     void Session::listFolder (const std::string& folder, const std::string& top)
     {
         scanning = true;
-        { std::lock_guard<std::mutex> q (qMutex); scanJobs.push_back ({ folder, top, true }); }
+        std::vector<std::string> only;
+        {
+            std::lock_guard<std::recursive_mutex> l (mutex);
+            std::string f = folder;
+            while (f.size() > 1 && f.back() == '/') f.pop_back();
+            if (f == "/") only = rootFolders;
+        }
+        { std::lock_guard<std::mutex> q (qMutex); scanJobs.push_back ({ folder, top, true, std::move (only) }); }
         qCv.notify_one();
     }
 
@@ -1108,6 +1126,7 @@ namespace bc
         const auto& src = *s.content->buffer;
         const double loop = loopBpm (slot);
         double stretchPercent = set.sync && set.targetBpm > 1.0 && loop > 1.0 ? loop / set.targetBpm * 100.0 : set.stretchPercent;
+        if (set.inTime) stretchPercent = 100.0;                   // IN TIME: the length (the beat) kept
         stretchPercent = clampv (stretchPercent, 25.0, 2000.0);
 
         // Akaizer works on interleaved 16-bit, exactly as the original program did

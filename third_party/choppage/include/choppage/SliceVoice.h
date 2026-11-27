@@ -28,6 +28,8 @@ namespace bc
             bool   reverse = false;
             int    stutter = 0;
             double stretch = 1.0;
+            bool   inTime = false;       // AKAIZE MODE IN TIME: the head keeps the slice's time, the grains ring
+            double grainPitch = 1.0;     // ... at this pitch (a ratio)
             int    cycleLength = 800;  // Akaizer CYCLE LENGTH (samples; a grain is twice this)
             double cycleFreq = 51.0;   // Akaizer CYCLE FREQ (grains per second)
             float  trans = 0.5f;
