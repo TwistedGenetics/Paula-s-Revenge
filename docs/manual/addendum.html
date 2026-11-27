@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paula's Revenge Manual Addendum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* The manual's addendum: what's changed since the manual was last brought up to date, newest first. Same look as the
+   manual (the PAPER skin): dark text on light, big and high-contrast. */
+:root {
+  --bg: #f2f4f7; --pane: #ffffff; --soft: #e6eaf0; --edge: #cfd5de; --line: #e3e7ee;
+  --ink: #16191f; --faint: #4b5361; --on: #1d4ed8; --onTint: #eef3ff;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  --r: 12px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; font: 18px/1.6 var(--sans); color: var(--ink); background: var(--bg); }
+main { max-width: 920px; margin: 0 auto; padding: 40px 24px 80px; }
+header { background: var(--pane); border: 1px solid var(--edge); border-radius: var(--r); padding: 28px 32px; margin-bottom: 24px; }
+h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
+.sub { color: var(--faint); font-size: 17px; margin: 0; }
+.how { background: var(--onTint); border: 1px solid #c7d6fb; border-radius: var(--r); padding: 16px 22px; margin: 0 0 24px; }
+.how p { margin: 0; }
+section.entry { background: var(--pane); border: 1px solid var(--edge); border-radius: var(--r); padding: 24px 32px; margin-bottom: 20px; }
+section.entry h2 { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+.when { font: 600 15px var(--mono); color: var(--faint); margin: 0 0 14px; }
+section.entry h3 { font-size: 19px; font-weight: 700; margin: 20px 0 6px; }
+.where { font-size: 15px; color: var(--faint); margin: 2px 0 10px; }
+ul { padding-left: 24px; margin: 8px 0; }
+li { margin: 4px 0; }
+kbd, code { font: 600 0.88em var(--mono); background: var(--soft); border: 1px solid var(--edge); border-radius: 6px; padding: 1px 6px; color: var(--ink); }
+.b { font-weight: 700; color: var(--on); }
+.empty { color: var(--faint); font-style: italic; }
+@media print { body { background: #fff; } header, section.entry, .how { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Paula's Revenge &mdash; Manual Addendum</h1>
+    <p class="sub">What's new or changed since the manual was last brought up to date (v1.01.0-build.285, 27 November 2026). Newest first.</p>
+  </header>
+  <div class="how">
+    <p>Each entry names the manual section it belongs to. When the manual is next brought up to date, these entries move into it and leave this page.</p>
+  </div>
+
+  <!-- ENTRIES (newest first). Each: <section class="entry"><h2>…</h2><p class="when">build / date</p>
+       <h3>…</h3><p class="where">Manual: section</p> … </section> -->
+  <p class="empty">No changes yet: the manual covers everything up to v1.01.0-build.285.</p>
+</main>
+</body>
+</html>
