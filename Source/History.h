@@ -24,6 +24,8 @@ public:
     void instrument (int index, const juce::String& label, bool merge = false);
     void settings (const juce::String& label, bool merge = false);
     void mixer (const juce::String& label, bool merge = false);
+    // a VST / AU's own settings changed in its window: `before` is how they were (PluginUndoWatch)
+    void pluginState (bool fx, int index, std::vector<uint8_t> before, const juce::String& label);
 
     void relabelLast (const juce::String& label);   // after an edit whose name is only known later
     void dropLast();                                  // the change didn't happen after all
@@ -50,7 +52,7 @@ public:
     static constexpr size_t kMaxBytes = (size_t) 384 << 20;
 
 private:
-    enum class Kind { Block, Structure, Instrument, Settings, Mixer };
+    enum class Kind { Block, Structure, Instrument, Settings, Mixer, Plugin };
     struct Settings
     {
         std::string name;
@@ -77,6 +79,7 @@ private:
         std::shared_ptr<std::array<prv::InstMacro, prv::kInstMacros>> instMacro;   // (and its MACRO knobs: v0.74)
         std::shared_ptr<Settings> settings;
         std::shared_ptr<prv::MixerSettings> mix;
+        std::shared_ptr<std::vector<uint8_t>> plug;   // Plugin: the plug-in's own settings (index: instrument, or 100000 + insert slot)
         size_t bytes = 0;
     };
 

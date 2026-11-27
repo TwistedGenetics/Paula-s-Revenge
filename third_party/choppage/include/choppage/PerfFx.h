@@ -4,7 +4,8 @@
     the dry break signal through a 4-second ring that records all the time.
 
       STUTTER    loops the last grid slice (1/8 .. 1/64) from the quantised start
-      ROLL       loops 1/32 behind the play point, pitch rising while held
+      ROLL       loops 1/32 behind the play point; ROLL MODE: pitch rising (the default) or falling, and / or the
+                 level ramping up or down, while held
       REVERSE    plays backwards from the moment it was hit
       TAPE STOP  slows to a stop over TAPE STOP time
       HALF-TIME  (sequencer side: steps at half speed; nothing here)
@@ -38,6 +39,8 @@ namespace bc
             bool   akInTime = false;         // AKAIZE MODE IN TIME: the read point keeps time, the grains ring
             double akPitch = 1.0;            // ... and their pitch (a ratio)
             float  diveRes = 0.7f;
+            int    rollMode = 0;             // 0.17 ROLL MODE: 0 PITCH UP, 1 VEL UP, 2 VEL UP +PITCH, 3 VEL DOWN,
+                                             // 4 VEL DOWN -PITCH, 5 PITCH DOWN (each over two beats)
             double quantSteps = 1.0;            // the pad quantise grid in 16ths: 0 off, 0.5 = 1/32, 1 = 1/16 ... 16 = a bar
             double samplesSinceGrid = 0.0;      // since the last 16th line (for quantised starts)
         };
@@ -58,6 +61,7 @@ namespace bc
             float  gain = 0.0f;          // 0..1, 3 ms ramps
             double pos = 0.0;            // absolute ring position (samples written so far)
             double speed = 1.0;
+            float  level = 1.0f;         // ROLL's level ramp
             double loopStart = 0.0, loopLen = 0.0, phase = 0.0;
             AkaiGrains grains;
             int    age = 0;

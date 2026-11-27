@@ -133,6 +133,56 @@ namespace bc
         uint8_t rate = 16;      // 8, 16, 32, 64 (stutter repeat size as a note value)
     };
 
+    /** 0.17: trig conditions, as Elektron's sequencers have them, on a step's note (NOTE PROB) and its FX (FX PROB).
+        0 = ALWAYS (none). Then FILL, NOT FILL (plays only while / unless FILL is on), PRE, NOT PRE (the last condition
+        evaluated on the same row was true / false), NEI, NOT NEI (the same, on the other row: the note row's
+        neighbour is the FX row and the other way round), 1ST, NOT 1ST (the first time round the pattern / every
+        time but the first), 21 probabilities (1% .. 99%, Elektron's steps), and A:B (true on the A-th time round
+        out of every B, B 2 .. 8). PRE and NEI conditions don't count as "evaluated" for the next PRE / NEI. */
+    namespace cond
+    {
+        enum : uint8_t { always = 0, fill, notFill, pre, notPre, nei, notNei, first, notFirst, percentBase };
+        inline const uint8_t* percents() noexcept
+        {
+            static const uint8_t p[] = { 1, 2, 4, 6, 9, 13, 19, 25, 33, 41, 50, 59, 67, 75, 81, 87, 91, 94, 96, 98, 99 };
+            return p;
+        }
+        constexpr int kPercents = 21;
+        constexpr int abBase = percentBase + kPercents;            // 30: 1:2 2:2 1:3 2:3 3:3 1:4 ... 8:8
+        constexpr int kCount = abBase + 35;                        // 65 settings
+        inline bool isPercent (int c) noexcept { return c >= percentBase && c < abBase; }
+        inline bool isAB (int c) noexcept { return c >= abBase && c < kCount; }
+        inline void abOf (int c, int& a, int& b) noexcept
+        {
+            int k = c - abBase;
+            for (b = 2; b <= 8; ++b) { if (k < b) { a = k + 1; return; } k -= b; }
+            a = 1; b = 2;
+        }
+        inline std::string name (int c)
+        {
+            static const char* fixed[] = { "ALWAYS", "FILL", "NOT FILL", "PRE", "NOT PRE", "NEI", "NOT NEI", "1ST", "NOT 1ST" };
+            if (c <= 0 || c >= kCount) return "ALWAYS";
+            if (c < percentBase) return fixed[c];
+            if (isPercent (c)) return std::to_string (percents()[c - percentBase]) + "%";
+            int a = 1, b = 2; abOf (c, a, b);
+            return std::to_string (a) + ":" + std::to_string (b);
+        }
+        /** Short, for a grid cell: "", "F", "!F", "P", "!P", "N", "!N", "1", "!1", "50", "1:2". */
+        inline std::string shortName (int c)
+        {
+            static const char* fixed[] = { "", "F", "!F", "P", "!P", "N", "!N", "1", "!1" };
+            if (c <= 0 || c >= kCount) return "";
+            if (c < percentBase) return fixed[c];
+            return name (c).substr (0, isPercent (c) ? name (c).size() - 1 : std::string::npos);
+        }
+        inline std::vector<std::string> names()
+        {
+            std::vector<std::string> v;
+            for (int c = 0; c < kCount; ++c) v.push_back (name (c));
+            return v;
+        }
+    }
+
     /** One step sequence: which slice plays on each 16th, plus the FX lane. */
     struct Pattern
     {
@@ -140,6 +190,8 @@ namespace bc
         std::array<int16_t, kMaxSteps> slice {};     // -1 = rest
         std::array<FxEvent, kMaxSteps> fx {};
         std::array<bool, kMaxSteps>    locked {};
+        std::array<uint8_t, kMaxSteps> noteCond {};  // 0.17: NOTE PROB (a cond:: value, 0 = ALWAYS)
+        std::array<uint8_t, kMaxSteps> fxCond {};    // 0.17: FX PROB
 
         Pattern() { slice.fill (-1); }
         bool operator== (const Pattern& o) const noexcept
@@ -147,7 +199,8 @@ namespace bc
             if (numSteps != o.numSteps) return false;
             for (int i = 0; i < numSteps; ++i)
                 if (slice[(size_t) i] != o.slice[(size_t) i] || fx[(size_t) i].type != o.fx[(size_t) i].type
-                     || fx[(size_t) i].rate != o.fx[(size_t) i].rate)
+                     || fx[(size_t) i].rate != o.fx[(size_t) i].rate
+                     || noteCond[(size_t) i] != o.noteCond[(size_t) i] || fxCond[(size_t) i] != o.fxCond[(size_t) i])
                     return false;
             return true;
         }

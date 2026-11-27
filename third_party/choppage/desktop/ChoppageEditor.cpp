@@ -30,6 +30,7 @@ public:
                          (juce::Component*) &akai })
             addChildComponent (t);
         disk.onChooseFolder = [this] { editor.chooseFolder(); };
+        disk.onChooseFile = [this] { editor.chooseFile(); };
         disk.onSavePreset = [this] { editor.choosePreset (true); };
         disk.onLoadPreset = [this] { editor.choosePreset (false); };
 
@@ -57,10 +58,11 @@ public:
             const auto& s = proc.getSlot (i);
             juce::String name = s.content != nullptr ? juce::String (s.content->name).toUpperCase() : ChoppageProcessor::statusText (s.status);
             return "BREAK " + juce::String (i + 1) + "/8 " + u8 ("\xc2\xb7 ") + name;
-        }, [this] { editor.chooseFile(); });
-        nameCell->setTooltip ("Click to load a break into this slot (or drop files on the panel)");
+        }, [this] { show (4); });
+        nameCell->setTooltip ("Click: DISK, to load a break into this slot (or drop files on the panel)");
         nextCell = cell ([] { return u8 ("\xe2\x96\xb6"); }, [this] { proc.selectSlot ((proc.getSelectedSlot() + 1) % bc::kSlots); });
-        loadCell = cell ([] { return juce::String ("LOAD"); }, [this] { editor.chooseFile(); });
+        loadCell = cell ([] { return juce::String ("LOAD"); }, [this] { show (4); });   // (0.17: the DISK page, as on the MPC)
+        loadCell->setTooltip ("DISK: browse your folders (8 PLACES), hear a break with the arrow keys, RETURN loads it");
         dragCell = cell ([] { return juce::String ("DRAG"); }, nullptr, [] { return true; });
         dragCell->onDragOut = [this]
         {
@@ -257,7 +259,7 @@ public:
 
     void mouseUp (const juce::MouseEvent& e) override
     {
-        if (floppy.contains (e.getPosition())) editor.chooseFile();
+        if (floppy.contains (e.getPosition())) show (4);
     }
 
     void resized() override
@@ -349,7 +351,7 @@ private:
             case 1: return t (P::rollRate);
             case 2: return "HOLD";
             case 3: return juce::String (juce::roundToInt (proc.apvts.getRawParameterValue (P::tapeMs)->load())) + "MS";
-            case 4: return "HOLD";
+            case 4: return t (P::halfMode);
             case 5: return juce::String (juce::roundToInt (proc.apvts.getRawParameterValue (P::akCycLen)->load())) + " SMP";
             case 6: return "RES " + juce::String (juce::roundToInt (proc.apvts.getRawParameterValue (P::diveRes)->load() * 100.0f));
             case 7: return juce::String (proc.apvts.getRawParameterValue (P::dropRate)->load() / 1000.0f, 1) + "K";
@@ -359,7 +361,7 @@ private:
 
     void nudgePadSetting (int i, float steps)
     {
-        const char* ids[] = { P::stutRate, P::rollRate, nullptr, P::tapeMs, nullptr, P::akCycLen, P::diveRes, P::dropRate };
+        const char* ids[] = { P::stutRate, P::rollRate, nullptr, P::tapeMs, P::halfMode, P::akCycLen, P::diveRes, P::dropRate };
         if (ids[i] == nullptr) return;
         const ui::Param prm { proc.apvts.getParameter (ids[i]) };
         if (auto* ch = dynamic_cast<juce::AudioParameterChoice*> (prm.p))
@@ -424,7 +426,7 @@ ChoppageEditor::ChoppageEditor (ChoppageProcessor& p) : juce::AudioProcessorEdit
     setResizeLimits (designW / 2, designH / 2, designW * 2, designH * 2);
     if (auto* c = getConstrainer()) c->setFixedAspectRatio ((double) designW / (double) designH);
     setSize (designW * 3 / 4, designH * 3 / 4);
-    if (proc.session().browserEntries().empty() && ! proc.session().browserScanning()) proc.scanBrowser (proc.getBrowserFolder());
+    if (proc.session().browserEntries().empty() && ! proc.session().browserScanning()) proc.browseTo (proc.getBrowserFolder());
     startTimerHz (30);
 }
 
@@ -437,6 +439,18 @@ void ChoppageEditor::resized()
 }
 
 void ChoppageEditor::showTab (int t) { panel->show (t); }
+
+bool ChoppageEditor::keyPressed (const juce::KeyPress& k)
+{
+    const auto m = k.getModifiers();
+    if (m.isCommandDown() && (k.getKeyCode() == 'Z' || k.getKeyCode() == 'z'))
+    {
+        if (m.isShiftDown()) proc.redoAll(); else proc.undoAll();
+        return true;
+    }
+    if (m.isCommandDown() && (k.getKeyCode() == 'Y' || k.getKeyCode() == 'y')) { proc.redoAll(); return true; }
+    return false;
+}
 
 void ChoppageEditor::timerCallback() { panel->refresh(); }
 
@@ -467,7 +481,7 @@ void ChoppageEditor::chooseFolder()
                           [this] (const juce::FileChooser& fc)
                           {
                               const auto f = fc.getResult();
-                              if (f.isDirectory()) proc.scanBrowser (f);
+                              if (f.isDirectory()) proc.browseTo (f);
                           });
 }
 

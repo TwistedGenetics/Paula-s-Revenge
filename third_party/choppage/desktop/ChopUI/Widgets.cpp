@@ -167,9 +167,11 @@ namespace ui
 
     void LcdCell::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
     {
-        if (onDrag == nullptr) return;
-        const float d = std::abs (w.deltaY) > 0.0f ? w.deltaY : w.deltaX;
-        if (std::abs (d) > 0.0f) { onDrag (d > 0 ? 1.0f : -1.0f, e.mods); repaint(); }
+        // 0.17: a value changes with SHIFT + scroll only, so scrolling over the page doesn't move it by accident
+        // (plain scrolling goes on to the page). Dragging works as before.
+        if (onDrag == nullptr || ! e.mods.isShiftDown()) { juce::Component::mouseWheelMove (e, w); return; }
+        const float d = std::abs (w.deltaY) > 0.0f ? w.deltaY : w.deltaX;   // (Shift turns the wheel sideways on a Mac)
+        if (std::abs (d) > 0.0f) { onDrag (d > 0 ? 1.0f : -1.0f, e.mods.withoutFlags (juce::ModifierKeys::shiftModifier)); repaint(); }
     }
 
     // ---- Pad --------------------------------------------------------------------------------------

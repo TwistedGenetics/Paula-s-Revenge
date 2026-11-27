@@ -39,6 +39,17 @@ History::Entry History::capture (Kind kind, int index) const
             e.mix = std::make_shared<prv::MixerSettings> (song.mixer);
             e.bytes = sizeof (prv::MixerSettings);
             break;
+        case Kind::Plugin:
+        {
+            const bool fx = index >= 100000;
+            const int i = fx ? index - 100000 : index;
+            std::vector<uint8_t> st;
+            if (fx) { if (auto* p = proc.pluginAt (i)) st = p->state(); }
+            else if (auto* sy = proc.synthAt (i)) st = sy->state();
+            e.plug = std::make_shared<std::vector<uint8_t>> (std::move (st));
+            e.bytes = e.plug->size() + 64;
+            break;
+        }
         case Kind::Settings:
         {
             auto s = std::make_shared<Settings>();
@@ -85,6 +96,24 @@ void History::structure (const juce::String& label)                      { recor
 void History::instrument (int i, const juce::String& label, bool merge)  { record (Kind::Instrument, i, label, merge); }
 void History::settings (const juce::String& label, bool merge)           { record (Kind::Settings, 0, label, merge); }
 void History::mixer (const juce::String& label, bool merge)              { record (Kind::Mixer, 0, label, merge); }
+
+void History::pluginState (bool fx, int index, std::vector<uint8_t> before, const juce::String& label)
+{
+    Entry e;
+    e.kind = Kind::Plugin;
+    e.index = fx ? 100000 + index : index;
+    e.time = juce::Time::getMillisecondCounterHiRes() * 0.001;
+    const auto& st = proc.editorState;
+    e.seqPos = st.seqPos; e.blockSel = st.block; e.instrument = st.instrument;
+    e.plug = std::make_shared<std::vector<uint8_t>> (std::move (before));
+    e.bytes = e.plug->size() + 64;
+    e.label = label.toUpperCase();
+    e.state = current;
+    current = nextId++;
+    undoStack.push_back (std::move (e));
+    redoStack.clear();
+    trim();
+}
 
 void History::relabelLast (const juce::String& label)
 {
@@ -150,6 +179,22 @@ void History::apply (Entry& e)
             proc.withLock ([&] { std::swap (song.mixer, *e.mix); });
             proc.updateMixerEffects();
             break;
+        case Kind::Plugin:
+        {
+            // the plug-in takes its settings back (on the message thread, as plug-ins expect)
+            const bool fx = e.index >= 100000;
+            const int i = fx ? e.index - 100000 : e.index;
+            if (e.plug && ! e.plug->empty())
+            {
+                juce::AudioPluginInstance* inst = nullptr;
+                if (fx) { if (auto* p = proc.pluginAt (i)) inst = &p->instance(); }
+                else if (auto* sy = proc.synthAt (i)) inst = &sy->instance();
+                if (inst != nullptr) inst->setStateInformation (e.plug->data(), (int) e.plug->size());
+            }
+            proc.pluginUndo.rebaseline (fx, i);
+            if (! fx) st.instrument = i;
+            break;
+        }
         case Kind::Settings:
         {
             auto& s = *e.settings;
@@ -178,7 +223,7 @@ bool History::step (std::vector<Entry>& from, std::vector<Entry>& to, const char
     auto e = std::move (from.back());
     from.pop_back();
     // keep what's there now so the step can be reversed
-    auto back = capture (e.kind, e.kind == Kind::Structure || e.kind == Kind::Settings || e.kind == Kind::Mixer ? 0 : e.index);
+    auto back = capture (e.kind, e.kind == Kind::Structure || e.kind == Kind::Settings || e.kind == Kind::Mixer ? 0 : e.index);   // (Plugin: its index keeps fx + slot)
     back.label = e.label;
     back.state = current;
     apply (e);

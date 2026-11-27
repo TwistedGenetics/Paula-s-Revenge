@@ -80,6 +80,8 @@ namespace bc
             float  swing = 0.5f;
             int    slCycleLength = 800;     // per-slice STRETCH: Akaizer CYCLE LENGTH (samples) ...
             double slCycleFreq = 51.0;      // ... and CYCLE FREQ (grains per second)
+            int    halfMode = 0;            // 0.17 HALF-TIME MODE: 1/2, 3/4, 2/3, 1/4, 1/2 TAPE (also pitched down an octave)
+            bool   fill = false;            // 0.17: FILL on (the trig conditions FILL / NOT FILL)
             PerfFx::Settings pads;          // samplesPerBeat filled in here
             SoundChain::Settings sound;
         };
@@ -121,7 +123,8 @@ namespace bc
         void pullPublished() noexcept;
         void handleMidi (const MidiMsg&, const Settings&) noexcept;
         struct Player;
-        void triggerStep (Player&, int step, int atSample, const Settings&, double samplesPerStep) noexcept;
+        void triggerStep (Player&, int64_t globalStep, int atSample, const Settings&, double samplesPerStep) noexcept;
+        bool condition (Player&, int cond, bool fxRow, int64_t cycle, const Settings&) noexcept;   // a trig condition true now?
         void playSlice (Player&, int slice, int atSample, int gateSamples, const Settings&) noexcept;
         int  groupOf (int slot) const noexcept { return clampv (program[(size_t) clampv (slot, 0, kSlots - 1)].muteGroup, 0, kMuteGroups - 1); }
         void startStopFromHost (const Host&) noexcept;
@@ -163,6 +166,9 @@ namespace bc
             bool   wasRunning = false, restartNow = false, restartFromNote = false;
             int    startStepOffset = 0;
             int    step = -1, slice = -1;
+            // trig conditions: the first time round (1ST), and the last result on each row (PRE / NEI): -1 none yet
+            int64_t firstCycle = std::numeric_limits<int64_t>::min();
+            int8_t lastNoteResult = -1, lastFxResult = -1;
             // voices: the new slice fades in while the old one fades out
             std::array<SliceVoice, 3> voices;
             int nextVoice = 0;
@@ -182,6 +188,8 @@ namespace bc
         // PAD QUANTISE: a press waits for the next grid line, a release (or a short tap) ends on the one after
         std::array<bool, kFxPads> padWas {}, padOn {}, padArmed {}, padStopArmed {}, padTap {};
         int autoStutterDiv = 16;
+        bool halfTape = false;          // HALF-TIME held in 1/2 TAPE: new slices an octave down
+        uint32_t condRandom = 0x9E3779B9u;
         PerfFx perf;
         SoundChain chain;
     };

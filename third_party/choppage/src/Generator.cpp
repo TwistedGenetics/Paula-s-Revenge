@@ -4,23 +4,76 @@ namespace bc::Generator
 {
     namespace
     {
-        struct Templates { const char* a; const char* b; };
+        // 0.17: each style has a bank of two-bar grooves (bar A, bar B), the classic patterns as drum books write
+        // them (Pocket Operations' AMEN BREAK A-D, JUNGLE A / B, ROLLING 1-4, DRUM AND BASS 1-4, STANDARD BREAKBEAT
+        // 1-3, FUNKY PRESIDENT, GET UP, COLD SWEAT, HALF DROP, STEPPERS, UK GARAGE A / B, HOUSE, ELECTRO 1-3) in the
+        // roles a chopped break has: K kick, S snare (the backbeat), G ghost / off-beat snare, H hat, O open hat,
+        // P perc (a rim, a tom), '.' nothing new (the slice before rings on). One step = a 16th.
+        struct Groove { const char* a; const char* b; };
 
-        Templates templatesFor (Style s) noexcept
+        const std::vector<Groove>& groovesFor (Style s)
         {
+            static const std::vector<Groove> jungle {
+                { "K.K.S.HGHGKKS.HG", "K.K.P.HGHGKKS.HG" },   // AMEN BREAK A, B
+                { "K.K.S.HGHGKKS.HG", "K.K.H.HGHGK.S.PG" },   // AMEN A, C
+                { "K.K.H.HGHGK.S.PG", "KGK.S.HGHGK.H.S." },   // AMEN C, D
+                { "K.K.S.HGHGK.H.S.", "HSK.S.HGHGK.H.S." },   // JUNGLE A, B
+                { "K.K.S.HGHGKKS.HG", "KGK.S.HGHGK.H.S." },   // AMEN A, D
+                { "K.H.S.K.H.S.S.H.", "H.H.S.H.H.K.S.H." },   // DRUM AND BASS 4 A, B
+            };
+            static const std::vector<Groove> amenEdit {
+                { "K.K.P.HGHGKKS.HG", "KGK.S.HGHGK.SGSS" },   // AMEN B, D with a snare roll
+                { "K.K.S.HGHGKKS.HG", "K.K.S.HGHGK.SSGS" },
+                { "K.K.H.HGHGK.S.PG", "K.K.S.HGHGKKSGSG" },
+                { "KGK.S.HGHGK.H.S.", "K.K.S.HGSGK.SGSS" },
+            };
+            static const std::vector<Groove> rollers {
+                { "K.H.S.H.H.K.S.H.", "K.H.S.H.H.K.SKH." },   // ROLLING 1, 2
+                { "K.H.S.K.H.S.K.H.", "K.H.S.K.H.S.K.S." },   // ROLLING 3 A, B
+                { "K.HKS.HKHKK.S.HK", "K.K.S.HKKKK.S.H." },   // DRUM AND BASS 1 A, B
+                { "K.H.S.HKHK.KS.HK", "K.H.S.H.H.HKS.HH" },   // DRUM AND BASS 2 A, B
+                { "KKH.S.H.H.H.S.H.", "K.H.S.H.H.K.SKH." },   // ROLLING 4 A, ROLLING 2
+                { "K.H.S.H.H.K.S.H.", "KHHHSHOOOOKHSHHH" },   // ROLLING 1, DRUM AND BASS 3
+            };
+            static const std::vector<Groove> breakbeat {
+                { "K.H.S.H.H.K.S.H.", "K.K.S.H.H.K.S.H." },   // STANDARD BREAKBEAT 1, 2
+                { "K.K.S.H.H.K.S.H.", "K.K.S.KGHGK.S.H." },   // STANDARD 2, 3
+                { "K.HKS.HKHKK.S.H.", "K.H.S.H.H.K.S.H." },   // FUNKY PRESIDENT, STANDARD 1
+                { "K.H.S.GGHGK.S.KG", "K.H.S.HGK.K.H.S." },   // GET UP, COLD SWEAT
+            };
+            static const std::vector<Groove> halftime {
+                { "K.H.H.H.S.H.H.H.", "K.H.H.H.S.K.H.HG" },   // HALF DROP, D&B half-time
+                { "K.H.H.H.S.K.H.HG", "K.H.H.HKS.K.HGH." },
+                { "K.H.K.H.S.H.K.H.", "K.H.H.H.S.H.H.H." },   // STEPPERS, HALF DROP
+            };
+            static const std::vector<Groove> garage {
+                { "KGHHSPHG..KPSGHH", "K.H.SPHG..KPSGH." },   // UK GARAGE A, B
+                { "K.H.SPHG..KPSGH.", "K..H.S.HK.H..SH." },
+            };
+            static const std::vector<Groove> house {
+                { "K.O.S.O.K.O.S.O.", "K.OHS.OHK.OHSGOH" },   // HOUSE
+                { "K.OHS.OHK.OHS.OH", "K.O.SHOHK.O.SHOH" },   // DEEP HOUSE
+            };
+            static const std::vector<Groove> electro {
+                { "KHHHSHKHHHHHSHHH", "KHHHSHKHHHKHSHKH" },   // ELECTRO 1 A, B
+                { "KHHHSHKHHHHHSHHH", "KHHHSHHHHHKHSKHH" },   // ELECTRO 2 A, B
+                { "KHHHSHKHHHHKSHHH", "KHHHSHKHHHKHSHKH" },   // ELECTRO 3 A, 1 B
+            };
             switch (s)
             {
-                case Style::jungle:    return { "K.HGS.GHK.KHS.GH", "K.HGS.GKHKH.S.HG" };
-                case Style::amenEdit:  return { "K.K.S.GKGKK.S.GS", "K.KGS.GKGKS.S.GS" };
-                case Style::rollers:   return { "K..HS..HK.KHS..H", "K..HS.GHK.KHS.HG" };
-                case Style::breakbeat: return { "K.H.S.HKH.K.S.H.", "K.H.S.H.K.KHS.HK" };
-                case Style::halftime:  return { "K.H.H.H.S.H.H.HG", "K.H.H.HKS.H.HGH." };
-                case Style::garage:    return { "K..H.S.HK.H..SH.", "K.H..S.HK..HKS.H" };
-                case Style::house:     return { "K.OHS.OHK.OHS.OH", "K.OHS.OHK.OHSGOH" };
-                case Style::electro:   return { "K..HS..HK.KH.SHK", "K..HS.HHKK.HS..H" };
+                case Style::jungle:    return jungle;
+                case Style::amenEdit:  return amenEdit;
+                case Style::rollers:   return rollers;
+                case Style::breakbeat: return breakbeat;
+                case Style::halftime:  return halftime;
+                case Style::garage:    return garage;
+                case Style::house:     return house;
+                case Style::electro:   return electro;
             }
-            return { "K.H.S.H.K.H.S.H.", "K.H.S.H.K.H.S.H." };
+            return breakbeat;
         }
+
+        bool roleIsPerc (char c) noexcept { return c == 'P'; }
 
         bool roleToBadge (char c, Badge& b) noexcept
         {
@@ -31,6 +84,7 @@ namespace bc::Generator
                 case 'G': b = Badge::ghost; return true;
                 case 'H': b = Badge::hat;   return true;
                 case 'O': b = Badge::open;  return true;
+                case 'P': b = Badge::other; return true;
                 default: return false;
             }
         }
@@ -90,8 +144,15 @@ namespace bc::Generator
         if (in.content == nullptr) return out;
         const auto& c = *in.content;
         Rng rng (in.seed);
-        const auto t = templatesFor (in.style);
         const float amount = clampv (in.amount, 0.0f, 1.0f);
+
+        // one groove from the style's bank for this roll
+        const auto& bank = groovesFor (in.style);
+        const auto& groove = bank[(size_t) rng.nextInt ((int) bank.size())];
+
+        // the pattern's own kick and snare: mostly one slice each (a drummer hits the same drum), now and then another
+        int mainSlice[kNumBadges];
+        for (int b = 0; b < kNumBadges; ++b) mainSlice[b] = pickSlice (c, (Badge) b, rng);
 
         for (int step = 0; step < out.numSteps; ++step)
         {
@@ -100,25 +161,34 @@ namespace bc::Generator
             int16_t chosen = orig;
 
             const int bar = step / 16;
-            // Second template on odd bars, and sometimes on even ones once AMOUNT is high.
-            const bool useB = (bar % 2 == 1) || rng.nextFloat() < amount * 0.3f;
-            const char role = (useB ? t.b : t.a)[step % 16];
+            // bar A, then B (4 bars: A B A B, the last bar's end a fill when AMOUNT is high)
+            const char* line = (bar % 2 == 1) ? groove.b : groove.a;
+            char role = line[step % 16];
+            if (bar == out.numSteps / 16 - 1 && step % 16 >= 12 && amount > 0.7f && rng.nextFloat() < (amount - 0.7f) * 2.0f)
+                role = (step % 2 == 0) ? 'S' : 'G';   // a snare fill into the top
 
             if (rng.nextFloat() < amount)
             {
                 Badge b;
                 if (roleToBadge (role, b))
                 {
-                    const int k = pickSlice (c, b, rng);
+                    int k = -1;
+                    // hats and ghosts: the break's own slice at this step when it is one (keeps its feel), else any
+                    if ((b == Badge::hat || b == Badge::ghost || b == Badge::open) && orig >= 0 && c.badges[(size_t) orig] == b) k = orig;
+                    else if (b == Badge::kick || b == Badge::snare)
+                        k = rng.nextFloat() < 0.8f ? mainSlice[(int) b] : pickSlice (c, b, rng);
+                    else k = pickSlice (c, b, rng);
+                    if (k < 0 && roleIsPerc (role)) k = pickSlice (c, Badge::ghost, rng);
                     if (k >= 0) chosen = (int16_t) k;
                 }
                 else if (role == '.')
                 {
-                    if (rng.nextFloat() < amount * 0.6f) chosen = -1;
+                    // nothing new here: the hit before rings on (the original's hit stays sometimes, at low AMOUNT)
+                    if (rng.nextFloat() < 0.35f + amount * 0.6f) chosen = -1;
                 }
             }
 
-            if (chosen < 0 && in.layers && rng.nextFloat() < amount * 0.3f)
+            if (chosen < 0 && in.layers && rng.nextFloat() < amount * 0.15f)
             {
                 const int k = pickSlice (c, rng.nextBool() ? Badge::ghost : Badge::hat, rng);
                 if (k >= 0) chosen = (int16_t) k;
@@ -130,7 +200,7 @@ namespace bc::Generator
         // Never leave the downbeat empty: the break has to land.
         if (out.slice[0] < 0 && ! in.current.locked[0])
         {
-            const int k = pickSlice (c, Badge::kick, rng);
+            const int k = mainSlice[(int) Badge::kick] >= 0 ? mainSlice[(int) Badge::kick] : pickSlice (c, Badge::kick, rng);
             out.slice[0] = (int16_t) (k >= 0 ? k : 0);
         }
         return out;

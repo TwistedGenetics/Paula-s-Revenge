@@ -95,6 +95,24 @@ kbd, code { font: 600 0.88em var(--mono); background: var(--soft); border: 1px s
   <!-- ENTRIES (newest first). Each: <section class="entry"><h2>…</h2><p class="when">build / date</p>
        <h3>…</h3><p class="where">Manual: section</p> … </section> -->
   <section class="entry">
+    <h2>UNDO for plug-ins, and CHOPPAGE 0.17</h2>
+    <p class="when">v1.01.0 &middot; 27 November 2026</p>
+    <h3>UNDO / REDO covers plug-ins</h3>
+    <p class="where">Manual: Editing &rarr; Undo and redo</p>
+    <p>Turning a knob or picking a preset in a <b>VST / AU</b> plug-in's own window (an instrument or a mixer insert) is now an undo step. <b>Cmd+Z</b> puts the plug-in's settings back as they were before you touched it; <b>Shift+Cmd+Z</b> (or Cmd+Y) brings them back. A step is made once you let go and stop for about half a second, so one sweep of a knob is one step. Paula's own KNOB automation is not counted. The built-in synths were already undoable.</p>
+    <h3>CHOPPAGE 0.17</h3>
+    <p class="where">Manual: Instruments &rarr; CHOPPAGE</p>
+    <ul>
+      <li><b>UNDO / REDO for everything in CHOPPAGE</b>: patterns, slices, markers, hit letters, the breaks loaded and every knob and switch. With CHOPPAGE on screen, <b>Cmd+Z</b> and <b>Shift+Cmd+Z</b> are CHOPPAGE's own (the song's undo when it isn't on screen). The SEQ tab has <b>UNDO</b> and <b>REDO</b> keys.</li>
+      <li><b>LOAD goes to the DISK tab</b> (so do the break name and the floppy). DISK has <b>8 PLACES</b>: go to a folder, press <b>STORE</b>, then a PLACE key; tap it later to jump back. <b>&uarr; &darr;</b> step through the breaks and play each one as you land on it; <b>Return</b> loads it, <b>&larr;</b> goes up a folder.</li>
+      <li><b>SEQ</b> shows each hit as a letter: <b>K</b> kick, <b>S</b> snare, <b>GS</b> ghost, <b>H</b> hat, <b>O</b> open hat, <b>P</b> perc (anything else).</li>
+      <li><b>N PROB</b> (between PERC and FX) and <b>FX PROB</b> (under FX): Elektron-style conditions for each step's note and FX. Click a cell for the list; right-click sets <b>ALWAYS</b> (the normal setting). <b>FILL / NOT FILL</b> (with the <b>FILL</b> key on), <b>PRE / NOT PRE</b> (the last condition on that row came true or not), <b>NEI / NOT NEI</b> (the same for the other row), <b>1ST / NOT 1ST</b> (the first time round), <b>1% to 99%</b>, and <b>1:2 to 8:8</b> (plays on the first number's pass of every second number's passes).</li>
+      <li><b>FX tab</b>: change a value by dragging, or hold <b>Shift</b> and use the mouse wheel. The wheel on its own now scrolls the page.</li>
+      <li><b>ROLL MODE</b>: PITCH UP, VEL UP, VEL UP +PITCH, VEL DOWN, VEL DOWN -PITCH, PITCH DOWN. <b>HALF-TIME</b>: 1/2, 3/4, 2/3, 1/4 or 1/2 TAPE (half speed and an octave down).</li>
+      <li><b>PATTERN dice</b> builds on real break grooves for each STYLE (Amen, jungle, drum &amp; bass, rolling, Funky President, Cold Sweat, steppers, garage and more), keeps the main kick and snare sound, always has a kick on the one, and adds a snare fill at a high AMOUNT.</li>
+    </ul>
+  </section>
+  <section class="entry">
     <h2>A front page for the manual (mock-ups)</h2>
     <p class="when">v1.01.0 &middot; 27 November 2026</p>
     <p class="where">Manual: the front page (new), before the contents</p>

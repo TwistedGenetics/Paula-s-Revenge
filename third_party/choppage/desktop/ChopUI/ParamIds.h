@@ -67,6 +67,9 @@ namespace bc::params
     inline constexpr const char* akrPitch      = "akrPitch";
     inline constexpr const char* akMode        = "akMode";
     inline constexpr const char* akPitch       = "akPitch";
+    inline constexpr const char* rollMode      = "rollMode";
+    inline constexpr const char* halfMode      = "halfMode";
+    inline constexpr const char* fill          = "fill";
     inline const char* padParamId (int pad) { return paramDefs()[(size_t) (P_PAD1 + pad)].id; }
     using bc::fxPadName;
 }

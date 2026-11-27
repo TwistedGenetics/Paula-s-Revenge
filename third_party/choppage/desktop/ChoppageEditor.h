@@ -31,6 +31,7 @@ public:
 
     bool isInterestedInFileDrag (const juce::StringArray&) override;
     void filesDropped (const juce::StringArray&, int x, int y) override;
+    bool keyPressed (const juce::KeyPress&) override;   // Cmd+Z UNDO, Shift+Cmd+Z / Cmd+Y REDO
 
 private:
     class Panel;

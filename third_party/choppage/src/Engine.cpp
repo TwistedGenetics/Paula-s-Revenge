@@ -107,6 +107,7 @@ namespace bc
             rate *= hostBpm / std::max (20.0, c->bpm * s.tempoSourceMul);
         }
         rate *= std::pow (2.0, (sp.pitch + all.pitch) / 12.0);
+        if (halfTape) rate *= 0.5;   // HALF-TIME 1/2 TAPE: as a tape at half speed
         st.rate = rate;
         st.reverse = sp.reverse != all.reverse;
         st.stutter = sp.stutter > 1 ? sp.stutter : all.stutter;
@@ -131,17 +132,58 @@ namespace bc
         pl.slice = slice;
     }
 
-    void Engine::triggerStep (Player& pl, int step, int atSample, const Settings& s, double samplesPerStep) noexcept
+    bool Engine::condition (Player& pl, int c, bool fxRow, int64_t cycle, const Settings& s) noexcept
+    {
+        if (c <= cond::always || c >= cond::kCount) return true;
+        const int8_t same = fxRow ? pl.lastFxResult : pl.lastNoteResult;
+        const int8_t other = fxRow ? pl.lastNoteResult : pl.lastFxResult;
+        switch (c)
+        {
+            case cond::fill:     break;
+            case cond::notFill:  break;
+            case cond::pre:      return same == 1;                 // (no condition before: false, as on Elektron's)
+            case cond::notPre:   return same == 0;
+            case cond::nei:      return other == 1;
+            case cond::notNei:   return other == 0;
+            default: break;
+        }
+        bool r = true;
+        if (c == cond::fill) r = s.fill;
+        else if (c == cond::notFill) r = ! s.fill;
+        else if (c == cond::first || c == cond::notFirst)
+        {
+            const bool firstTime = cycle == pl.firstCycle;
+            r = c == cond::first ? firstTime : ! firstTime;
+        }
+        else if (cond::isPercent (c))
+        {
+            condRandom ^= condRandom << 13; condRandom ^= condRandom >> 17; condRandom ^= condRandom << 5;
+            r = (int) (condRandom % 100u) < (int) cond::percents()[c - cond::percentBase];
+        }
+        else if (cond::isAB (c))
+        {
+            int a = 1, b = 2;
+            cond::abOf (c, a, b);
+            const int64_t k = cycle - pl.firstCycle;              // 0 = the first time round
+            r = ((k % b) + b) % b == a - 1;
+        }
+        (fxRow ? pl.lastFxResult : pl.lastNoteResult) = r ? 1 : 0;
+        return r;
+    }
+
+    void Engine::triggerStep (Player& pl, int64_t globalStep, int atSample, const Settings& s, double samplesPerStep) noexcept
     {
         const auto& prog = program[(size_t) pl.activeSlot];
         const auto& pat = prog.pattern;
         const int n = clampv (pat.numSteps, 1, kMaxSteps);
-        step = ((step % n) + n) % n;
+        const int step = (int) (((globalStep % n) + n) % n);
+        const int64_t cycle = (globalStep - step) / n;               // how many times round the pattern
+        if (pl.firstCycle == std::numeric_limits<int64_t>::min()) pl.firstCycle = cycle;
         pl.step = step;
 
-        // FX lane: an event holds its effect for one step (tape stop: a beat)
+        // FX lane: an event holds its effect for one step (tape stop: a beat) - if its FX PROB says so
         const auto& e = pat.fx[(size_t) step];
-        if (e.type != FxType::none)
+        if (e.type != FxType::none && condition (pl, pat.fxCond[(size_t) step], true, cycle, s))
         {
             const int len = (int) (samplesPerStep * (e.type == FxType::tapeStop ? 4.0 : 1.0));
             switch (e.type)
@@ -156,6 +198,7 @@ namespace bc
 
         const int slice = pat.slice[(size_t) step];
         if (slice < 0) return;
+        if (! condition (pl, pat.noteCond[(size_t) step], false, cycle, s)) return;   // NOTE PROB: not this time
         // Gate: until the next hit in the pattern
         int gapSteps = 1;
         while (gapSteps < n && pat.slice[(size_t) ((step + gapSteps) % n)] < 0) ++gapSteps;
@@ -290,7 +333,9 @@ namespace bc
                 const double ppqNow = host.playing ? host.ppq + abs * ppqPerSample : internalPpq;
                 const bool halfTime = s.pads.quantSteps > 0.0 ? padOn[PerfFx::halfTime]   // (quantised like the other pads)
                                                               : midiPad[PerfFx::halfTime] || uiPad[PerfFx::halfTime].load();
-                const double speed = s.speed * (halfTime ? 0.5 : 1.0);
+                static const double kHalf[] = { 0.5, 0.75, 2.0 / 3.0, 0.25, 0.5 };   // HALF-TIME MODE (as halfTimeFactor)
+                const double speed = s.speed * (halfTime ? kHalf[clampv (s.halfMode, 0, 4)] : 1.0);
+                halfTape = halfTime && s.halfMode == 4;
                 const bool followHost = host.playing && ! halfTime;
 
                 bool anyRunning = false;
@@ -326,6 +371,8 @@ namespace bc
                             p.stepPos = grid ? ppqNow * 4.0 * speed : (double) p.startStepOffset;
                             p.syncOffset = p.stepPos - ppqNow * 4.0 * speed;
                             p.lastStepGlobal = std::numeric_limits<int64_t>::min();
+                            p.firstCycle = std::numeric_limits<int64_t>::min();   // (1ST: from here)
+                            p.lastNoteResult = p.lastFxResult = -1;
                             p.restartNow = false;
                         }
                         else if (followHost)
@@ -351,7 +398,7 @@ namespace bc
                             else
                             {
                                 const double samplesPerStep = sr * 60.0 / bpm / 4.0 / speed;
-                                triggerStep (p, idx, i, s, samplesPerStep);
+                                triggerStep (p, g, i, s, samplesPerStep);
                             }
                         }
                         if (stopNow)

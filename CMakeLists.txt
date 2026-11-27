@@ -266,6 +266,7 @@ juce_generate_juce_header(PaulasRevenge)
 target_sources(PaulasRevenge PRIVATE
     Source/PluginProcessor.cpp
     Source/History.cpp
+    Source/PluginUndo.cpp
     Source/PluginEditor.cpp
     Source/SongFile.cpp
     Source/ui/PixelFont.cpp

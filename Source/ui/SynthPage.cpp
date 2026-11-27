@@ -279,6 +279,13 @@ void SynthPage::updateDock()
     dv->resized();
 }
 
+bool SynthPage::dockedUndoKey (const juce::KeyPress& k)
+{
+    auto* dv = static_cast<DockView*> (dockView.get());
+    if (dv == nullptr || ! dv->isVisible() || dv->editor == nullptr || ! isVisible()) return false;
+    return dv->editor->keyPressed (k);
+}
+
 void SynthPage::openWindow()
 {
     const int i = proc.editorState.instrument;

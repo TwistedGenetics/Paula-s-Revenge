@@ -9,6 +9,7 @@
 #include "engine/Recorder.h"
 #include "engine/LowEnd.h"
 #include "History.h"
+#include "PluginUndo.h"
 #include "PluginHost.h"
 #include "MidiOutHost.h"
 #include "ChordPrefs.h"
@@ -46,6 +47,8 @@ public:
     // --- shared state. Lock `lock` for any change to song or player. ------
     juce::SpinLock lock;
     prv::Song song;
+    // (before the plug-ins: it listens to them, so it must outlive them)
+    PluginUndoWatch pluginUndo { *this };
     prv::PluginHost pluginHost;   // (before the player: plug-ins in the mixer go first)
     prv::MidiOutHost midiHost;
     prv::Player player;

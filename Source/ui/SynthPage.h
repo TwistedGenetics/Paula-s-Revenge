@@ -37,6 +37,8 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress&) override;
+    // a docked editor (CHOPPAGE) showing: Cmd+Z / Cmd+Y are its own UNDO / REDO, not the song's
+    bool dockedUndoKey (const juce::KeyPress&);
     bool keyStateChanged (bool) override;
     void mouseDown (const juce::MouseEvent&) override { grabKeyboardFocus(); }
 

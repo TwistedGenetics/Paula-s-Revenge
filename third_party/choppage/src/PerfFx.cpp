@@ -69,6 +69,7 @@ namespace bc
                 r.loopStart = now - r.loopLen;
                 r.phase = 0.0;
                 r.speed = 1.0;
+                r.level = (s.rollMode == 1 || s.rollMode == 2) ? 0.15f : 1.0f;
                 break;
             case reverse:
             case tapeStop:
@@ -94,8 +95,8 @@ namespace bc
         const auto& r = fx[(size_t) pad];
         switch (pad)
         {
-            case stutter:
-            case roll:     return ringAt (ch, r.loopStart + r.phase);
+            case stutter:  return ringAt (ch, r.loopStart + r.phase);
+            case roll:     return ringAt (ch, r.loopStart + r.phase) * r.level;
             case reverse:
             case tapeStop: return ringAt (ch, r.pos);
             case akaize:
@@ -115,11 +116,18 @@ namespace bc
                 if (r.phase >= r.loopLen) r.phase -= r.loopLen;
                 break;
             case roll:
-                // up an octave over two beats
-                r.speed = std::pow (2.0, std::min (1.0, (double) r.age / (s.samplesPerBeat * 2.0)));
+            {
+                // over two beats (ROLL MODE): up / down an octave, and / or the level from 15% up to full or down to 10%
+                const double t = std::min (1.0, (double) r.age / (s.samplesPerBeat * 2.0));
+                const int m = s.rollMode;
+                const double bend = (m == 0 || m == 2) ? t : (m == 4 || m == 5) ? -t : 0.0;
+                r.speed = std::pow (2.0, bend);
+                r.level = (m == 1 || m == 2) ? (float) (0.15 + 0.85 * t)
+                        : (m == 3 || m == 4) ? (float) (1.0 - 0.9 * t) : 1.0f;
                 r.phase += r.speed;
                 while (r.phase >= r.loopLen) r.phase -= r.loopLen;
                 break;
+            }
             case reverse:
                 r.pos -= 1.0;
                 break;

@@ -72,6 +72,7 @@ ChoppageProcessor::ChoppageProcessor()
     const auto docs = juce::File::getSpecialLocation (juce::File::userMusicDirectory).getChildFile ("CHOPPAGE");
     sess.setDataFolder (docs.getFullPathName().toStdString());
     browserFolder = docs.getChildFile ("Breaks");
+    loadPlaces();
     startTimerHz (30);
 }
 
@@ -181,6 +182,26 @@ bool ChoppageProcessor::akaizeSelected()
     return sess.akaizeSlot (slot, r);
 }
 
+std::vector<float> ChoppageProcessor::undoParams() const
+{
+    std::vector<float> v ((size_t) kNumCoreParams);
+    for (int p = 0; p < kNumCoreParams; ++p)
+        v[(size_t) p] = (p >= P_PAD1 && p < P_PAD1 + kFxPads) || p == P_FILL ? 0.0f : values[(size_t) p]->load();
+    return v;
+}
+
+void ChoppageProcessor::applyUndoParams (const std::vector<float>& v)
+{
+    if ((int) v.size() < kNumCoreParams) return;
+    for (int p = 0; p < kNumCoreParams; ++p)
+    {
+        if ((p >= P_PAD1 && p < P_PAD1 + kFxPads) || p == P_FILL) continue;
+        if (std::abs (values[(size_t) p]->load() - v[(size_t) p]) < 1.0e-7f) continue;
+        if (auto* prm = apvts.getParameter (paramDefs()[(size_t) p].id))
+            prm->setValueNotifyingHost (prm->convertTo0to1 (v[(size_t) p]));
+    }
+}
+
 void ChoppageProcessor::keepLinkedFrequencies()
 {
     // With MANUAL off, CYCLE FREQ follows CYCLE LENGTH (41000 / length) as in the original, so its value shows it
@@ -201,6 +222,57 @@ void ChoppageProcessor::scanBrowser (const juce::File& folder)
     browserFolder = folder;
     folder.createDirectory();
     sess.scanFolder (folder.getFullPathName().toStdString());
+}
+
+void ChoppageProcessor::browseTo (const juce::File& folder)
+{
+    if (! folder.isDirectory() && folder.isAChildOf (juce::File (juce::String (sess.getDataFolder())))) folder.createDirectory();   // (its own Breaks)
+    if (! folder.isDirectory()) return;
+    browserFolder = folder;
+    sess.listFolder (folder.getFullPathName().toStdString(), "");
+    savePlaces();   // (the last folder too: DISK opens there next time)
+}
+
+juce::File ChoppageProcessor::placesFile() const
+{
+    return juce::File (juce::String (sess.getDataFolder())).getChildFile ("places.txt");
+}
+
+void ChoppageProcessor::loadPlaces()
+{
+    juce::StringArray lines;
+    placesFile().readLines (lines);
+    for (auto& line : lines)
+    {
+        for (int k = 0; k < kPlaces; ++k)
+            if (line.startsWith ("place" + juce::String (k + 1) + " ")) places[(size_t) k] = juce::File (line.fromFirstOccurrenceOf (" ", false, false));
+        if (line.startsWith ("last ")) { const juce::File f (line.fromFirstOccurrenceOf (" ", false, false)); if (f.isDirectory()) browserFolder = f; }
+    }
+    if (places[0] == juce::File()) places[0] = juce::File (juce::String (sess.getDataFolder())).getChildFile ("Breaks");   // PLACE 1: the breaks folder
+}
+
+void ChoppageProcessor::savePlaces()
+{
+    juce::String text;
+    for (int k = 0; k < kPlaces; ++k)
+        if (places[(size_t) k] != juce::File()) text << "place" << (k + 1) << " " << places[(size_t) k].getFullPathName() << "\n";
+    if (browserFolder != juce::File()) text << "last " << browserFolder.getFullPathName() << "\n";
+    placesFile().getParentDirectory().createDirectory();
+    placesFile().replaceWithText (text);
+}
+
+void ChoppageProcessor::storePlace (int k)
+{
+    if (k < 0 || k >= kPlaces) return;
+    places[(size_t) k] = browserFolder;
+    savePlaces();
+}
+
+void ChoppageProcessor::goToPlace (int k)
+{
+    const auto f = getPlace (k);
+    if (f.isDirectory()) browseTo (f);
+    else if (f != juce::File()) { f.createDirectory(); browseTo (f); }
 }
 
 // ---- state ------------------------------------------------------------------------------------------

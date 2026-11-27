@@ -97,6 +97,11 @@ public:
 
     void rollPattern();
     void rollFx();
+    // 0.17: UNDO / REDO for everything (breaks, slices, patterns, memories, every knob): Cmd+Z / Shift+Cmd+Z
+    void undoAll() { applyUndoParams (sess.undo (undoParams())); }
+    void redoAll() { applyUndoParams (sess.redo (undoParams())); }
+    bool canUndo() const { return sess.canUndo(); }
+    bool canRedo() const { return sess.canRedo(); }
     void historyBack() { sess.historyBack(); }
     void historyForward() { sess.historyForward(); }
     void setShowOriginal (bool b) { sess.setShowOriginal (b); }
@@ -116,8 +121,15 @@ public:
     bool akaizeSelected();
 
     // break browser (DISK)
-    void scanBrowser (const juce::File& folder);
+    void scanBrowser (const juce::File& folder);          // (old: the folder and 3 levels below, all in one list)
+    // 0.17: DISK as on the MPC: one folder at a time (.. first, then its folders, then its breaks), and 8 PLACES
+    // that keep favourite folders (in ~/Music/CHOPPAGE/places.txt, as the MPC keeps Content/places.txt)
+    void browseTo (const juce::File& folder);
     juce::File getBrowserFolder() const { return browserFolder; }
+    static constexpr int kPlaces = 8;
+    juce::File getPlace (int k) const { return k >= 0 && k < kPlaces ? places[(size_t) k] : juce::File(); }
+    void storePlace (int k);                              // the folder showing now goes in place k
+    void goToPlace (int k);
 
     void setPlaying (bool b) { sess.setPlaying (b); }
     bool isPlaying() const { return sess.isPlaying(); }
@@ -147,7 +159,14 @@ public:
    #endif
 
 private:
-    void timerCallback() override { sess.poll(); keepLinkedFrequencies(); }
+    void timerCallback() override
+    {
+        sess.poll(); keepLinkedFrequencies();
+        if (++undoTick % 6 == 0) sess.undoCheckpoint (undoParams());   // (5 times a second: a settled change is a step)
+    }
+    std::vector<float> undoParams() const;     // every parameter, the FX pads and FILL left out (they're playing)
+    void applyUndoParams (const std::vector<float>&);
+    int undoTick = 0;
     void keepLinkedFrequencies();
     bc::Engine::Settings readSettings() const;
 
@@ -157,6 +176,10 @@ private:
     std::vector<bc::MidiMsg> midiScratch;
     std::array<bool, bc::kFxPads> padParamDown {};
     juce::File browserFolder;
+    std::array<juce::File, kPlaces> places;
+    juce::File placesFile() const;
+    void loadPlaces();
+    void savePlaces();
     std::atomic<double> hostBpm { 0.0 };
     std::atomic<bool> hostPlaying { false };
     double currentSampleRate = 44100.0;

@@ -270,7 +270,7 @@ Drag down the **line numbers** to mark some lines (or Shift-click a line number 
 
 ## Undo and redo
 
-One history covers everything: notes and effects, block lengths, the sequence and block numbers, instrument settings and sound shaping, sample edits, loop points and slices, and song settings (BPM, speed, name, tracks, pans). `Cmd+Z` / `Cmd+Shift+Z` work on every page, and so do the **UNDO** / **REDO** buttons in the title bar (the sample editor and arrange page have their own buttons too). The status line says what was undone, e.g. `UNDO: TRANSPOSE TRACK +1`. It keeps the last 200 steps; loading or starting a song clears it.
+One history covers everything: notes and effects, block lengths, the sequence and block numbers, instrument settings and sound shaping, sample edits, loop points and slices, the built-in synths' knobs, **what you change in a VST3 / AU plug-in's own window** (an instrument or a mixer insert: once you let go and stop for about half a second, so a knob sweep is one step; Paula's own KNOB automation isn't counted), and song settings (BPM, speed, name, tracks, pans). With CHOPPAGE on screen, `Cmd+Z` / `Cmd+Shift+Z` are CHOPPAGE's own undo and redo (it keeps one for everything in it). `Cmd+Z` / `Cmd+Shift+Z` work on every page, and so do the **UNDO** / **REDO** buttons in the title bar (the sample editor and arrange page have their own buttons too). The status line says what was undone, e.g. `UNDO: TRANSPOSE TRACK +1`. It keeps the last 200 steps; loading or starting a song clears it.
 
 ## Sequence tools
 
@@ -570,7 +570,7 @@ Tracks are shown a page at a time: **BIG VIEW** (on by default, large text) show
 | `Cmd+B` | Bounce the highlighted notes to a new instrument (asks NO FX, INSTRUMENT FX ONLY, MIXER FX ONLY or ALL FX) |
 | `Shift+Cmd+B` | RESAMPLE: the highlight (or the block) into a new instrument, sliced and BEAT SYNC'd |
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
-| `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
+| `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere, plug-in windows included; with CHOPPAGE on screen, its own undo) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
 | `Cmd+Alt+Down` / `Cmd+Alt+Up` | Move the loop down / up by its own length (0-15 becomes 16-31) |
 | `Cmd+Alt+Right` / `Cmd+Alt+Left` | Double / halve the loop's length (from its first line) |
@@ -1128,6 +1128,7 @@ On TABLE, grains of the same note line up with each other, so with SPRAY and SPR
 * **The notes:** `C-1` to `G-1` start breaks 1 to 8, in time with the song. `G#1` to `D#2` are its FX pads while held (STUTTER, ROLL, REVERSE, TAPE STOP, HALF-TIME, AKAIZE, FILT DIVE, S950 DROP). `E-2` to `G-3` play slices 1 to 16 of the playing break; `G#3` to `B-4` recall its 16 pattern memories.
 * It slices each break and marks every hit (kick, snare, ghost, hat, open hat); **PATTERN** and **FX** roll new patterns and effects from the break's own hits. Its **SEQ**, **FX**, **SET**, **AKAI** and **DISK** tabs hold the rest.
 * Its sound goes into the instrument's track like any instrument's: EQ, effects, the mixer and SXX parts all work.
+* **0.17:** LOAD opens its **DISK** tab, which keeps **8 PLACES** (STORE, then a PLACE key) and lets `↑` / `↓` step through the breaks, playing each one (`Return` loads, `←` goes up a folder). **SEQ** shows hits as letters (K S GS H O, P for perc) and has **N PROB** and **FX PROB** rows: Elektron-style conditions for each step's note and FX (click a cell for the list, right-click for ALWAYS; FILL uses SEQ's **FILL** key). **UNDO** / **REDO** (and `Cmd+Z` / `Cmd+Shift+Z` while it's on screen) take back anything in it. On its FX tab, hold Shift and use the mouse wheel to change a value. ROLL has six MODEs (pitch up or down, velocity up or down, with or without pitch), HALF-TIME has 1/2, 3/4, 2/3, 1/4 and 1/2 TAPE, and the PATTERN dice builds from real break grooves for each STYLE.
 
 ## Plug-in instruments (VST3 / AU)
 

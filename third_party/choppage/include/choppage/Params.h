@@ -33,6 +33,9 @@ namespace bc
         // time, the grains give the metallic Akai sound; IN TIME PITCH moves the grains' pitch, not the timing).
         // For the AKAIZE pad, slice STRETCH and the render.
         P_AK_MODE, P_AK_PITCH,
+        // 0.17: ROLL MODE (how a roll moves: pitch and / or level), HALF-TIME MODE (how much slower, or tape-style),
+        // FILL (the trig conditions' FILL / NOT FILL)
+        P_ROLL_MODE, P_HALF_MODE, P_FILL,
         kNumCoreParams
     };
 
@@ -65,6 +68,9 @@ namespace bc
         as the original does). */
     int    akaizeFreq (float cycleLength, float freq, bool manual);
     const char* fxPadName (int i);
+    const std::vector<std::string>& rollModeNames();   // 0.17: ROLL MODE
+    const std::vector<std::string>& halfModeNames();   // 0.17: HALF-TIME MODE
+    double halfTimeFactor (int mode);                  // how fast the steps go while HALF-TIME is held (1/2 TAPE: 0.5)
 
     /** Builds the engine's settings from plain values of all kNumCoreParams parameters. */
     Engine::Settings settingsFromParams (const float* plain);

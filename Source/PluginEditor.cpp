@@ -1730,6 +1730,8 @@ bool PaulaEditor::keyPressed (const juce::KeyPress& k)
         const auto ch = juce::CharacterFunctions::toLowerCase ((juce::juce_wchar) k.getKeyCode());
         if (ch == 's') { if (m.isShiftDown()) saveSongAs(); else saveSong(); return true; }
         if (ch == 'o' && ! m.isShiftDown()) { loadSong(); return true; }
+        // (CHOPPAGE docked: its own UNDO / REDO, for everything in it)
+        if ((ch == 'z' || ch == 'y') && proc.editorState.view == View::Synth && synthPage.dockedUndoKey (k)) return true;
         if (ch == 'z') { if (m.isShiftDown()) redoBtn.onClick(); else undoBtn.onClick(); return true; }
         if (ch == 'y') { redoBtn.onClick(); return true; }
         if (ch == '2') { mixerBtn.onClick(); return true; }

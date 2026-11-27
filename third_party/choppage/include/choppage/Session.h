@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 /*
     Session — CHOPPAGE without a host: the 8 slots, loading, slicing, badges,
     slice settings, patterns, history, memories, the break browser, Akaize
@@ -118,6 +119,8 @@ namespace bc
         void toggleLock (int step);
         void setFxStep (int step, FxType, int rate);
         void cycleFxRate (int step);
+        /** 0.17: a step's NOTE PROB / FX PROB (a cond:: value; 0 = ALWAYS). */
+        void setStepCondition (int step, bool fxRow, int condition);
         void saveMemory (int memory);
         void recallMemory (int memory);
         void saveOriginalToMemory (int memory);   // the break as recorded, no FX
@@ -184,6 +187,20 @@ namespace bc
         std::string saveState() const;
         void loadState (const std::string&);
 
+        // ---- UNDO / REDO for everything (0.17) ------------------------------------------------------------
+        /** The wrapper calls this often (its timer) with every parameter's plain value (performance controls such
+            as the FX pads left at 0): once the breaks, slices, patterns, memories or parameters have settled into
+            something new (a quarter of a second without change, nothing loading), the state before is an undo step.
+            Loads, reslices, renders, pattern rolls and every knob are steps. */
+        void undoCheckpoint (const std::vector<float>& params);
+        /** One step back / forward. Returns the parameter values to put back (empty: nothing to undo / redo).
+            current: the parameters now. A change that hasn't settled yet is made a step first, so UNDO straight
+            after an edit takes that edit back. */
+        std::vector<float> undo (const std::vector<float>& current = {});
+        std::vector<float> redo (const std::vector<float>& current = {});
+        bool canUndo() const;
+        bool canRedo() const;
+
         // UI pads / transport (atomics on the engine)
         void setPlaying (bool b) { eng.uiPlay = b; }
         bool isPlaying() const { return eng.playingSlot.load() >= 0; }
@@ -194,6 +211,22 @@ namespace bc
         std::string auditionPath;
         struct Job { int slot; std::string path; std::optional<std::string> restore; bool grid; float sens; int gpb; int window = 0; };
         struct Done { int slot; std::string path; ContentPtr content; AudioFile::Status status; std::optional<std::string> restore; int fullBars = 0; int window = 0; };
+
+        struct UndoState
+        {
+            std::array<Slot, kSlots> slots;
+            int selected = 0;
+            std::vector<float> params;
+            std::string key;              // what it is, to tell a change
+        };
+        std::string undoKey (const std::vector<float>& params) const;
+        UndoState undoCapture (const std::vector<float>& params) const;
+        void undoRestore (const UndoState&);
+        void undoFlush (const std::vector<float>& current);
+        std::vector<UndoState> undoStack, redoStack;
+        std::optional<UndoState> undoNow;        // the state as last committed
+        std::string undoPendingKey;
+        std::chrono::steady_clock::time_point undoPendingSince;
 
         void workerLoop();
         void installContent (int slot, ContentPtr, const std::string& path, bool demo, const std::string* restore);

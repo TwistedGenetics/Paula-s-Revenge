@@ -56,6 +56,8 @@ PaulaProcessor::PaulaProcessor()
         if (in.isBuiltin()) return prv::createBuiltinSynth (in, sr);
         return in.isMidiOut() ? midiHost.createSynth (in, sr) : pluginHost.createSynth (i, in, sr);
     };
+    // (only with a message loop: the command-line tools have none)
+    if (juce::MessageManager::getInstanceWithoutCreating() != nullptr) pluginUndo.start();
 }
 
 std::function<std::unique_ptr<prv::PluginSynth> (int, const prv::Instrument&, double)> PaulaProcessor::synthFactory()

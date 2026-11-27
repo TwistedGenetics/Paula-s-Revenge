@@ -51,7 +51,7 @@ namespace ui
             if (e.mods.isAltDown() || e.getNumberOfClicks() > 1)   // back to default
                 prm.setNorm (prm.p->getDefaultValue());
         };
-        c->setTooltip ("Drag up / down or scroll. Shift = fine. Double-click = default.");
+        c->setTooltip ("Drag up / down (Shift = fine), or Shift + scroll. Double-click = default.");
         addAndMakeVisible (*c);
         rows.back().items.push_back ({ std::move (c), width });
     }
@@ -95,7 +95,7 @@ namespace ui
         c->just = juce::Justification::centred;
         c->onDrag = [drag] (float steps, const juce::ModifierKeys& m) { if (drag) drag (steps, m.isShiftDown()); };
         c->onClick = [reset] (const juce::MouseEvent& e) { if ((e.mods.isAltDown() || e.getNumberOfClicks() > 1) && reset) reset(); };
-        c->setTooltip ("Drag up / down or scroll. Shift = fine. Double-click = automatic.");
+        c->setTooltip ("Drag up / down (Shift = fine), or Shift + scroll. Double-click = automatic.");
         addAndMakeVisible (*c);
         rows.back().items.push_back ({ std::move (c), width });
     }
@@ -533,7 +533,7 @@ namespace ui
                         proc.setSliceValue (f, def, all);
                     }
                 };
-                c->setTooltip ("Drag up / down or scroll (shift = fine). Double-click = default. REVERSE: click.");
+                c->setTooltip ("Drag up / down (Shift = fine), or Shift + scroll. Double-click = default. REVERSE: click.");
                 addAndMakeVisible (*c);
                 cells.push_back (std::move (c));
             }
@@ -583,9 +583,26 @@ namespace ui
     // =====================================================================================
     namespace
     {
-        const char* kLaneNames[] = { "KICK", "SNARE", "GHOST", "HAT", "OPEN", "PERC", "FX" };
+        const char* kLaneNames[] = { "KICK", "SNARE", "GHOST", "HAT", "OPEN", "PERC", "N PROB", "FX", "FX PROB" };
         const Badge kLaneBadge[] = { Badge::kick, Badge::snare, Badge::ghost, Badge::hat, Badge::open, Badge::other };
-        constexpr int kHitLanes = 6;    // lane 6 is the FX row
+        constexpr int kHitLanes = 6;    // then NOTE PROB (6), the FX row (7) and FX PROB (8)
+        constexpr int kNoteProbLane = 6, kFxLane = 7, kFxProbLane = 8;
+
+        // the trig conditions as a menu: ALWAYS, the switches, the probabilities and A:B in their own sub-menus
+        void conditionMenu (int current, std::function<void (int)> pick)
+        {
+            juce::PopupMenu m, pct, ab;
+            auto add = [&] (juce::PopupMenu& menu, int c) { menu.addItem (juce::String (bc::cond::name (c)), true, c == current, [pick, c] { pick (c); }); };
+            add (m, bc::cond::always);
+            m.addSeparator();
+            for (int c = bc::cond::fill; c < bc::cond::percentBase; ++c) add (m, c);
+            for (int c = bc::cond::percentBase; c < bc::cond::abBase; ++c) add (pct, c);
+            for (int c = bc::cond::abBase; c < bc::cond::kCount; ++c) add (ab, c);
+            m.addSeparator();
+            m.addSubMenu ("PROBABILITY  1% .. 99%", pct, true, nullptr, bc::cond::isPercent (current));
+            m.addSubMenu ("A:B  (A-TH TIME OF EVERY B)", ab, true, nullptr, bc::cond::isAB (current));
+            m.showMenuAsync (juce::PopupMenu::Options().withMousePosition());
+        }
         const char* fxLetter (bc::FxType t)
         {
             switch (t) { case bc::FxType::stutter: return "S"; case bc::FxType::reverse: return "R";
@@ -608,7 +625,7 @@ namespace ui
         const int cols = visibleSteps();
         const float colW = (float) (getWidth() - laneW) / (float) cols;
         const int x0 = laneW + (int) (column * colW), x1 = laneW + (int) ((column + 1) * colW);
-        return { x0 + 2, head + lane * rowH + 3, x1 - x0 - 4, rowH - 6 };
+        return { x0 + 2, head + lane * rowH + 1, x1 - x0 - 4, rowH - 2 };
     }
 
     void SeqGrid::paint (juce::Graphics& g)
@@ -637,20 +654,40 @@ namespace ui
                 auto r = cell (lane, c);
                 juce::String t;
                 bool hit = false;
+                bool condCell = false;
                 if (lane < kHitLanes)
                 {
                     const int sl = pat.slice[(size_t) step];
                     if (sl >= 0 && s.content != nullptr && laneOf (s.content->badges[(size_t) sl]) == lane)
                     {
                         hit = true;
-                        t = juce::String (sl + 1);
+                        t = bc::badgeLabel (s.content->badges[(size_t) sl]);   // K S GS H O P, as in break books
                     }
                 }
-                else if (pat.fx[(size_t) step].type != bc::FxType::none)
+                else if (lane == kFxLane)
                 {
-                    hit = true;
-                    t = juce::String (fxLetter (pat.fx[(size_t) step].type)) + juce::String (pat.fx[(size_t) step].rate);
+                    if (pat.fx[(size_t) step].type != bc::FxType::none)
+                    {
+                        hit = true;
+                        t = juce::String (fxLetter (pat.fx[(size_t) step].type)) + juce::String (pat.fx[(size_t) step].rate);
+                    }
                 }
+                else
+                {
+                    // NOTE PROB / FX PROB: the condition's short name (nothing for ALWAYS), dimmed when there's no
+                    // note / FX on the step for it to act on
+                    const int cnd = (lane == kNoteProbLane ? pat.noteCond : pat.fxCond)[(size_t) step];
+                    const bool has = lane == kNoteProbLane ? pat.slice[(size_t) step] >= 0 : pat.fx[(size_t) step].type != bc::FxType::none;
+                    if (cnd != 0)
+                    {
+                        t = juce::String (bc::cond::shortName (cnd));
+                        condCell = true;
+                        g.setColour (has ? lcdc().ink : lcdc().dim);
+                        g.setFont (lcd (17.0f));
+                        g.drawFittedText (t, r, juce::Justification::centred, 1, 0.5f);
+                    }
+                }
+                juce::ignoreUnused (condCell);
                 if (step == playing)
                 {
                     g.setColour (lcdc().mark.withAlpha (0.35f));
@@ -661,10 +698,10 @@ namespace ui
                     g.setColour (lcdc().ink);
                     g.fillRect (r);
                     g.setColour (lcdc().inv);
-                    g.setFont (lcd (lane < kHitLanes ? 21.0f : 16.0f));
+                    g.setFont (lcd (lane < kHitLanes ? 23.0f : 16.0f));
                     g.drawFittedText (t, r, juce::Justification::centred, 1, 0.5f);
                 }
-                if (lane == kHitLanes && step == selStep)
+                if (lane >= kHitLanes && step == selStep)
                 {
                     g.setColour (lcdc().mark);
                     g.drawRect (r.expanded (2, 2), 3);
@@ -700,7 +737,28 @@ namespace ui
                         if (e.mods.isPopupMenu()) proc.swapStep (step);
                         else proc.toggleStep (step, kLaneBadge[lane]);
                     }
-                    else if (e.mods.isPopupMenu()) proc.cycleFxRate (step);   // the FX row: a click selects the step
+                    else if (lane == kFxLane)
+                    {
+                        if (e.mods.isPopupMenu()) proc.cycleFxRate (step);   // the FX row: a click selects the step
+                    }
+                    else
+                    {
+                        // NOTE PROB / FX PROB: a click picks the condition, a right-click puts it back to ALWAYS
+                        const bool fxRow = lane == kFxProbLane;
+                        const auto& pat = s.program.pattern;
+                        const int current = (fxRow ? pat.fxCond : pat.noteCond)[(size_t) step];
+                        if (e.mods.isPopupMenu()) proc.session().setStepCondition (step, fxRow, bc::cond::always);
+                        else
+                        {
+                            juce::Component::SafePointer<SeqGrid> safe (this);
+                            conditionMenu (current, [safe, step, fxRow] (int c)
+                            {
+                                if (safe == nullptr) return;
+                                safe->proc.session().setStepCondition (step, fxRow, c);
+                                safe->repaint();
+                            });
+                        }
+                    }
                     if (onSelect) onSelect();
                     repaint();
                     return;
@@ -730,10 +788,14 @@ namespace ui
         tool ("4 BARS", [this] { proc.setPatternLength (4); }, [slot] { return slot().program.pattern.numSteps == 64; });
         tool ("1", [this] { grid.page = 0; grid.repaint(); }, [this] { return grid.page == 0; });
         tool ("2", [this, slot] { if (slot().program.pattern.numSteps > 32) { grid.page = 1; grid.repaint(); } }, [this] { return grid.page == 1; });
-        tool (juce::String::fromUTF8 ("\xe2\x97\x80"), [this] { proc.historyBack(); }, nullptr);
-        tool (juce::String::fromUTF8 ("\xe2\x96\xb6"), [this] { proc.historyForward(); }, nullptr);
+        // 0.17: UNDO / REDO for everything (was: the pattern's own history)
+        tool ("UNDO", [this] { proc.undoAll(); }, nullptr);
+        tool ("REDO", [this] { proc.redoAll(); }, nullptr);
         tool ("CLEAR", [this] { proc.clearPattern(); }, nullptr);
         tool ("RESET", [this] { proc.session().resetToOriginal(); }, nullptr);
+        // FILL: the trig conditions' FILL / NOT FILL (hold it while it plays, or click to latch)
+        tool ("FILL", [this] { if (auto* p = proc.apvts.getParameter ("fill")) p->setValueNotifyingHost (proc.plain (bc::P_FILL) > 0.5f ? 0.0f : 1.0f); },
+              [this] { return proc.plain (bc::P_FILL) > 0.5f; });
 
         memLabel.text = [] { return juce::String ("MEMORY"); };
         memLabel.fontSize = 23.0f;
@@ -800,8 +862,10 @@ namespace ui
                       [this, rate, fxOf] { const auto f = fxOf(); if (f.type != bc::FxType::none) { proc.setFxStep (grid.selStep, f.type, rate); grid.repaint(); } },
                       [rate, fxOf] { const auto f = fxOf(); return f.type != bc::FxType::none && f.rate == rate; }, true);
         grid.onSelect = [this] { for (auto& c : stepFx) c->repaint(); };
+        grid.setTooltip (juce::String::fromUTF8 ("Click: add / remove a hit. Right-click: swap the slice (FX row: its rate). Shift-click: lock the step. "
+                                                 "N PROB / FX PROB: click to pick the step's condition (ALWAYS, FILL, PRE, NEI, 1ST, 1%-99%, A:B), right-click for ALWAYS."));
 
-        help.text = [] { return juce::String::fromUTF8 ("CLICK ADD/REMOVE \xc2\xb7 RIGHT-CLICK SWAP SLICE / FX RATE \xc2\xb7 SHIFT-CLICK LOCK \xc2\xb7 FX ROW: PICK THE STEP"); };
+        help.text = [] { return juce::String::fromUTF8 ("CLICK ADD/REMOVE \xc2\xb7 RIGHT-CLICK SWAP / FX RATE \xc2\xb7 SHIFT-CLICK LOCK \xc2\xb7 PROB ROWS: CLICK PICKS, RIGHT-CLICK ALWAYS"); };
         help.fontSize = 20.0f;
         help.setInterceptsMouseClicks (false, false);
         addAndMakeVisible (help);
@@ -811,17 +875,16 @@ namespace ui
     {
         auto r = getLocalBounds();
         auto top = r.removeFromTop (38);
-        const int widths[] = { 130, 140, 100, 110, 110, 44, 44, 50, 50, 100, 104 };
+        const int widths[] = { 112, 124, 80, 92, 92, 44, 44, 76, 76, 88, 88, 70 };
         int x = 0;
-        for (size_t i = 0; i < tools.size() && i < 11; ++i)
+        for (size_t i = 0; i < tools.size() && i < 12; ++i)
         {
-            if (i == 2 || i == 5 || i == 7 || i == 9) x += 12;
+            if (i == 2 || i == 5 || i == 7 || i == 9 || i == 11) x += 12;
             tools[i]->setBounds (x, top.getY() + 2, widths[i], 34);
             x += widths[i] + 6;
         }
         auto bottom = r.removeFromBottom (36);
-        auto helpRow = r.removeFromBottom (28);
-        help.setBounds (helpRow);
+        help.setVisible (false);   // (0.17: its text is the grid's tooltip, so the 9 rows have the room)
         auto fxRow = r.removeFromBottom (38);
         {
             const int w[] = { 132, 64, 124, 124, 118, 132, 64, 74, 74, 74, 74 };
@@ -857,28 +920,59 @@ namespace ui
     // =====================================================================================
     DiskTab::DiskTab (ChoppageProcessor& p) : proc (p)
     {
+        setWantsKeyboardFocus (true);
         auto setup = [this] (LcdCell& c, juce::String t, std::function<void()> fn)
         {
             c.text = [t] { return t; };
             c.boxed = true;
-            c.fontSize = 24.0f;
+            c.fontSize = 22.0f;
             c.just = juce::Justification::centred;
             c.onClick = [fn] (const juce::MouseEvent&) { fn(); };
             addAndMakeVisible (c);
         };
         setup (folderCell, "FOLDER...", [this] { if (onChooseFolder) onChooseFolder(); });
-        setup (rescanCell, "RESCAN", [this] { proc.scanBrowser (proc.getBrowserFolder()); });
+        setup (fileCell, "FILE...", [this] { if (onChooseFile) onChooseFile(); });
+        setup (upFolderCell, "UP", [this] { goUp(); });
+        setup (rescanCell, "REFRESH", [this] { proc.browseTo (proc.getBrowserFolder()); });
         setup (saveCell, "SAVE PRESET", [this] { if (onSavePreset) onSavePreset(); });
         setup (loadCell, "LOAD PRESET", [this] { if (onLoadPreset) onLoadPreset(); });
-        setup (upCell, juce::String::fromUTF8 ("\xe2\x96\xb2"), [this] { scroll = std::max (0, scroll - visibleRows()); repaint(); });
-        setup (downCell, juce::String::fromUTF8 ("\xe2\x96\xbc"), [this]
-        { scroll = std::max (0, std::min ((int) entries.size() - visibleRows(), scroll + visibleRows())); repaint(); });
+        setup (upCell, juce::String::fromUTF8 ("\xe2\x96\xb2"), [this] { select (sel - 1, true); });
+        setup (downCell, juce::String::fromUTF8 ("\xe2\x96\xbc"), [this] { select (sel + 1, true); });
+        upCell.setTooltip ("The line above (or the up arrow key)");
+        downCell.setTooltip ("The line below (or the down arrow key)");
+        // PLACES: eight keys for favourite folders - STORE, then a PLACE key, keeps the folder showing now there
+        setup (storeCell, "STORE", [this] { storing = ! storing; storeCell.repaint(); for (auto& c : placeCells) c->repaint(); });
+        storeCell.isOn = [this] { return storing; };
+        storeCell.setTooltip ("Press STORE, then a PLACE key: that key keeps the folder showing now");
+        for (int k = 0; k < ChoppageProcessor::kPlaces; ++k)
+        {
+            auto c = std::make_unique<LcdCell>();
+            c->text = [this, k]
+            {
+                const auto f = proc.getPlace (k);
+                return juce::String (k + 1) + " " + (f == juce::File() ? juce::String ("-") : f.getFileName().toUpperCase());
+            };
+            c->isOn = [this, k] { return proc.getPlace (k) != juce::File() && proc.getPlace (k) == proc.getBrowserFolder(); };
+            c->boxed = true;
+            c->fontSize = 18.0f;
+            c->just = juce::Justification::centred;
+            c->onClick = [this, k] (const juce::MouseEvent& e)
+            {
+                if (storing || e.mods.isPopupMenu()) { proc.storePlace (k); storing = false; storeCell.repaint(); }
+                else { proc.goToPlace (k); sel = 0; scroll = 0; }
+                for (auto& pc : placeCells) pc->repaint();
+                grabKeyboardFocus();
+            };
+            c->setTooltip ("PLACE " + juce::String (k + 1) + ": click to go there. Right-click (or STORE first) keeps the folder showing now here.");
+            addAndMakeVisible (*c);
+            placeCells.push_back (std::move (c));
+        }
         pathCell.text = [this]
         {
-            if (proc.session().browserScanning()) return juce::String ("SCANNING...");
+            if (proc.session().browserScanning()) return juce::String ("READING...");
             return proc.getBrowserFolder().getFullPathName().toUpperCase();
         };
-        pathCell.fontSize = 20.0f;
+        pathCell.fontSize = 19.0f;
         pathCell.setInterceptsMouseClicks (false, false);
         addAndMakeVisible (pathCell);
     }
@@ -887,41 +981,101 @@ namespace ui
 
     juce::Rectangle<int> DiskTab::listArea() const
     {
-        return getLocalBounds().withTrimmedTop (40 + 34).withTrimmedBottom (30);
+        return getLocalBounds().withTrimmedTop (38 + 36 + 28 + 30).withTrimmedBottom (28);
     }
 
     void DiskTab::resized()
     {
         auto top = getLocalBounds().removeFromTop (38);
-        folderCell.setBounds (top.removeFromLeft (150).reduced (0, 2));
-        top.removeFromLeft (10);
-        rescanCell.setBounds (top.removeFromLeft (130).reduced (0, 2));
-        top.removeFromLeft (10);
-        saveCell.setBounds (top.removeFromLeft (190).reduced (0, 2));
-        top.removeFromLeft (10);
-        loadCell.setBounds (top.removeFromLeft (190).reduced (0, 2));
-        top.removeFromLeft (10);
+        auto put = [&top] (LcdCell& c, int w) { c.setBounds (top.removeFromLeft (w).reduced (0, 2)); top.removeFromLeft (8); };
+        put (folderCell, 130); put (fileCell, 100); put (upFolderCell, 70); put (rescanCell, 120); put (saveCell, 170); put (loadCell, 170);
         downCell.setBounds (top.removeFromRight (50).reduced (0, 2));
         top.removeFromRight (6);
         upCell.setBounds (top.removeFromRight (50).reduced (0, 2));
-        top.removeFromRight (10);
-        pathCell.setBounds (top);
+
+        auto placesRow = getLocalBounds().withTrimmedTop (38).withHeight (36);
+        storeCell.setBounds (placesRow.removeFromLeft (100).reduced (0, 3));
+        placesRow.removeFromLeft (8);
+        const int w = placesRow.getWidth() / ChoppageProcessor::kPlaces;
+        for (auto& c : placeCells) c->setBounds (placesRow.removeFromLeft (w).reduced (3, 3));
+        pathCell.setBounds (getLocalBounds().withTrimmedTop (38 + 36).withHeight (28));
+    }
+
+    void DiskTab::visibilityChanged()
+    {
+        if (! isVisible()) { proc.session().auditionStop(); return; }
+        // showing: the folder DISK was last in (as a folder list), and the keys go here
+        if (proc.session().browserFolder() != proc.getBrowserFolder().getFullPathName().toStdString() || proc.session().browserEntries().empty())
+            proc.browseTo (proc.getBrowserFolder().isDirectory() ? proc.getBrowserFolder() : proc.getPlace (0));
+        juce::Component::SafePointer<DiskTab> safe (this);
+        juce::MessageManager::callAsync ([safe] { if (safe != nullptr && safe->isShowing()) safe->grabKeyboardFocus(); });
     }
 
     void DiskTab::refresh()
     {
         const auto v = proc.session().version();
-        if (v != seen) { seen = v; entries = proc.session().browserEntries(); scroll = std::min (scroll, std::max (0, (int) entries.size() - 1)); }
+        if (v != seen)
+        {
+            const auto before = sel < (int) entries.size() ? entries[(size_t) sel].path : std::string();
+            seen = v;
+            entries = proc.session().browserEntries();
+            // keep the same line highlighted after a refresh (else the top)
+            int found = 0;
+            for (int i = 0; i < (int) entries.size(); ++i) if (entries[(size_t) i].path == before) found = i;
+            sel = juce::jlimit (0, std::max (0, (int) entries.size() - 1), found);
+            scroll = juce::jlimit (0, std::max (0, (int) entries.size() - visibleRows()), scroll);
+        }
         repaint();
         pathCell.repaint();
     }
 
+    void DiskTab::select (int index, bool audition)
+    {
+        if (entries.empty()) return;
+        sel = juce::jlimit (0, (int) entries.size() - 1, index);
+        if (sel < scroll) scroll = sel;
+        if (sel >= scroll + visibleRows()) scroll = sel - visibleRows() + 1;
+        const auto& e = entries[(size_t) sel];
+        if (audition)
+        {
+            if (e.isDir || e.isUp || e.isPreset) proc.session().auditionStop();
+            else proc.session().audition (e.path);   // hear it (loops, dry) until another line or a load
+        }
+        repaint();
+    }
+
+    void DiskTab::open (int index, bool nextEmpty)
+    {
+        if (index < 0 || index >= (int) entries.size()) return;
+        const auto e = entries[(size_t) index];
+        if (e.isUp) { goUp(); return; }
+        if (e.isDir) { proc.session().auditionStop(); proc.browseTo (juce::File (juce::String (e.path))); sel = 0; scroll = 0; return; }
+        if (e.isPreset) { proc.session().auditionStop(); proc.loadPreset (juce::File (juce::String (e.path))); return; }
+        int slot = proc.getSelectedSlot();
+        if (nextEmpty)
+            for (int k = 0; k < bc::kSlots; ++k)
+                if (proc.getSlot (k).status == ChoppageProcessor::Status::empty) { slot = k; break; }
+        proc.session().auditionStop();
+        proc.loadFile (slot, juce::File (juce::String (e.path)));
+        proc.selectSlot (slot);
+    }
+
+    void DiskTab::goUp()
+    {
+        const auto here = proc.getBrowserFolder();
+        const auto parent = here.getParentDirectory();
+        if (parent == here) return;
+        proc.session().auditionStop();
+        proc.browseTo (parent);
+        sel = 0; scroll = 0;
+    }
+
     void DiskTab::paint (juce::Graphics& g)
     {
-        const int cols[] = { 120, 90, 120 };
-        auto head = getLocalBounds().withTrimmedTop (40).withHeight (32);
+        const int cols[] = { 110, 80, 110 };
+        auto head = getLocalBounds().withTrimmedTop (38 + 36 + 28).withHeight (28);
         g.setColour (lcdc().ink);
-        g.setFont (lcd (22.0f));
+        g.setFont (lcd (20.0f));
         int x = 8;
         for (auto [t, w] : { std::pair<const char*, int> { "BPM", cols[0] }, { "BARS", cols[1] }, { "LENGTH", cols[2] }, { "NAME", 400 } })
         {
@@ -932,50 +1086,85 @@ namespace ui
         g.fillRect (0, head.getBottom(), getWidth(), 2);
 
         const auto list = listArea();
-        const auto& sel = proc.getSlot (proc.getSelectedSlot());
+        const auto& slot = proc.getSlot (proc.getSelectedSlot());
         if (entries.empty())
         {
             g.setColour (lcdc().ink);
-            g.setFont (lcd (26.0f));
-            g.drawFittedText (proc.session().browserScanning() ? juce::String ("SCANNING...")
-                                : juce::String ("NO BREAKS HERE. PICK A FOLDER WITH WAV / AIFF / FLAC FILES"), list, juce::Justification::centred, 2);
+            g.setFont (lcd (24.0f));
+            g.drawFittedText (proc.session().browserScanning() ? juce::String ("READING...")
+                                : juce::String ("NOTHING HERE. UP, A PLACE, OR FOLDER... FOR ANOTHER FOLDER"), list, juce::Justification::centred, 2);
             return;
         }
-        g.setFont (lcd (24.0f));
+        g.setFont (lcd (23.0f));
         for (int r = 0; r < visibleRows(); ++r)
         {
             const int i = scroll + r;
             if (i >= (int) entries.size()) break;
             const auto& e = entries[(size_t) i];
             auto row = juce::Rectangle<int> (list.getX(), list.getY() + r * rowH, list.getWidth(), rowH - 2);
-            const bool loaded = e.path == sel.file;
-            if (loaded) { g.setColour (lcdc().ink); g.fillRect (row); }
-            g.setColour (loaded ? lcdc().inv : lcdc().ink);
+            const bool chosen = i == sel;
+            const bool loaded = ! e.isDir && e.path == slot.file;
+            if (chosen) { g.setColour (lcdc().ink); g.fillRect (row); }
+            else if (loaded) { g.setColour (lcdc().mark.withAlpha (0.35f)); g.fillRect (row); }
+            g.setColour (chosen ? lcdc().inv : lcdc().ink);
             int cx = 8;
+            if (e.isUp || e.isDir)
+            {
+                g.drawFittedText (e.isUp ? juce::String ("[ .. ]  UP") : "[ " + juce::String (e.name).toUpperCase() + " ]",
+                                  cx, row.getY(), row.getRight() - cx, rowH, juce::Justification::centredLeft, 1, 0.7f);
+                continue;
+            }
             g.drawText (e.bpm > 0 ? juce::String (e.bpm, 1) : juce::String ("--"), cx, row.getY(), cols[0], rowH, juce::Justification::centredLeft); cx += cols[0];
             g.drawText (e.bars > 0 ? juce::String (e.bars) : juce::String ("-"), cx, row.getY(), cols[1], rowH, juce::Justification::centredLeft); cx += cols[1];
-            g.drawText (juce::String (e.seconds, 2) + "S", cx, row.getY(), cols[2], rowH, juce::Justification::centredLeft); cx += cols[2];
+            g.drawText (e.isPreset ? juce::String ("PRESET") : juce::String (e.seconds, 2) + "S", cx, row.getY(), cols[2], rowH, juce::Justification::centredLeft); cx += cols[2];
             g.drawFittedText (juce::String (e.name).toUpperCase(), cx, row.getY(), row.getRight() - cx, rowH, juce::Justification::centredLeft, 1, 0.7f);
         }
         g.setColour (lcdc().ink);
-        g.setFont (lcd (20.0f));
-        g.drawText (juce::String (entries.size()) + " BREAKS" + juce::String::fromUTF8 (" \xc2\xb7 CLICK: LOAD INTO BREAK ")
-                    + juce::String (proc.getSelectedSlot() + 1) + juce::String::fromUTF8 (" \xc2\xb7 SHIFT-CLICK: NEXT EMPTY SLOT"),
-                    getLocalBounds().removeFromBottom (28), juce::Justification::centredLeft);
+        g.setFont (lcd (18.0f));
+        g.drawText (juce::String::fromUTF8 ("\xe2\x86\x91 \xe2\x86\x93 CHOOSE AND HEAR \xc2\xb7 RETURN / CLICK AGAIN: LOAD INTO BREAK ")
+                    + juce::String (proc.getSelectedSlot() + 1) + juce::String::fromUTF8 (" (SHIFT: NEXT EMPTY) \xc2\xb7 \xe2\x86\x90 UP \xc2\xb7 ESC STOPS"),
+                    getLocalBounds().removeFromBottom (26), juce::Justification::centredLeft);
     }
 
     void DiskTab::mouseDown (const juce::MouseEvent& e)
     {
+        grabKeyboardFocus();
         const auto list = listArea();
         if (! list.contains (e.getPosition())) return;
         const int i = scroll + (e.y - list.getY()) / rowH;
         if (i < 0 || i >= (int) entries.size()) return;
-        int slot = proc.getSelectedSlot();
-        if (e.mods.isShiftDown())
-            for (int k = 0; k < bc::kSlots; ++k)
-                if (proc.getSlot (k).status == ChoppageProcessor::Status::empty) { slot = k; break; }
-        proc.loadFile (slot, juce::File (entries[(size_t) i].path));
-        proc.selectSlot (slot);
+        const auto& en = entries[(size_t) i];
+        // a folder opens at once (as on the MPC); a break: the first click hears it, the second loads it
+        if (en.isDir || en.isUp || (i == sel && e.getNumberOfClicks() == 1 && ! en.isPreset)) { open (i, e.mods.isShiftDown()); return; }
+        select (i, true);
+    }
+
+    void DiskTab::mouseDoubleClick (const juce::MouseEvent& e)
+    {
+        const auto list = listArea();
+        if (! list.contains (e.getPosition())) return;
+        const int i = scroll + (e.y - list.getY()) / rowH;
+        if (i >= 0 && i < (int) entries.size() && entries[(size_t) i].isPreset) open (i, false);
+    }
+
+    bool DiskTab::keyPressed (const juce::KeyPress& k)
+    {
+        const int code = k.getKeyCode();
+        if (code == juce::KeyPress::upKey)       { select (sel - 1, true); return true; }
+        if (code == juce::KeyPress::downKey)     { select (sel + 1, true); return true; }
+        if (code == juce::KeyPress::pageUpKey)   { select (sel - visibleRows(), true); return true; }
+        if (code == juce::KeyPress::pageDownKey) { select (sel + visibleRows(), true); return true; }
+        if (code == juce::KeyPress::homeKey)     { select (0, true); return true; }
+        if (code == juce::KeyPress::endKey)      { select ((int) entries.size() - 1, true); return true; }
+        if (code == juce::KeyPress::returnKey || code == juce::KeyPress::rightKey)
+        {
+            if (code == juce::KeyPress::rightKey && ! entries.empty() && ! entries[(size_t) sel].isDir) return true;
+            open (sel, k.getModifiers().isShiftDown());
+            return true;
+        }
+        if (code == juce::KeyPress::leftKey || code == juce::KeyPress::backspaceKey) { goUp(); return true; }
+        if (code == juce::KeyPress::escapeKey) { proc.session().auditionStop(); return true; }
+        return false;
     }
 
     void DiskTab::mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w)
@@ -991,7 +1180,7 @@ namespace ui
     FxTab::FxTab (ChoppageProcessor& p) : ParamPage (p)
     {
         namespace P = bc::params;
-        rowHeight = 36;
+        rowHeight = 32;   // (0.17: one more row, ROLL MODE and HALF-TIME)
         titleW = 0;
         addRow ("FILTER", "");
         addValue (P::filter, "CUTOFF", 110); addChoice (P::filterType); addValue (P::filterRes, "RES", 100);
@@ -1008,6 +1197,8 @@ namespace ui
         addRule();
         addRow ("PADS", "");
         addValue (P::stutRate, "STUTTER", 90); addValue (P::rollRate, "ROLL", 90); addValue (P::tapeMs, "TAPE STOP", 130);
+        addRow ("", "");
+        addValue (P::rollMode, "ROLL MODE", 230); addValue (P::halfMode, "HALF-TIME", 150);
         addRow ("", "");
         addValue (P::akCycLen, "AKAIZE", 130, 0.005f); addValue (P::akRatio, "", 90); addValue (P::diveRes, "FILT DIVE RES", 100);
         addRow ("", "");

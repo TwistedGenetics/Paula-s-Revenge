@@ -89,6 +89,9 @@ namespace bc
             F ("akrPitch", "Akaize Render Pitch", -24, 24, 0, PDisp::semis);
             C ("akMode", "Akaize Mode", { "STRETCH", "IN TIME" }, 0);
             F ("akPitch", "Akaize In Time Pitch", -24, 24, 0, PDisp::semis);
+            C ("rollMode", "Roll Mode", rollModeNames(), 0);
+            C ("halfMode", "Half-Time Mode", halfModeNames(), 0);
+            B ("fill", "Fill", false);
             return v;
         }();
         return d;
@@ -168,6 +171,18 @@ namespace bc
                       : akaizer::linkedFrequency (clampv ((int) std::lround (cycleLength), 20, 2000));
     }
 
+    const std::vector<std::string>& rollModeNames()
+    {
+        static const std::vector<std::string> n { "PITCH UP", "VEL UP", "VEL UP +PITCH", "VEL DOWN", "VEL DOWN -PITCH", "PITCH DOWN" };
+        return n;
+    }
+    const std::vector<std::string>& halfModeNames()
+    {
+        static const std::vector<std::string> n { "1/2", "3/4", "2/3", "1/4", "1/2 TAPE" };
+        return n;
+    }
+    double halfTimeFactor (int mode) { static const double f[] = { 0.5, 0.75, 2.0 / 3.0, 0.25, 0.5 }; return f[clampv (mode, 0, 4)]; }
+
     const char* fxPadName (int i)
     {
         static const char* n[kFxPads] = { "STUTTER", "ROLL", "REVERSE", "TAPE STOP", "HALF-TIME", "AKAIZE", "FILT DIVE", "S950 DROP" };
@@ -199,6 +214,9 @@ namespace bc
         s.pads.akInTime   = i (P_AK_MODE) == 1;
         s.pads.akPitch    = std::pow (2.0, std::round (v[P_AK_PITCH]) / 12.0);
         s.pads.diveRes    = v[P_DIVE_RES];
+        s.pads.rollMode   = clampv (i (P_ROLL_MODE), 0, 5);
+        s.halfMode        = clampv (i (P_HALF_MODE), 0, 4);
+        s.fill            = v[P_FILL] > 0.5f;
         {
             static const double grid16[] = { 0.0, 1.0, 2.0, 4.0, 0.5, 16.0 };
             s.pads.quantSteps = grid16[clampv (i (P_PAD_QUANT), 0, 5)];

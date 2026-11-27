@@ -48,15 +48,19 @@ namespace bc
 
         std::string patternToString (const Pattern& p)
         {
-            std::string a, f, l;
+            std::string a, f, l, c;
+            bool anyCond = false;
             for (int i = 0; i < p.numSteps; ++i)
             {
-                if (i) { a += ','; f += ','; l += ','; }
+                if (i) { a += ','; f += ','; l += ','; c += ','; }
                 a += std::to_string (p.slice[(size_t) i]);
                 f += std::to_string ((int) p.fx[(size_t) i].type) + ":" + std::to_string ((int) p.fx[(size_t) i].rate);
                 l += p.locked[(size_t) i] ? '1' : '0';
+                c += std::to_string ((int) p.noteCond[(size_t) i]) + ":" + std::to_string ((int) p.fxCond[(size_t) i]);
+                anyCond = anyCond || p.noteCond[(size_t) i] != 0 || p.fxCond[(size_t) i] != 0;
             }
-            return std::to_string (p.numSteps) + "|" + a + "|" + f + "|" + l;
+            // (0.17: the trig conditions as a 5th part, only when there are some: older versions read the first four)
+            return std::to_string (p.numSteps) + "|" + a + "|" + f + "|" + l + (anyCond ? "|" + c : std::string());
         }
 
         std::optional<Pattern> patternFromString (const std::string& s)
@@ -81,6 +85,16 @@ namespace bc
             {
                 auto l = split (parts[3], ',');
                 for (int i = 0; i < std::min (p.numSteps, (int) l.size()); ++i) p.locked[(size_t) i] = l[(size_t) i] == "1";
+            }
+            if (parts.size() > 4)
+            {
+                auto c = split (parts[4], ',');
+                for (int i = 0; i < std::min (p.numSteps, (int) c.size()); ++i)
+                {
+                    const auto colon = c[(size_t) i].find (':');
+                    p.noteCond[(size_t) i] = (uint8_t) clampv (std::atoi (c[(size_t) i].c_str()), 0, cond::kCount - 1);
+                    p.fxCond[(size_t) i] = (uint8_t) clampv (colon == std::string::npos ? 0 : std::atoi (c[(size_t) i].c_str() + colon + 1), 0, cond::kCount - 1);
+                }
             }
             return p;
         }
@@ -874,6 +888,8 @@ namespace bc
             const int src = i % std::max (1, s.current.numSteps);
             s.current.slice[(size_t) i] = s.current.slice[(size_t) src];
             s.current.fx[(size_t) i] = s.current.fx[(size_t) src];
+            s.current.noteCond[(size_t) i] = s.current.noteCond[(size_t) src];
+            s.current.fxCond[(size_t) i] = s.current.fxCond[(size_t) src];
             s.current.locked[(size_t) i] = false;
         }
         s.current.numSteps = steps;
@@ -940,6 +956,17 @@ namespace bc
         auto& s = slots[(size_t) slot];
         if (step < 0 || step >= s.current.numSteps) return;
         s.current.fx[(size_t) step] = { t, (uint8_t) clampv (rate, 8, 64) };
+        s.showOriginal = false;
+        publish (slot);
+    }
+
+    void Session::setStepCondition (int step, bool fxRow, int condition)
+    {
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        const int slot = selectedSlot();
+        auto& s = slots[(size_t) slot];
+        if (step < 0 || step >= s.current.numSteps) return;
+        (fxRow ? s.current.fxCond : s.current.noteCond)[(size_t) step] = (uint8_t) clampv (condition, 0, cond::kCount - 1);
         s.showOriginal = false;
         publish (slot);
     }
@@ -1323,4 +1350,102 @@ namespace bc
         }
         selectSlot (selected);
     }
+
+    // ---- UNDO / REDO --------------------------------------------------------------------------------------
+    std::string Session::undoKey (const std::vector<float>& params) const
+    {
+        std::ostringstream o;
+        auto st = saveState();
+        if (const auto at = st.find ("selected "); at != std::string::npos)   // (picking another break isn't a change)
+            st.erase (at, st.find ('\n', at) - at);
+        o << st;
+        for (const auto& s : slots) o << (const void*) s.content.get() << ' ' << (int) s.status << ';';
+        for (float v : params) o << v << ',';
+        return o.str();
+    }
+
+    Session::UndoState Session::undoCapture (const std::vector<float>& params) const
+    {
+        UndoState u;
+        u.slots = slots;
+        u.selected = selectedSlot();
+        u.params = params;
+        u.key = undoKey (params);
+        return u;
+    }
+
+    void Session::undoRestore (const UndoState& u)
+    {
+        for (int i = 0; i < kSlots; ++i)
+        {
+            auto& s = slots[(size_t) i];
+            if (s.status == Status::loading) continue;            // (a load on its way: leave it)
+            const auto& t = u.slots[(size_t) i];
+            const bool newAudio = s.content != t.content;
+            const uint32_t v = s.version;
+            s = t;
+            s.version = v;
+            if (newAudio) { if (s.content != nullptr) keep (s.content); eng.publishContent (i, s.content); }
+            publish (i);
+        }
+        selectSlot (u.selected);
+    }
+
+    void Session::undoCheckpoint (const std::vector<float>& params)
+    {
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        if (pending.load() > 0) return;                           // wait until loads have finished
+        const auto now = std::chrono::steady_clock::now();
+        const auto key = undoKey (params);
+        if (! undoNow.has_value()) { undoNow = undoCapture (params); return; }
+        if (key == undoNow->key) { undoPendingKey.clear(); return; }
+        if (key != undoPendingKey) { undoPendingKey = key; undoPendingSince = now; return; }   // still changing
+        if (now - undoPendingSince < std::chrono::milliseconds (250)) return;
+        // settled into something new: the state before is a step back
+        undoStack.push_back (std::move (*undoNow));
+        if (undoStack.size() > 100) undoStack.erase (undoStack.begin());
+        redoStack.clear();
+        undoNow = undoCapture (params);
+        undoPendingKey.clear();
+    }
+
+    void Session::undoFlush (const std::vector<float>& current)
+    {
+        if (current.empty() || ! undoNow.has_value() || pending.load() > 0) return;
+        if (undoKey (current) == undoNow->key) return;
+        undoStack.push_back (std::move (*undoNow));
+        if (undoStack.size() > 100) undoStack.erase (undoStack.begin());
+        redoStack.clear();
+        undoNow = undoCapture (current);
+        undoPendingKey.clear();
+    }
+
+    std::vector<float> Session::undo (const std::vector<float>& current)
+    {
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        undoFlush (current);
+        if (undoStack.empty() || ! undoNow.has_value()) return {};
+        redoStack.push_back (std::move (*undoNow));
+        undoNow = std::move (undoStack.back());
+        undoStack.pop_back();
+        undoRestore (*undoNow);
+        undoPendingKey.clear();
+        return undoNow->params;
+    }
+
+    std::vector<float> Session::redo (const std::vector<float>& current)
+    {
+        std::lock_guard<std::recursive_mutex> l (mutex);
+        undoFlush (current);
+        if (redoStack.empty() || ! undoNow.has_value()) return {};
+        undoStack.push_back (std::move (*undoNow));
+        undoNow = std::move (redoStack.back());
+        redoStack.pop_back();
+        undoRestore (*undoNow);
+        undoPendingKey.clear();
+        return undoNow->params;
+    }
+
+    bool Session::canUndo() const { std::lock_guard<std::recursive_mutex> l (mutex); return ! undoStack.empty(); }
+    bool Session::canRedo() const { std::lock_guard<std::recursive_mutex> l (mutex); return ! redoStack.empty(); }
 }

@@ -102,7 +102,7 @@ namespace ui
     };
 
     // ---- SEQ ------------------------------------------------------------------------------------------
-    class SeqGrid final : public juce::Component
+    class SeqGrid final : public juce::Component, public juce::SettableTooltipClient
     {
     public:
         explicit SeqGrid (ChoppageProcessor& p) : proc (p) {}
@@ -112,7 +112,7 @@ namespace ui
         int selStep = 0;                   // the step STEP FX / RATE edit (a click on any cell or the FX row picks it)
         std::function<void()> onSelect;
         static constexpr int laneW = 112;
-        static constexpr int kLanes = 7;   // KICK SNARE GHOST HAT OPEN PERC, then the FX row
+        static constexpr int kLanes = 9;   // KICK SNARE GHOST HAT OPEN PERC, N PROB, FX, FX PROB
     private:
         int visibleSteps() const;
         juce::Rectangle<int> cell (int lane, int column) const;
@@ -132,7 +132,7 @@ namespace ui
         LcdCell memLabel, help;
     };
 
-    // ---- DISK: the break browser, sorted by BPM -------------------------------------------------------
+    // ---- DISK: the break browser (0.17: as on the MPC - one folder at a time, 8 PLACES, the arrow keys) -------
     class DiskTab final : public juce::Component
     {
     public:
@@ -140,18 +140,26 @@ namespace ui
         void paint (juce::Graphics&) override;
         void resized() override;
         void mouseDown (const juce::MouseEvent&) override;
+        void mouseDoubleClick (const juce::MouseEvent&) override;
         void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+        bool keyPressed (const juce::KeyPress&) override;
+        void visibilityChanged() override;
         void refresh();
-        std::function<void()> onChooseFolder, onSavePreset, onLoadPreset;
+        std::function<void()> onChooseFolder, onChooseFile, onSavePreset, onLoadPreset;
     private:
         int visibleRows() const;
         juce::Rectangle<int> listArea() const;
+        void select (int index, bool audition);   // the highlighted line (the arrow keys move it)
+        void open (int index, bool nextEmpty);    // a folder: go in; a break: load it
+        void goUp();
         ChoppageProcessor& proc;
         std::vector<bc::Session::BrowserEntry> entries;
         uint32_t seen = 0;
-        int scroll = 0;
-        static constexpr int rowH = 34;
-        LcdCell folderCell, rescanCell, upCell, downCell, pathCell, saveCell, loadCell;
+        int scroll = 0, sel = 0;
+        bool storing = false;                     // STORE pressed: the next PLACE key keeps this folder
+        static constexpr int rowH = 32;
+        LcdCell folderCell, fileCell, upFolderCell, rescanCell, upCell, downCell, pathCell, saveCell, loadCell, storeCell;
+        std::vector<std::unique_ptr<LcdCell>> placeCells;
     };
 
     // ---- FX / SET -----------------------------------------------------------------------------------
