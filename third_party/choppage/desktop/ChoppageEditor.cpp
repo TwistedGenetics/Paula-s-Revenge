@@ -31,6 +31,7 @@ public:
             addChildComponent (t);
         disk.onChooseFolder = [this] { editor.chooseFolder(); };
         disk.onChooseFile = [this] { editor.chooseFile(); };
+        seq.onShowAkai = [this] { show (5); };
         disk.onSavePreset = [this] { editor.choosePreset (true); };
         disk.onLoadPreset = [this] { editor.choosePreset (false); };
 

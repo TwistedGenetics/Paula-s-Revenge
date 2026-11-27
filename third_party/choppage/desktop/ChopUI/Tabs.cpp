@@ -606,7 +606,8 @@ namespace ui
         const char* fxLetter (bc::FxType t)
         {
             switch (t) { case bc::FxType::stutter: return "S"; case bc::FxType::reverse: return "R";
-                         case bc::FxType::stretch: return "A"; case bc::FxType::tapeStop: return "T"; case bc::FxType::none: return ""; }
+                         case bc::FxType::stretch: return "A"; case bc::FxType::tapeStop: return "T"; case bc::FxType::roll: return "RL";
+                         case bc::FxType::none: return ""; }
             return "";
         }
         int laneOf (Badge b) { for (int i = 0; i < kHitLanes; ++i) if (kLaneBadge[i] == b) return i; return kHitLanes - 1; }
@@ -847,16 +848,19 @@ namespace ui
         auto fxOf = [this, slot]() -> bc::FxEvent { const auto& p = slot().program.pattern;
                                                     return grid.selStep < p.numSteps ? p.fx[(size_t) grid.selStep] : bc::FxEvent{}; };
         stepCell ([this] { return "STEP " + juce::String (grid.selStep + 1) + " FX"; }, nullptr, nullptr, false);
-        const bc::FxType types[] = { bc::FxType::none, bc::FxType::stutter, bc::FxType::reverse, bc::FxType::stretch, bc::FxType::tapeStop };
-        const char* typeNames[] = { "OFF", "STUTTER", "REVERSE", "STRETCH", "TAPE STOP" };
-        for (int i = 0; i < 5; ++i)
+        const bc::FxType types[] = { bc::FxType::none, bc::FxType::stutter, bc::FxType::roll, bc::FxType::reverse, bc::FxType::stretch, bc::FxType::tapeStop };
+        const char* typeNames[] = { "OFF", "STUTTER", "ROLL", "REVERSE", "STRETCH", "TAPE STOP" };
+        for (int i = 0; i < 6; ++i)
         {
             const auto t = types[i];
             stepCell ([n = juce::String (typeNames[i])] { return n; },
                       [this, t, fxOf] { const int rate = fxOf().rate > 0 ? fxOf().rate : 16; proc.setFxStep (grid.selStep, t, rate); grid.repaint(); },
                       [t, fxOf] { return fxOf().type == t; }, true);
         }
-        stepCell ([] { return juce::String ("RATE"); }, nullptr, nullptr, false);
+        // RATE (STUTTER and ROLL); with STRETCH picked it's AKAI >: the Akaize settings the step and the AKAIZE pad share
+        stepCell ([fxOf] { return juce::String (fxOf().type == bc::FxType::stretch ? "AKAI >" : "RATE"); },
+                  [this, fxOf] { if (fxOf().type == bc::FxType::stretch && onShowAkai) onShowAkai(); },
+                  [fxOf] { return fxOf().type == bc::FxType::stretch; }, false);
         for (int rate : { 8, 16, 32, 64 })
             stepCell ([rate] { return "1/" + juce::String (rate); },
                       [this, rate, fxOf] { const auto f = fxOf(); if (f.type != bc::FxType::none) { proc.setFxStep (grid.selStep, f.type, rate); grid.repaint(); } },
@@ -887,12 +891,12 @@ namespace ui
         help.setVisible (false);   // (0.17: its text is the grid's tooltip, so the 9 rows have the room)
         auto fxRow = r.removeFromBottom (38);
         {
-            const int w[] = { 132, 64, 124, 124, 118, 132, 64, 74, 74, 74, 74 };
+            const int w[] = { 122, 60, 114, 76, 114, 112, 124, 92, 61, 61, 61, 61 };
             int x = fxRow.getX();
-            for (size_t i = 0; i < stepFx.size() && i < 11; ++i)
+            for (size_t i = 0; i < stepFx.size() && i < 12; ++i)
             {
                 stepFx[i]->setBounds (x, fxRow.getY() + 3, w[i], 32);
-                x += w[i] + (i == 0 || i == 5 ? 10 : 5);
+                x += w[i] + (i == 0 || i == 6 ? 10 : 5);
             }
         }
         memLabel.setBounds (bottom.removeFromLeft (SeqGrid::laneW));

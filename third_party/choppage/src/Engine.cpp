@@ -192,6 +192,7 @@ namespace bc
                 case FxType::reverse:  autoPadLeft[PerfFx::reverse] = len; break;
                 case FxType::stretch:  autoPadLeft[PerfFx::akaize] = len; break;
                 case FxType::tapeStop: autoPadLeft[PerfFx::tapeStop] = len; break;
+                case FxType::roll:     autoPadLeft[PerfFx::roll] = len; autoRollDiv = e.rate; break;   // (the step's RATE is the roll's)
                 case FxType::none: break;
             }
         }
@@ -479,6 +480,8 @@ namespace bc
             PerfFx::Settings ps = s.pads;
             if (autoPadLeft[PerfFx::stutter] > 0 && ! midiPad[PerfFx::stutter] && ! uiPad[PerfFx::stutter].load())
                 ps.stutterDiv = autoStutterDiv;
+            if (autoPadLeft[PerfFx::roll] > 0 && ! midiPad[PerfFx::roll] && ! uiPad[PerfFx::roll].load())
+                ps.rollDiv = autoRollDiv;
             const double samplesPerStep = sr * 60.0 / bpm / 4.0;
             const double ppqHere = host.playing ? host.ppq + c0 * ppqPerSample : internalPpq;
             ps.samplesSinceGrid = (ppqHere * 4.0 - std::floor (ppqHere * 4.0)) * samplesPerStep;

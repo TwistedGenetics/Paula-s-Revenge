@@ -125,6 +125,7 @@ namespace ui
         explicit SeqTab (ChoppageProcessor&);
         void resized() override;
         void refresh();
+        std::function<void()> onShowAkai;   // the AKAI tab: one Akaize setup for the pad and the lane's STRETCH steps
     private:
         ChoppageProcessor& proc;
         SeqGrid grid;

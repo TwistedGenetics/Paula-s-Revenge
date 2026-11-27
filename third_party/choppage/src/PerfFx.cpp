@@ -194,7 +194,9 @@ namespace bc
                 const float target = p == winner ? 1.0f : 0.0f;
                 if (r.gain < target)      r.gain = std::min (target, r.gain + rampStep);
                 else if (r.gain > target) r.gain = std::max (target, r.gain - rampStep);
-                if (r.gain <= 0.0f) continue;
+                // a pad still held under a stronger one keeps going (it isn't heard, but it doesn't stand still: AKAIZE
+                // IN TIME held while the FX lane's STUTTER plays comes back in time, not late)
+                if (r.gain <= 0.0f) { if (held[(size_t) p]) advance (p, s); continue; }
                 for (int ch = 0; ch < 2; ++ch) sum[ch] += readEffect (p, ch, s) * r.gain;
                 total += r.gain;
                 advance (p, s);

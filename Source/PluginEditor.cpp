@@ -446,11 +446,17 @@ PaulaEditor::PaulaEditor (PaulaProcessor& p)
     }
     instruments.openSampleEditor = [this]
     {
-        // EDIT on a plug-in instrument opens the plug-in's own window
+        // EDIT opens the instrument: a sample's editor, a built-in synth's panel, CHOPPAGE's panel in its page, a
+        // VST / AU's own window
         const auto& in = proc.song.instruments[(size_t) proc.editorState.instrument];
         if (in.isMidiOut()) setView (View::MidiOut);
         else if (in.isCvOut()) setView (View::CvOut);
         else if (in.isBuiltin()) setView (View::Engine);
+        else if (auto* sy = in.isPlugin() ? proc.synthAt (proc.editorState.instrument) : nullptr; sy != nullptr && prv::PluginHost::docks (sy->instance()))
+        {
+            setView (View::Synth);          // CHOPPAGE (an instrument with its panel in the page): its panel, here
+            synthPage.openWindow();
+        }
         else if (in.isPlugin()) synthPage.openWindow();
         else setView (View::SampleEdit);
     };

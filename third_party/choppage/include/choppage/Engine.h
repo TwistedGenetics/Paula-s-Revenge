@@ -187,7 +187,7 @@ namespace bc
         std::array<int, kFxPads> autoPadLeft {};   // FX lane events, samples left
         // PAD QUANTISE: a press waits for the next grid line, a release (or a short tap) ends on the one after
         std::array<bool, kFxPads> padWas {}, padOn {}, padArmed {}, padStopArmed {}, padTap {};
-        int autoStutterDiv = 16;
+        int autoStutterDiv = 16, autoRollDiv = 32;
         bool halfTape = false;          // HALF-TIME held in 1/2 TAPE: new slices an octave down
         uint32_t condRandom = 0x9E3779B9u;
         PerfFx perf;

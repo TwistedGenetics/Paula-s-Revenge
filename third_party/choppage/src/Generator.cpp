@@ -222,14 +222,16 @@ namespace bc::Generator
 
             const float r = rng.nextFloat();
             FxType type;
-            if (late && r < 0.2f + amount * 0.2f)  type = FxType::tapeStop;
+            const float tape = 0.2f + amount * 0.2f;
+            if (late && r < tape)                  type = FxType::tapeStop;
+            else if (late && r < tape + 0.15f)     type = FxType::roll;
             else if (r < 0.55f)                    type = FxType::stutter;
             else if (r < 0.8f)                     type = FxType::reverse;
             else                                   type = FxType::stretch;
 
             static const uint8_t rates[] = { 8, 16, 16, 32, 32, 64 };
             const int maxIdx = amount > 0.6f ? 6 : 5;
-            out.fx[(size_t) step] = { type, rates[rng.nextInt (maxIdx)] };
+            out.fx[(size_t) step] = { type, type == FxType::roll ? (uint8_t) (rng.nextFloat() < 0.5f ? 32 : 64) : rates[rng.nextInt (maxIdx)] };
         }
         return out;
     }

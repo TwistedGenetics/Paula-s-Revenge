@@ -118,12 +118,13 @@ namespace bc
         float xfadeMs = 2.0f;
     };
 
-    enum class FxType : uint8_t { none, stutter, reverse, stretch, tapeStop };
-    constexpr int kNumFxTypes = 5;
+    enum class FxType : uint8_t { none, stutter, reverse, stretch, tapeStop, roll };   // (roll: 0.17.1, appended)
+    constexpr int kNumFxTypes = 6;
     inline const char* fxTypeName (FxType t) noexcept
     {
         switch (t) { case FxType::stutter: return "STUTTER"; case FxType::reverse: return "REVERSE";
-                     case FxType::stretch: return "STRETCH"; case FxType::tapeStop: return "TAPE STOP"; case FxType::none: return ""; }
+                     case FxType::stretch: return "STRETCH"; case FxType::tapeStop: return "TAPE STOP"; case FxType::roll: return "ROLL";
+                     case FxType::none: return ""; }
         return "";
     }
 
