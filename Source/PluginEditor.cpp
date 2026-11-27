@@ -778,6 +778,7 @@ void PaulaEditor::timerCallback()
         }
     }
     // LIVE FEEDBACK at 60 frames a second: the pattern (play line, meters, scopes, note flashes) and the output meter
+    proc.player.jamTrack.store (proc.editorState.track, std::memory_order_relaxed);   // (AUTO instruments play what you play out of this track)
     pattern.tick();
     outMeter.tick();
     if (mixer.isVisible()) mixer.tickMeters();
@@ -2672,6 +2673,10 @@ std::vector<prv::ui::PaletteItem> PaulaEditor::paletteItems()
     out.push_back ({ "FILL: LATCH ON / OFF", "SHIFT+F2", "PLAY", [safe] { if (safe) safe->setFillLatch (! safe->fillLatched); } });
     out.push_back ({ "HOLD KEYS: ON / OFF (NOTES STAY ON)", "F4", "PLAY", [safe] { if (safe) { bool on = false; safe->proc.withLock ([&] { on = safe->proc.player.isHoldKeys(); }); safe->setHoldKeys (! on); } } });
     out.push_back ({ "CONDITION ON THE HIGHLIGHTED NOTES...", {}, "EDIT", [safe] { if (safe) safe->showConditionMenu(); } });
+    out.push_back ({ "LOOP: MOVE IT DOWN BY ITS LENGTH", "CMD+ALT+DOWN", "PLAY", [safe] { if (safe) safe->pattern.moveLoop (1); } });
+    out.push_back ({ "LOOP: MOVE IT UP BY ITS LENGTH", "CMD+ALT+UP", "PLAY", [safe] { if (safe) safe->pattern.moveLoop (-1); } });
+    out.push_back ({ "LOOP: DOUBLE ITS LENGTH", "CMD+ALT+RIGHT", "PLAY", [safe] { if (safe) safe->pattern.resizeLoop (true); } });
+    out.push_back ({ "LOOP: HALVE ITS LENGTH", "CMD+ALT+LEFT", "PLAY", [safe] { if (safe) safe->pattern.resizeLoop (false); } });
     // the look and the layout
     for (int i = 0; i < prv::ui::Theme::kSkins; ++i)
         out.push_back ({ "SKIN: " + prv::ui::Theme::skinName ((prv::ui::Theme::SkinId) i), {}, "VIEW", [safe, i] { if (safe) safe->setSkin (i); } });

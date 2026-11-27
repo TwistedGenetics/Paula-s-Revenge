@@ -266,7 +266,7 @@ While a block plays (▶ BLOCK, `Space`), picking another block — in the seque
 
 ## Looping part of a block
 
-Drag down the **line numbers** to mark some lines (or Shift-click a line number to mark from the cursor to there; `Cmd+[` / `Cmd+]` set the start / end at the cursor). The marked lines turn red and playback goes round them: `Space` starts at the first marked line, and song playback also loops there once it reaches that block. `Bxx`/`Dxx` jumps inside the loop are ignored so it keeps going. **LOOP** on the transport row turns it off and on again; marking new lines turns it on.
+Drag down the **line numbers** to mark some lines (or Shift-click a line number to mark from the cursor to there; `Cmd+[` / `Cmd+]` set the start / end at the cursor; `Cmd+Alt+Down` / `Up` move the loop on by its own length, `Cmd+Alt+Right` / `Left` double / halve it). The marked lines turn red and playback goes round them: `Space` starts at the first marked line, and song playback also loops there once it reaches that block. `Bxx`/`Dxx` jumps inside the loop are ignored so it keeps going. **LOOP** on the transport row turns it off and on again; marking new lines turns it on.
 
 ## Undo and redo
 
@@ -572,6 +572,8 @@ Tracks are shown a page at a time: **BIG VIEW** (on by default, large text) show
 | `Cmd+↑ / ↓` | Transpose track a semitone · add `Shift` for an octave |
 | `Cmd+Z` / `Cmd+Shift+Z` | Undo / redo (everywhere) |
 | `Cmd+[` / `Cmd+]` | Loop start / end at the cursor line |
+| `Cmd+Alt+Down` / `Cmd+Alt+Up` | Move the loop down / up by its own length (0-15 becomes 16-31) |
+| `Cmd+Alt+Right` / `Cmd+Alt+Left` | Double / halve the loop's length (from its first line) |
 | `Cmd+S` / `Cmd+Shift+S` | Save / save as |
 | `Cmd+2` / `Cmd+1` | Mixer / pattern |
 | `Cmd+3` | CHORDS: the chord table (again to go back) |
@@ -1095,7 +1097,7 @@ On TABLE, grains of the same note line up with each other, so with SPRAY and SPR
 
 **HELIX** is Twisted Genetics' own wavetable synth, built in with its own engine. LOAD → **BUILT-IN SYNTH** → HELIX. **PRESET** (on the MAC tab) picks one of its 54 factory sounds, and the whole sound comes with it: its modulation, effects and wavetables. The page's controls shape it from there; **PRESETS...** has the same 54, and yours. Seven tabs:
 
-* **A** and **B**: the two wavetable oscillators - on / off, **TABLE**, **WT POS** (where in the table), **OCTAVE**, **SEMI**, **FINE**, **LEVEL**; **WARP** and **WARP AMT**, **UNISON** (voices), **DETUNE**, **SPREAD**.
+* **A** and **B**: the two wavetable oscillators - on / off, **TABLE...** and **TABLE** (a built-in table, or yours - below), **WT POS** (where in the table), **OCTAVE**, **SEMI**, **FINE**, **LEVEL**; **WARP** and **WARP AMT**, **UNISON** (voices), **DETUNE**, **SPREAD**.
 * **SUB**: the sub (on / off, **SHAPE**, **OCTAVE**, **LEVEL**) and the **NOISE** (on / off, **TYPE**, **LEVEL**).
 * **FLT**: **FILTER 1** (on / off, **TYPE**, **CUTOFF**, **RES**, **DRIVE**, **KEY TRACK**) and **FILTER 2** (on / off, **TYPE**, **CUTOFF**, **RES**, **SER > PAR**: one after the other, or side by side).
 * **ENV**: **AMP ENV** and **FILTER ENV** - ATTACK, DECAY, SUSTAIN, RELEASE.
@@ -1103,6 +1105,8 @@ On TABLE, grains of the same note line up with each other, so with SPRAY and SPR
 * **MAC**: **MACRO 1** to **8** (the preset sets what each moves) and **VOICE**: **PRESET**, **POLY** / **MONO** / **LEGATO**, **GLIDE**, **VELOCITY**, **LEVEL**.
 
 **PRESETS...**: CLASSIC REESE, MOVING REESE, NEURO REESE, DONK, GROWL, WOBBLE 1/8, SUB SINE, DIRTY 808, ROLLING REESE, TALKING BASS, HOOVER 91, MENTASM, RAVE LEAD, SCREAMER, SYNC LEAD, 90S PAD, DARK ATMOS, VINYL DUST PAD, CHOIR PAD, GLASS PAD, RAVE STAB, DUB CHORD, FX RISER, LASER ZAP, DRIFT REESE, GROWL REESE, NEURO JUMP, HOOVER REESE STACK, STEPPA REESE, HALF-TIME REESE, LADDER REESE, 303 REESE, ROLLERS REESE, DREAD REESE, GUARDIAN SUB, ROLLERS SUB, 808 DROP, DONK SUB, PLUCK SUB, TRI SUB DRIVE, UNIT HOOVER, MENTASM UNIT, RAVE SCREAM, RAVE STAB CHORD, DUB STAB CHORD, HOOVER OCT STAB, REINFORCED PAD, DREAD PAD, AMEN AIR, SCENE PAD, DIVE BOMB, JUMP SIREN, REWIND and FILTH SWEEP.
+
+**Your own wavetables:** **WAVETABLES...** (right of HELIX's tabs) → **SET YOUR WAVETABLE FOLDER...**: HELIX looks through that folder and every folder in it, for WAV wavetables (Serum-style, or single cycles) and folders of single cycles (each such folder is one table, its files the frames; shown as `NAME (CYCLES)`). **TABLE: name...** at the top of OSC A and OSC B lists **BUILT-IN TABLES**, then your folders with how many tables each holds: pick one and it loads at once (play the keys to hear it; undo goes back). **A WAV FILE FROM ANYWHERE...** picks any file. While an oscillator plays one of yours its TABLE knob is hidden; a built-in table brings it back, and another PRESET brings the preset's own tables. **LOOK THROUGH IT AGAIN** finds new files. The display shows the real table - its frames, the one WT POS plays lit, `A: FM GROWL - FRAME 22/32` (OSC B's on the B tab). The song keeps where each table is on your computer.
 
 ### CRAFTY
 
@@ -1135,7 +1139,7 @@ Any instrument slot can play one of your instrument plug-ins instead of a sample
 * **EDIT** (or OPEN PLUG-IN WINDOW) opens the plug-in's own window. **CHANGE PLUG-IN...** swaps it, **BACK TO A SAMPLE** turns the slot back into a normal sample instrument.
 * **FILTER AND ENVELOPES...** opens the PARAMS page for the plug-in: the same **VOL ENVELOPE**, **FILTER** (low / high / band-pass, cutoff, resonance, KEY) and **FILTER ENVELOPE** as a sample has, on the plug-in's sound. They start with each note the song or your keyboard plays on it (from where they are, so there's no click) and release when its last note ends — use VOL ENVELOPE to give a pad a slow fade-in or a drone a release, or the filter envelope for a pluck on any synth. **BACK TO THE PLUG-IN** returns. The button is lit, and the text next to it says what's on (`VOL ENV + LOW 2.0K`), while any of them is on. (They play with the plug-in as a whole, so with several notes at once they follow the newest one.)
 * **EQ** and **FX** on its bottom rows: its own EQ and effects (see Instrument EQ and effects).
-* **OUTPUT** picks the mixer strip it plays into. **AUTO** means the track that played its latest note, so that track's EQ, inserts and sends apply — the same in the song, in RENDER WAV and when you bounce a highlighted part.
+* **OUTPUT** picks the mixer strip it plays into. **AUTO** means the track that played its latest note (and for what you play on the keys, the track the cursor is on), so that track's EQ, inserts and sends apply — the same in the song, in RENDER WAV and when you bounce a highlighted part.
 * Each instrument is one copy of the plug-in. Notes play with the instrument's VOL, `Cxx` sets the velocity, a new note on a track ends that track's previous note, and note-off, `ECx`, `EDx`, `Nxx`, `Kxx`, `Mxx`, `E9x` and `Rxy` work. Commands that only make sense for samples (offsets, slices, loops, filters and so on) are ignored.
 * Pitch commands (`1`, `2`, `3`, `4`, `0`, finetune, `Txx`, `Gxx`) are sent as pitch bend. Set **BEND** to the plug-in's own bend range in semitones (2 by default) so they land in tune.
 * **ON** (next to BEND) switches the instrument off and on: while it's off, its notes are silent. To switch it from the pattern, press LEARN next to a knob (`L`, `Q`, `H` or `W`, or LEARN AUTO A / B), then click **ON**: that knob becomes the instrument's `ON/OFF`, with `00` = off and `01`–`FF` = on. It's saved in the song.

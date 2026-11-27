@@ -1,5 +1,6 @@
 // Paula's Revenge - the built-in synths (SUB, GRANULAR)
 #include "BuiltinSynths.h"
+#include <map>
 #include "ReeseSynth.h"
 #include "RaveSynth.h"
 #include "RomSynth.h"
@@ -213,13 +214,85 @@ std::vector<float> readBuiltinState (const Instrument& in)
     return v;
 }
 
+namespace
+{
+    // (v1.01) after the values, a built-in may keep a few words of its own ("TXT1", then key / value pairs, each a
+    // length and its bytes) - HELIX's own wavetables, say. Older versions read the values and ignore the rest.
+    size_t valuesEnd (const std::vector<uint8_t>& s)
+    {
+        if (s.size() < 8 || std::memcmp (s.data(), "SYN1", 4) != 0) return 0;
+        uint32_t n = 0;
+        std::memcpy (&n, s.data() + 4, 4);
+        return std::min (s.size(), 8 + (size_t) n * 4);
+    }
+    std::map<std::string, std::string> readTexts (const std::vector<uint8_t>& s)
+    {
+        std::map<std::string, std::string> out;
+        size_t at = valuesEnd (s);
+        if (at == 0 || at + 8 > s.size() || std::memcmp (s.data() + at, "TXT1", 4) != 0) return out;
+        uint32_t count = 0;
+        std::memcpy (&count, s.data() + at + 4, 4);
+        at += 8;
+        auto str = [&] (std::string& v)
+        {
+            if (at + 4 > s.size()) return false;
+            uint32_t len = 0;
+            std::memcpy (&len, s.data() + at, 4);
+            at += 4;
+            if (len > s.size() - at) return false;
+            v.assign ((const char*) s.data() + at, len);
+            at += len;
+            return true;
+        };
+        for (uint32_t i = 0; i < count && i < 64; ++i)
+        {
+            std::string k, v;
+            if (! str (k) || ! str (v)) break;
+            out[k] = v;
+        }
+        return out;
+    }
+    void appendTexts (std::vector<uint8_t>& s, const std::map<std::string, std::string>& t)
+    {
+        if (t.empty()) return;
+        auto put32 = [&] (uint32_t x) { const auto* b = (const uint8_t*) &x; s.insert (s.end(), b, b + 4); };
+        s.insert (s.end(), { 'T', 'X', 'T', '1' });
+        put32 ((uint32_t) t.size());
+        for (const auto& kv : t)
+            for (const auto* str : { &kv.first, &kv.second })
+            {
+                put32 ((uint32_t) str->size());
+                s.insert (s.end(), str->begin(), str->end());
+            }
+    }
+}
+
 void writeBuiltinState (Instrument& in, const std::vector<float>& v)
 {
+    const auto texts = readTexts (in.pluginState);   // (its words stay)
     std::vector<uint8_t> s (8 + v.size() * 4);
     std::memcpy (s.data(), "SYN1", 4);
     const uint32_t n = (uint32_t) v.size();
     std::memcpy (s.data() + 4, &n, 4);
     for (size_t i = 0; i < v.size(); ++i) std::memcpy (s.data() + 8 + i * 4, &v[i], 4);
+    appendTexts (s, texts);
+    in.pluginState = std::move (s);
+}
+
+std::string builtinText (const Instrument& in, const std::string& key)
+{
+    const auto t = readTexts (in.pluginState);
+    const auto it = t.find (key);
+    return it == t.end() ? std::string() : it->second;
+}
+
+void setBuiltinText (Instrument& in, const std::string& key, const std::string& value)
+{
+    auto t = readTexts (in.pluginState);
+    if (value.empty()) t.erase (key); else t[key] = value;
+    if (valuesEnd (in.pluginState) == 0) writeBuiltinState (in, readBuiltinState (in));
+    std::vector<uint8_t> s (in.pluginState.begin(), in.pluginState.begin() + (long) valuesEnd (in.pluginState));
+    appendTexts (s, t);
     in.pluginState = std::move (s);
 }
 

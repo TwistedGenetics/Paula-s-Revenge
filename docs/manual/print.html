@@ -484,7 +484,7 @@ pre.pat { font-size: 10pt; padding: 2.5mm 4mm; break-inside: avoid; }
     <figcaption>Alt+drag: the highlight shows where the note will land</figcaption>
   </figure>
   <h3>Looping some lines</h3>
-  <p>Drag down the line numbers to mark lines; they turn red and playback goes round them. <kbd>Cmd</kbd><kbd>[</kbd> and <kbd>Cmd</kbd><kbd>]</kbd> set the start and end at the cursor. <span class="b">LOOP</span> on the transport row turns the loop off and on again.</p>
+  <p>Drag down the line numbers to mark lines; they turn red and playback goes round them. <kbd>Cmd</kbd><kbd>[</kbd> and <kbd>Cmd</kbd><kbd>]</kbd> set the start and end at the cursor. <kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&darr;</kbd> moves the loop down by its own length (lines 0&ndash;15 become 16&ndash;31) and <kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&uarr;</kbd> moves it back up; <kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&rarr;</kbd> doubles its length and <kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&larr;</kbd> halves it, from its first line. They work while it plays. <span class="b">LOOP</span> on the transport row turns the loop off and on again.</p>
   <h3>Playing a block</h3>
   <p>While a block plays, picking another block (in the sequence, the BLOCK box or the <span class="b">BLK</span> corner) plays it <b>next, in time</b>: the block playing carries on to its end, then the new one starts from its top and loops &mdash; no stop, no restart. The pattern shows the block that's waiting and the status line says <code>BLOCK 005 PLAYS NEXT</code>; pick the playing block again to call it off.</p>
   <p><span class="b">&#9654; BLOCK</span> while anything plays does the same: the block playing just loops on from where it is (from the song too &mdash; nothing restarts), and another block waits for this one to end.</p>
@@ -1438,7 +1438,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <li><span class="b">EDIT</span> opens the plug-in's own window. The laptop keys keep playing it while that window is in front.</li>
     <li><span class="b">FILTER AND ENVELOPES...</span> opens the PARAMS page for the plug-in: the same <span class="b">VOL ENVELOPE</span>, <span class="b">FILTER</span> and <span class="b">FILTER ENVELOPE</span> as a sample, on the plug-in's sound. They start with each note played on it (from where they are, no click) and release when its last note ends &mdash; a slow fade-in for a pad, a pluck from any synth. <span class="b">BACK TO THE PLUG-IN</span> returns; the button is lit, with what's on written next to it.</li>
     <li><span class="b">EQ</span> and <span class="b">FX</span> on its bottom rows: its own EQ and effects (see <a href="#params">Instrument EQ and effects</a>).</li>
-    <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the track that played its latest note (the same in the song, a render and a bounce). <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
+    <li><span class="b">OUTPUT</span> picks the mixer strip it plays into; AUTO is the track that played its latest note &mdash; and for what you play on the keys, the track the cursor is on (the same in the song, a render and a bounce). <span class="b">BEND</span> should match the plug-in's own pitch bend range, so slides and vibrato land in tune.</li>
     <li>Notes play one at a time per track. <code>Cxx</code> is velocity, pitch commands become pitch bend, <code>Oxx</code> is the mod wheel, and <code>ECx</code> <code>EDx</code> <code>Nxx</code> <code>Kxx</code> <code>Mxx</code> <code>E9x</code> <code>Rxy</code> work. Sample-only commands are ignored.</li>
     <li>Chords: <code>#xy</code> on a note's line plays chord slot <code>xy</code> from the song's chord table, held. See <a href="#chords">Chords</a>.</li>
     <li>Letting go of a key while recording writes a note-off (see <a href="#pattern">Recording and note-offs</a>).</li>
@@ -1658,7 +1658,7 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
     <figcaption>HELIX's oscillator A, in its rack</figcaption>
   </figure>
   <ul>
-    <li><span class="b">A</span> and <span class="b">B</span> &mdash; the two wavetable oscillators. <b>OSC A</b> / <b>OSC B</b> on or off, <b>TABLE</b> (which wavetable), <b>WT POS</b> (where in the table it plays), <b>OCTAVE</b>, <b>SEMI</b>, <b>FINE</b>, <b>LEVEL</b>. <b>WARP + UNISON</b>: <b>WARP</b> (how the wave is bent) and <b>WARP AMT</b>, <b>UNISON</b> (how many voices), <b>DETUNE</b>, <b>SPREAD</b> (across the stereo).</li>
+    <li><span class="b">A</span> and <span class="b">B</span> &mdash; the two wavetable oscillators. <b>OSC A</b> / <b>OSC B</b> on or off, <span class="b">TABLE...</span> and <b>TABLE</b> (which wavetable: a built-in one, or yours - see below), <b>WT POS</b> (where in the table it plays), <b>OCTAVE</b>, <b>SEMI</b>, <b>FINE</b>, <b>LEVEL</b>. <b>WARP + UNISON</b>: <b>WARP</b> (how the wave is bent) and <b>WARP AMT</b>, <b>UNISON</b> (how many voices), <b>DETUNE</b>, <b>SPREAD</b> (across the stereo).</li>
     <li><span class="b">SUB</span> &mdash; <b>SUB</b>: on or off, <b>SHAPE</b>, <b>OCTAVE</b>, <b>LEVEL</b>. <b>NOISE</b>: on or off, <b>TYPE</b>, <b>LEVEL</b>.</li>
     <li><span class="b">FLT</span> &mdash; <b>FILTER 1</b>: on or off, <b>TYPE</b>, <b>CUTOFF</b>, <b>RES</b>, <b>DRIVE</b>, <b>KEY TRACK</b>. <b>FILTER 2</b>: on or off, <b>TYPE</b>, <b>CUTOFF</b>, <b>RES</b>, <b>SER &gt; PAR</b> (the two filters one after the other, or side by side).</li>
     <li><span class="b">ENV</span> &mdash; <b>AMP ENV</b> and <b>FILTER ENV</b>: ATTACK, DECAY, SUSTAIN, RELEASE.</li>
@@ -1668,6 +1668,18 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
   <figure>
     <div class="frame sunken"><img src="img/helix_macros.png" alt="HELIX's MAC tab: VOICE (PRESET: CLASSIC REESE, POLY / MONO / LEGATO, GLIDE, VELOCITY, LEVEL) and MACROS (MACRO 1 to MACRO 8)." width="1440" height="900" loading="lazy"></div>
     <figcaption>MAC: the preset, the voice and the eight macros</figcaption>
+  </figure>
+  <h4>Your own wavetables</h4>
+  <p>HELIX plays your own wavetables as well as its built-in ones. Press <span class="b">WAVETABLES...</span> (at the right of the tabs) &rarr; <b>SET YOUR WAVETABLE FOLDER...</b> and pick the folder they're in: HELIX looks through it and every folder inside it. It finds two kinds of table:</p>
+  <ul>
+    <li><b>A WAV file</b> &mdash; a Serum-style wavetable (frames of 2048 samples one after another), or a single cycle.</li>
+    <li><b>A folder of single cycles</b> &mdash; a folder holding only short one-cycle WAVs is one table, its files the frames in name order (shown as <code>NAME (CYCLES)</code>).</li>
+  </ul>
+  <p>At the top of the OSC A and OSC B boxes, <span class="b">TABLE: <i>name</i>...</span> says which table the oscillator plays. Click it for <b>BUILT-IN TABLES</b>, then your folder and each folder inside it with how many tables it holds. Pick a folder, then a table: it loads at once, so play the keys to hear it, and undo puts the last one back. <b>A WAV FILE FROM ANYWHERE...</b> picks any file. While an oscillator plays one of your tables, its TABLE knob is hidden; picking a built-in table brings it back. Another PRESET brings the preset's own tables. <b>LOOK THROUGH IT AGAIN</b> (under WAVETABLES...) finds tables you've added since.</p>
+  <p>The display shows the table the oscillator really plays, as a stack of its frames. The frame WT POS plays is lit, and the caption gives the table's name and frame (<code>A: FM GROWL - FRAME 22/32</code>). It's OSC B's table on the B tab. The song keeps where each table is on your computer, so a song sent to someone else plays the preset's own tables unless they have the same files in the same place.</p>
+  <figure>
+    <div class="frame sunken"><img src="img/helix_own.png" alt="HELIX's A tab with one of your own tables: the display shows the frames of FM GROWL as an orange stack with frame 22 of 32 lit, WAVETABLES... at the right of the tabs, and OSC A starting with TABLE: FM GROWL... above OFF / ON, WT POS, OCTAVE, SEMI, FINE and LEVEL." width="1440" height="900" loading="lazy"></div>
+    <figcaption>One of your own wavetables on OSC A</figcaption>
   </figure>
   <p><b>Presets:</b> CLASSIC REESE, MOVING REESE, NEURO REESE, DONK, GROWL, WOBBLE 1/8, SUB SINE, DIRTY 808, ROLLING REESE, TALKING BASS, HOOVER 91, MENTASM, RAVE LEAD, SCREAMER, SYNC LEAD, 90S PAD, DARK ATMOS, VINYL DUST PAD, CHOIR PAD, GLASS PAD, RAVE STAB, DUB CHORD, FX RISER, LASER ZAP, DRIFT REESE, GROWL REESE, NEURO JUMP, HOOVER REESE STACK, STEPPA REESE, HALF-TIME REESE, LADDER REESE, 303 REESE, ROLLERS REESE, DREAD REESE, GUARDIAN SUB, ROLLERS SUB, 808 DROP, DONK SUB, PLUCK SUB, TRI SUB DRIVE, UNIT HOOVER, MENTASM UNIT, RAVE SCREAM, RAVE STAB CHORD, DUB STAB CHORD, HOOVER OCT STAB, REINFORCED PAD, DREAD PAD, AMEN AIR, SCENE PAD, DIVE BOMB, JUMP SIREN, REWIND and FILTH SWEEP.</p>
   <p><b>Try:</b> <b>ROLLING REESE</b> on a two-bar bass line with a <code>Lxx</code> knob on MACRO 1; <b>HOOVER 91</b> or <b>MENTASM</b> held over a break; <b>REWIND</b> at the end of a section.</p>
@@ -2137,6 +2149,8 @@ track 2:  060 C-3 02 S04 ?01 R1A</pre>
       <tr><td><kbd>Cmd</kbd><kbd>&uarr;</kbd> <kbd>&darr;</kbd></td><td>Transpose the track a semitone (<kbd>Shift</kbd>: an octave)</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>Z</kbd></td><td>Undo · with <kbd>Shift</kbd>, redo</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>[</kbd> <kbd>]</kbd></td><td>Loop start / end at the cursor</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&darr;</kbd> <kbd>&uarr;</kbd></td><td>Move the loop down / up by its own length</td></tr>
+      <tr><td><kbd>Cmd</kbd><kbd>Alt</kbd><kbd>&rarr;</kbd> <kbd>&larr;</kbd></td><td>Double / halve the loop</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>S</kbd></td><td>Save · with <kbd>Shift</kbd>, save as</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>2</kbd> / <kbd>1</kbd></td><td>Mixer / pattern</td></tr>
       <tr><td><kbd>Cmd</kbd><kbd>3</kbd></td><td>CHORDS: the chord table</td></tr>

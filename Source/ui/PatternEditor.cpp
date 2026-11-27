@@ -1532,6 +1532,51 @@ void PatternEditor::setLoopRange (int from, int to)
     changed();
 }
 
+void PatternEditor::moveLoop (int dir)
+{
+    if (st.loopBlock < 0 || st.loopBlock >= (int) proc.song.blocks.size())
+    {
+        if (onStatus) onStatus ("MARK A LOOP FIRST: DRAG OVER THE LINE NUMBERS, OR SHIFT+CLICK A LINE");
+        return;
+    }
+    const int lines = proc.song.blocks[(size_t) st.loopBlock].lines;
+    const int len = st.loopTo - st.loopFrom + 1;
+    const int from = st.loopFrom + (dir > 0 ? len : -len);
+    if (from < 0 || from + len > lines)
+    {
+        if (onStatus) onStatus (dir > 0 ? "THE LOOP IS AT THE END OF THE BLOCK" : "THE LOOP IS AT THE START OF THE BLOCK");
+        return;
+    }
+    st.loopFrom = from; st.loopTo = from + len - 1; st.loopOn = true;
+    syncLoop();
+    if (onStatus) onStatus ("LOOP LINES " + juce::String (st.loopFrom).paddedLeft ('0', 3) + "-" + juce::String (st.loopTo).paddedLeft ('0', 3)
+                            + " (CMD+ALT+UP / DOWN MOVE IT, LEFT / RIGHT HALVE / DOUBLE IT)");
+    changed();
+}
+
+void PatternEditor::resizeLoop (bool twice)
+{
+    if (st.loopBlock < 0 || st.loopBlock >= (int) proc.song.blocks.size())
+    {
+        if (onStatus) onStatus ("MARK A LOOP FIRST: DRAG OVER THE LINE NUMBERS, OR SHIFT+CLICK A LINE");
+        return;
+    }
+    const int lines = proc.song.blocks[(size_t) st.loopBlock].lines;
+    const int len = st.loopTo - st.loopFrom + 1;
+    const int want = twice ? len * 2 : std::max (1, len / 2);
+    if (twice && st.loopFrom + want > lines)
+    {
+        if (onStatus) onStatus ("NO ROOM TO DOUBLE THE LOOP (IT WOULD RUN PAST THE BLOCK'S END)");
+        return;
+    }
+    if (want == len) { if (onStatus) onStatus ("THE LOOP IS ONE LINE"); return; }
+    st.loopTo = st.loopFrom + want - 1; st.loopOn = true;
+    syncLoop();
+    if (onStatus) onStatus ("LOOP LINES " + juce::String (st.loopFrom).paddedLeft ('0', 3) + "-" + juce::String (st.loopTo).paddedLeft ('0', 3)
+                            + " (" + juce::String (want) + " LINES)");
+    changed();
+}
+
 void PatternEditor::setLoopOn (bool on)
 {
     if (on && st.loopBlock < 0)
@@ -1992,6 +2037,14 @@ bool PatternEditor::keyPressed (const juce::KeyPress& k)
     const bool shift = mods.isShiftDown();
     wantMargin = true;
 
+    // --- the line loop: Cmd+Alt+Down / Up moves it on by its length, Right / Left doubles / halves it
+    if (mods.isAltDown() && cmd)
+    {
+        if (code == juce::KeyPress::downKey)  { moveLoop (1); return true; }
+        if (code == juce::KeyPress::upKey)    { moveLoop (-1); return true; }
+        if (code == juce::KeyPress::rightKey) { resizeLoop (true); return true; }
+        if (code == juce::KeyPress::leftKey)  { resizeLoop (false); return true; }
+    }
     // --- move the current song position (Alt+Up/Down)
     if (mods.isAltDown() && ! cmd && (code == juce::KeyPress::upKey || code == juce::KeyPress::downKey))
     {

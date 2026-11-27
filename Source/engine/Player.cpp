@@ -84,7 +84,9 @@ int Player::synthOutputTrack (int i) const
     const int nt = std::clamp (song->numTracks, 1, kMaxTracks);
     const int o = song->instruments[(size_t) i].pluginOutput;
     if (o >= 0) return std::min (o, nt - 1);
-    return synthTrack[i] < nt ? synthTrack[i] : 0;   // AUTO: the track that played its latest note
+    if (synthTrack[i] < nt) return synthTrack[i];   // AUTO: the track that played its latest note
+    const int jt = jamTrack.load (std::memory_order_relaxed);
+    return jt >= 0 && jt < nt ? jt : 0;              // (no note yet: the track you're on)
 }
 
 bool Player::instrumentIsOn (int i) const
@@ -555,6 +557,9 @@ void Player::jamNoteOn (int note, int instrIndex, int velocity127, int start, in
         // a plug-in instrument plays the note itself
         auto* s = rack.at (instrIndex);
         if (s == nullptr) return;
+        // AUTO: a note played on the keys comes out of the track you're on (not a muted one), as a note there would
+        const int jt = jamTrack.load (std::memory_order_relaxed);
+        if (jt >= 0 && jt < std::clamp (song->numTracks, 1, kMaxTracks) && ! mute[jt].load (std::memory_order_relaxed)) synthTrack[instrIndex] = jt;
         for (auto& j : jamSynth)
             if (j.note < 0)
             {

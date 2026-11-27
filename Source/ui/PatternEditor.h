@@ -115,6 +115,10 @@ public:
 
     // marked loop (lines of the current block)
     void setLoopRange (int from, int to);   // also turns the loop on
+    // (v1.01) the line loop moved on by its own length (dir +1: down to the next lines, -1: up), or made twice / half as
+    // long from its start (Cmd+Alt+Down / Up / Right / Left)
+    void moveLoop (int dir);
+    void resizeLoop (bool twice);
     void setLoopOn (bool on);
     void syncLoop();                        // push the loop to the player
     std::function<void (const juce::String&)> onStatus;

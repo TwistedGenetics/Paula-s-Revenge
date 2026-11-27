@@ -1,5 +1,7 @@
 // Engine tests: render, pitch check, MOD round-trip, loader fuzzing.
 // Build: c++ -std=c++20 -O1 -g -fsanitize=address,undefined -I Source Tests/EngineTest.cpp Source/engine/*.cpp
+#include <filesystem>
+#include <fstream>
 #include <chrono>
 #include "engine/Player.h"
 #include "engine/BuiltinSynths.h"
@@ -1271,6 +1273,12 @@ static void testPluginInstruments()
     p.jamNoteOn (37, 0, 100);
     p.jamNoteOff (37);
     CHECK (log.size() == 2 && log[0].type == 'n' && log[0].a == 60 && log[0].b == 100 && log[1].type == 'f');
+    // (v1.01) AUTO: a note played on the keys comes out of the track the cursor is on
+    p.jamTrack.store (3);
+    p.jamNoteOn (37, 0, 100);
+    p.jamNoteOff (37);
+    CHECK (p.synthOutputTrack (0) == 3);
+    p.jamTrack.store (-1);
     // a missing synth: notes are silent, nothing breaks
     p.synths().factory = nullptr;
     p.synths().invalidate (0);
@@ -5417,7 +5425,64 @@ static void runNewSynth (const char* title, const char* key, int presets, const 
     }
 }
 
-static void testHelix()  { runNewSynth<HelixSynth>  ("HELIX (built in)",  kHelixKey,  helixPresetCount(),  helixPresetName,  helixPreset); }
+static void testHelixOwnTables()
+{
+    // (v1.01) a table of your own: a 16-frame Serum-style WAV, by its path, on OSC A - kept beside the values, and played
+    const std::string path = (std::filesystem::temp_directory_path() / "prv_helix_test.wav").string();
+    {
+        const int frames = 16, n = 2048 * frames;
+        std::ofstream o (path, std::ios::binary);
+        auto u32 = [&] (uint32_t v) { o.write ((const char*) &v, 4); };
+        auto u16 = [&] (uint16_t v) { o.write ((const char*) &v, 2); };
+        const std::string clm = "<!>2048 10000000 wavetable test.";   // (an even length: no pad byte)
+        o.write ("RIFF", 4); u32 (4 + 24 + 8 + (uint32_t) clm.size() + 8 + (uint32_t) n * 4); o.write ("WAVE", 4);
+        o.write ("fmt ", 4); u32 (16); u16 (3); u16 (1); u32 (44100); u32 (44100 * 4); u16 (4); u16 (32);
+        o.write ("clm ", 4); u32 ((uint32_t) clm.size()); o.write (clm.data(), (std::streamsize) clm.size());
+        o.write ("data", 4); u32 ((uint32_t) n * 4);
+        for (int f = 0; f < frames; ++f)
+            for (int i = 0; i < 2048; ++i)
+            {
+                const float x = (float) i / 2048.0f;
+                const float v = (float) std::sin (6.2831853 * x + (f / 15.0) * 6.0 * std::sin (6.2831853 * 3 * x));
+                o.write ((const char*) &v, 4);
+            }
+    }
+    Instrument in;
+    makeBuiltin (in, kHelixKey);
+    setBuiltinText (in, kHelixTableA, "path:" + path);
+    auto v = readBuiltinState (in);
+    v[1] = v[1];   // (a value written again keeps the words)
+    writeBuiltinState (in, v);
+    CHECK (builtinText (in, kHelixTableA) == "path:" + path);
+    CHECK (builtinText (in, kHelixTableB).empty());
+    CHECK (readBuiltinState (in) == v);
+    auto render = [] (const Instrument& ins)
+    {
+        HelixSynth s;
+        s.prepare (48000, 512);
+        s.update (ins);
+        s.waitTables();
+        std::vector<float> L (512), R (512), all;
+        for (int k = 0; k < 4; ++k) s.render (L.data(), R.data(), 512);
+        s.noteOn (48, 100, 0);
+        for (int k = 0; k < 40; ++k) { s.render (L.data(), R.data(), 512); all.insert (all.end(), L.begin(), L.end()); }
+        return all;
+    };
+    const auto own = render (in);
+    Instrument plain = in;
+    setBuiltinText (plain, kHelixTableA, {});
+    CHECK (builtinText (plain, kHelixTableA).empty() && readBuiltinState (plain) == v);
+    const auto builtin = render (plain);
+    double diff = 0, e = 0;
+    for (size_t i = 0; i < own.size(); ++i) { diff += std::abs (own[i] - builtin[i]); e += own[i] * own[i]; }
+    std::printf ("HELIX own table: rms %.3f, differs from the built-in by %.1f\n", std::sqrt (e / (double) own.size()), diff);
+    CHECK (e > 1.0 && diff > 10.0);
+    const auto pv = helixTablePreview ("path:" + path, 8, 64);
+    CHECK (pv.totalFrames == 16 && pv.frames.size() == 8 && pv.frames[0].size() == 64);
+    std::filesystem::remove (path);
+}
+
+static void testHelix()  { runNewSynth<HelixSynth>  ("HELIX (built in)",  kHelixKey,  helixPresetCount(),  helixPresetName,  helixPreset); testHelixOwnTables(); }
 static void testCrafty() { runNewSynth<CraftySynth> ("CRAFTY (built in)", kCraftyKey, craftyPresetCount(), craftyPresetName, craftyPreset); }
 
 static void testTg101()

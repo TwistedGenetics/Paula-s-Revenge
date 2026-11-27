@@ -275,6 +275,7 @@ target_sources(PaulasRevenge PRIVATE
     Source/ui/LanePads.cpp
     Source/ui/PhraseView.cpp
     Source/ui/EnginePage.cpp
+    Source/ui/HelixTables.cpp
     Source/ui/LivePage.cpp
     Source/ui/VisualsPage.cpp
     Source/ui/Spectrum.cpp

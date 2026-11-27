@@ -157,6 +157,8 @@ void TableLibrary::worker()
                 }
                 // Ids that name a file directly still load when the file is not in the library.
                 if (!ok && j.text.rfind("path:", 0) == 0) { e = {j.text, fs::path(j.text.substr(5)).stem().string(), j.text.substr(5), -1, false}; ok = true; }
+                // (Paula's Revenge) a folder of single cycles, by its absolute path
+                if (!ok && j.text.rfind("dir:", 0) == 0) { e = {j.text, fs::path(j.text.substr(4)).filename().string(), j.text.substr(4), -1, true}; ok = true; }
                 if (!ok && j.text.rfind("sample:", 0) == 0)
                 {
                     const size_t hash = j.text.rfind('#');

@@ -202,6 +202,9 @@ public:
     SynthRack& synths() { return rack; }
     // which track's mixer strip a plug-in instrument plays into right now
     int synthOutputTrack (int instrument) const;
+    // (v1.01) the track the cursor is on (the editor keeps it up to date): a plug-in or built-in instrument on AUTO
+    // plays the notes you play on the keys out of this track's strip, and starts out there; -1 = none
+    std::atomic<int> jamTrack { -1 };
     double rateFactor (const Instrument&) const;   // how fast a sample plays at C-3 (its rate, cents, BEAT SYNC)
     // an instrument switched on/off: by its ON button, or by an automation knob while playing
     bool instrumentIsOn (int instrument) const;

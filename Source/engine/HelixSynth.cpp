@@ -6,6 +6,7 @@
 #include "helix/Preset.h"
 #include "helix/TableLibrary.h"
 #include "helix/WavetableGen.h"
+#include "helix/WavetableImport.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -215,6 +216,8 @@ struct HelixSynth::Impl
     std::vector<uint8_t> lastState;
     int presetNow = -1;
     int tableNow[2] { -1, -1 };
+    // (v1.01) your own wavetables: "path:<wav>" or "dir:<folder of single cycles>" in place of OSC A / B's built-in one
+    std::string userId[2], userNow[2];
     helix::Transport transport;
     Impl() { library = std::make_unique<helix::TableLibrary> (engine); events.reserve (512); transport.valid = true; transport.playing = true; }
 
@@ -234,8 +237,17 @@ struct HelixSynth::Impl
             if (! fp.empty()) helix::applyPreset (fp[(size_t) std::clamp (preset, 0, (int) fp.size() - 1)], engine, library.get());
             presetNow = preset;
             applied.assign (t.params.size(), std::numeric_limits<float>::quiet_NaN());
-            for (int s = 0; s < 2; ++s) tableNow[s] = -1;
+            for (int s = 0; s < 2; ++s) { tableNow[s] = -1; userNow[s].clear(); }
         }
+        // a table of your own let go: the built-in one goes back in
+        for (int s = 0; s < 2; ++s)
+            if (userId[s].empty() && ! userNow[s].empty())
+            {
+                userNow[s].clear();
+                tableNow[s] = -1;
+                for (size_t i = 1; i < t.params.size(); ++i)
+                    if (t.helixIndex[i] == (s == 0 ? helix::P_A_TABLE : helix::P_B_TABLE)) applied[i] = std::numeric_limits<float>::quiet_NaN();
+            }
         for (size_t i = 1; i < t.params.size(); ++i)
         {
             if (applied[i] == values[i]) continue;
@@ -249,12 +261,19 @@ struct HelixSynth::Impl
                     tableNow[s] = idx;
                     engine.params().set (hi, (float) idx);
                     engine.collectGarbage();   // (the table it had before goes, now and then)
-                    library->requestLoad (s, idx);
+                    if (userId[s].empty()) library->requestLoad (s, idx);
                 }
                 continue;
             }
             engine.params().set (hi, toHelix (t.params[i], hi, values[i]));
         }
+        for (int s = 0; s < 2; ++s)
+            if (! userId[s].empty() && userId[s] != userNow[s])
+            {
+                userNow[s] = userId[s];
+                engine.collectGarbage();
+                library->requestLoadId (s, userId[s]);
+            }
     }
 };
 
@@ -303,6 +322,8 @@ void HelixSynth::update (const Instrument& in)
 {
     if (in.pluginState == d->lastState) return;
     d->lastState = in.pluginState;
+    d->userId[0] = builtinText (in, kHelixTableA);
+    d->userId[1] = builtinText (in, kHelixTableB);
     setValues (readBuiltinState (in));
 }
 
@@ -322,4 +343,35 @@ void HelixSynth::render (float* left, float* right, int n)
 
 int HelixSynth::activeVoices() const { return d->engine.activeVoices(); }
 void HelixSynth::waitTables() { d->library->waitIdle(); }
+} // namespace prv
+
+namespace prv
+{
+HelixTablePreview helixTablePreview (const std::string& id, int maxFrames, int points)
+{
+    HelixTablePreview out;
+    helix::WavetablePtr t;
+    try
+    {
+        if (id.rfind ("builtin:", 0) == 0) t = helix::makeBuiltinTable ((helix::BuiltinTable) builtinIndexOf (id));
+        else if (id.rfind ("path:", 0) == 0) t = helix::importWavetableFile (id.substr (5));
+        else if (id.rfind ("dir:", 0) == 0) t = helix::importCycleFolder (id.substr (4));
+    }
+    catch (...) { t = nullptr; }
+    if (t == nullptr || t->numFrames() <= 0) return out;
+    out.totalFrames = t->numFrames();
+    const int n = std::clamp (std::min (maxFrames, t->numFrames()), 1, 256);
+    points = std::clamp (points, 8, helix::kFrameSize);
+    for (int k = 0; k < n; ++k)
+    {
+        const int f = n == 1 ? 0 : (int) std::lround ((double) k * (t->numFrames() - 1) / (n - 1));
+        const float* src = t->fullFrame (f);
+        std::vector<float> fr ((size_t) points);
+        for (int i = 0; i < points; ++i) fr[(size_t) i] = src[(size_t) ((int64_t) i * helix::kFrameSize / points)];
+        out.frames.push_back (std::move (fr));
+    }
+    return out;
+}
+
+const std::vector<std::string>& helixBuiltinTables() { return helix::builtinTableNames(); }
 } // namespace prv

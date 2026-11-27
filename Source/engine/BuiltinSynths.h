@@ -36,7 +36,10 @@ const std::vector<SynthParam>& builtinParams (const std::string& key);   // (emp
 std::vector<float> builtinDefaults (const std::string& key);
 // the values in an instrument's state (its defaults where missing) / written back into it
 std::vector<float> readBuiltinState (const Instrument&);
-void writeBuiltinState (Instrument&, const std::vector<float>& values);
+void writeBuiltinState (Instrument&, const std::vector<float>& values);   // (keeps its words, below)
+// (v1.01) a few words a built-in keeps beside its values (HELIX: its own wavetables' ids); "" = none / remove it
+std::string builtinText (const Instrument&, const std::string& key);
+void setBuiltinText (Instrument&, const std::string& key, const std::string& value);
 // make an instrument a built-in synth (its sample, plug-in and MIDI / CV settings go; its name becomes the synth's)
 void makeBuiltin (Instrument&, const std::string& key);
 // RAVE (v0.73): the jungle keys - STAB, PAD, ORGAN, BLEEP or BELL, every control set for that sound

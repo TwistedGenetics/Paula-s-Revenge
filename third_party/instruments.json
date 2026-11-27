@@ -87,6 +87,7 @@
     ],
     "patched": [
       "helix-core/include/helix/Halfband.h",
+      "helix-core/src/TableLibrary.cpp",
       "helix-core/third_party/charosc/dreadbass.h",
       "helix-core/third_party/dnfx/dn_fx.c",
       "helix-core/third_party/dnfx/dn_fxc.c"

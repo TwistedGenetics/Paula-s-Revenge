@@ -120,9 +120,18 @@ private:
     // (v0.85) PAD: each layer's SAMPLE box starts with LOAD SAMPLE... - the sample browser, for that layer
     PixButton padLoadBtn[4] { PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE..."), PixButton ("LOAD SAMPLE...") };
     std::function<void (int layer)> onLoadPadSample;
+    // (v1.01) HELIX: OSC A / B's table (the built-in ones, or yours from the wavetable folder), and that folder
+    PixButton helixTableBtn[2] { PixButton ("TABLE..."), PixButton ("TABLE...") };
+    PixButton helixFolderBtn { "WAVETABLES..." };
+    juce::String helixTableId (int osc) const;              // "builtin:<name>", "path:<wav>" or "dir:<folder>"
+    void setHelixTable (int osc, const juce::String& id);   // yours ("path:" / "dir:"), or "" for the built-in one again
+    void showHelixTableMenu (int osc, const juce::String& group = "~");
+    void showHelixFolderMenu();
   private:
     std::unique_ptr<juce::FileChooser> chooser;
     void updateToneButtons();
+    void updateHelixButtons();                    // (their names: the table each plays)
+    int helixOscBox (const Box& b) const;          // HELIX: 0 / 1 for OSC A / B's box, else -1
     PixButton pageBtn[3] { PixButton ("GRAINS", true), PixButton ("LFOS + FILTER", true), PixButton ("MORPH", true) };   // (the third: ROM's MORPH FILTER, page 3)
     int pageShown = 0;
     bool subPages = false, relayout = false;   // (SUB: on two pages only when it doesn't all fit - BEAT's rows on)

@@ -1,5 +1,6 @@
 // Paula's Revenge - a built-in synth's page
 #include "EnginePage.h"
+#include "HelixTables.h"
 #include <optional>
 #include "Panels.h"
 #include <limits>
@@ -74,6 +75,13 @@ EnginePage::EnginePage (PaulaProcessor& p) : proc (p)
     }
     romFolderBtn.onClick = [this] { showRomFolderMenu(); };
     addChildComponent (romFolderBtn);
+    for (int o = 0; o < 2; ++o)
+    {
+        helixTableBtn[o].onClick = [this, o] { showHelixTableMenu (o); };
+        addChildComponent (helixTableBtn[o]);
+    }
+    helixFolderBtn.onClick = [this] { showHelixFolderMenu(); };
+    addChildComponent (helixFolderBtn);
     // the ROM browser: categories, then the sounds in the one picked
     romCats = std::make_unique<PixList>();
     romSounds = std::make_unique<PixList>();
@@ -140,6 +148,13 @@ void EnginePage::edit (int param, float value, bool merge)
         auto v = readBuiltinState (inst());
         v[(size_t) param] = value;
         writeBuiltinState (inst(), v);
+        // HELIX: turning TABLE picks a built-in table again (yours goes); another PRESET brings its own tables
+        if (inst().pluginKey == kHelixKey && (param == 0 || juce::String (q.name) == "TABLE"))
+        {
+            const bool b = juce::String (q.section).startsWith ("1:");
+            if (param == 0 || ! b) setBuiltinText (inst(), kHelixTableA, {});
+            if (param == 0 || b) setBuiltinText (inst(), kHelixTableB, {});
+        }
     });
     if (onStatus) onStatus (juce::String (inst().pluginName) + " " + q.name + ": " + juce::String (q.text (value)));
     sync();
@@ -273,6 +288,149 @@ void EnginePage::showRomFolderMenu()
     showMenu (dir.isDirectory() ? "ROM FOLDER: " + dir.getFileName().toUpperCase() + " (" + juce::String (n) + " SOUNDS)" : juce::String ("NO ROM FOLDER YET"), std::move (items));
 }
 
+// ---- HELIX's wavetables (v1.01)
+int EnginePage::helixOscBox (const Box& b) const
+{
+    if (shownKey != kHelixKey) return -1;
+    return b.title == "OSC A" ? 0 : b.title == "OSC B" ? 1 : -1;
+}
+
+juce::String EnginePage::helixTableId (int osc) const
+{
+    const auto& in = proc.song.instruments[(size_t) juce::jlimit (0, kMaxInstruments - 1, proc.editorState.instrument)];
+    const auto own = builtinText (in, osc == 0 ? kHelixTableA : kHelixTableB);
+    if (! own.empty()) return juce::String (own);
+    const auto& names = helixBuiltinTables();
+    if (names.empty()) return {};
+    const int idx = juce::jlimit (0, (int) names.size() - 1, juce::roundToInt (vraw ("TABLE", osc)));
+    return "builtin:" + juce::String (names[(size_t) idx]);
+}
+
+void EnginePage::updateHelixButtons()
+{
+    if (shownKey != kHelixKey) return;
+    const float px = Theme::px;
+    for (int o = 0; o < 2; ++o)
+    {
+        const auto id = helixTableId (o);
+        const auto name = helixtables::nameOf (id);
+        const bool own = ! id.startsWith ("builtin:");
+        // (as much as fits, measured in the type the button is drawn in)
+        std::optional<PixelFont::PanelType> type;
+        if (Theme::panelSkin (look) != nullptr) type.emplace();
+        const float room = (float) helixTableBtn[o].getWidth() - px * 6;
+        auto fits = [&] (const juce::String& x) { return (type ? PixelFont::labelWidth (x, px) : PixelFont::textWidth (x, px)) <= room; };
+        juce::String t = "TABLE: " + name + "...";
+        if (! fits (t)) t = name + "...";
+        for (int n = name.length() - 1; ! fits (t) && n > 3; --n) t = name.substring (0, n) + "...";
+        juce::ignoreUnused (own);
+        helixTableBtn[o].setButtonText (t);
+    }
+}
+
+void EnginePage::setHelixTable (int osc, const juce::String& id)
+{
+    if (shownKey != kHelixKey) return;
+    proc.history.instrument (proc.editorState.instrument, "HELIX: OSC " + juce::String::charToString ((juce::juce_wchar) ('A' + osc)) + " TABLE");
+    proc.withLock ([&] { setBuiltinText (inst(), osc == 0 ? kHelixTableA : kHelixTableB, id.toStdString()); });
+    if (onStatus) onStatus ("HELIX OSC " + juce::String::charToString ((juce::juce_wchar) ('A' + osc)) + ": " + helixtables::nameOf (helixTableId (osc))
+                            + (id.isEmpty() ? juce::String() : " - PLAY THE KEYS TO HEAR IT, UNDO TO GO BACK"));
+    sync();
+    resized();   // (TABLE comes and goes)
+    updateHelixButtons();
+    repaint();
+    if (onChanged) onChanged();
+}
+
+void EnginePage::showHelixTableMenu (int osc, const juce::String& group)
+{
+    juce::Component::SafePointer<EnginePage> safe (this);
+    const juce::String oscName = "OSC " + juce::String::charToString ((juce::juce_wchar) ('A' + osc));
+    std::vector<MenuItem> items;
+    if (group == "~")
+    {
+        // first: where to look - the built-in tables, then each group of yours
+        items.push_back ({ "BUILT-IN TABLES (" + juce::String ((int) helixBuiltinTables().size()) + ")", [safe, osc] { if (safe != nullptr) safe->showHelixTableMenu (osc, "~BUILTIN"); } });
+        const auto& lib = helixtables::library();
+        for (const auto& gname : helixtables::groups())
+        {
+            int n = 0; for (const auto& e : lib) if (e.group == gname) ++n;
+            const auto folderName = helixtables::folder().getFileName().toUpperCase();
+            items.push_back ({ (gname.isEmpty() ? folderName : folderName + "/" + gname) + " (" + juce::String (n) + ")", [safe, osc, gname] { if (safe != nullptr) safe->showHelixTableMenu (osc, gname); } });
+        }
+        items.push_back ({ "A WAV FILE FROM ANYWHERE...", [safe, osc]
+        {
+            if (safe == nullptr) return;
+            safe->chooser = std::make_unique<juce::FileChooser> ("A wavetable for HELIX (a Serum-style table, or one cycle)", helixtables::folder(), "*.wav");
+            safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [safe, osc] (const juce::FileChooser& fc)
+            {
+                if (safe != nullptr && fc.getResult().existsAsFile()) safe->setHelixTable (osc, "path:" + fc.getResult().getFullPathName());
+            });
+        } });
+        items.push_back ({ helixtables::folder().isDirectory() ? "CHANGE THE WAVETABLE FOLDER..." : "SET YOUR WAVETABLE FOLDER...", [safe] { if (safe != nullptr) safe->showHelixFolderMenu(); } });
+        const auto f = helixtables::folder();
+        showMenu (oscName + " TABLE: " + helixtables::nameOf (helixTableId (osc))
+                  + (f.isDirectory() ? juce::String() : juce::String (" - NO WAVETABLE FOLDER YET")), std::move (items));
+        return;
+    }
+    if (group == "~BUILTIN")
+    {
+        const auto& names = helixBuiltinTables();
+        for (int k = 0; k < (int) names.size(); ++k)
+            items.push_back ({ juce::String (names[(size_t) k]).toUpperCase(), [safe, osc, k]
+            {
+                if (safe == nullptr) return;
+                // a built-in table: TABLE turns to it (and yours, if there was one, goes)
+                const auto& ps = builtinParams (kHelixKey);
+                int nth = 0;
+                for (int i = 0; i < (int) ps.size(); ++i)
+                    if (juce::String (ps[(size_t) i].name) == "TABLE" && nth++ == osc) { safe->edit (i, (float) k, false); break; }
+                safe->resized();
+                safe->updateHelixButtons();
+                safe->repaint();
+            } });
+        items.push_back ({ "< BACK", [safe, osc] { if (safe != nullptr) safe->showHelixTableMenu (osc); } });
+        showMenu (oscName + ": THE BUILT-IN TABLES", std::move (items));
+        return;
+    }
+    for (const auto& e : helixtables::library())
+        if (e.group == group)
+        {
+            const auto id = e.id;
+            items.push_back ({ e.name, [safe, osc, id] { if (safe != nullptr) safe->setHelixTable (osc, id); } });
+        }
+    items.push_back ({ "< BACK", [safe, osc] { if (safe != nullptr) safe->showHelixTableMenu (osc); } });
+    showMenu (oscName + ": " + (group.isEmpty() ? helixtables::folder().getFileName().toUpperCase() : group), std::move (items));
+}
+
+void EnginePage::showHelixFolderMenu()
+{
+    juce::Component::SafePointer<EnginePage> safe (this);
+    const auto dir = helixtables::folder();
+    std::vector<MenuItem> items;
+    items.push_back ({ dir.isDirectory() ? "CHANGE THE WAVETABLE FOLDER..." : "SET YOUR WAVETABLE FOLDER...", [safe]
+    {
+        if (safe == nullptr) return;
+        safe->chooser = std::make_unique<juce::FileChooser> ("Your wavetables' folder (HELIX looks through it and its sub-folders)", helixtables::folder());
+        safe->chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, [safe] (const juce::FileChooser& fc)
+        {
+            if (! fc.getResult().isDirectory()) return;
+            helixtables::setFolder (fc.getResult());
+            if (safe != nullptr && safe->onStatus)
+                safe->onStatus ("WAVETABLE FOLDER: " + fc.getResult().getFileName().toUpperCase() + " - " + juce::String ((int) helixtables::library().size())
+                                + " TABLES IN " + juce::String (helixtables::groups().size()) + " FOLDERS - TABLE... ON OSC A OR B PICKS ONE");
+        });
+    } });
+    if (dir.isDirectory())
+        items.push_back ({ "LOOK THROUGH IT AGAIN (NEW FILES)", [safe]
+        {
+            helixtables::library (true);
+            if (safe != nullptr && safe->onStatus) safe->onStatus ("WAVETABLE FOLDER LOOKED THROUGH AGAIN - " + juce::String ((int) helixtables::library().size()) + " TABLES");
+        } });
+    showMenu (dir.isDirectory() ? "WAVETABLE FOLDER: " + dir.getFileName().toUpperCase() + " (" + juce::String ((int) helixtables::library().size()) + " TABLES)"
+                                : juce::String ("NO WAVETABLE FOLDER YET"), std::move (items));
+}
+
 // the ROM browser
 void EnginePage::openRomBrowser (int t)
 {
@@ -371,7 +529,11 @@ void EnginePage::loadPreset (const std::string& name, const std::vector<float>& 
     const auto key = inst().pluginKey;
     if (builtinParams (key).empty() || values.empty()) return;
     proc.history.instrument (proc.editorState.instrument, juce::String (inst().pluginName) + " PRESET: " + juce::String (name));
-    proc.withLock ([&] { writeBuiltinState (inst(), values); });
+    proc.withLock ([&]
+    {
+        writeBuiltinState (inst(), values);
+        if (key == kHelixKey) { setBuiltinText (inst(), kHelixTableA, {}); setBuiltinText (inst(), kHelixTableB, {}); }   // (the preset's own tables)
+    });
     sync();
     resized();
     if (onStatus) onStatus (juce::String (inst().pluginName) + " PRESET: " + juce::String (name) + " - UNDO TO GO BACK");
@@ -477,6 +639,16 @@ void EnginePage::build()
             const int n = (int) names.size();
             r.slider->steps = n;
             r.slider->format = [names, n] (float v01) { return names[(size_t) juce::jlimit (0, n - 1, (int) std::lround (v01 * (float) (n - 1)))]; };
+            if (shownKey == kHelixKey && juce::String (q.name) == "TABLE")
+            {
+                // (HELIX: with a table of yours on the oscillator, TABLE says so - turning it picks a built-in one again)
+                const char* tk = juce::String (q.section).startsWith ("1:") ? kHelixTableB : kHelixTableA;
+                r.slider->format = [this, names, n, tk] (float v01)
+                {
+                    if (! builtinText (inst(), tk).empty()) return juce::String ("YOURS");
+                    return names[(size_t) juce::jlimit (0, n - 1, (int) std::lround (v01 * (float) (n - 1)))];
+                };
+            }
             r.slider->defaultValue = q.to01 (q.def);
             r.slider->onChange = [this, i, n] (float v01) { edit (i, (float) juce::jlimit (0, n - 1, (int) std::lround (v01 * (float) (n - 1))), true); };
             r.slider->onRightClick = [this, i] { knobMenu (i); };
@@ -734,6 +906,7 @@ void EnginePage::tick()
 {
     if (shownInstrument != proc.editorState.instrument || inst().pluginKey != shownKey) refresh();
     if (shownKey == kGrainKey && (++waveTick % 3) == 0) readWave();
+    if (shownKey == kHelixKey && helixtables::newPreviews()) { updateHelixButtons(); repaint(); }
 }
 
 void EnginePage::showPage (int k)
@@ -862,7 +1035,10 @@ void EnginePage::layoutOnce()
     for (auto& tb : toneBtn) tb.setVisible (false);
     for (auto& sb : sampleBtn) sb.setVisible (false);
     romFolderBtn.setVisible (false);
+    for (auto& hb : helixTableBtn) hb.setVisible (false);
+    helixFolderBtn.setVisible (false);
     updateToneButtons();
+    updateHelixButtons();
     // (a vintage panel: its cheeks or rack ears take the edges)
     const auto* ps = Theme::panelSkin (look);
     faceArea = getLocalBounds();
@@ -928,6 +1104,14 @@ void EnginePage::layoutOnce()
             if (rw.param < pad::SampleBase) return false;
             const int l = (rw.param - pad::SampleBase) / pad::PerSample;
             return std::lround (vals[(size_t) pad::p (l, pad::Wave)]) != pad::Sample;
+        }
+        // (HELIX, v1.01: TABLE - the built-in tables - only while the oscillator isn't playing one of yours)
+        if (shownKey == kHelixKey)
+        {
+            const auto& hp = builtinParams (kHelixKey);
+            if (rw.param > 0 && rw.param < (int) hp.size() && juce::String (hp[(size_t) rw.param].name) == "TABLE")
+                return ! helixTableId (juce::String (hp[(size_t) rw.param].section).startsWith ("1:") ? 1 : 0).startsWith ("builtin:");
+            return false;
         }
         // (GRANULAR, v0.75: TABLE only for a table, SAMPLE only for a sample - room for PRESETS' line)
         if (shownKey == kGrainKey && vals.size() > (size_t) grain::SampleSlot)
@@ -1014,10 +1198,12 @@ void EnginePage::layoutOnce()
         {
             if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;
             if (shownKey == kPadKey && padSampleBox (b.key) >= 0) ++lines;
+            if (helixOscBox (b) >= 0) ++lines;
             return gap * 4 + title + foot + lines * (rowH + gap) + kg.height;
         }
         if (shownKey == kRomKey && b.title.startsWith ("TONE ")) ++lines;   // (its samples' button)
         if (shownKey == kPadKey && padSampleBox (b.key) >= 0) ++lines;      // (LOAD SAMPLE...)
+        if (helixOscBox (b) >= 0) ++lines;                                 // (HELIX: TABLE...)
         return gap * 4 + title + lines * (rowH + gap);
     };
     auto place = [&] (Box& b, juce::Rectangle<int> area)
@@ -1041,6 +1227,12 @@ void EnginePage::layoutOnce()
             const int l = padSampleBox (b.key);
             padLoadBtn[l].setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap);
             padLoadBtn[l].setVisible (true);
+        }
+        if (const int o = helixOscBox (b); o >= 0)
+        {
+            helixTableBtn[o].setBounds (in.removeFromTop (rowH)); in.removeFromTop (gap);
+            helixTableBtn[o].setVisible (true);
+            updateHelixButtons();
         }
         for (int ri : b.rowIndex)
         {
@@ -1116,8 +1308,16 @@ void EnginePage::layoutOnce()
         // (v0.81) the synth's own tabs: their names if they fit on a line, else the short ones; a second line if need be
         int longW = 0, shortW = 0;
         for (const auto& t : genTabNames) { longW += charsW (t.first.length()) + gap; shortW += charsW (t.second.length()) + gap; }
-        const bool useLong = longW <= r.getWidth() + gap;
         auto line = r.removeFromTop (rowH);
+        if (shownKey == kHelixKey)
+        {
+            // (v1.01) HELIX: where your wavetables are, at the right of its tabs
+            const bool roomy = line.getWidth() >= shortW + charsW (13) + gap * 3;
+            helixFolderBtn.setButtonText (roomy ? "WAVETABLES..." : "FOLDER...");
+            helixFolderBtn.setBounds (line.removeFromRight (charsW (helixFolderBtn.getButtonText().length()))); line.removeFromRight (gap * 3);
+            helixFolderBtn.setVisible (true);
+        }
+        const bool useLong = longW <= line.getWidth() + gap;
         for (size_t k = 0; k < genTabs.size(); ++k)
         {
             const auto& nm = useLong ? genTabNames[k].first : genTabNames[k].second;
@@ -1885,19 +2085,34 @@ void EnginePage::paintDisplay (juce::Graphics& g, juce::Rectangle<float> area)
     }
     else if (key == kHelixKey)
     {
-        // the wavetable as a stack of frames, the one WT POS plays lit
-        const float pos = vnorm ("WT POS"), warp = vnorm ("WARP AMT");
-        const int N = 14, cur = juce::roundToInt (pos * (float) (N - 1));
-        const float stepX = in.getWidth() * 0.022f, stepY = in.getHeight() * 0.045f;
-        const auto frameArea = juce::Rectangle<float> (in.getX(), in.getY() + stepY * (float) (N - 1) * 0.6f, in.getWidth() * 0.66f, in.getHeight() * 0.5f);
-        for (int f = N - 1; f >= 0; --f)
+        // the wavetable OSC A plays (OSC B's on the B tab) as a stack of its own frames, the one WT POS plays lit
+        const int osc = pageShown == 11 ? 1 : 0;
+        const float pos = vnorm ("WT POS", osc);
+        const auto id = helixTableId (osc);
+        const auto pv = helixtables::preview (id);
+        const auto name = helixtables::nameOf (id);
+        if (pv != nullptr && ! pv->frames.empty())
         {
-            const float t = (float) f / (float) (N - 1);
-            const auto fa = frameArea.translated (stepX * (float) f, -stepY * (float) f * 0.6f);
-            trace (fa, [&] (float x) { float y = 0; const float H = 1 + t * 14; for (int h = 1; h <= 15; ++h) { const float gn = (float) h <= H ? 1.0f : std::max (0.0f, 1.0f - ((float) h - H)); y += std::sin ((x + warp * 0.2f * std::sin (x * pi2)) * pi2 * (float) h) / (float) h * gn * ((h % 2) || t > 0.5f ? 1.0f : t * 2.0f); } return y * 0.75f; },
-                   f == cur ? thick * 1.3f : thick * 0.5f, f == cur ? 1.0f : 0.38f, 120);
+            const int N = (int) pv->frames.size(), cur = juce::roundToInt (pos * (float) (N - 1));
+            const float depth = N > 1 ? 1.0f / (float) (N - 1) : 0.0f;
+            const float stepX = in.getWidth() * 0.30f * depth, stepY = in.getHeight() * 0.46f * depth;
+            const auto frameArea = juce::Rectangle<float> (in.getX(), in.getY() + in.getHeight() * 0.42f, in.getWidth() * 0.68f, in.getHeight() * 0.56f);
+            for (int f = N - 1; f >= 0; --f)
+            {
+                const auto& fr = pv->frames[(size_t) f];
+                const auto fa = frameArea.translated (stepX * (float) f, -stepY * (float) f);
+                const int pts = (int) fr.size();
+                trace (fa, [&] (float x) { const float u = x * (float) (pts - 1); const int i = juce::jlimit (0, pts - 2, (int) u); return (fr[(size_t) i] + (fr[(size_t) i + 1] - fr[(size_t) i]) * (u - (float) i)) * 0.95f; },
+                       f == cur ? thick * 1.3f : thick * 0.5f, f == cur ? 1.0f : 0.32f, std::min (pts, 160));
+            }
+            const int frame = juce::roundToInt (pos * (float) (std::max (1, pv->totalFrames) - 1)) + 1;
+            label = juce::String (osc == 0 ? "A: " : "B: ") + name + " - FRAME " + juce::String (frame) + "/" + juce::String (pv->totalFrames);
         }
-        label = "WT POS " + juce::String (juce::roundToInt (pos * 255)).paddedLeft ('0', 3);
+        else
+        {
+            trace (in, [&] (float x) { return 0.0f * x; }, thick * 0.5f, 0.3f, 4);
+            label = juce::String (osc == 0 ? "A: " : "B: ") + name + (pv == nullptr ? juce::String (" - LOADING") : juce::String (" - CAN'T READ IT"));
+        }
     }
     else if (key == kCraftyKey)
     {
