@@ -892,6 +892,17 @@ void PatternEditor::openCommandMenu (int line, int track, int group)
     picker->nameFor = [this, L, T] (const CommandInfo& ci) { return contextName (L, T, ci.cmd); };
     picker->overviewFor = [this, L, T] (const CommandInfo& ci) { return contextOverview (L, T, ci.cmd); };
     picker->describe = [this, L, T] (uint8_t cm, uint8_t pa) { return contextDescribe (L, T, cm, pa); };
+    picker->partsFor = [this, L, T, group] (const CommandInfo& ci)
+    {
+        // CHOPPAGE: its own U / S / 9 (a 9 goes with the U in the other effect column)
+        const int ins = instrumentAt (L, T);
+        const bool chop = ins >= 0 && proc.song.instruments[(size_t) ins].isChoppage();
+        int pad = -1;
+        const auto& cell = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (L, T);
+        const uint8_t oc = group == 2 ? cell.cmd : cell.cmd2, op = group == 2 ? cell.param : cell.param2;
+        if (oc == cmdLetter ('U') && (op >> 4) >= 1 && (op >> 4) <= 8) pad = (op >> 4) - 1;
+        return commandParts (ci, chop, pad);
+    };
     picker->open (group == 2 ? c.cmd2 : c.cmd, group == 2 ? c.param2 : c.param);
     if (onStatus) onStatus ("PICK A COMMAND (CLICK, OR ARROWS + ENTER; TYPE ITS LETTER TO JUMP) - ESC CANCELS");
 }
@@ -1097,7 +1108,7 @@ void PatternEditor::placePicker (juce::Component& pk)
     auto* parent = pk.getParentComponent();
     juce::Rectangle<int> r = parent == this ? getLocalBounds() : parent->getLocalBounds().withTop (getY()).withBottom (getBottom());
     r = r.reduced ((int) (px * 3));
-    const int want = (int) (px * PixelFont::kCellW * 78 + px * 16);
+    const int want = (int) (px * PixelFont::kCellW * 100 + px * 16);   // (v1.01: the list and the builder side by side)
     r = r.withSizeKeepingCentre (std::min (r.getWidth(), want), r.getHeight());
     pk.setBounds (r);
 }
@@ -1116,13 +1127,9 @@ void PatternEditor::applyPickedCommand (const CommandInfo& info)
     const int blk = proc.song.safeBlock (st.block);
     const auto& cur = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
     const uint8_t oldCmd = pickGroup == 2 ? cur.cmd2 : cur.cmd, oldParam = pickGroup == 2 ? cur.param2 : cur.param;
-    // keep the value already there when it's the same command, else start from a useful one
-    uint8_t param = info.param;
-    if (oldCmd == info.cmd && ! (oldCmd == 0 && oldParam == 0))
-    {
-        if (! info.extended) param = oldParam;
-        else if ((oldParam >> 4) == (info.param >> 4)) param = oldParam;
-    }
+    // the value built in the list (it starts from the one already in the cell when it's the same command)
+    const uint8_t param = info.param;
+    juce::ignoreUnused (oldCmd, oldParam);
     if (info.cmd == kCmdChord)
     {
         // # CHORD: the cell becomes #xy (the slot already there, else the first filled one), then the chord list

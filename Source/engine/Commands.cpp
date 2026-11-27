@@ -201,6 +201,94 @@ std::string describeChoppageCommand (int c, uint8_t p, int pad)
     return {};
 }
 
+namespace
+{
+    CommandPart whole (const char* label, std::vector<std::pair<int, std::string>> ch, bool fine = true)
+    { CommandPart p; p.label = label; p.choices = std::move (ch); p.fine = fine; return p; }
+    CommandPart digit (const char* label, bool high, std::vector<std::pair<int, std::string>> ch = {})
+    {
+        CommandPart p; p.label = label; p.shift = high ? 4 : 0; p.mask = 15;
+        if (ch.empty()) for (int i = 0; i < 16; ++i) ch.push_back ({ i, fmt ("%X", i) });
+        p.choices = std::move (ch);
+        return p;
+    }
+    std::vector<std::pair<int, std::string>> hexes (int from, int to, const char* zero = nullptr)
+    {
+        std::vector<std::pair<int, std::string>> v;
+        for (int i = from; i <= to; ++i) v.push_back ({ i, i == 0 && zero ? std::string (zero) : fmt ("%X", i) });
+        return v;
+    }
+    std::vector<std::pair<int, std::string>> levels()   // a 00-FF amount
+    { return { { 0x00, "00 (0%)" }, { 0x40, "40 (25%)" }, { 0x80, "80 (50%)" }, { 0xC0, "C0 (75%)" }, { 0xFF, "FF (100%)" } }; }
+}
+
+std::vector<CommandPart> commandParts (const CommandInfo& c, bool chop, int pad)
+{
+    const int L = c.cmd;
+    auto is = [L] (char ch) { return L == cmdLetter (ch); };
+    if (chop && is ('U'))
+    {
+        std::vector<std::pair<int, std::string>> pads { { 0, "0 LET GO" } };
+        for (int i = 0; i < 8; ++i) pads.push_back ({ i + 1, fmt ("%d ", i + 1) + choppagePadName (i) });
+        std::vector<std::pair<int, std::string>> lines { { 0, "0 UNTIL NEXT U" }, { 1, "1 LINE" } };
+        for (int i = 2; i < 16; ++i) lines.push_back ({ i, fmt ("%X", i) + (i == 15 ? " (15)" : i >= 10 ? fmt (" (%d)", i) : std::string()) });
+        return { digit ("X - WHICH PAD", true, pads), digit ("Y - HOW MANY LINES", false, lines) };
+    }
+    if (chop && is ('S'))
+        return { whole ("XX - WHICH SLICE (00 = SLICE 1)", { { 0x00, "00 SLICE 1" }, { 0x03, "03 SLICE 4" }, { 0x07, "07 SLICE 8" }, { 0x0F, "0F SLICE 16" }, { 0x1F, "1F SLICE 32" }, { 0x3F, "3F SLICE 64" } }) };
+    if (chop && L == 0x9)
+    {
+        switch (pad)
+        {
+            case 0: case 1: return { whole ("XX - SIZE", { { 0, "00 1/8" }, { 1, "01 1/16" }, { 2, "02 1/32" }, { 3, "03 1/64" } }, false) };
+            case 4:  return { whole ("XX - HALF-TIME MODE", { { 0, "00 1/2" }, { 1, "01 3/4" }, { 2, "02 2/3" }, { 3, "03 1/4" }, { 4, "04 1/2 TAPE" } }, false) };
+            case 5:  return { whole ("XX - AKAIZE STRETCH", { { 0, "00 x1.5" }, { 1, "01 x2" }, { 2, "02 x3" }, { 3, "03 x4" } }, false) };
+            case 3:  return { whole ("XX - HOW LONG THE STOP TAKES", { { 0x00, "00 0.1 S" }, { 0x40, "40 0.8 S" }, { 0x80, "80 1.6 S" }, { 0xFF, "FF 3 S" } }) };
+            case 6:  return { whole ("XX - RESONANCE", levels()) };
+            case 7:  return { whole ("XX - HOW LOW IT DROPS", { { 0x00, "00 4 KHZ" }, { 0x80, "80 9.8 KHZ" }, { 0xFF, "FF 15.6 KHZ" } }) };
+            default: return { whole ("XX - THE SETTING (PUT A U IN THE OTHER COLUMN FIRST)", levels()) };
+        }
+    }
+    if (c.extended)
+    {
+        switch (c.param >> 4)
+        {
+            case 0x0: return { digit ("Y - LED FILTER", false, { { 0, "0 ON" }, { 1, "1 OFF" } }) };
+            case 0x4: case 0x7: return { digit ("Y - WAVE", false, { { 0, "0 SINE" }, { 1, "1 RAMP" }, { 2, "2 SQUARE" } }) };
+            case 0x5: return { digit ("Y - TUNE (8-F FLAT, 1-7 SHARP)", false) };
+            case 0x6: return { digit ("Y - REPEATS (0 = MARK THE START)", false, hexes (0, 15, "0 START")) };
+            case 0x8: return { digit ("Y - PAN (0 LEFT, F RIGHT)", false) };
+            case 0x9: case 0xC: case 0xD: return { digit ("Y - TICKS", false) };
+            case 0xE: return { digit ("Y - LINES", false) };
+            default:  return { digit ("Y - AMOUNT", false) };
+        }
+    }
+    switch (L)
+    {
+        case 0x0: return { digit ("X - FIRST STEP UP (SEMITONES)", true), digit ("Y - SECOND STEP UP (SEMITONES)", false) };
+        case 0x4: case 0x7: return { digit ("X - SPEED", true), digit ("Y - DEPTH", false) };
+        case 0x5: case 0x6: case 0xA: return { digit ("X - VOLUME UP (USE X OR Y)", true), digit ("Y - VOLUME DOWN", false) };
+        case 0x8: return { whole ("XX - PAN", { { 0x00, "00 LEFT" }, { 0x40, "40" }, { 0x80, "80 CENTRE" }, { 0xC0, "C0" }, { 0xFF, "FF RIGHT" } }) };
+        case 0xC: return { whole ("XX - VOLUME", { { 0x00, "00 SILENT" }, { 0x10, "10 QUARTER" }, { 0x20, "20 HALF" }, { 0x30, "30" }, { 0x40, "40 FULL" } }) };
+        case 0xF: return { whole ("XX - SPEED (01-1F) OR BPM (20-FF)", { { 0x03, "03 SPEED 3" }, { 0x06, "06 SPEED 6" }, { 0x78, "78 = 120 BPM" }, { 0x8C, "8C = 140 BPM" }, { 0xAA, "AA = 170 BPM" }, { 0xAF, "AF = 175 BPM" }, { 0x00, "00 STOP" } }) };
+        default: break;
+    }
+    if (L == kCmdDub) return { digit ("X - HOW MUCH (0 = RIDE THE FEEDBACK)", true), digit ("Y - LINES (0 = TO THE NEXT NOTE)", false) };
+    if (L == kCmdCond)
+        return { digit ("X - WHICH PASS (0 = A SPECIAL ONE)", true),
+                 digit ("Y - OF EVERY (WITH X = 0: 1 FILL, 2 NOT FILL, 3 FIRST, 4 NOT FIRST)", false) };
+    if (is ('R')) return { digit ("X - EVERY HOW MANY TICKS", true), digit ("Y - 0 SAME, 1-7 QUIETER, 9-F LOUDER", false) };
+    if (is ('X')) return { digit ("X - WHAT", true, { { 0, "0 NOTE" }, { 1, "1 VOLUME" }, { 2, "2 PAN" }, { 3, "3 START" } }), digit ("Y - HOW MUCH", false) };
+    if (is ('U')) return { whole ("XX - DIRECTION", { { 0, "00 FORWARDS" }, { 1, "01 BACKWARDS" } }, false) };
+    if (is ('K')) return { whole ("XX - HOW OFTEN", { { 0x20, "20 (13%)" }, { 0x40, "40 (25%)" }, { 0x80, "80 (50%)" }, { 0xC0, "C0 (75%)" }, { 0xFF, "FF ALWAYS" } }) };
+    if (is ('I')) return { whole ("XX - TRANSPOSE (80 = NONE)", { { 0x74, "74 -12" }, { 0x7B, "7B -5" }, { 0x80, "80 NONE" }, { 0x87, "87 +7" }, { 0x8C, "8C +12" } }) };
+    if (is ('T')) return { whole ("XX - CENTS (80 = IN TUNE)", { { 0x60, "60 -32" }, { 0x80, "80 IN TUNE" }, { 0xA0, "A0 +32" } }) };
+    if (is ('M')) return { whole ("XX - TIMING (01-7F LATE, 81-FF EARLY)", { { 0x00, "00 ON TIME" }, { 0x20, "20 A BIT LATE" }, { 0x40, "40 LATE" }, { 0xA0, "A0 A BIT EARLY" }, { 0xC0, "C0 EARLY" } }) };
+    if (is ('Z')) return { whole ("XX - BITS", { { 0x00, "00 OFF" }, { 0x04, "04 BITS" }, { 0x06, "06" }, { 0x08, "08" }, { 0x0C, "0C" } }) };
+    if (is ('N') || is ('G') || is ('Y')) return { whole ("XX - TICKS", { { 0x01, "01" }, { 0x02, "02" }, { 0x03, "03" }, { 0x06, "06" }, { 0x0C, "0C" } }) };
+    return { whole ("XX - VALUE", levels()) };
+}
+
 const std::vector<CommandInfo>& commandList()
 {
     static const std::vector<CommandInfo> list {

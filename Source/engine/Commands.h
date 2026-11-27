@@ -24,6 +24,19 @@ struct CommandInfo
 };
 const std::vector<CommandInfo>& commandList();
 
+// (v1.01) The command builder (right-click EFFECT COMMANDS): how a command's value is made, as named buttons.
+// A part is the whole value (XX), or one digit (X: the high digit, Y: the low one). Each choice is a button: the
+// value it sets that part to, and its name ("2 ROLL", "3 LINES"). fine: -/+ nudges for a whole value too.
+struct CommandPart
+{
+    std::string label;                                   // "X - WHICH PAD"
+    int shift = 0, mask = 0xFF;                          // the part's bits: (value >> shift) & mask
+    std::vector<std::pair<int, std::string>> choices;
+    bool fine = false;
+};
+// choppage: the cell's instrument is CHOPPAGE; pad: the U beside a 9xx (0-7, else -1)
+std::vector<CommandPart> commandParts (const CommandInfo&, bool choppage, int pad = -1);
+
 // (v1.01) On a CHOPPAGE track the sample-only commands mean something else: Uxy holds FX pad x for y lines, 9xx is
 // that hit's pad setting, Sxx plays slice xx+1 of the break playing. Empty for any other command.
 std::string choppageCommandName (int cmd);

@@ -612,7 +612,11 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 
 ## Effect commands
 
-**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for a list of every command with what it does (a cell holding a chord, `#xy`, gives the chord list instead). Click one (or use the arrows and Enter; typing a command's letter jumps to it, and `E` again steps through the E commands) and it goes into that cell with a useful starting value — or the value already there, if it was the same command — and the cursor lands on the value so you can type over it. `Esc` closes the list. It's one undo step.
+**Right-click an effect cell** in the pattern (FX1, or FX2 when it's shown) for **EFFECT COMMANDS** (a cell holding a chord, `#xy`, gives the chord list instead). The commands are down the left (the arrows move through them; typing a command's letter jumps to it, and `E` again steps through the E commands). On the right you build the one you've picked:
+* at the top, the command as you'd type it, big, and what it does in words: **`U 2 3 = ROLL FOR 3 LINES`**;
+* under it, what the command does and how to use it, in full;
+* then a row of named buttons for each digit: for `U` on a CHOPPAGE track, **X - WHICH PAD** (`0 LET GO`, `1 STUTTER`, `2 ROLL`...) and **Y - HOW MANY LINES** (`0 UNTIL NEXT U`, `1 LINE`, `2`...). Commands with one value (`C`, `8`, `F`...) have useful values to click (`40 FULL`, `80 CENTRE`, `AA = 170 BPM`) and `- 1`, `+ 1`, `- 10`, `+ 10` (hex) to nudge it; `←` / `→` nudge it from the keyboard too.
+It opens on the command and value already in the cell. **INSERT** (or `Enter`, or a double-click on a command) puts it in the cell, as one undo step; `Esc` closes it.
 
 Same numbering as ProTracker, so MOD files load straight in.
 
