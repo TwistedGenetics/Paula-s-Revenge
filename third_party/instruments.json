@@ -3,8 +3,8 @@
   "choppage": {
     "name": "CHOPPAGE",
     "repo": "TwistedGenetics/Choppage",
-    "commit": "e34107d8a7dfe4a245f54ba790f245951daf8c20",
-    "version": "0.16.0",
+    "commit": "428976db1645e86f62c97c9f85970ac1427cf849",
+    "version": "0.16.1",
     "version_from": [
       "CMakeLists.txt",
       "project\\(Choppage VERSION ([0-9.]+)"

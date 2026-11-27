@@ -90,7 +90,11 @@ namespace bc
             const float env = envDecay * (1.0f + tailLift * std::min (1.0f, (float) age / (float) (0.02 * sampleRate)));
             g *= env;
 
-            if (cyclic) grains.tick (head);
+            if (cyclic)
+            {
+                if (s.inTime) grains.tickInTime (head, stretch, s.rate);   // (IN TIME: the stretch's sound, the slice's time)
+                else grains.tick (head);
+            }
             for (int ch = 0; ch < numChannels; ++ch)
             {
                 const float v = cyclic ? grains.sample ([this, ch] (double p) { return read (ch, p); }) : read (ch, head);

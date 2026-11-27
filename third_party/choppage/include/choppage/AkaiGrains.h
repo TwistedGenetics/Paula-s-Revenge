@@ -7,6 +7,10 @@
     1 / stretch, and adds the grains up. Here that runs one output sample at a time:
 
         tick (srcPos)     every hop: a new grain starts reading at srcPos
+        tickInTime (srcPos, stretch, rate)
+                          AKAIZE MODE IN TIME: the grains read as they would stretched by `stretch` (each group of
+                          about `stretch` grains moves through the source at 1 / stretch), then the next group jumps
+                          on to where the beat is - the Akai stretch's metallic sound, the beat kept
         sample (read)     sum of every live grain: read (grain position) x sin (pi x (age + 1) / L)
         advance (rate)    every grain reads on by rate (1 = the source's own speed, more = pitched up)
 
@@ -34,20 +38,32 @@ namespace bc
             step = 1.0 / (double) length;
         }
 
-        void reset() noexcept { count = 0; sinceHop = 1.0e9; }
+        void reset() noexcept { count = 0; sinceHop = 1.0e9; groupLeft = 0; }
 
         /** Call once per output sample, before sample(): starts a grain at srcPos when one is due. */
         void tick (double srcPos) noexcept
         {
+            if (sinceHop >= hop) start (srcPos);
+            sinceHop += 1.0;
+        }
+
+        /** IN TIME: as tick(), but the grains move through the source as a stretch by `stretch` would (rate: how
+            far the source moves per output sample at normal speed), and every group of round (stretch) grains starts
+            again from srcPos (where the beat is now). At stretch 1 it's the same as tick(). */
+        void tickInTime (double srcPos, double stretch, double rate = 1.0) noexcept
+        {
             if (sinceHop >= hop)
             {
-                sinceHop = sinceHop > 2.0 * hop ? 0.0 : sinceHop - hop;
-                if (count == kMaxGrains)
+                stretch = std::max (1.0, stretch);
+                if (groupLeft <= 0)
                 {
-                    for (int k = 1; k < count; ++k) grains[(size_t) (k - 1)] = grains[(size_t) k];
-                    --count;
+                    groupStart = srcPos;
+                    groupIndex = 0;
+                    groupLeft = std::max (1, (int) std::lround (stretch));
                 }
-                grains[(size_t) count++] = { srcPos, 0 };
+                start (groupStart + (double) groupIndex * hop * rate / stretch);
+                ++groupIndex;
+                --groupLeft;
             }
             sinceHop += 1.0;
         }
@@ -83,6 +99,17 @@ namespace bc
     private:
         struct Grain { double pos; int age; };
 
+        void start (double srcPos) noexcept
+        {
+            sinceHop = sinceHop > 2.0 * hop ? 0.0 : sinceHop - hop;
+            if (count == kMaxGrains)
+            {
+                for (int k = 1; k < count; ++k) grains[(size_t) (k - 1)] = grains[(size_t) k];
+                --count;
+            }
+            grains[(size_t) count++] = { srcPos, 0 };
+        }
+
         // sin (pi x t) for t in 0..1, from a table
         static float window (double t) noexcept
         {
@@ -103,5 +130,7 @@ namespace bc
         int length = 1600;
         double hop = 860.0, sinceHop = 1.0e9, step = 1.0 / 1600.0;
         float norm = 1.0f;
+        double groupStart = 0.0;           // IN TIME: where this group of grains started in the source
+        int groupIndex = 0, groupLeft = 0;
     };
 }
