@@ -24,6 +24,14 @@ struct CommandInfo
 };
 const std::vector<CommandInfo>& commandList();
 
+// (v1.01) On a CHOPPAGE track the sample-only commands mean something else: Uxy holds FX pad x for y lines, 9xx is
+// that hit's pad setting, Sxx plays slice xx+1 of the break playing. Empty for any other command.
+std::string choppageCommandName (int cmd);
+std::string choppageOverview (int cmd);
+// pad: the pad the 9xx goes with (0-7, from the U beside it or held), -1 not known
+std::string describeChoppageCommand (int cmd, uint8_t param, int pad = -1);
+const char* choppagePadName (int pad);   // 0-7: STUTTER ... S950 DROP
+
 // true if the command can be stored in a .MOD (0-F)
 inline bool isProTrackerCommand (int cmd) { return cmd >= 0 && cmd < 16; }
 } // namespace prv

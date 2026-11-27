@@ -668,7 +668,7 @@ Inspired by the Polyend Tracker's step FX. Type the letter in an effect column, 
 | `Rxy` | Roll: retrigger every x ticks; y `1–7` quieter, `9–F` louder each time |
 | `Sxx` | Play slice xx+1 of the instrument's slice points, or of its SXX PARTS (16 equal parts, or 32, 48, 64) if it has none (stops at the slice end; with PLAY THRU on, plays on to END) |
 | `Txx` | Micro-tune: `80` = 0, each step = 1 cent |
-| `U01` / `U00` | Play backwards / forwards |
+| `U01` / `U00` | Play backwards / forwards. **On a CHOPPAGE track, `Uxy` holds FX pad x for y lines** (see CHOPPAGE) |
 | `Wxx` | Band-pass filter, cutoff xx |
 | `Xxy` | Randomise: x `0` note ±y semitones, `1` volume ±y×4, `2` pan ±y×16, `3` start up to y/16 |
 | `Zxx` | Bit crush to xx bits (`01–0F`) |
@@ -1128,6 +1128,11 @@ On TABLE, grains of the same note line up with each other, so with SPRAY and SPR
 * **The notes:** `C-1` to `G-1` start breaks 1 to 8, in time with the song. `G#1` to `D#2` are its FX pads while held (STUTTER, ROLL, REVERSE, TAPE STOP, HALF-TIME, AKAIZE, FILT DIVE, S950 DROP). `E-2` to `G-3` play slices 1 to 16 of the playing break; `G#3` to `B-4` recall its 16 pattern memories.
 * It slices each break and marks every hit (kick, snare, ghost, hat, open hat); **PATTERN** and **FX** roll new patterns and effects from the break's own hits. Its **SEQ**, **FX**, **SET**, **AKAI** and **DISK** tabs hold the rest.
 * Its sound goes into the instrument's track like any instrument's: EQ, effects, the mixer and SXX parts all work.
+* **Its own commands** (on its track; they only mean this on CHOPPAGE):
+  * **`Uxy` FX PAD**: holds pad **x** for **y** lines, as if you held its key. x: `1` STUTTER, `2` ROLL, `3` REVERSE, `4` TAPE STOP, `5` HALF-TIME, `6` AKAIZE, `7` FILT DIVE, `8` S950 DROP. y: `1`–`F` lines, `0` until the next `U` on the track. `U00` lets go. `U23` = ROLL for 3 lines; `U61` = AKAIZE for one line; `U40` = TAPE STOP until the next U.
+  * **`9xx` PAD SETTING** (in the other effect column, beside the `U`): that hit's setting, without touching the knob. STUTTER / ROLL `00`–`03` = 1/8, 1/16, 1/32, 1/64; TAPE STOP `00`–`FF` = 0.1–3 s; HALF-TIME `00`–`04` = 1/2, 3/4, 2/3, 1/4, 1/2 TAPE; AKAIZE `00`–`03` = stretch 1.5, 2, 3, 4; FILT DIVE `00`–`FF` = resonance; S950 DROP `00`–`FF` = 4–15.6 kHz. `U23` + `903` = ROLL at 1/64 for 3 lines. On its own, it changes the pad the track is holding.
+  * **`Sxx` SLICE**: plays slice xx+1 of the break playing, over the top (`00`–`3F` = slices 1–64). `S13` = slice 20.
+  * `Kxx` (chance) and `?xy` (conditions) work on these lines too, so pad hits can be random or fill-only. The right-click EFFECT COMMANDS list explains them on a CHOPPAGE track.
 * **0.17.1:** **ROLL** is a step FX on the SEQ FX row (RL; RATE is the roll's size). STRETCH steps and the AKAIZE pad share one Akaize setup on the AKAI tab; with a STRETCH step picked, **AKAI >** opens it. A pad held while the FX lane plays another effect now keeps time. **EDIT** (or a double-click on the instrument) opens CHOPPAGE's panel from any page.
 * **0.17:** LOAD opens its **DISK** tab, which keeps **8 PLACES** (STORE, then a PLACE key) and lets `↑` / `↓` step through the breaks, playing each one (`Return` loads, `←` goes up a folder). **SEQ** shows hits as letters (K S GS H O, P for perc) and has **N PROB** and **FX PROB** rows: Elektron-style conditions for each step's note and FX (click a cell for the list, right-click for ALWAYS; FILL uses SEQ's **FILL** key). **UNDO** / **REDO** (and `Cmd+Z` / `Cmd+Shift+Z` while it's on screen) take back anything in it. On its FX tab, hold Shift and use the mouse wheel to change a value. ROLL has six MODEs (pitch up or down, velocity up or down, with or without pitch), HALF-TIME has 1/2, 3/4, 2/3, 1/4 and 1/2 TAPE, and the PATTERN dice builds from real break grooves for each STYLE.
 

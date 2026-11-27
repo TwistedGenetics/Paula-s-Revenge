@@ -919,6 +919,7 @@ juce::String PatternEditor::contextName (int line, int track, uint8_t cmd) const
 {
     const int ins = instrumentAt (line, track);
     const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
+    if (ins >= 0 && proc.song.instruments[(size_t) ins].isChoppage() && ! choppageCommandName (cmd).empty()) return "CHOP " + juce::String (choppageCommandName (cmd));
     if (plug && knobForCmd (cmd) >= 0) return "KNOB " + juce::String::charToString ((juce::juce_wchar) commandChar (cmd));
     if (plug && cmd == cmdLetter ('O')) return "MOD WHEEL";
     return {};
@@ -933,6 +934,7 @@ juce::String PatternEditor::contextOverview (int line, int track, uint8_t cmd) c
         const auto& t = proc.song.mixer.trackAuto[juce::jlimit (0, kMaxTracks - 1, track)][cmd == cmdLetter ('V') ? 0 : 1];
         return t.valid() ? juce::String (t.name) : juce::String ("NOT SET: LEARN IT IN THE MIXER (EFFECT PAGE)");
     }
+    if (ins >= 0 && proc.song.instruments[(size_t) ins].isChoppage() && ! choppageOverview (cmd).empty()) return juce::String (choppageOverview (cmd));
     if (plug)
     {
         const int k = knobForCmd (cmd);
@@ -953,6 +955,19 @@ juce::String PatternEditor::contextDescribe (int line, int track, uint8_t cmd, u
     const int pct = juce::roundToInt (param / 255.0 * 100.0);
     const int ins = instrumentAt (line, track);
     const bool plug = ins >= 0 && proc.song.instruments[(size_t) ins].isPlugin();
+    if (ins >= 0 && proc.song.instruments[(size_t) ins].isChoppage() && ! choppageCommandName (cmd).empty())
+    {
+        // 9xx goes with the U beside it (the other effect column)
+        int pad = -1;
+        const auto& b = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)];
+        if (line >= 0 && line < b.lines && track >= 0 && track < proc.song.numTracks)
+        {
+            const auto& c = b.at (line, track);
+            uint8_t u = 0;
+            if (c.has (cmdLetter ('U'), u) && (u >> 4) >= 1 && (u >> 4) <= 8) pad = (u >> 4) - 1;
+        }
+        return juce::String (describeChoppageCommand (cmd, param, pad));
+    }
     if (cmd == cmdLetter ('V') || cmd == cmdLetter ('J'))
     {
         const bool a = cmd == cmdLetter ('V');

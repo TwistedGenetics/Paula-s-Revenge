@@ -27,6 +27,8 @@ namespace
     // OctaMED's 8-channel mix of a pair of tracks: halved into one 8-bit channel, then (here) back up
     inline float grit (float s) { return quant8 (s * 0.5f) * 2.0f; }
 
+    // CHOPPAGE's MIDI (third_party/choppage Model.h): FX pads from G#1, CC 102 a slice, CC 103+ a pad's setting
+    namespace choppage { constexpr int kFirstPadNote = 44, kCcPlaySlice = 102, kCcPadSetting = 103; }
     constexpr uint8_t C_G = cmdLetter ('G'), C_H = cmdLetter ('H'), C_K = cmdLetter ('K'), C_L = cmdLetter ('L'),
                       C_M = cmdLetter ('M'), C_N = cmdLetter ('N'), C_O = cmdLetter ('O'), C_P = cmdLetter ('P'),
                       C_Q = cmdLetter ('Q'), C_R = cmdLetter ('R'), C_S = cmdLetter ('S'), C_T = cmdLetter ('T'),
@@ -537,6 +539,7 @@ void Player::stop()
     // the throws close (the echoes ring on), a feedback ride goes back
     mixerEngine.endThrows();
     for (auto& t : throwLines) t = 0;
+    for (int i = 0; i < kMaxTracks; ++i) { chopPad[i] = -1; chopPadLines[i] = 0; }   // (synthAllOff let the pads go)
     if (feedbackRidden && song != nullptr) { mixerEngine.setFeedbackRide (song->mixer, -1.0f); feedbackRidden = false; }
     for (int i = 0; i < kMaxTracks; ++i) { voices[i].active = false; voices[i].microDelay = -1; }
 }
@@ -768,6 +771,7 @@ void Player::processRow()
                 else if ((sk - 1) / 1024 != block || (sk - 1) % 1024 < line) skipCell[(size_t) ch].store (0, std::memory_order_relaxed);   // (gone past it)
             }
             dubLine (ch, c);
+            chopLine (ch);
             if (cp == &b.at (line, ch) && ! plays[ch]) continue;   // (Kxx / ?xy: not this time)
             processCell (ch, c);
         }
@@ -1466,11 +1470,69 @@ void Player::dubLine (int ch, const Cell& c)
     else if (throwLines[ch] > 0 && --throwLines[ch] == 0) mixerEngine.setThrow (ch, 0.0f);
 }
 
+void Player::chopRelease (int ch)
+{
+    if (ch < 0 || ch >= kMaxTracks || chopPad[ch] < 0) return;
+    if (auto* s = rack.at (chopPadInstr[ch])) s->noteOff (choppage::kFirstPadNote + chopPad[ch], chunkPos);
+    chopPad[ch] = -1;
+    chopPadLines[ch] = 0;
+}
+
+void Player::chopLine (int ch)
+{
+    if (ch >= 0 && ch < kMaxTracks && chopPad[ch] >= 0 && chopPadLines[ch] > 0 && --chopPadLines[ch] == 0) chopRelease (ch);
+}
+
+// CHOPPAGE's own commands (the sample-only ones, which mean nothing to a plug-in, put to use):
+//   Uxy  hold FX pad x (1-8: STUTTER ROLL REVERSE TAPE STOP HALF-TIME AKAIZE FILT DIVE S950 DROP) for y lines (0: until
+//        the next U on the track); U00 lets go
+//   9xx  that pad's setting for this press (with the U, or on the pad held): STUTTER / ROLL 00-03 = 1/8 1/16 1/32 1/64,
+//        TAPE STOP 00-FF = 0.1-3 s, HALF-TIME 00-04 = 1/2 3/4 2/3 1/4 1/2 TAPE, AKAIZE 00-03 = stretch 1.5 2 3 4,
+//        FILT DIVE 00-FF = resonance, S950 DROP 00-FF = 4-15.6 kHz
+//   Sxx  play slice xx+1 (00-3F) of the break playing
+bool Player::chopCommand (Voice& v, int ch, uint8_t cmd, uint8_t param, const Cell& cell)
+{
+    if (ch < 0 || ch >= kMaxTracks || ! isSynthVoice (v) || v.instr < 0 || ! song->instruments[(size_t) v.instr].isChoppage()) return false;
+    if (cmd != C_U && cmd != C_S && cmd != 0x9) return false;
+    auto* s = rack.at (v.instr);
+    if (s == nullptr) return true;
+    auto setting = [&] (int pad, uint8_t p9)
+    {
+        int val = 0;
+        switch (pad)
+        {
+            case 0: case 1: case 5: val = std::min ((int) p9, 3) + 1; break;           // a rate / a stretch
+            case 4:                 val = std::min ((int) p9, 4) + 1; break;           // a HALF-TIME mode
+            case 3: case 6: case 7: val = 1 + (int) p9 * 126 / 255; break;             // a time, a resonance, a rate
+            default: return;                                                           // (REVERSE has none)
+        }
+        s->controller (choppage::kCcPadSetting + pad, val, chunkPos);
+    };
+    if (cmd == C_S) { s->controller (choppage::kCcPlaySlice, std::min ((int) param, 63), chunkPos); return true; }
+    if (cmd == 0x9)
+    {
+        uint8_t u = 0;
+        if (! cell.has (C_U, u) && chopPad[ch] >= 0) setting (chopPad[ch], param);   // (with a U: the U sends it first)
+        return true;
+    }
+    const int x = param >> 4, y = param & 15;
+    chopRelease (ch);
+    if (x < 1 || x > 8) return true;                       // U00: let go
+    uint8_t p9 = 0;
+    if (cell.has (0x9, p9)) setting (x - 1, p9);
+    s->noteOn (choppage::kFirstPadNote + x - 1, 100, chunkPos);
+    chopPad[ch] = x - 1;
+    chopPadInstr[ch] = v.instr;
+    chopPadLines[ch] = y > 0 ? y : -1;
+    return true;
+}
+
 void Player::applyRowCommand (Voice& v, uint8_t cmd, uint8_t param, const Cell& cell)
 {
     const int x = param >> 4, y = param & 15;
     if (cmd == 0 && param == 0) return;
     const int ch = (int) (&v - voices);
+    if (chopCommand (v, ch, cmd, param, cell)) return;
     // !xy DUB THROW: the track into the dub echo (return B) at x/F, for y lines (0: to its next note);
     // !0y: the echo's feedback ridden to y/F (!00: back to its own setting)
     if (cmd == kCmdDub && ch >= 0 && ch < kMaxTracks && song != nullptr)

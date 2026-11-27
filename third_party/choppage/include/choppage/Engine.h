@@ -184,6 +184,7 @@ namespace bc
 
         // FX
         std::array<bool, kFxPads> midiPad {};
+        std::array<int, kFxPads> padOverride { -1, -1, -1, -1, -1, -1, -1, -1 };   // CC 103+: a setting for this press (-1: the knob)
         std::array<int, kFxPads> autoPadLeft {};   // FX lane events, samples left
         // PAD QUANTISE: a press waits for the next grid line, a release (or a short tap) ends on the one after
         std::array<bool, kFxPads> padWas {}, padOn {}, padArmed {}, padStopArmed {}, padTap {};

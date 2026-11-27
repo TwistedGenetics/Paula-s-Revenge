@@ -95,6 +95,20 @@ kbd, code { font: 600 0.88em var(--mono); background: var(--soft); border: 1px s
   <!-- ENTRIES (newest first). Each: <section class="entry"><h2>…</h2><p class="when">build / date</p>
        <h3>…</h3><p class="where">Manual: section</p> … </section> -->
   <section class="entry">
+    <h2>CHOPPAGE's FX pads from the pattern: Uxy, 9xx, Sxx</h2>
+    <p class="when">v1.01.0 &middot; 27 November 2026</p>
+    <p class="where">Manual: Instruments &rarr; CHOPPAGE; Effect commands</p>
+    <p>On a track playing CHOPPAGE, three commands that only make sense for samples now control CHOPPAGE instead (on any other instrument they do what they always did):</p>
+    <ul>
+      <li><b>Uxy &ndash; FX PAD.</b> Holds pad <b>x</b> for <b>y</b> lines, as if you held its key. <b>x</b>: 1 STUTTER, 2 ROLL, 3 REVERSE, 4 TAPE STOP, 5 HALF-TIME, 6 AKAIZE, 7 FILT DIVE, 8 S950 DROP. <b>y</b>: 1&ndash;F lines, or 0 for &ldquo;until the next U on this track&rdquo;. <b>U00</b> lets go.<br>
+        <b>U23</b> = U (FX pad) &middot; 2 (ROLL) &middot; 3 (for 3 lines). <b>U61</b> = AKAIZE for one line. <b>U40</b> = TAPE STOP until the next U.</li>
+      <li><b>9xx &ndash; PAD SETTING.</b> Put it in the other effect column, beside the U: that hit's setting, without moving the knob. STUTTER / ROLL 00&ndash;03 = 1/8, 1/16, 1/32, 1/64; TAPE STOP 00&ndash;FF = 0.1&ndash;3 s; HALF-TIME 00&ndash;04 = 1/2, 3/4, 2/3, 1/4, 1/2 TAPE; AKAIZE 00&ndash;03 = stretch 1.5, 2, 3, 4; FILT DIVE 00&ndash;FF = resonance; S950 DROP 00&ndash;FF = 4&ndash;15.6 kHz.<br>
+        <b>U23 + 903</b> = ROLL at 1/64 for 3 lines.</li>
+      <li><b>Sxx &ndash; SLICE.</b> Plays slice xx+1 of the break playing, over the top: 00&ndash;3F = slices 1&ndash;64. <b>S13</b> = slice 20.</li>
+    </ul>
+    <p><b>Kxx</b> (chance) and <b>?xy</b> (conditions) work on these lines too, so a roll can happen half the time, or only in a fill. The status line and the right-click EFFECT COMMANDS list explain each one in words on a CHOPPAGE track.</p>
+  </section>
+  <section class="entry">
     <h2>EDIT opens CHOPPAGE; CHOPPAGE 0.17.1</h2>
     <p class="when">v1.01.0 &middot; 27 November 2026</p>
     <h3>EDIT opens the instrument</h3>

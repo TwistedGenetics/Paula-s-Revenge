@@ -26,6 +26,14 @@ namespace bc
     constexpr int kFirstSliceNote  = 52;   // E2  .. G3   : slices 1-16 of the playing break
     constexpr int kFirstMemoryNote = 68;   // G#3 .. B4   : pattern memories 1-16
 
+    // MIDI CCs for a host that sequences CHOPPAGE closely (Paula's Revenge's Sxx / 9xx; 0.17.2), any channel:
+    //   CC 102 = v : play slice v + 1 (0-63) of the break played last, now (as a slice note, past slice 16)
+    //   CC 103 + p = v : FX pad p's (0-7) setting for its next press by note, until that note lets go; v 0 = its own knob.
+    //     STUTTER / ROLL: v 1-4 = 1/8 1/16 1/32 1/64 · TAPE STOP: v 1-127 = 0.1 - 3 s · HALF-TIME: v 1-5 = its 5 modes
+    //     AKAIZE: v 1-4 = stretch 1.5 2 3 4 · FILT DIVE: v 1-127 = resonance · S950 DROP: v 1-127 = 4 - 15.6 kHz
+    constexpr int kCcPlaySlice = 102;
+    constexpr int kCcPadSetting = 103;
+
     // What a note does. Map 0 (CHROMATIC, above). Map 1 (C MAJOR, white keys only):
     //   breaks 1-8 C0 D0 E0 F0 G0 A0 B0 C1 (24-36), FX pads 1-8 D1 .. D2 (38-50),
     //   pattern memories 1-12 E2 .. B3 (52-71), slices from C4 (72) upwards (C4 = slice 1, D4 = 2 ...).

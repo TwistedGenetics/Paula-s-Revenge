@@ -336,6 +336,12 @@ private:
     int  throwLines[kMaxTracks] {};            // DUB THROW: -1 open until the next note, > 0 lines still open, 0 closed
     bool feedbackRidden = false;
     void dubLine (int ch, const Cell&);         // (each line, each track: a throw closing)
+    // CHOPPAGE on a track: Uxy holds FX pad x for y lines (0: to the next U), 9xx its setting, Sxx a slice
+    int  chopPad[kMaxTracks] { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    int  chopPadLines[kMaxTracks] {}, chopPadInstr[kMaxTracks] {};
+    void chopLine (int ch);                     // (each line: a held pad's lines counting down)
+    void chopRelease (int ch);
+    bool chopCommand (Voice&, int ch, uint8_t cmd, uint8_t param, const Cell&);
     int  rowGlide = 0; bool knobSetThisRow = false;
     void setLane (Lane&, float value, int glide, int kind, int a, int b);
     void applyLane (int kind, int a, int b, float v);   // kind 0 = track knob (a = track, b = knob), 1 = instrument knob

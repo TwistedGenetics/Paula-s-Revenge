@@ -144,6 +144,63 @@ std::string describeCommand (int c, uint8_t p)
     }
 }
 
+const char* choppagePadName (int pad)
+{
+    static const char* n[8] = { "STUTTER", "ROLL", "REVERSE", "TAPE STOP", "HALF-TIME", "AKAIZE", "FILT DIVE", "S950 DROP" };
+    return pad >= 0 && pad < 8 ? n[pad] : "";
+}
+
+std::string choppageCommandName (int c)
+{
+    if (c == cmdLetter ('U')) return "FX PAD";
+    if (c == cmdLetter ('S')) return "SLICE";
+    if (c == 0x9) return "PAD SETTING";
+    return {};
+}
+
+std::string choppageOverview (int c)
+{
+    if (c == cmdLetter ('U')) return "HOLDS FX PAD X FOR Y LINES: X 1 STUTTER, 2 ROLL, 3 REVERSE, 4 TAPE STOP, 5 HALF-TIME, 6 AKAIZE, 7 FILT DIVE, "
+                                     "8 S950 DROP; Y 1-F LINES, 0 UNTIL THE NEXT U. U00 LETS GO. E.G. U23 = ROLL FOR 3 LINES";
+    if (c == cmdLetter ('S')) return "PLAYS SLICE XX+1 OF THE BREAK PLAYING (00-3F = SLICES 1-64), OVER THE TOP. E.G. S13 = SLICE 20";
+    if (c == 0x9) return "THE PAD'S SETTING FOR THIS HIT, BESIDE ITS U (THE OTHER EFFECT COLUMN): STUTTER / ROLL 00-03 = 1/8 1/16 1/32 1/64, "
+                         "TAPE STOP 00-FF = 0.1-3 S, HALF-TIME 00-04 = 1/2 3/4 2/3 1/4 1/2 TAPE, AKAIZE 00-03 = STRETCH 1.5 2 3 4, "
+                         "FILT DIVE 00-FF = RESONANCE, S950 DROP 00-FF = 4-15.6 KHZ. E.G. U23 + 903 = ROLL AT 1/64 FOR 3 LINES";
+    return {};
+}
+
+std::string describeChoppageCommand (int c, uint8_t p, int pad)
+{
+    const int x = p >> 4, y = p & 15;
+    const std::string head = std::string (1, commandChar (c)) + fmt ("%02X: ", (int) p);
+    if (c == cmdLetter ('U'))
+    {
+        if (x == 0) return head + "LET GO OF THE FX PAD";
+        if (x > 8) return head + "NO SUCH PAD (X IS 1-8)";
+        return head + choppagePadName (x - 1) + (y ? fmt (" FOR %d LINE%s", y, y == 1 ? "" : "S") : std::string (" UNTIL THE NEXT U"))
+               + fmt ("  (U = FX PAD, %d = %s, %d = %s)", x, choppagePadName (x - 1), y, y ? (y == 1 ? "1 LINE" : fmt ("%d LINES", y).c_str()) : "UNTIL THE NEXT U");
+    }
+    if (c == cmdLetter ('S')) return head + fmt ("PLAY SLICE %d OF THE BREAK PLAYING", std::min ((int) p, 63) + 1);
+    if (c == 0x9)
+    {
+        static const char* rate[] = { "1/8", "1/16", "1/32", "1/64" };
+        static const char* half[] = { "1/2", "3/4", "2/3", "1/4", "1/2 TAPE" };
+        static const char* str[] = { "1.5", "2", "3", "4" };
+        switch (pad)
+        {
+            case 0: case 1: return head + choppagePadName (pad) + " AT " + rate[std::min ((int) p, 3)];
+            case 2: return head + "REVERSE HAS NO SETTING";
+            case 3: return head + fmt ("TAPE STOP OVER %.1f S", 0.1 + 2.9 * p / 255.0);
+            case 4: return head + "HALF-TIME " + half[std::min ((int) p, 4)];
+            case 5: return head + "AKAIZE STRETCH " + str[std::min ((int) p, 3)];
+            case 6: return head + fmt ("FILT DIVE RESONANCE %d%%", pct (p));
+            case 7: return head + fmt ("S950 DROP TO %.1f KHZ", 4.0 + 11.6 * p / 255.0);
+            default: return head + "THE FX PAD'S SETTING (PUT IT BESIDE A U)";
+        }
+    }
+    return {};
+}
+
 const std::vector<CommandInfo>& commandList()
 {
     static const std::vector<CommandInfo> list {

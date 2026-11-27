@@ -1212,6 +1212,44 @@ static void testAutomation()
     }
 }
 
+// (v1.01) CHOPPAGE's own commands on its track: Uxy holds FX pad x for y lines, 9xx that press's setting, Sxx a slice
+static void testChoppageCommands()
+{
+    Song song;
+    song.numTracks = 2;
+    auto& in = song.instruments[0];
+    in.plugin = true; in.pluginKey = "BUILTIN:CHOPPAGE"; in.pluginName = "CHOPPAGE";
+    auto& b = song.blocks[0];
+    b.at (0, 0) = { 37, 1, 0, 0 };                                           // the break
+    b.at (1, 0) = { 0, 0, cmdLetter ('U'), 0x23, 0x9, 0x03 };               // ROLL for 3 lines, at 1/64
+    b.at (6, 0) = { 0, 0, cmdLetter ('U'), 0x40 };                          // TAPE STOP until the next U
+    b.at (9, 0) = { 0, 0, cmdLetter ('U'), 0x00, cmdLetter ('S'), 0x13 };   // let go; slice 20
+    std::vector<Ev> log; long long clock = 0;
+    Player p; p.setSampleRate (48000); p.setSong (&song);
+    p.synths().factory = [&] (int, const Instrument&, double) { return std::make_unique<FakeSynth> (&log, &clock); };
+    p.synths().syncNow (song, 48000);
+    p.playBlock (0);
+    const int lineLen = (int) std::lround (48000 * 2.5 / 125) * 6;
+    std::vector<float> L (512), R (512);
+    for (int done = 0; done < lineLen * 11; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
+    auto at = [&] (char t, int a, int b) -> const Ev* { for (auto& e : log) if (e.type == t && e.a == a && (b < 0 || e.b == b)) return &e; return nullptr; };
+    const Ev* rollOn = at ('n', 45, -1), *rollOff = at ('f', 45, -1), *rate = at ('c', 104, 4);
+    CHECK (rollOn && rate && rate->when <= rollOn->when && std::abs ((int) (rollOn->when - lineLen)) <= 2);   // U23 + 903: CC 104 = 4 first
+    CHECK (rollOff && std::abs ((int) (rollOff->when - lineLen * 4)) <= 2);                                  // ... let go 3 lines on
+    const Ev* tapeOn = at ('n', 47, -1), *tapeOff = at ('f', 47, -1);
+    CHECK (tapeOn && tapeOff && std::abs ((int) (tapeOff->when - lineLen * 9)) <= 2);                         // U40: until U00
+    CHECK (at ('c', 102, 0x13) != nullptr);                                                                    // S13: slice 20
+    // the same commands on a plain plug-in mean nothing to it (no pad notes, no CCs)
+    log.clear();
+    in.pluginKey = "synth";
+    p.synths().invalidate (0); p.synths().syncNow (song, 48000);
+    p.playBlock (0);
+    for (int done = 0; done < lineLen * 11; done += 512) { p.render (L.data(), R.data(), 512); clock += 512; }
+    CHECK (at ('n', 45, -1) == nullptr && at ('c', 102, -1) == nullptr);
+    std::printf ("CHOPPAGE commands: roll on %lld off %lld, tape off %lld (line %d)\n", rollOn ? rollOn->when : -1, rollOff ? rollOff->when : -1,
+                 tapeOff ? tapeOff->when : -1, lineLen);
+}
+
 static void testPluginInstruments()
 {
     Song song;
@@ -7993,6 +8031,7 @@ int main()
     testPluginSlots();
     testAutomation();
     testPluginInstruments();
+    testChoppageCommands();
     testOnOff();
     testChords();
     testChordTable();

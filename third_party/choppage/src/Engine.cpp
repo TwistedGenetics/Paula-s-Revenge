@@ -258,7 +258,10 @@ namespace bc
         {
             const auto use = noteUse (note, s.noteMap);
             if (use.role == NoteRole::fxPad)
+            {
                 midiPad[(size_t) use.index] = false;
+                padOverride[(size_t) use.index] = -1;
+            }
             else
                 for (auto& p : players)
                     if (note == p.heldBreakNote)
@@ -267,9 +270,14 @@ namespace bc
                         if (s.gateMode == 1) p.latched = false;   // HOLD; ONE SHOT ignores the note-off
                     }
         }
+        else if (m.status() == 0xB0 && m.data[1] == kCcPlaySlice)
+            pendingSliceNote = std::min ((int) m.data[2], kMaxSlices - 1);
+        else if (m.status() == 0xB0 && m.data[1] >= kCcPadSetting && m.data[1] < kCcPadSetting + kFxPads)
+            padOverride[(size_t) (m.data[1] - kCcPadSetting)] = m.data[2] == 0 ? -1 : m.data[2] - 1;
         else if (m.isAllOff())
         {
             midiPad.fill (false);
+            padOverride.fill (-1);
             for (auto& p : players)
             {
                 p.heldBreakNote = -1;
@@ -335,8 +343,10 @@ namespace bc
                 const bool halfTime = s.pads.quantSteps > 0.0 ? padOn[PerfFx::halfTime]   // (quantised like the other pads)
                                                               : midiPad[PerfFx::halfTime] || uiPad[PerfFx::halfTime].load();
                 static const double kHalf[] = { 0.5, 0.75, 2.0 / 3.0, 0.25, 0.5 };   // HALF-TIME MODE (as halfTimeFactor)
-                const double speed = s.speed * (halfTime ? kHalf[clampv (s.halfMode, 0, 4)] : 1.0);
-                halfTape = halfTime && s.halfMode == 4;
+                const int halfMode = padOverride[PerfFx::halfTime] >= 0 && midiPad[PerfFx::halfTime]
+                                         ? clampv (padOverride[PerfFx::halfTime], 0, 4) : s.halfMode;
+                const double speed = s.speed * (halfTime ? kHalf[clampv (halfMode, 0, 4)] : 1.0);
+                halfTape = halfTime && halfMode == 4;
                 const bool followHost = host.playing && ! halfTime;
 
                 bool anyRunning = false;
@@ -482,6 +492,17 @@ namespace bc
                 ps.stutterDiv = autoStutterDiv;
             if (autoPadLeft[PerfFx::roll] > 0 && ! midiPad[PerfFx::roll] && ! uiPad[PerfFx::roll].load())
                 ps.rollDiv = autoRollDiv;
+            // a setting for this press (CC 103+, e.g. Paula's 9xx), while its note holds the pad
+            {
+                static const int div[] = { 8, 16, 32, 64 };
+                static const double ratio[] = { 1.5, 2.0, 3.0, 4.0 };
+                auto ov = [this] (int p) { return midiPad[(size_t) p] ? padOverride[(size_t) p] : -1; };
+                if (ov (PerfFx::stutter) >= 0) ps.stutterDiv = div[clampv (ov (PerfFx::stutter), 0, 3)];
+                if (ov (PerfFx::roll) >= 0)    ps.rollDiv = div[clampv (ov (PerfFx::roll), 0, 3)];
+                if (ov (PerfFx::tapeStop) >= 0) ps.tapeMs = 100.0 + 2900.0 * clampv (ov (PerfFx::tapeStop), 0, 126) / 126.0;
+                if (ov (PerfFx::akaize) >= 0)  ps.akRatio = ratio[clampv (ov (PerfFx::akaize), 0, 3)];
+                if (ov (PerfFx::filterDive) >= 0) ps.diveRes = (float) clampv (ov (PerfFx::filterDive), 0, 126) / 126.0f;
+            }
             const double samplesPerStep = sr * 60.0 / bpm / 4.0;
             const double ppqHere = host.playing ? host.ppq + c0 * ppqPerSample : internalPpq;
             ps.samplesSinceGrid = (ppqHere * 4.0 - std::floor (ppqHere * 4.0)) * samplesPerStep;
@@ -489,6 +510,8 @@ namespace bc
 
             SoundChain::Settings cs = s.sound;
             cs.dropHeld = held[PerfFx::s950Drop];
+            if (midiPad[PerfFx::s950Drop] && padOverride[PerfFx::s950Drop] >= 0)
+                cs.dropRate = 4000.0 + 11600.0 * clampv (padOverride[PerfFx::s950Drop], 0, 126) / 126.0;
             chain.process (mix[0], mix[1], n, cs);
 
             for (int p = 0; p < kFxPads; ++p)
