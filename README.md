@@ -617,6 +617,7 @@ A MIDI keyboard plays the current instrument, and records notes at the cursor wh
 * its digits, big, each with what it means under it (`U` FX PAD, `2` WHICH PAD, `3` HOW MANY LINES) and, beside them, what it'll do in words (`= ROLL FOR 3 LINES`). **Click a digit** and type `0`–`F` into it (Tab goes from digit to digit), or turn the mouse wheel over it; `←` / `→` nudge it;
 * what each digit can be (`WHICH PAD: 0 LET GO - 1 STUTTER - 2 ROLL...`);
 * **EXAMPLES**: click one to put it straight in the cell.
+* **`#` CHORD**: clicking it in the list (or `Enter` on it) opens the chord list, as before; its card lists the song's chords as examples, so a click there puts that chord straight in.
 It opens on the command and value already in the cell (a new command starts from its first example). **INSERT** (or `Enter`, or a double-click on a command) puts it in, as one undo step; `Esc` closes it.
 
 Same numbering as ProTracker, so MOD files load straight in.

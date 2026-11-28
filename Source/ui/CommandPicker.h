@@ -36,6 +36,7 @@ public:
     void choose (int part, int choice);    // a digit set to one of its values (tests)
     void pickExample (int k);              // an example into the pattern
     int  exampleCount() const { return (int) examples.size(); }
+    bool fromExample = false;              // (the last pick was an example: # CHORD puts that chord in, no list)
     juce::String readout() const;          // "U 2 3 = ROLL FOR 3 LINES"
     int partCount() const { return (int) parts.size(); }
 

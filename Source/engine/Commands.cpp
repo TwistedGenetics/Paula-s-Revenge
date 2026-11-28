@@ -270,6 +270,7 @@ std::vector<CommandPart> commandParts (const CommandInfo& c, bool chop, int pad)
         case 0xF: return { whole ("XX - SPEED (01-1F) OR BPM (20-FF)", { { 0x03, "03 SPEED 3" }, { 0x06, "06 SPEED 6" }, { 0x78, "78 = 120 BPM" }, { 0x8C, "8C = 140 BPM" }, { 0xAA, "AA = 170 BPM" }, { 0xAF, "AF = 175 BPM" }, { 0x00, "00 STOP" } }) };
         default: break;
     }
+    if (L == kCmdChord) return { whole ("XY - WHICH CHORD (ENTER, OR CLICK # CHORD, FOR THE CHORD LIST)", {}, false) };
     if (L == kCmdDub) return { digit ("X - HOW MUCH (0 = RIDE THE FEEDBACK)", true), digit ("Y - LINES (0 = TO THE NEXT NOTE)", false) };
     if (L == kCmdCond)
         return { digit ("X - WHICH PASS (0 = A SPECIAL ONE)", true),

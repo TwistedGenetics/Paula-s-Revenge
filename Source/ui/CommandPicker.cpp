@@ -21,7 +21,13 @@ CommandPicker::CommandPicker()
     const auto& cmds = commandList();
     list.getNumRows = [&cmds] { return (int) cmds.size(); };
     list.getRowText = [this] (int r) { return rowTextFor (r); };
-    list.onClick = [this] (int r, const juce::MouseEvent&) { select (r); grabKeyboardFocus(); };
+    list.onClick = [this] (int r, const juce::MouseEvent&)
+    {
+        // # CHORD goes straight to the chord list (its value is a chord, picked there)
+        if (r >= 0 && r < (int) commandList().size() && commandList()[(size_t) r].cmd == kCmdChord) { pick (r); return; }
+        select (r);
+        grabKeyboardFocus();
+    };
     list.onDoubleClick = [this] (int r) { pick (r); };
     addAndMakeVisible (list);
     insertBtn.onClick = [this] { insert(); };
@@ -104,7 +110,9 @@ void CommandPicker::pickExample (int k)
 {
     if (k < 0 || k >= (int) examples.size()) return;
     param = examples[(size_t) k];
+    fromExample = true;
     insert();
+    fromExample = false;
 }
 
 void CommandPicker::choose (int p, int k)
@@ -233,7 +241,7 @@ void CommandPicker::paint (juce::Graphics& g)
         const float sx = x + px * 2;
         const int sideChars = std::max (8, (int) ((r.getRight() - sx) / cell));
         auto said = wrap ("= " + readout().fromFirstOccurrenceOf (" = ", false, false), sideChars);
-        auto hint = wrap ("CLICK A DIGIT, TYPE 0-F OR TURN THE WHEEL", sideChars);
+        auto hint = wrap (c.cmd == kCmdChord ? "ENTER: THE CHORD LIST" : "CLICK A DIGIT, TYPE 0-F OR TURN THE WHEEL", sideChars);
         float sy = r.getY();
         for (auto& s : said) { PixelFont::draw (g, s, sx, sy, px, yellow); sy += lineH; }
         for (auto& s : hint) { PixelFont::draw (g, s, sx, sy, px, Theme::ink); sy += lineH; }
@@ -250,6 +258,7 @@ void CommandPicker::paint (juce::Graphics& g)
             const bool plain = n.length() <= 2 || n.matchesWildcard ("? (*)", true);
             if (! plain || part.mask == 0xFF) named.add (n);
         }
+        if (part.choices.empty()) continue;   // (# CHORD: its values are the chord list)
         const juce::String line = afterDash (part.label) + ": " + (named.isEmpty() ? juce::String ("0-F") : named.joinIntoString ("  -  "));
         for (auto& s : wrap (line, chars)) { PixelFont::draw (g, s, r.getX(), r.getY(), px, Theme::ink); r.removeFromTop (lineH); }
     }

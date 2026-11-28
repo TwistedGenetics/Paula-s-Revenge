@@ -911,6 +911,13 @@ void PatternEditor::openCommandMenu (int line, int track, int group)
         const auto& cell = proc.song.blocks[(size_t) proc.song.safeBlock (st.block)].at (L, T);
         const uint8_t oc = group == 2 ? cell.cmd : cell.cmd2, op = group == 2 ? cell.param : cell.param2;
         if (oc == cmdLetter ('U') && (op >> 4) >= 1 && (op >> 4) <= 8) pad = (op >> 4) - 1;
+        if (ci.cmd == kCmdChord)
+        {
+            // the song's chords (the filled slots): click one to put it in
+            std::vector<uint8_t> v;
+            for (int i = 1; i < kChordSlots; ++i) if (! proc.song.chords[(size_t) i].empty()) v.push_back ((uint8_t) i);
+            if (! v.empty()) return v;
+        }
         return commandExamples (ci, chop, pad);
     };
     picker->open (group == 2 ? c.cmd2 : c.cmd, group == 2 ? c.param2 : c.param);
@@ -1143,6 +1150,20 @@ void PatternEditor::applyPickedCommand (const CommandInfo& info)
     if (info.cmd == kCmdChord)
     {
         // # CHORD: the cell becomes #xy (the slot already there, else the first filled one), then the chord list
+        // (an example clicked on the card: that chord, straight in)
+        if (picker != nullptr && picker->fromExample && info.param > 0 && info.param < kChordSlots && ! proc.song.chords[(size_t) info.param].empty())
+        {
+            pushUndo (blk, "COMMAND # CHORD");
+            proc.withLock ([&]
+            {
+                auto& c = proc.song.blocks[(size_t) blk].at (pickLine, pickTrack);
+                if (pickGroup == 2) { c.cmd2 = kCmdChord; c.param2 = info.param; } else { c.cmd = kCmdChord; c.param = info.param; }
+            });
+            closeCommandMenu();
+            changed();
+            if (onStatus) onStatus (contextDescribe (pickLine, pickTrack, kCmdChord, info.param));
+            return;
+        }
         uint8_t slot = oldCmd == kCmdChord ? oldParam : 0;
         for (int i = 1; i < kChordSlots && slot == 0; ++i) if (! proc.song.chords[(size_t) i].empty()) slot = (uint8_t) i;
         pushUndo (blk, "COMMAND # CHORD");
